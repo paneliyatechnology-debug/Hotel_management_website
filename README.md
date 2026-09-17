@@ -1,36 +1,122 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🌐 Multi-Tenant Hotel Management - Public Web Portal
 
-## Getting Started
+Modern, responsive, and high-performance public-facing landing and onboarding web application for the **Multi-Tenant Hotel Management Platform**. Built with **Next.js (App Router)**, **React**, and modern CSS styling.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## 🌟 Key Features
+
+- 🏨 **Hotel Self-Registration & Onboarding**:
+  - Step-by-step interactive wizard for hotel owners to onboard their property.
+  - Custom subdomain/slug reservation (e.g. `hotel.com/grand-palace`).
+  - Plan selection & trial activation.
+- 💎 **Interactive Landing & Showcase**:
+  - Premium hero section, feature spotlights, interactive statistics, and social proof.
+  - Live animated demonstration previewing front-desk operations.
+- 💰 **Subscription & Pricing Matrix**:
+  - Dynamic pricing plans (Starter, Professional, Enterprise) loaded directly from the backend API.
+  - Monthly / Annual billing toggles with feature breakdown.
+- 📱 **Fully Responsive Design**:
+  - Mobile-first adaptive layout with desktop header & mobile floating bottom navigation dock.
+- 🔗 **Direct Integration with Backend API**:
+  - Live health status, API service communication, and dynamic hotel slug validation.
+
+---
+
+## 🛠️ Tech Stack
+
+- **Framework**: [Next.js](https://nextjs.org/) (App Router)
+- **UI Library**: [React 19](https://react.dev/)
+- **Icons**: [Lucide React](https://lucide.dev/)
+- **Styling**: CSS Modules & Vanilla Modern CSS Design System (Custom Glassmorphism & Micro-animations)
+- **HTTP Client**: Native Fetch with centralized API configuration
+
+---
+
+## 📁 Project Structure
+
+```text
+web/
+├── public/                # Static assets, SVG icons, and graphics
+├── src/
+│   ├── app/
+│   │   ├── contact/       # Contact us & customer inquiry page
+│   │   ├── features/      # Comprehensive feature breakdown page
+│   │   ├── pricing/       # Subscription plans & pricing tier page
+│   │   ├── register-hotel/# Hotel onboarding & self-registration wizard
+│   │   ├── globals.css    # Global stylesheet & design tokens
+│   │   ├── layout.js      # Root layout with Header & Footer
+│   │   ├── page.js        # Main landing / Home page
+│   │   └── page.module.css# Page-specific scoped styles
+│   ├── components/
+│   │   ├── FloatingTabBar.jsx  # Mobile quick-action navigation dock
+│   │   ├── Footer.jsx          # Multi-column footer with links
+│   │   └── Navbar.jsx          # Responsive sticky navigation bar
+│   └── config/
+│       ├── api.js         # Backend API base endpoints & environment bindings
+│       └── theme.js       # Color palette & branding constants
+├── eslint.config.mjs      # Linting configuration
+├── jsconfig.json          # Path aliases config
+├── next.config.mjs        # Next.js configuration
+└── package.json           # Dependencies and scripts
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+## 🚀 Getting Started
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 1. Prerequisites
+- **Node.js**: v18.0 or higher
+- **Backend Service**: Running on `http://localhost:5000` (or configured API URL)
 
-## Learn More
+### 2. Installation
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+git clone https://github.com/paneliyatechnology-debug/Hotel_management_website.git
+cd Hotel_management_website
+npm install
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 3. Environment Configuration
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Create a `.env.local` file if you want to override the default API base URL:
+```env
+NEXT_PUBLIC_API_URL=http://localhost:5000/api/v1
+```
 
-## Deploy on Vercel
+### 4. Running Locally
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+# Start the Next.js development server on port 3000
+npm run dev
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Open [http://localhost:3000](http://localhost:3000) in your browser to view the web application.
+
+### 5. Production Build
+
+```bash
+# Build production bundle
+npm run build
+
+# Start production server
+npm start
+```
+
+---
+
+## 🧭 Page Routes
+
+| Route | Purpose |
+| :--- | :--- |
+| `/` | Landing page with platform overview and CTA |
+| `/features` | Deep dive into hotel administration & front-desk capabilities |
+| `/pricing` | Tiered subscription plans, pricing comparison & FAQs |
+| `/contact` | Inquiry form, sales contact, and support details |
+| `/register-hotel` | Self-service registration wizard for new hotel onboarding |
+
+---
+
+## 📜 License
+
+This project is proprietary and confidential. Developed by Paneliya Technology.

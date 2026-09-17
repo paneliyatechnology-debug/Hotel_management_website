@@ -11,8 +11,11 @@ export const ENVIRONMENT = "LOCAL"; // 👉 અહીં "LOCAL" અથવા "L
 export const LOCAL_API_URL = "http://localhost:5000";
 export const LIVE_API_URL = "https://hotelmanagementbackend-dev.up.railway.app";
 
-// Active API Base URL
-export const API_BASE_URL = ENVIRONMENT === "LIVE" ? LIVE_API_URL : LOCAL_API_URL;
+// Active API Base URL (Case-insensitive check for LOCAL / LIVE)
+export const API_BASE_URL =
+  (typeof ENVIRONMENT === "string" && ENVIRONMENT.trim().toUpperCase() === "LIVE")
+    ? LIVE_API_URL
+    : LOCAL_API_URL;
 
 
 export const API_ENDPOINTS = {

@@ -9,7 +9,7 @@
 export const ENVIRONMENT = "LIVE"; // 👉 અહીં "LOCAL" અથવા "LIVE" બદલો
 
 export const LOCAL_API_URL = "http://localhost:5000";
-export const LIVE_API_URL = "https://hotel-management-backend-9qf5.onrender.com";
+export const LIVE_API_URL = "https://hotelmanagementbackend-dev.up.railway.app";
 
 // Active API Base URL
 export const API_BASE_URL = ENVIRONMENT === "LIVE" ? LIVE_API_URL : LOCAL_API_URL;
@@ -53,7 +53,12 @@ export async function apiRequest(endpoint, options = {}) {
     config.body = typeof body === "string" ? body : JSON.stringify(body);
   }
 
-  const response = await fetch(endpoint, config);
+  // Ensure full URL is formed correctly with API_BASE_URL
+  const fullUrl = endpoint.startsWith("http://") || endpoint.startsWith("https://")
+    ? endpoint
+    : `${API_BASE_URL ? API_BASE_URL.replace(/\/+$/, "") : ""}/${endpoint.replace(/^\/+/, "")}`;
+
+  const response = await fetch(fullUrl, config);
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {

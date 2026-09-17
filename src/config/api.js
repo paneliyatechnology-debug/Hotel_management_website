@@ -1,27 +1,19 @@
 /**
- * Central API Configuration with Dynamic Local vs. Live Environment Switch
+ * 🛠️ API Environment Configuration (સીધું અહીંથી જ Toggle કરો)
  * 
- * Set in .env.local:
- *   NEXT_PUBLIC_API_MODE="LOCAL" (or "LIVE")
- *   NEXT_PUBLIC_LOCAL_API_URL="http://localhost:5000"
- *   NEXT_PUBLIC_LIVE_API_URL="https://api.yourlivehoteldomain.com"
+ * મોડ બદલવા માટે નીચે ENVIRONMENT માં "LOCAL" અથવા "LIVE" લખો:
+ * - "LOCAL" -> http://localhost:5000
+ * - "LIVE"  -> https://hotel-management-backend-9qf5.onrender.com
  */
 
-export const LOCAL_API_URL = process.env.NEXT_PUBLIC_LOCAL_API_URL || "http://localhost:5000";
-export const LIVE_API_URL = process.env.NEXT_PUBLIC_LIVE_API_URL || "https://hotel-management-backend-9qf5.onrender.com";
+export const ENVIRONMENT = "LIVE"; // 👉 અહીં "LOCAL" અથવા "LIVE" બદલો
 
-// Mode: "LOCAL" | "LIVE" (Defaults to "LIVE" if live URL is provided and in production, otherwise "LOCAL")
-export const API_MODE = process.env.NEXT_PUBLIC_API_MODE || (LIVE_API_URL && process.env.NODE_ENV === "production" ? "LIVE" : "LOCAL");
+export const LOCAL_API_URL = "http://localhost:5000";
+export const LIVE_API_URL = "https://hotel-management-backend-9qf5.onrender.com";
 
-export const API_BASE_URL = (() => {
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL.replace(/\/+$/, "");
-  }
-  if (API_MODE === "LIVE" && LIVE_API_URL) {
-    return LIVE_API_URL.replace(/\/+$/, "");
-  }
-  return LOCAL_API_URL.replace(/\/+$/, "");
-})();
+// Active API Base URL
+export const API_BASE_URL = ENVIRONMENT === "LIVE" ? LIVE_API_URL : LOCAL_API_URL;
+
 
 export const API_ENDPOINTS = {
   HOTELS: {

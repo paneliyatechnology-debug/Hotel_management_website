@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
-import { API_BASE_URL } from "@/config/api";
+import { getApiBaseUrl } from "@/config/api";
 
 const SocketContext = createContext({
   socket: null,
@@ -18,7 +18,7 @@ export function SocketProvider({ children, hotelId }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const socketUrl = API_BASE_URL || "http://localhost:5000";
+    const socketUrl = getApiBaseUrl() || "http://localhost:5000";
 
     const socket = io(socketUrl, {
       transports: ["websocket", "polling"],

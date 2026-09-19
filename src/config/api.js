@@ -6,7 +6,7 @@
  * - "LIVE"  -> https://hotel-management-backend-9qf5.onrender.com
  */
 
-export const ENVIRONMENT = "LOCAL"; // 👉 અહીં "LOCAL" અથવા "LIVE" બદલો
+export const ENVIRONMENT = "LIVE"; // 👉 અહીં "LOCAL" અથવા "LIVE" બદલો
 
 export const LOCAL_API_URL = "http://localhost:5000";
 export const LIVE_API_URL = "https://hotelmanagementbackend-dev.up.railway.app";

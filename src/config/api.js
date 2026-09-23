@@ -6,54 +6,82 @@
  * - "LIVE"  -> https://hotel-management-backend-9qf5.onrender.com
  */
 
-export const ENVIRONMENT = "LIVE"; // 👉 અહીં "LOCAL" અથવા "LIVE" બદલો
+export const ENVIRONMENT = "LOCAL"; // 👉 અહીં "LOCAL" અથવા "LIVE" બદલો
 
 export const LOCAL_API_URL = "http://localhost:5000";
-export const LIVE_API_URL = "https://hotelmanagementbackend-dev.up.railway.app";
+export const LIVE_API_URL = "https://hotel-management-backend-9qf5.onrender.com";
+
+export const LOCAL_ADMIN_URL = "http://localhost:3001";
+export const LIVE_ADMIN_URL = "https://hotel-management-admin-livid.vercel.app";
 
 // Active API Base URL (Case-insensitive check for LOCAL / LIVE)
 export const getApiBaseUrl = () => {
-  if (typeof window !== "undefined") {
-    const override = localStorage.getItem("API_ENVIRONMENT");
-    if (override === "LIVE") return LIVE_API_URL;
-    if (override === "LOCAL") return LOCAL_API_URL;
-  }
+  // 1. Direct ENVIRONMENT in this file has primary priority when set
+  const manualEnv = (typeof ENVIRONMENT !== "undefined" && ENVIRONMENT ? ENVIRONMENT : "").trim().toUpperCase();
 
-  const envMode = (
-    (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_MODE) ||
-    ENVIRONMENT ||
-    "LOCAL"
+  // 2. Next.js env variable
+  const processEnv = (
+    typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_MODE
+      ? process.env.NEXT_PUBLIC_API_MODE
+      : ""
   ).trim().toUpperCase();
+
+  const envMode = manualEnv || processEnv || "LOCAL";
+
+  if (typeof window !== "undefined") {
+    // If set to LOCAL in code, remove stale LIVE override from localStorage
+    if (manualEnv === "LOCAL" && localStorage.getItem("API_ENVIRONMENT") === "LIVE") {
+      localStorage.removeItem("API_ENVIRONMENT");
+    }
+    const override = localStorage.getItem("API_ENVIRONMENT");
+    if (override === "LIVE" && envMode === "LIVE") return LIVE_API_URL;
+    if (override === "LOCAL" && envMode === "LOCAL") return LOCAL_API_URL;
+  }
 
   if (envMode === "LIVE") {
     return (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_LIVE_API_URL) || LIVE_API_URL;
   }
 
-  if (typeof window !== "undefined" && window.location.hostname && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
-    return `http://${window.location.hostname}:5000`;
-  }
-
   return (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_LOCAL_API_URL) || LOCAL_API_URL;
 };
 
+// Active Admin Portal URL (LOCAL vs LIVE)
+export const getAdminUrl = () => {
+  const manualEnv = (typeof ENVIRONMENT !== "undefined" && ENVIRONMENT ? ENVIRONMENT : "").trim().toUpperCase();
+  const processEnv = (
+    typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_MODE
+      ? process.env.NEXT_PUBLIC_API_MODE
+      : ""
+  ).trim().toUpperCase();
+
+  const envMode = manualEnv || processEnv || "LOCAL";
+
+  if (envMode === "LIVE") {
+    return (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_ADMIN_URL) || LIVE_ADMIN_URL;
+  }
+
+  return (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_LOCAL_ADMIN_URL) || LOCAL_ADMIN_URL;
+};
+
 export const API_BASE_URL = getApiBaseUrl();
+export const ADMIN_PORTAL_URL = getAdminUrl();
 
 export const API_ENDPOINTS = {
   HOTELS: {
-    REGISTER: `${API_BASE_URL}/api/v1/hotels/register`,
+    get REGISTER() { return `${getApiBaseUrl()}/api/v1/hotels/register`; },
   },
   AUTH: {
-    LOGIN: `${API_BASE_URL}/api/v1/auth/login`,
-    ME: `${API_BASE_URL}/api/v1/auth/me`,
-    CHANGE_PASSWORD: `${API_BASE_URL}/api/v1/auth/change-password`,
-    FORGOT_PASSWORD: `${API_BASE_URL}/api/v1/auth/forgot-password`,
-    RESET_PASSWORD: `${API_BASE_URL}/api/v1/auth/reset-password`,
+    get LOGIN() { return `${getApiBaseUrl()}/api/v1/auth/login`; },
+    get ME() { return `${getApiBaseUrl()}/api/v1/auth/me`; },
+    get CHANGE_PASSWORD() { return `${getApiBaseUrl()}/api/v1/auth/change-password`; },
+    get FORGOT_PASSWORD() { return `${getApiBaseUrl()}/api/v1/auth/forgot-password`; },
+    get RESET_PASSWORD() { return `${getApiBaseUrl()}/api/v1/auth/reset-password`; },
   },
   PUBLIC: {
-    CONTACT: `${API_BASE_URL}/api/v1/contact`,
+    get CONTACT() { return `${getApiBaseUrl()}/api/v1/contact`; },
   },
   SUBSCRIPTION_PLANS: {
-    PUBLIC: `${API_BASE_URL}/api/v1/subscription-plans`,
+    get PUBLIC() { return `${getApiBaseUrl()}/api/v1/subscription-plans`; },
   },
 };
 

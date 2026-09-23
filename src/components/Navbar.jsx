@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Hotel, Sparkles, ArrowRight, ShieldCheck } from "lucide-react";
+import { getAdminUrl } from "@/config/api";
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -54,7 +55,7 @@ export default function Navbar() {
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Staff Login Link (Desktop & Tablet) */}
           <a
-            href="http://localhost:3001"
+            href={getAdminUrl()}
             target="_blank"
             rel="noopener noreferrer"
             className="hidden sm:flex items-center gap-1.5 text-xs font-semibold text-theme-main hover:text-theme-primary px-3 py-2 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/80 transition-all"

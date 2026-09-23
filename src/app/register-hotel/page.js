@@ -18,7 +18,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
-import { API_ENDPOINTS, apiRequest } from "@/config/api";
+import { API_ENDPOINTS, apiRequest, getAdminUrl } from "@/config/api";
 
 export default function RegisterHotelPage() {
   const [formData, setFormData] = useState({
@@ -148,7 +148,7 @@ export default function RegisterHotelPage() {
                   Return to Home
                 </Link>
                 <a
-                  href="http://localhost:3001"
+                  href={getAdminUrl()}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="rounded-xl bg-theme-btn px-7 py-3 text-xs font-bold shadow-md hover:scale-105 transition-all inline-flex items-center gap-2"

@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Laptop,
 } from "lucide-react";
+import { getAdminUrl } from "@/config/api";
 
 export default function HomePage() {
   const stats = [
@@ -111,7 +112,7 @@ export default function HomePage() {
             </Link>
 
             <a
-              href="http://localhost:3001"
+              href={getAdminUrl()}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 rounded-xl theme-card px-6 py-3.5 text-sm font-semibold text-theme-main shadow-sm transition-all"

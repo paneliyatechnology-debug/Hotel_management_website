@@ -97,6 +97,7 @@ export async function apiRequest(endpoint, options = {}) {
       "Content-Type": "application/json",
       ...headers,
     },
+    credentials: "include", // Send & receive secure httpOnly cookies
     ...rest,
   };
 

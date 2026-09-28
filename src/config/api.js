@@ -75,6 +75,7 @@ export const API_ENDPOINTS = {
     get ME() { return `${getApiBaseUrl()}/api/v1/auth/me`; },
     get CHANGE_PASSWORD() { return `${getApiBaseUrl()}/api/v1/auth/change-password`; },
     get FORGOT_PASSWORD() { return `${getApiBaseUrl()}/api/v1/auth/forgot-password`; },
+    get VERIFY_OTP() { return `${getApiBaseUrl()}/api/v1/auth/verify-otp`; },
     get RESET_PASSWORD() { return `${getApiBaseUrl()}/api/v1/auth/reset-password`; },
   },
   PUBLIC: {

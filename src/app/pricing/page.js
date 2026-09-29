@@ -1,266 +1,251 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import Link from "next/link";
-import {
-  Check,
-  Sparkles,
-  ArrowRight,
-  HelpCircle,
-  Building,
-  Crown,
-  Loader2,
-  ShieldCheck,
-} from "lucide-react";
+import { Check, ArrowRight, ShieldCheck, Clock, CheckCircle2 } from "lucide-react";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 
 export default function PricingPage() {
-  const [billingCycle, setBillingCycle] = useState("annual"); // "monthly" | "annual"
-  const [plansData, setPlansData] = useState({ monthly: [], annual: [] });
-  const [loading, setLoading] = useState(true);
+  const [isYearly, setIsYearly] = useState(false);
+  const [dynamicPlans, setDynamicPlans] = useState(null);
 
   useEffect(() => {
-    fetchPlans();
+    async function loadPlans() {
+      try {
+        const res = await apiRequest(API_ENDPOINTS.SUBSCRIPTION_PLANS.PUBLIC);
+        if (res && res.data) {
+          setDynamicPlans(res.data);
+        }
+      } catch (err) {
+        // Fallback gracefully to default reference pricing
+      }
+    }
+    loadPlans();
   }, []);
 
-  const fetchPlans = async () => {
-    try {
-      setLoading(true);
-      const res = await apiRequest(API_ENDPOINTS.SUBSCRIPTION_PLANS.PUBLIC);
-      if (res?.success && res?.data) {
-        setPlansData({
-          monthly: res.data.monthly || [],
-          annual: res.data.annual || [],
-        });
-      }
-    } catch (err) {
-      console.error("Failed to load subscription plans:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getTierIcon = (index, plan) => {
-    const name = (plan.name || "").toLowerCase();
-    if (name.includes("enterprise") || plan.maxRooms >= 500) {
-      return <Crown className="w-6 h-6 text-purple-700" />;
-    }
-    if (name.includes("pro") || plan.isPopular || index === 1) {
-      return <Sparkles className="w-6 h-6 text-[#8c6636]" />;
-    }
-    return <Building className="w-6 h-6 text-slate-700" />;
-  };
-
-  const currentPlans = billingCycle === "annual" ? plansData.annual : plansData.monthly;
-
-  const faqs = [
-    {
-      q: "How does the 30-Day Free Trial work?",
-      a: "When you submit your hotel registration, Super Admin reviews your property and activates your account. Your 30-day trial begins immediately with zero payment required. You will have full access to all features.",
-    },
-    {
-      q: "Do I need a credit card to register my hotel?",
-      a: "No credit card or payment information is required to register and start your free trial. You only decide on a plan after your 30-day evaluation.",
-    },
-    {
-      q: "Can I add more rooms or receptionists later?",
-      a: "Yes! Hotel Admins can adjust room inventories, create new room types, and add unlimited front desk staff directly from their dashboard at any time.",
-    },
-    {
-      q: "How are my hotel's data and guest records kept secure?",
-      a: "Grand Royale utilizes strict multi-tenant data isolation. Each hotel's database records are cryptographically tagged and access-controlled. No staff member from another hotel can ever view your guest data.",
-    },
-  ];
-
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-theme-main">
+    <div className="min-h-screen bg-[#F8FAFA] text-[#0F172A] font-sans selection:bg-[#0F766E] selection:text-white">
       <Navbar />
 
       {/* Header */}
-      <section className="relative pt-16 pb-12 px-6 text-center bg-gradient-to-b from-white to-slate-50">
-        <div className="mx-auto max-w-4xl">
-          <div className="inline-flex items-center gap-2 rounded-full theme-badge px-4 py-1.5 text-xs font-semibold mb-4">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Transparent, Zero-Commission Pricing</span>
-          </div>
-
-          <h1 className="font-serif text-3xl md:text-5xl font-bold text-theme-main tracking-wide">
-            Predictable Pricing for <span className="text-theme-gradient">Every Hotel</span>
+      <section className="relative pt-24 pb-16 lg:pt-28 lg:pb-20 text-center border-b border-[#DDE8E6] overflow-hidden">
+        <div className="absolute inset-0 z-0">
+          <img
+            src="https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=1600&q=80"
+            alt="Hotel Room"
+            className="w-full h-full object-cover opacity-50"
+          />
+          <div className="absolute inset-0 bg-white/70" />
+        </div>
+        <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6">
+          <h1 className="text-3xl sm:text-[2.75rem] font-sans font-bold text-[#0D2825] tracking-tight leading-[1.2]">
+            Simple & Transparent Pricing
           </h1>
-
-          <p className="mt-3 text-sm md:text-base text-theme-muted max-w-xl mx-auto leading-relaxed">
-            All plans start with a full-featured 30-Day Free Trial. No hidden commissions, no setup fees.
+          <p className="mt-4 text-base sm:text-[1.1rem] text-[#476C67] font-medium max-w-2xl mx-auto">
+            Choose the plan that fits your hotel's needs. Start with a 30-day free trial.
           </p>
 
-          {/* Billing Switcher */}
-          <div className="mt-6 inline-flex items-center rounded-xl bg-slate-200/70 p-1 border border-slate-200">
+          {/* Billing Cycle Toggle */}
+          <div className="mt-10 inline-flex items-center p-1 bg-white rounded-full border border-[#CCFBF1] shadow-sm">
             <button
-              onClick={() => setBillingCycle("monthly")}
-              className={`rounded-lg px-5 py-2 text-xs font-semibold transition-all ${
-                billingCycle === "monthly"
-                  ? "bg-white text-theme-main shadow-sm"
-                  : "text-theme-muted hover:text-theme-main"
+              onClick={() => setIsYearly(false)}
+              className={`px-7 py-2.5 rounded-full text-sm font-bold transition-all ${
+                !isYearly ? "bg-[#F0FDFA] text-[#0F766E] border border-[#CCFBF1]" : "text-[#476C67] border border-transparent hover:text-[#0F766E]"
               }`}
             >
-              Monthly Billing
+              Monthly
             </button>
             <button
-              onClick={() => setBillingCycle("annual")}
-              className={`rounded-lg px-5 py-2 text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                billingCycle === "annual"
-                  ? "bg-white text-theme-main shadow-sm"
-                  : "text-theme-muted hover:text-theme-main"
+              onClick={() => setIsYearly(true)}
+              className={`px-7 py-2.5 rounded-full text-sm font-bold transition-all flex items-center gap-2.5 ${
+                isYearly ? "bg-[#F0FDFA] text-[#0F766E] border border-[#CCFBF1]" : "text-[#476C67] border border-transparent hover:text-[#0F766E]"
               }`}
             >
-              <span>Annual Billing</span>
-              <span className="bg-emerald-100 text-emerald-700 text-[10px] px-2 py-0.5 rounded-full font-bold">
-                Save up to 20%
+              Yearly
+              <span className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-[#FDE68A] text-[#92400E]">
+                Save 20%
               </span>
             </button>
           </div>
         </div>
       </section>
 
-      {/* Pricing Cards */}
-      <section className="py-8 px-6">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-3">
-            <Loader2 className="w-8 h-8 text-[#8c6636] animate-spin" />
-            <p className="text-sm font-medium text-slate-500">Loading subscription plans...</p>
-          </div>
-        ) : currentPlans.length === 0 ? (
-          <div className="mx-auto max-w-xl text-center py-16 px-6 bg-white rounded-3xl border border-slate-200 shadow-sm">
-            <ShieldCheck className="w-12 h-12 text-[#8c6636] mx-auto mb-3" />
-            <h3 className="font-serif text-xl font-bold text-slate-800 mb-2">
-              Start with a 30-Day Free Trial
-            </h3>
-            <p className="text-xs text-slate-500 leading-relaxed mb-6">
-              Custom subscription tiers are currently being tailored. Register your property today to enjoy full evaluation access with zero commitments.
-            </p>
-            <Link
-              href="/register-hotel"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-theme-btn text-xs font-bold shadow-md hover:scale-105 transition-all"
-            >
-              <span>Register Your Hotel</span>
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-        ) : (
-          <div className="mx-auto max-w-6xl grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
-            {currentPlans.map((plan, idx) => {
-              const isPopular = plan.isPopular || (plan.badge && plan.badge.toLowerCase().includes("popular"));
-              const roomText = plan.maxRooms >= 9999 ? "Unlimited Rooms" : `Up to ${plan.maxRooms} Rooms`;
-              const ctaLink = plan.maxRooms >= 9999 ? "/contact" : "/register-hotel";
-              const ctaText = plan.maxRooms >= 9999 ? "Contact Enterprise Sales" : "Start 30-Day Free Trial";
-
-              return (
-                <div
-                  key={plan._id || idx}
-                  className={`theme-card rounded-3xl p-8 flex flex-col justify-between relative transition-all ${
-                    isPopular
-                      ? "border-2 border-theme-primary shadow-xl scale-105"
-                      : "shadow-sm hover:shadow-md"
-                  }`}
-                >
-                  {(isPopular || plan.badge) && (
-                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full bg-theme-btn px-4 py-1 text-[11px] font-bold uppercase tracking-wider shadow-sm">
-                      {plan.badge || "Most Popular"}
-                    </div>
-                  )}
-
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                        {getTierIcon(idx, plan)}
-                      </div>
-                      <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-theme-main">
-                        {roomText}
-                      </span>
-                    </div>
-
-                    <h3 className="font-serif text-2xl font-bold text-theme-main mb-1">
-                      {plan.name}
-                    </h3>
-                    <p className="text-xs text-theme-muted mb-6">
-                      {plan.description || (plan.billingCycle === "ANNUAL" ? "Annual subscription license." : "Monthly subscription plan.")}
-                    </p>
-
-                    <div className="mb-6 pb-6 border-b border-slate-100">
-                      <div className="flex items-baseline gap-1">
-                        <span className="font-serif text-4xl font-bold text-theme-main">
-                          ₹{Number(plan.price).toLocaleString("en-IN")}
-                        </span>
-                        <span className="text-xs text-theme-muted">
-                          {plan.billingCycle === "ANNUAL" ? "/year" : "/month"}
-                        </span>
-                      </div>
-                      {plan.discountPercent > 0 && (
-                        <span className="inline-block mt-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
-                          Includes {plan.discountPercent}% discount
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="space-y-3 mb-8">
-                      <p className="text-xs font-bold uppercase tracking-wider text-theme-muted">
-                        Includes:
-                      </p>
-                      {Array.isArray(plan.features) && plan.features.map((feat, fidx) => (
-                        <div key={fidx} className="flex items-center gap-2.5 text-xs text-theme-main font-medium">
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                          <span>{feat}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <Link
-                    href={ctaLink}
-                    className={`w-full flex items-center justify-center gap-2 rounded-xl py-3.5 text-xs font-bold transition-all ${
-                      isPopular
-                        ? "bg-theme-btn shadow-md hover:scale-105"
-                        : "bg-slate-100 hover:bg-slate-200 text-theme-main"
-                    }`}
-                  >
-                    <span>{ctaText}</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </Link>
+      {/* 3 Pricing Cards */}
+      <section className="py-16 bg-[#F8FAFA]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
+            {/* Starter */}
+            <div className="bg-white rounded-3xl p-8 border border-[#DDE8E6] shadow-sm flex flex-col justify-between">
+              <div>
+                <h3 className="text-xl font-serif font-bold text-[#0F172A]">Starter</h3>
+                <p className="text-xs text-[#64748B] mt-1">Perfect for small hotels</p>
+                <div className="mt-6 mb-6">
+                  <span className="text-4xl font-serif font-bold text-[#0F172A]">
+                    ₹{isYearly ? "2,399" : "2,999"}
+                  </span>
+                  <span className="text-xs text-[#64748B]"> /month</span>
                 </div>
-              );
-            })}
+
+                <div className="space-y-3 text-xs sm:text-sm text-[#0F172A] pt-4 border-t border-[#F1F5F9]">
+                  <div className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-[#0F766E] flex-shrink-0" /> Up to 10 rooms
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-[#0F766E] flex-shrink-0" /> Basic features
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-[#0F766E] flex-shrink-0" /> Online support
+                  </div>
+                </div>
+              </div>
+
+              <Link
+                href="/register-hotel"
+                className="mt-8 w-full py-3 rounded-xl bg-[#F0FDFA] hover:bg-[#CCFBF1] text-[#0F766E] font-semibold text-xs text-center transition-colors block border border-[#CCFBF1]"
+              >
+                Start Free Trial
+              </Link>
+            </div>
+
+            {/* Professional (Featured Dark Card) */}
+            <div className="bg-[#0B2A27] text-white rounded-3xl p-8 border-2 border-[#14B8A6] shadow-xl flex flex-col justify-between relative transform lg:-translate-y-2">
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-[#14B8A6] text-[#091F1C] px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                Most Popular
+              </div>
+
+              <div>
+                <h3 className="text-xl font-serif font-bold text-white">Professional</h3>
+                <p className="text-xs text-[#CBD5E1] mt-1">Ideal for growing hotels</p>
+                <div className="mt-6 mb-6">
+                  <span className="text-4xl font-serif font-bold text-white">
+                    ₹{isYearly ? "4,799" : "5,999"}
+                  </span>
+                  <span className="text-xs text-[#CBD5E1]"> /month</span>
+                </div>
+
+                <div className="space-y-3 text-xs sm:text-sm text-[#E2E8F0] pt-4 border-t border-[#143B36]">
+                  <div className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-[#14B8A6] flex-shrink-0" /> Up to 50 rooms
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-[#14B8A6] flex-shrink-0" /> Advanced features
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-[#14B8A6] flex-shrink-0" /> Reports & analytics
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-[#14B8A6] flex-shrink-0" /> Priority support
+                  </div>
+                </div>
+              </div>
+
+              <Link
+                href="/register-hotel"
+                className="mt-8 w-full py-3 rounded-xl bg-[#0F766E] hover:bg-[#115E59] text-white font-bold text-xs text-center transition-all block shadow-lg shadow-[#0F766E]/40"
+              >
+                Start Free Trial
+              </Link>
+            </div>
+
+            {/* Enterprise */}
+            <div className="bg-white rounded-3xl p-8 border border-[#DDE8E6] shadow-sm flex flex-col justify-between">
+              <div>
+                <h3 className="text-xl font-serif font-bold text-[#0F172A]">Enterprise</h3>
+                <p className="text-xs text-[#64748B] mt-1">For large hotel chains</p>
+                <div className="mt-6 mb-6">
+                  <span className="text-4xl font-serif font-bold text-[#0F172A]">
+                    ₹{isYearly ? "7,999" : "9,999"}
+                  </span>
+                  <span className="text-xs text-[#64748B]"> /month</span>
+                </div>
+
+                <div className="space-y-3 text-xs sm:text-sm text-[#0F172A] pt-4 border-t border-[#F1F5F9]">
+                  <div className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-[#0F766E] flex-shrink-0" /> Unlimited rooms
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-[#0F766E] flex-shrink-0" /> All features
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-[#0F766E] flex-shrink-0" /> Dedicated support
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-[#0F766E] flex-shrink-0" /> Custom integrations
+                  </div>
+                </div>
+              </div>
+
+              <Link
+                href="/contact"
+                className="mt-8 w-full py-3 rounded-xl bg-[#F0FDFA] hover:bg-[#CCFBF1] text-[#0F766E] font-semibold text-xs text-center transition-colors block border border-[#CCFBF1]"
+              >
+                Contact Sales
+              </Link>
+            </div>
           </div>
-        )}
+
+          {/* 3 Trust points */}
+          <div className="mt-12 flex flex-wrap items-center justify-center gap-8 text-xs text-[#64748B] font-medium">
+            <span className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-[#0F766E]" /> 30-Day Free Trial
+            </span>
+            <span className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-[#0F766E]" /> No Setup Fee
+            </span>
+            <span className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-[#0F766E]" /> Cancel Anytime
+            </span>
+          </div>
+        </div>
       </section>
 
-      {/* FAQ Section */}
-      <section className="py-16 px-6 bg-white border-t border-slate-200 mt-12">
-        <div className="mx-auto max-w-4xl">
-          <div className="text-center mb-10">
-            <span className="text-xs font-bold uppercase tracking-widest text-theme-primary">
-              Got Questions?
-            </span>
-            <h2 className="font-serif text-2xl md:text-3xl font-bold text-theme-main mt-1">
-              Frequently Asked Questions
-            </h2>
-          </div>
+      {/* Mid CTA */}
+      <section className="relative py-20 sm:py-28 text-white text-center overflow-hidden bg-[#0A1F1C] border-y border-[#143B36]">
+        <div className="absolute inset-0 z-0">
+          <img
+            src="https://images.unsplash.com/photo-1540541338287-41700207dee6?w=1600&q=80"
+            alt="Hotel Pool"
+            className="w-full h-full object-cover opacity-50 mix-blend-overlay"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0A1F1C] via-[#0A1F1C]/70 to-[#0A1F1C]" />
+        </div>
+        <div className="relative z-10 max-w-3xl mx-auto px-4">
+          <h2 className="text-3xl sm:text-4xl font-sans font-bold tracking-tight">Ready to Get Started?</h2>
+          <p className="mt-4 text-base sm:text-lg text-[#CCFBF1] font-medium">Join thousands of hotels already using Grand Royale.</p>
+          <Link
+            href="/register-hotel"
+            className="mt-8 inline-flex items-center justify-center px-8 py-4 rounded-xl bg-[#CCFBF1] hover:bg-[#A7F3D0] text-[#0A1F1C] font-bold text-sm transition-all shadow-lg"
+          >
+            Start Free Trial
+          </Link>
+        </div>
+      </section>
 
-          <div className="space-y-4">
-            {faqs.map((faq, idx) => (
-              <div
-                key={idx}
-                className="bg-slate-50 rounded-2xl p-6 border border-slate-200"
+      {/* Custom Solution */}
+      <section className="py-20 bg-white border-t border-[#DDE8E6]">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="bg-[#F8FAFA] rounded-3xl border border-[#DDE8E6] overflow-hidden flex flex-col md:flex-row items-center justify-between shadow-sm">
+            <div className="p-8 md:p-12 md:w-2/3">
+              <h3 className="text-2xl sm:text-3xl font-sans font-bold text-[#0F172A] tracking-tight">Need a Custom Solution?</h3>
+              <p className="text-sm sm:text-base text-[#64748B] mt-3 mb-8 max-w-md leading-relaxed">
+                We also offer custom plans for large hotel chains and enterprise needs. Get in touch with us to learn more.
+              </p>
+              <Link
+                href="/contact"
+                className="inline-flex px-8 py-4 rounded-full bg-[#0F766E] hover:bg-[#115E59] text-white font-bold text-sm transition-colors shadow-md"
               >
-                <h3 className="font-serif text-base font-bold text-theme-main mb-2 flex items-center gap-2">
-                  <HelpCircle className="w-4 h-4 text-theme-dark" />
-                  <span>{faq.q}</span>
-                </h3>
-                <p className="text-xs text-theme-muted leading-relaxed pl-6">
-                  {faq.a}
-                </p>
-              </div>
-            ))}
+                Contact Our Sales Team
+              </Link>
+            </div>
+            <div className="hidden md:block w-1/3 h-full self-stretch relative min-h-[300px]">
+              <img
+                src="https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=800&q=80"
+                alt="Luxury Resort"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            </div>
           </div>
         </div>
       </section>
@@ -269,4 +254,3 @@ export default function PricingPage() {
     </div>
   );
 }
-

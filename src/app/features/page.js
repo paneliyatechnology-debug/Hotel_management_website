@@ -1,217 +1,219 @@
 "use client";
 
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import Link from "next/link";
 import {
-  Building,
-  ShieldCheck,
+  BedDouble,
+  Calendar,
   Users,
-  CreditCard,
-  Layers,
-  ArrowRight,
-  FileSpreadsheet,
-  CheckCircle,
-  Database,
-  UserCheck,
+  Receipt,
+  TrendingUp,
+  ShieldCheck,
+  CheckCircle2,
   Lock,
+  Zap,
+  Check,
+  Headphones,
+  ArrowRight
 } from "lucide-react";
 
 export default function FeaturesPage() {
-  const modules = [
+  const mainFeatures = [
     {
-      badge: "Master Control Hub",
-      title: "Super Admin Platform Engine",
-      description:
-        "Complete enterprise oversight of all registered hotel tenants, approval pipelines, trial periods, and account governance.",
-      icon: <ShieldCheck className="w-7 h-7 text-purple-700" />,
-      points: [
-        "Instant hotel registration review & one-click approval",
-        "Automated credential dispatch via secure SMTP Email",
-        "Subscription & 30-day free trial extension engine",
-        "Immediate hotel suspension/disable with custom reason notification",
-        "Global audit trail monitoring all sensitive actions",
-      ],
-      cardBg: "bg-purple-50/50 border-purple-200",
+      title: "Room Management",
+      desc: "Manage room types, availability and pricing.",
+      icon: BedDouble
     },
     {
-      badge: "Property Management",
-      title: "Hotel Admin Operational Workspace",
-      description:
-        "Customized configuration for individual hotels with room inventory, category definitions, pricing controls, and receptionist staffing.",
-      icon: <Building className="w-7 h-7 text-[#8c6636]" />,
-      points: [
-        "Create custom Room Types (Deluxe, Presidential Suite, Executive Villa)",
-        "Assign room numbers, floors, and base night tariffs",
-        "Manage receptionist team with temporary password provisioning",
-        "Live dashboard tracking current occupancy & revenue totals",
-        "Hotel profile & GST/PAN tax configuration",
-      ],
-      cardBg: "bg-amber-50/50 border-amber-200",
+      title: "Booking Management",
+      desc: "Handle online, walk-in and advance bookings.",
+      icon: Calendar
     },
     {
-      badge: "Front Desk Suite",
-      title: "Receptionist Front Desk Terminal",
-      description:
-        "High-efficiency front-desk flow built to handle high-traffic check-ins, guest document verification, and point-of-sale service billing.",
-      icon: <Users className="w-7 h-7 text-blue-700" />,
-      points: [
-        "Rapid guest profile search & instant check-in",
-        "Mandatory Government ID (Aadhaar / Passport) verification status",
-        "Real-time available room selector with floor filters",
-        "On-the-fly add-on charges (In-room Dining, Spa, Laundry, Minibar)",
-        "One-click check-out with calculated tax invoice generation",
-      ],
-      cardBg: "bg-blue-50/50 border-blue-200",
+      title: "Guest Management",
+      desc: "Keep guest profiles, history and preferences.",
+      icon: Users
     },
     {
-      badge: "Financial Engine",
-      title: "Automated Billing & Revenue Folio",
-      description:
-        "Eliminate checkout delays and billing errors with integrated itemized receipts and tax calculations.",
-      icon: <CreditCard className="w-7 h-7 text-emerald-700" />,
-      points: [
-        "Itemized folio tracking every charge with timestamps",
-        "Multi-method payment collection (Cash, Card, UPI, NetBanking)",
-        "Automated GST calculation with itemized tax splits",
-        "Print-ready checkout receipts and invoices",
-        "Exportable transaction logs for accounting audits",
-      ],
-      cardBg: "bg-emerald-50/50 border-emerald-200",
+      title: "Billing & Invoicing",
+      desc: "Generate invoices, collect payments and manage GST.",
+      icon: Receipt
     },
+    {
+      title: "Reports & Analytics",
+      desc: "Get real-time insights with detailed reports.",
+      icon: TrendingUp
+    },
+    {
+      title: "Multi-Role Access",
+      desc: "Admin, Hotel Manager, Receptionist, and more.",
+      icon: ShieldCheck
+    }
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800">
+    <div className="min-h-screen bg-[#F8FAFA] text-[#0F172A] font-sans selection:bg-[#0F766E] selection:text-white">
       <Navbar />
 
-      {/* Page Header */}
-      <section className="relative pt-16 pb-12 px-6 text-center bg-gradient-to-b from-white to-slate-50">
-        <div className="mx-auto max-w-4xl relative z-10">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#b48c5a]/30 bg-[#b48c5a]/10 px-4 py-1.5 text-xs font-semibold text-[#8c6636] mb-4">
-            <Layers className="w-3.5 h-3.5" />
-            <span>Multi-Tenant Architecture &amp; Capabilities</span>
+      {/* Hero */}
+      <section className="relative pt-24 pb-20 lg:pt-32 lg:pb-28 bg-[#0A1F1C] text-white">
+        <div className="absolute inset-0 z-0">
+          <img
+            src="https://images.unsplash.com/photo-1578683010236-d716f9a3f461?w=1600&q=80"
+            alt="Hotel Lounge"
+            className="w-full h-full object-cover opacity-50 mix-blend-overlay"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0A1F1C] via-[#0A1F1C]/70 to-[#0A1F1C]/20" />
+        </div>
+
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-3xl">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0F766E]/30 border border-[#14B8A6]/40 text-[#14B8A6] text-[10px] sm:text-xs font-bold uppercase tracking-widest mb-6">
+              Our Features
+            </div>
+            <h1 className="text-4xl sm:text-6xl font-sans font-extrabold tracking-tight leading-[1.15]">
+              Powerful Features for <br />Seamless Hotel Management
+            </h1>
+            <p className="mt-6 text-base sm:text-lg text-[#CBD5E1] max-w-xl font-normal leading-relaxed">
+              Everything you need to manage your hotel efficiently, from room management to detailed reports — all in one platform.
+            </p>
           </div>
-
-          <h1 className="font-serif text-3xl md:text-5xl font-bold text-slate-900 tracking-wide">
-            Enterprise Features Built for{" "}
-            <span className="gold-text-gradient">World-Class Hospitality</span>
-          </h1>
-
-          <p className="mt-3 text-sm md:text-base text-slate-600 max-w-xl mx-auto leading-relaxed">
-            Discover the powerful modules that make Grand Royale the preferred choice for boutique hotels, luxury resorts, and hotel chains.
-          </p>
         </div>
       </section>
 
-      {/* Deep Dive Modules */}
-      <section className="py-8 px-6">
-        <div className="mx-auto max-w-6xl space-y-8">
-          {modules.map((m, idx) => (
-            <div
-              key={idx}
-              className={`rounded-3xl p-8 md:p-10 border ${m.cardBg} bg-white shadow-sm hover:shadow-md transition-all`}
-            >
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-                <div className="lg:col-span-5">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 shadow-sm">
-                      {m.icon}
-                    </div>
-                    <span className="text-xs font-bold tracking-widest text-[#8c6636] uppercase">
-                      {m.badge}
-                    </span>
+      {/* Main Features 6-Card Grid */}
+      <section className="py-20 lg:py-24 bg-white border-b border-[#DDE8E6]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-3xl mb-14">
+            <h2 className="text-3xl sm:text-4xl font-sans font-bold text-[#0F172A] tracking-tight">Main Features</h2>
+            <p className="mt-3 text-base sm:text-lg text-[#64748B] leading-relaxed">
+              Built for hotel owners, managers, and staff to work smarter and provide better guest experiences.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {mainFeatures.map((item, i) => {
+              const Icon = item.icon;
+              return (
+                <div key={i} className="bg-white rounded-2xl p-7 border border-[#DDE8E6] shadow-sm hover:shadow-md hover:border-[#14B8A6] transition-all">
+                  <div className="w-11 h-11 rounded-xl bg-[#F0FDFA] border border-[#CCFBF1] flex items-center justify-center mb-5 text-[#0F766E]">
+                    <Icon className="w-5 h-5" />
                   </div>
-
-                  <h2 className="font-serif text-2xl font-bold text-slate-900 mb-2">
-                    {m.title}
-                  </h2>
-
-                  <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mb-5">
-                    {m.description}
-                  </p>
-
-                  <Link
-                    href="/register-hotel"
-                    className="inline-flex items-center gap-2 text-xs font-bold text-[#8c6636] hover:text-[#b48c5a] transition-colors"
-                  >
-                    <span>Register to test this module</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
+                  <h3 className="text-lg font-serif font-bold text-[#0F172A] mb-2">{item.title}</h3>
+                  <p className="text-xs sm:text-sm text-[#64748B] leading-relaxed">{item.desc}</p>
                 </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
-                <div className="lg:col-span-7 bg-slate-50 rounded-2xl p-6 border border-slate-200/80">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
-                    Key Highlights &amp; Capabilities
-                  </h3>
-                  <div className="space-y-3">
-                    {m.points.map((pt, pidx) => (
-                      <div key={pidx} className="flex items-start gap-2.5 text-xs text-slate-700 font-medium">
-                        <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                        <span>{pt}</span>
-                      </div>
-                    ))}
-                  </div>
+      {/* Built for Every Role */}
+      <section className="py-20 lg:py-24 bg-[#F8FAFA] border-b border-[#DDE8E6]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+            <div className="order-2 lg:order-1">
+              <div className="rounded-2xl overflow-hidden shadow-xl aspect-[4/3]">
+                <img
+                  src="https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1000&q=80"
+                  alt="Hotel Team"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </div>
+
+            <div className="order-1 lg:order-2">
+              <h2 className="text-3xl sm:text-4xl font-sans font-bold text-[#0F172A] tracking-tight">
+                Built for Every Role
+              </h2>
+              <p className="mt-4 text-base sm:text-lg text-[#64748B] leading-relaxed">
+                From super admins to receptionists, everyone gets the right tools to do their job efficiently.
+              </p>
+
+              <div className="mt-8 flex flex-wrap gap-4">
+                <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white border border-[#DDE8E6] text-sm font-semibold text-[#0F172A] shadow-sm">
+                  <ShieldCheck className="w-4 h-4 text-[#0F766E]" /> Super Admin
+                </div>
+                <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white border border-[#DDE8E6] text-sm font-semibold text-[#0F172A] shadow-sm">
+                  <BedDouble className="w-4 h-4 text-[#0F766E]" /> Hotel Admin
+                </div>
+                <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white border border-[#DDE8E6] text-sm font-semibold text-[#0F172A] shadow-sm">
+                  <Users className="w-4 h-4 text-[#0F766E]" /> Receptionist
                 </div>
               </div>
             </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Security & Multi-Tenant Isolation Callout */}
-      <section className="py-16 px-6 bg-white border-t border-slate-200 mt-10">
-        <div className="mx-auto max-w-5xl text-center">
-          <div className="flex justify-center mb-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#b48c5a]/15 text-[#8c6636] border border-[#b48c5a]/30 shadow-sm">
-              <Database className="w-7 h-7" />
-            </div>
           </div>
-          <h2 className="font-serif text-2xl md:text-3xl font-bold text-slate-900 mb-3">
-            Zero-Leak Multi-Tenant Data Isolation
-          </h2>
-          <p className="text-slate-600 text-xs sm:text-sm max-w-2xl mx-auto leading-relaxed mb-8">
-            Every hotel tenant is completely isolated with strict database-level query scopes and token encryption. Your guest records, financial folios, and staff credentials remain 100% private to your hotel.
-          </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-            <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
-              <Lock className="w-5 h-5 text-[#8c6636] mb-2" />
-              <h3 className="text-sm font-bold text-slate-900 mb-1">Encrypted JWT Tokens</h3>
-              <p className="text-xs text-slate-600">Tokens strictly bound to your hotel ID. Cross-tenant access is blocked at the gateway.</p>
+          <div className="mt-20 border-t border-[#DDE8E6] pt-12 flex flex-wrap justify-center gap-12 sm:gap-24">
+            <div className="flex items-center gap-3 text-[#0F172A] font-semibold text-sm">
+              <div className="w-10 h-10 rounded-full bg-[#F0FDFA] flex items-center justify-center text-[#14B8A6]">
+                <Lock className="w-5 h-5" />
+              </div>
+              Secure
             </div>
-
-            <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
-              <UserCheck className="w-5 h-5 text-[#8c6636] mb-2" />
-              <h3 className="text-sm font-bold text-slate-900 mb-1">Automatic Password Reset</h3>
-              <p className="text-xs text-slate-600">Temporary passwords must be updated upon first login for all staff members.</p>
+            <div className="flex items-center gap-3 text-[#0F172A] font-semibold text-sm">
+              <div className="w-10 h-10 rounded-full bg-[#F0FDFA] flex items-center justify-center text-[#14B8A6]">
+                <Zap className="w-5 h-5" />
+              </div>
+              Scalable
             </div>
-
-            <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
-              <FileSpreadsheet className="w-5 h-5 text-[#8c6636] mb-2" />
-              <h3 className="text-sm font-bold text-slate-900 mb-1">Permanent Audit Trail</h3>
-              <p className="text-xs text-slate-600">Every check-in, payment, charge, and approval is logged with IP address &amp; timestamp.</p>
+            <div className="flex items-center gap-3 text-[#0F172A] font-semibold text-sm">
+              <div className="w-10 h-10 rounded-full bg-[#F0FDFA] flex items-center justify-center text-[#14B8A6]">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              Reliable
+            </div>
+            <div className="flex items-center gap-3 text-[#0F172A] font-semibold text-sm">
+              <div className="w-10 h-10 rounded-full bg-[#F0FDFA] flex items-center justify-center text-[#14B8A6]">
+                <Headphones className="w-5 h-5" />
+              </div>
+              24/7 Support
             </div>
           </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="py-14 px-6 bg-slate-50">
-        <div className="mx-auto max-w-4xl bg-white rounded-3xl p-8 text-center border border-slate-200 shadow-sm">
-          <h2 className="font-serif text-2xl font-bold text-slate-900 mb-2">
-            Experience These Features First-Hand
-          </h2>
-          <p className="text-slate-600 text-xs sm:text-sm max-w-lg mx-auto mb-5">
-            Register your hotel today to get immediate access to all enterprise modules during your 30-day trial.
-          </p>
-          <Link
-            href="/register-hotel"
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#b48c5a] to-[#8c6636] px-7 py-3 text-xs font-bold text-white shadow-md hover:scale-105 transition-all"
-          >
-            <span>Register Hotel Now</span>
-            <ArrowRight className="w-4 h-4" />
-          </Link>
+      {/* More Than Just a System */}
+      <section className="py-20 bg-white border-b border-[#DDE8E6]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+            <div className="lg:col-span-6">
+              <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#0F172A]">
+                More Than Just a System
+              </h2>
+              <p className="mt-2 text-sm text-[#64748B]">It's your complete hotel management partner.</p>
+
+              <div className="mt-6 space-y-3.5">
+                {[
+                  "Increase Efficiency",
+                  "Improve Guest Satisfaction",
+                  "Maximize Revenue",
+                  "Easy Integrations"
+                ].map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-3 text-sm font-semibold text-[#0F172A]">
+                    <div className="w-5 h-5 rounded-full bg-[#CCFBF1] text-[#0F766E] flex items-center justify-center flex-shrink-0">
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    </div>
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="lg:col-span-6 relative">
+              <div className="rounded-2xl overflow-hidden shadow-xl border border-[#DDE8E6] aspect-[16/10]">
+                <img
+                  src="https://images.unsplash.com/photo-1540541338287-41700207dee6?w=1000&q=80"
+                  alt="Resort Pool"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="absolute bottom-4 right-4 bg-[#091F1C]/90 backdrop-blur-md text-white px-4 py-2 rounded-xl text-xs font-semibold border border-[#143B36] shadow-lg">
+                Trusted by 500+ Hotels Worldwide
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

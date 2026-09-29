@@ -1,48 +1,51 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Hotel, Sparkles, ArrowRight, ShieldCheck } from "lucide-react";
+import { Hotel, Menu, X, ArrowRight } from "lucide-react";
 import { getAdminUrl } from "@/config/api";
 
 export default function Navbar() {
   const pathname = usePathname();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navLinks = [
     { name: "Home", href: "/" },
     { name: "Features", href: "/features" },
     { name: "Pricing", href: "/pricing" },
+    { name: "About", href: "/about" },
     { name: "Contact", href: "/contact" },
   ];
 
   return (
-    <nav className="sticky top-0 z-50 w-full theme-header backdrop-blur-md border-b border-slate-200/60 bg-white/90">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-3.5 sm:px-6 py-2.5 sm:py-3.5">
+    <nav className="sticky top-0 z-50 w-full bg-[#0D2825]/95 backdrop-blur-md border-b border-[#1A4540]">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-3.5">
         {/* Brand Logo */}
-        <Link href="/" className="flex items-center gap-2 sm:gap-3 group min-w-0">
-          <div className="flex h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0 items-center justify-center rounded-xl bg-theme-btn shadow-md transition-transform group-hover:scale-105">
-            <Hotel className="h-4 w-4 sm:h-5 sm:w-5 stroke-[2.2]" />
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#0F766E] text-white shadow-md transition-transform group-hover:scale-105">
+            <Hotel className="h-5 w-5 stroke-[2.2]" />
           </div>
-          <div className="min-w-0">
-            <span className="font-serif text-sm sm:text-lg font-bold tracking-wider text-theme-main whitespace-nowrap block">
-              GRAND <span className="text-theme-primary">ROYALE</span>
+          <div>
+            <span className="font-serif text-base sm:text-lg font-bold tracking-wider text-white">
+              GRAND <span className="text-[#14B8A6]">ROYALE</span>
             </span>
-            <span className="hidden xs:block text-[9px] sm:text-[10px] font-semibold tracking-widest text-theme-muted uppercase whitespace-nowrap">
-              Hotel Management Cloud
+            <span className="hidden xs:block text-[9px] font-semibold tracking-widest text-[#94A3B8] uppercase">
+              Hotel Management
             </span>
           </div>
         </Link>
 
         {/* Desktop Navigation Links */}
-        <div className="hidden md:flex items-center gap-8">
+        <div className="hidden md:flex items-center gap-7">
           {navLinks.map((link) => {
             const isActive = pathname === link.href;
             return (
               <Link
                 key={link.name}
                 href={link.href}
-                className={`text-sm font-medium transition-colors hover:text-theme-primary ${
-                  isActive ? "text-theme-primary font-bold" : "text-theme-muted"
+                className={`text-sm font-medium transition-colors hover:text-[#14B8A6] ${
+                  isActive ? "text-[#14B8A6] font-semibold" : "text-[#E2E8F0]"
                 }`}
               >
                 {link.name}
@@ -52,30 +55,70 @@ export default function Navbar() {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Staff Login Link (Desktop & Tablet) */}
-          <a
-            href={getAdminUrl()}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden sm:flex items-center gap-1.5 text-xs font-semibold text-theme-main hover:text-theme-primary px-3 py-2 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/80 transition-all"
+        <div className="hidden md:flex items-center gap-3">
+          <Link
+            href="/login"
+            className="text-xs sm:text-sm font-medium text-[#E2E8F0] hover:text-white px-3 py-2 transition-colors"
           >
-            <ShieldCheck className="w-4 h-4 text-theme-primary" />
-            <span>Staff Login</span>
-          </a>
-
-          {/* Register Hotel Button */}
+            Login
+          </Link>
           <Link
             href="/register-hotel"
-            className="flex items-center gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl bg-theme-btn px-3 sm:px-4 py-1.5 sm:py-2 text-xs font-bold shadow-md transition-all hover:scale-[1.02] active:scale-95 whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#0F766E] hover:bg-[#115E59] text-white font-semibold text-xs sm:text-sm transition-all shadow-md shadow-[#0F766E]/30"
           >
-            <Sparkles className="h-3.5 w-3.5 flex-shrink-0" />
-            <span className="hidden sm:inline">Register Hotel (Free Trial)</span>
-            <span className="inline sm:hidden">Register</span>
-            <ArrowRight className="h-3 w-3 sm:h-3.5 sm:w-3.5 flex-shrink-0" />
+            Register Hotel
+            <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
+
+        {/* Mobile Hamburger Button */}
+        <div className="md:hidden flex items-center gap-2">
+          <Link
+            href="/register-hotel"
+            className="px-3 py-1.5 rounded-lg bg-[#0F766E] text-white font-semibold text-xs"
+          >
+            Register
+          </Link>
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-2 text-white hover:text-[#14B8A6]"
+          >
+            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
       </div>
+
+      {/* Mobile Menu Dropdown */}
+      {mobileMenuOpen && (
+        <div className="md:hidden bg-[#0D2825] border-b border-[#1A4540] px-4 py-4 space-y-3">
+          {navLinks.map((link) => (
+            <Link
+              key={link.name}
+              href={link.href}
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-sm font-medium text-slate-200 hover:text-[#14B8A6] py-1"
+            >
+              {link.name}
+            </Link>
+          ))}
+          <div className="pt-3 border-t border-[#1A4540] flex items-center justify-between">
+            <Link
+              href="/login"
+              onClick={() => setMobileMenuOpen(false)}
+              className="text-sm font-medium text-slate-200"
+            >
+              Login
+            </Link>
+            <Link
+              href="/register-hotel"
+              onClick={() => setMobileMenuOpen(false)}
+              className="px-4 py-2 rounded-lg bg-[#0F766E] text-white text-xs font-semibold"
+            >
+              Register Hotel
+            </Link>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }

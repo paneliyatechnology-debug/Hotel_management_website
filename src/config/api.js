@@ -6,7 +6,7 @@
  * - "LIVE"  -> https://hotel-management-backend-9qf5.onrender.com
  */
 
-export const ENVIRONMENT = "LIVE"; // 👉 અહીં "LOCAL" અથવા "LIVE" બદલો
+export const ENVIRONMENT = "LOCAL"; // 👉 અહીં "LOCAL" અથવા "LIVE" બદલો
 
 export const LOCAL_API_URL = "http://localhost:5000";
 export const LIVE_API_URL = "https://hotel-management-backend-9qf5.onrender.com";
@@ -83,6 +83,9 @@ export const API_ENDPOINTS = {
   },
   SUBSCRIPTION_PLANS: {
     get PUBLIC() { return `${getApiBaseUrl()}/api/v1/subscription-plans`; },
+  },
+  SETTINGS: {
+    get PUBLIC() { return `${getApiBaseUrl()}/api/v1/settings`; },
   },
 };
 

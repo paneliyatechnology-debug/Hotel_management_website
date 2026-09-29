@@ -11,18 +11,26 @@ export default function PricingPage() {
   const [isYearly, setIsYearly] = useState(false);
   const [dynamicPlans, setDynamicPlans] = useState(null);
 
+  const [trialText, setTrialText] = useState("30-Day");
+
   useEffect(() => {
-    async function loadPlans() {
+    async function loadData() {
       try {
         const res = await apiRequest(API_ENDPOINTS.SUBSCRIPTION_PLANS.PUBLIC);
         if (res && res.data) {
           setDynamicPlans(res.data);
         }
-      } catch (err) {
-        // Fallback gracefully to default reference pricing
-      }
+      } catch (err) {}
+      
+      try {
+        const res = await apiRequest(API_ENDPOINTS.SETTINGS.PUBLIC);
+        if (res && res.settings) {
+          const unit = res.settings.freeTrialUnit === "hours" ? "Hour" : "Day";
+          setTrialText(`${res.settings.freeTrialValue}-${unit}`);
+        }
+      } catch (err) {}
     }
-    loadPlans();
+    loadData();
   }, []);
 
   return (
@@ -44,7 +52,7 @@ export default function PricingPage() {
             Simple & Transparent Pricing
           </h1>
           <p className="mt-4 text-base sm:text-[1.1rem] text-[#476C67] font-medium max-w-2xl mx-auto">
-            Choose the plan that fits your hotel's needs. Start with a 30-day free trial.
+            Choose the plan that fits your hotel's needs. Start with a {trialText.toLowerCase()} free trial.
           </p>
 
           {/* Billing Cycle Toggle */}
@@ -189,7 +197,7 @@ export default function PricingPage() {
           {/* 3 Trust points */}
           <div className="mt-12 flex flex-wrap items-center justify-center gap-8 text-xs text-[#64748B] font-medium">
             <span className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-[#0F766E]" /> 30-Day Free Trial
+              <Clock className="w-4 h-4 text-[#0F766E]" /> {trialText} Free Trial
             </span>
             <span className="flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-[#0F766E]" /> No Setup Fee

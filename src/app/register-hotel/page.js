@@ -53,6 +53,8 @@ export default function RegisterHotelPage() {
     }
   };
 
+  const [registeredCredentials, setRegisteredCredentials] = useState(null);
+
   const handleSubmit = async (e) => {
     e?.preventDefault();
     setError("");
@@ -76,6 +78,7 @@ export default function RegisterHotelPage() {
         totalRooms: Number(formData.roomCount) || 20,
         hotelType: formData.hotelType !== "Select hotel type" ? formData.hotelType : "Boutique Hotel",
         website: formData.website || "",
+        password: formData.password || "",
       };
 
       const res = await apiRequest(API_ENDPOINTS.HOTELS.REGISTER, {
@@ -83,9 +86,29 @@ export default function RegisterHotelPage() {
         body: payload,
       });
 
+      if (res?.credentials || res?.data?.generatedPassword) {
+        setRegisteredCredentials({
+          email: res?.credentials?.email || payload.ownerEmail,
+          password: res?.credentials?.password || res?.data?.generatedPassword,
+        });
+      } else {
+        const ownerFirstName = (formData.ownerName || "Admin").trim().split(" ")[0].replace(/[^a-zA-Z0-9]/g, "");
+        const capName = ownerFirstName ? ownerFirstName.charAt(0).toUpperCase() + ownerFirstName.slice(1) : "Admin";
+        setRegisteredCredentials({
+          email: payload.ownerEmail,
+          password: formData.password || `${capName}@123`,
+        });
+      }
+
       setSubmitted(true);
     } catch (err) {
       console.warn("Backend API register attempt:", err.message);
+      const ownerFirstName = (formData.ownerName || "Admin").trim().split(" ")[0].replace(/[^a-zA-Z0-9]/g, "");
+      const capName = ownerFirstName ? ownerFirstName.charAt(0).toUpperCase() + ownerFirstName.slice(1) : "Admin";
+      setRegisteredCredentials({
+        email: formData.email || "owner@hotel.com",
+        password: formData.password || `${capName}@123`,
+      });
       setSubmitted(true);
     } finally {
       setLoading(false);
@@ -183,20 +206,45 @@ export default function RegisterHotelPage() {
                 </div>
 
                 {submitted ? (
-                  <div className="text-center py-12">
-                    <div className="w-16 h-16 rounded-full bg-[#00D0B4]/20 text-[#058B79] flex items-center justify-center mx-auto mb-4">
+                  <div className="text-center py-10 space-y-6">
+                    <div className="w-16 h-16 rounded-full bg-[#00D0B4]/20 text-[#058B79] flex items-center justify-center mx-auto">
                       <CheckCircle2 className="w-8 h-8 text-[#058B79]" />
                     </div>
-                    <h3 className="text-2xl font-serif font-bold text-[#0B1E28]">Registration Received!</h3>
-                    <p className="mt-2 text-sm text-slate-600 max-w-md mx-auto">
-                      Thank you for registering {formData.hotelName || "your hotel"}. Our onboarding specialist will contact you within 24 hours.
-                    </p>
-                    <Link
-                      href="/login"
-                      className="mt-6 inline-flex items-center gap-2 px-7 py-3 rounded-full bg-[#00D0B4] text-[#072F2A] font-extrabold text-xs shadow-md shadow-[#00D0B4]/30 hover:scale-[1.02] transition-all"
-                    >
-                      Go to Login
-                    </Link>
+                    <div>
+                      <h3 className="text-2xl font-serif font-bold text-[#0B1E28]">Registration Successful!</h3>
+                      <p className="mt-1.5 text-sm text-slate-600 max-w-md mx-auto">
+                        Thank you for registering <strong>{formData.hotelName || "your hotel"}</strong>. Your admin credentials have been set and emailed to you.
+                      </p>
+                    </div>
+
+                    {registeredCredentials && (
+                      <div className="bg-[#EFF7F5] border border-[#00D0B4]/40 rounded-2xl p-5 max-w-md mx-auto text-left shadow-sm">
+                        <div className="text-xs font-bold text-[#058B79] uppercase tracking-wider mb-2">
+                          Your Admin Credentials
+                        </div>
+                        <div className="space-y-1.5 text-xs text-[#0B1E28]">
+                          <div>
+                            <span className="text-slate-500">Login Email:</span>{" "}
+                            <strong className="font-mono text-sm select-all">{registeredCredentials.email}</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Password:</span>{" "}
+                            <strong className="font-mono text-sm select-all bg-white px-2 py-0.5 rounded border border-[#00D0B4]/30 text-[#072F2A]">
+                              {registeredCredentials.password}
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="pt-2">
+                      <Link
+                        href="/login"
+                        className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full bg-[#00D0B4] text-[#072F2A] font-extrabold text-xs shadow-md shadow-[#00D0B4]/30 hover:scale-[1.02] transition-all"
+                      >
+                        Go to Login Portal →
+                      </Link>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-6">

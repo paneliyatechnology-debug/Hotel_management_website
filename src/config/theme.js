@@ -1,30 +1,26 @@
 /**
  * ====================================================================
- * CENTRAL THEME CONFIGURATION (2026 Modern Luxury Emerald Teal)
+ * CENTRAL THEME CONFIGURATION (Grand Royale Modern Emerald Teal)
  * ====================================================================
  */
 
 export const themePalettes = {
-  // 💎 2026 Modern Luxury Hotel Palette
   palette1: {
-    name: "Modern Luxury Emerald Teal",
-    primary: "#0F766E", // Deep Emerald Teal
-    primaryDark: "#115E59",
-    primaryLight: "#14B8A6", // Vibrant Mint Teal
-    primaryGlow: "rgba(15, 118, 110, 0.25)",
-    bgMain: "#F0FDFA", // Light Mint Surface
-    bgHeader: "#FFFFFF",
+    name: "Grand Royale Emerald Teal",
+    primary: "#072F2A", // Deep Emerald Teal
+    primaryDark: "#041F1C",
+    primaryLight: "#00D0B4", // Vibrant Cyan Teal Accent
+    primaryGlow: "rgba(0, 208, 180, 0.25)",
+    bgMain: "#FFFFFF",
+    bgHeader: "#072F2A",
     bgCard: "#FFFFFF",
-    bgFooter: "#FFFFFF",
-    textMain: "#0F2926",
-    textMuted: "#3E6661",
-    border: "#CCFBF1",
-    borderHover: "#0F766E",
-    champagne: "#CCFBF1",
+    bgFooter: "#072F2A",
+    textMain: "#0F172A",
+    textMuted: "#64748B",
+    border: "#E1ECE9",
+    borderHover: "#00D0B4",
   },
 };
 
-/**
- * 👉 DEFAULT ACTIVE THEME:
- */
 export const themeConfig = themePalettes.palette1;
+

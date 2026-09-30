@@ -57,25 +57,26 @@ export default function FeaturesPage() {
       <Navbar />
 
       {/* Hero */}
-      <section className="relative pt-24 pb-20 lg:pt-32 lg:pb-28 bg-[#0A1F1C] text-white">
+      <section className="relative pt-24 pb-20 lg:pt-32 lg:pb-28 bg-[#072F2A] text-white overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img
-            src="https://images.unsplash.com/photo-1578683010236-d716f9a3f461?w=1600&q=80"
+            src="https://images.unsplash.com/photo-1578683010236-d716f9a3f461?w=1920&q=85"
             alt="Hotel Lounge"
-            className="w-full h-full object-cover opacity-50 mix-blend-overlay"
+            className="w-full h-full object-cover object-center opacity-70"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0A1F1C] via-[#0A1F1C]/70 to-[#0A1F1C]/20" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#072F2A] via-[#072F2A]/85 to-[#072F2A]/30" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#072F2A] via-transparent to-[#072F2A]/40" />
         </div>
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0F766E]/30 border border-[#14B8A6]/40 text-[#14B8A6] text-[10px] sm:text-xs font-bold uppercase tracking-widest mb-6">
-              Our Features
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#00D0B4]/15 border border-[#00D0B4]/40 text-[#00D0B4] text-[11px] sm:text-xs font-outfit font-extrabold uppercase tracking-[0.18em] mb-6">
+              OUR FEATURES
             </div>
-            <h1 className="text-4xl sm:text-6xl font-sans font-extrabold tracking-tight leading-[1.15]">
+            <h1 className="text-4xl sm:text-6xl font-serif font-extrabold text-white tracking-tight leading-[1.12]">
               Powerful Features for <br />Seamless Hotel Management
             </h1>
-            <p className="mt-6 text-base sm:text-lg text-[#CBD5E1] max-w-xl font-normal leading-relaxed">
+            <p className="mt-6 text-base sm:text-lg text-slate-300 max-w-xl font-sans font-normal leading-relaxed">
               Everything you need to manage your hotel efficiently, from room management to detailed reports — all in one platform.
             </p>
           </div>

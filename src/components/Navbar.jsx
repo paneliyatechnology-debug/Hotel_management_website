@@ -3,8 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Hotel, Menu, X, ArrowRight } from "lucide-react";
-import { getAdminUrl } from "@/config/api";
+import { Crown, Menu, X } from "lucide-react";
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -19,19 +18,19 @@ export default function Navbar() {
   ];
 
   return (
-    <nav className="sticky top-0 z-50 w-full bg-[#0D2825]/95 backdrop-blur-md border-b border-[#1A4540]">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-3.5">
+    <nav className="sticky top-0 z-50 w-full bg-[#062925]/90 backdrop-blur-md border-b border-[#0F4A42]/50">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8 py-3.5">
         {/* Brand Logo */}
-        <Link href="/" className="flex items-center gap-2.5 group">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#0F766E] text-white shadow-md transition-transform group-hover:scale-105">
-            <Hotel className="h-5 w-5 stroke-[2.2]" />
+        <Link href="/" className="flex items-center gap-3 group">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#F59E0B] via-[#00D0B4] to-[#008A76] text-[#062925] shadow-md shadow-[#00D0B4]/20 transition-transform group-hover:scale-105">
+            <Crown className="h-5 w-5 fill-[#062925] stroke-[1.5]" />
           </div>
-          <div>
-            <span className="font-serif text-base sm:text-lg font-bold tracking-wider text-white">
-              GRAND <span className="text-[#14B8A6]">ROYALE</span>
+          <div className="flex flex-col">
+            <span className="font-serif text-base sm:text-lg font-black tracking-wider text-white uppercase leading-none">
+              GRAND ROYALE
             </span>
-            <span className="hidden xs:block text-[9px] font-semibold tracking-widest text-[#94A3B8] uppercase">
-              Hotel Management
+            <span className="text-[9.5px] font-sans font-bold tracking-[0.22em] text-[#00D0B4] uppercase leading-snug mt-0.5">
+              HOTEL MANAGEMENT
             </span>
           </div>
         </Link>
@@ -44,11 +43,14 @@ export default function Navbar() {
               <Link
                 key={link.name}
                 href={link.href}
-                className={`text-sm font-medium transition-colors hover:text-[#14B8A6] ${
-                  isActive ? "text-[#14B8A6] font-semibold" : "text-[#E2E8F0]"
+                className={`text-sm font-sans font-semibold transition-all hover:text-[#00D0B4] relative py-1 ${
+                  isActive ? "text-[#00D0B4]" : "text-slate-200"
                 }`}
               >
                 {link.name}
+                {isActive && (
+                  <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00D0B4] rounded-full shadow-[0_0_8px_#00D0B4]" />
+                )}
               </Link>
             );
           })}
@@ -58,16 +60,15 @@ export default function Navbar() {
         <div className="hidden md:flex items-center gap-3">
           <Link
             href="/login"
-            className="text-xs sm:text-sm font-medium text-[#E2E8F0] hover:text-white px-3 py-2 transition-colors"
+            className="text-xs sm:text-sm font-sans font-semibold text-white px-5 py-2 rounded-full border border-[#00D0B4]/60 hover:border-[#00D0B4] hover:bg-white/10 transition-all"
           >
             Login
           </Link>
           <Link
             href="/register-hotel"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#0F766E] hover:bg-[#115E59] text-white font-semibold text-xs sm:text-sm transition-all shadow-md shadow-[#0F766E]/30"
+            className="inline-flex items-center justify-center px-5 py-2 rounded-full bg-white hover:bg-slate-100 text-[#062925] font-sans font-extrabold text-xs sm:text-sm transition-all shadow-md hover:scale-[1.02]"
           >
             Register Hotel
-            <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
 
@@ -75,13 +76,14 @@ export default function Navbar() {
         <div className="md:hidden flex items-center gap-2">
           <Link
             href="/register-hotel"
-            className="px-3 py-1.5 rounded-lg bg-[#0F766E] text-white font-semibold text-xs"
+            className="px-3.5 py-1.5 rounded-full bg-white text-[#062925] font-extrabold text-xs"
           >
             Register
           </Link>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 text-white hover:text-[#14B8A6]"
+            className="p-2 text-white hover:text-[#00D0B4]"
+            aria-label="Toggle menu"
           >
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
@@ -90,29 +92,29 @@ export default function Navbar() {
 
       {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-[#0D2825] border-b border-[#1A4540] px-4 py-4 space-y-3">
+        <div className="md:hidden bg-[#062925] border-b border-[#0F4A42] px-4 py-5 space-y-4 shadow-xl">
           {navLinks.map((link) => (
             <Link
               key={link.name}
               href={link.href}
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-sm font-medium text-slate-200 hover:text-[#14B8A6] py-1"
+              className="block text-base font-semibold text-slate-200 hover:text-[#00D0B4] py-1"
             >
               {link.name}
             </Link>
           ))}
-          <div className="pt-3 border-t border-[#1A4540] flex items-center justify-between">
+          <div className="pt-4 border-t border-[#0F4A42] flex items-center justify-between gap-3">
             <Link
               href="/login"
               onClick={() => setMobileMenuOpen(false)}
-              className="text-sm font-medium text-slate-200"
+              className="flex-1 text-center py-2.5 rounded-full border border-[#00D0B4]/60 text-white font-semibold text-xs"
             >
               Login
             </Link>
             <Link
               href="/register-hotel"
               onClick={() => setMobileMenuOpen(false)}
-              className="px-4 py-2 rounded-lg bg-[#0F766E] text-white text-xs font-semibold"
+              className="flex-1 text-center py-2.5 rounded-full bg-white text-[#062925] font-extrabold text-xs shadow-md"
             >
               Register Hotel
             </Link>
@@ -122,3 +124,5 @@ export default function Navbar() {
     </nav>
   );
 }
+
+

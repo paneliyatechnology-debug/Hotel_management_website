@@ -1,16 +1,24 @@
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Playfair_Display, Outfit } from "next/font/google";
 import "./globals.css";
 import { themeConfig } from "@/config/theme";
 import FloatingTabBar from "@/components/FloatingTabBar";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-sans",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const playfair = Playfair_Display({
+  variable: "--font-serif",
   subsets: ["latin"],
+  weight: ["500", "600", "700", "800", "900"],
+});
+
+const outfit = Outfit({
+  variable: "--font-outfit",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
 });
 
 export const metadata = {
@@ -19,7 +27,6 @@ export const metadata = {
 };
 
 export default function RootLayout({ children }) {
-  // Theme variables directly attached as inline styles on <html> for instant reactivity
   const themeStyles = {
     "--color-primary": themeConfig.primary,
     "--color-primary-dark": themeConfig.primaryDark,
@@ -38,13 +45,15 @@ export default function RootLayout({ children }) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable}`}
+      className={`${inter.variable} ${playfair.variable} ${outfit.variable}`}
       style={themeStyles}
     >
-      <body className="min-h-screen pb-14 md:pb-0" style={{ backgroundColor: themeConfig.bgMain, color: themeConfig.textMain }}>
+      <body className="min-h-screen pb-14 md:pb-0 font-sans antialiased" style={{ backgroundColor: themeConfig.bgMain, color: themeConfig.textMain }}>
         {children}
         <FloatingTabBar />
       </body>
     </html>
   );
 }
+
+

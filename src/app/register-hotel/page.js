@@ -27,6 +27,9 @@ export default function RegisterHotelPage() {
     agreedTerms: true,
   });
 
+  const [businessLicenseFile, setBusinessLicenseFile] = useState(null);
+  const [gstDocumentFile, setGstDocumentFile] = useState(null);
+
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
@@ -55,6 +58,16 @@ export default function RegisterHotelPage() {
 
   const [registeredCredentials, setRegisteredCredentials] = useState(null);
 
+  const fileToBase64 = (file) => {
+    return new Promise((resolve) => {
+      if (!file) return resolve("");
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = () => resolve(file.name);
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleSubmit = async (e) => {
     e?.preventDefault();
     setError("");
@@ -64,6 +77,9 @@ export default function RegisterHotelPage() {
 
       const cityVal = formData.city || (formData.location && formData.location !== "Select location" ? formData.location.split(",")[0].trim() : "Ahmedabad");
       const stateVal = formData.state || (formData.location && formData.location.includes(",") ? formData.location.split(",")[1].trim() : "Gujarat");
+
+      const b64License = businessLicenseFile ? await fileToBase64(businessLicenseFile) : "";
+      const b64Gst = gstDocumentFile ? await fileToBase64(gstDocumentFile) : "";
 
       const payload = {
         name: formData.hotelName || formData.name || "Grand Palace Hotel",
@@ -77,8 +93,9 @@ export default function RegisterHotelPage() {
         pincode: formData.pincode || "380001",
         totalRooms: Number(formData.roomCount) || 20,
         hotelType: formData.hotelType !== "Select hotel type" ? formData.hotelType : "Boutique Hotel",
-        website: formData.website || "",
         password: formData.password || "",
+        businessProofDocument: b64License,
+        idProofDocument: b64Gst,
       };
 
       const res = await apiRequest(API_ENDPOINTS.HOTELS.REGISTER, {
@@ -419,22 +436,70 @@ export default function RegisterHotelPage() {
                       <div className="space-y-5 animate-fadeIn">
                         <div>
                           <label className="block text-xs font-bold text-[#0B1E28] mb-1.5">Business License (PDF, JPG, PNG)</label>
-                          <div className="relative border border-[#E1ECE9] rounded-xl px-4 py-3.5 flex items-center justify-between text-xs text-slate-400 bg-[#F4F9F8]">
-                            <span>Upload business license or registration certificate</span>
-                            <span className="px-3.5 py-1.5 bg-white border border-[#E1ECE9] rounded-lg text-[11px] font-semibold text-[#0B1E28] flex-shrink-0 cursor-pointer hover:bg-slate-50 shadow-sm">
-                              Choose File
+                          <input
+                            type="file"
+                            id="business-license-input"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) setBusinessLicenseFile(file);
+                            }}
+                            className="hidden"
+                          />
+                          <label
+                            htmlFor="business-license-input"
+                            className={`relative border ${
+                              businessLicenseFile ? "border-[#00D0B4] bg-[#EFF7F5]" : "border-[#E1ECE9] bg-[#F4F9F8]"
+                            } rounded-xl px-4 py-3.5 flex items-center justify-between text-xs cursor-pointer transition-all hover:border-[#00D0B4]`}
+                          >
+                            <span className="truncate pr-2 font-medium text-[#0B1E28]">
+                              {businessLicenseFile ? (
+                                <span className="flex items-center gap-2 text-[#058B79] font-bold">
+                                  <CheckCircle2 className="w-4 h-4 text-[#00D0B4]" />
+                                  {businessLicenseFile.name} ({(businessLicenseFile.size / 1024).toFixed(0)} KB)
+                                </span>
+                              ) : (
+                                "Upload business license or registration certificate"
+                              )}
                             </span>
-                          </div>
+                            <span className="px-3.5 py-1.5 bg-[#072F2A] text-white border border-transparent rounded-lg text-[11px] font-bold flex-shrink-0 hover:bg-[#00D0B4] hover:text-[#072F2A] transition-all shadow-sm">
+                              {businessLicenseFile ? "Change File" : "Choose File"}
+                            </span>
+                          </label>
                         </div>
 
                         <div>
                           <label className="block text-xs font-bold text-[#0B1E28] mb-1.5">GST / Tax Identification Document</label>
-                          <div className="relative border border-[#E1ECE9] rounded-xl px-4 py-3.5 flex items-center justify-between text-xs text-slate-400 bg-[#F4F9F8]">
-                            <span>Upload GST certificate (Optional)</span>
-                            <span className="px-3.5 py-1.5 bg-white border border-[#E1ECE9] rounded-lg text-[11px] font-semibold text-[#0B1E28] flex-shrink-0 cursor-pointer hover:bg-slate-50 shadow-sm">
-                              Choose File
+                          <input
+                            type="file"
+                            id="gst-doc-input"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) setGstDocumentFile(file);
+                            }}
+                            className="hidden"
+                          />
+                          <label
+                            htmlFor="gst-doc-input"
+                            className={`relative border ${
+                              gstDocumentFile ? "border-[#00D0B4] bg-[#EFF7F5]" : "border-[#E1ECE9] bg-[#F4F9F8]"
+                            } rounded-xl px-4 py-3.5 flex items-center justify-between text-xs cursor-pointer transition-all hover:border-[#00D0B4]`}
+                          >
+                            <span className="truncate pr-2 font-medium text-[#0B1E28]">
+                              {gstDocumentFile ? (
+                                <span className="flex items-center gap-2 text-[#058B79] font-bold">
+                                  <CheckCircle2 className="w-4 h-4 text-[#00D0B4]" />
+                                  {gstDocumentFile.name} ({(gstDocumentFile.size / 1024).toFixed(0)} KB)
+                                </span>
+                              ) : (
+                                "Upload GST certificate (Optional)"
+                              )}
                             </span>
-                          </div>
+                            <span className="px-3.5 py-1.5 bg-[#072F2A] text-white border border-transparent rounded-lg text-[11px] font-bold flex-shrink-0 hover:bg-[#00D0B4] hover:text-[#072F2A] transition-all shadow-sm">
+                              {gstDocumentFile ? "Change File" : "Choose File"}
+                            </span>
+                          </label>
                         </div>
 
                         <div className="pt-4 flex items-center justify-between">

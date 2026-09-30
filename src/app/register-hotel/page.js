@@ -221,10 +221,60 @@ export default function RegisterHotelPage() {
           <div className="bg-white rounded-3xl shadow-2xl border border-emerald-100 overflow-hidden">
             <div className="grid grid-cols-1 lg:grid-cols-12">
               
-              {/* ── LEFT COLUMN: STEPPER SIDEBAR ── */}
-              <div className="lg:col-span-4 bg-[#F5FBF9] p-7 sm:p-9 border-b lg:border-b-0 lg:border-r border-emerald-100/70 relative">
-                <div className="relative space-y-8">
-                  {/* Connecting Line */}
+              {/* ── LEFT COLUMN: STEPPER SIDEBAR (Mobile Horizontal "aadu" + Desktop Vertical "ubhu") ── */}
+              <div className="lg:col-span-4 bg-[#F5FBF9] p-5 sm:p-7 lg:p-9 border-b lg:border-b-0 lg:border-r border-emerald-100/70 relative">
+                
+                {/* MOBILE HORIZONTAL STEPPER (< lg) */}
+                <div className="lg:hidden">
+                  <div className="flex items-center justify-between relative px-2">
+                    {steps.map((step, idx) => {
+                      const isActive = activeStep === step.id;
+                      const isPassed = activeStep > step.id;
+                      const isLast = idx === steps.length - 1;
+
+                      return (
+                        <div key={step.id} className="flex-1 flex items-center relative">
+                          <div
+                            onClick={() => setActiveStep(step.id)}
+                            className="flex flex-col items-center gap-1 cursor-pointer z-10 mx-auto"
+                          >
+                            <div
+                              className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs transition-all ${
+                                isActive
+                                  ? "bg-[#00C2A8] text-white shadow-md shadow-[#00C2A8]/30 ring-2 ring-[#00C2A8]/30 scale-105"
+                                  : isPassed
+                                  ? "bg-[#058B79] text-white"
+                                  : "bg-white border-2 border-emerald-300 text-emerald-700"
+                              }`}
+                            >
+                              {isPassed ? <CheckCircle2 className="w-3.5 h-3.5" /> : step.id}
+                            </div>
+                            <span
+                              className={`text-[10px] font-bold text-center transition-colors whitespace-nowrap ${
+                                isActive ? "text-[#00C2A8]" : "text-slate-600"
+                              }`}
+                            >
+                              {step.id === 1 ? "Hotel" : step.id === 2 ? "Owner" : step.id === 3 ? "Docs" : "Finish"}
+                            </span>
+                          </div>
+
+                          {/* Connecting Horizontal Line between steps */}
+                          {!isLast && (
+                            <div
+                              className={`flex-1 h-[2px] -mx-1 mb-4 transition-colors ${
+                                isPassed ? "bg-[#058B79]" : "bg-emerald-200"
+                              }`}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* DESKTOP VERTICAL STEPPER (>= lg) */}
+                <div className="hidden lg:block relative space-y-8">
+                  {/* Connecting Vertical Line */}
                   <div className="absolute left-[15px] top-4 bottom-4 w-[2px] bg-emerald-200 z-0" />
 
                   {steps.map((step) => {

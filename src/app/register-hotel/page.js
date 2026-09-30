@@ -102,14 +102,8 @@ export default function RegisterHotelPage() {
 
       setSubmitted(true);
     } catch (err) {
-      console.warn("Backend API register attempt:", err.message);
-      const ownerFirstName = (formData.ownerName || "Admin").trim().split(" ")[0].replace(/[^a-zA-Z0-9]/g, "");
-      const capName = ownerFirstName ? ownerFirstName.charAt(0).toUpperCase() + ownerFirstName.slice(1) : "Admin";
-      setRegisteredCredentials({
-        email: formData.email || "owner@hotel.com",
-        password: formData.password || `${capName}@123`,
-      });
-      setSubmitted(true);
+      console.error("Backend API register error:", err.message);
+      setError(err.message || "Hotel registration failed. Please check your inputs and try again.");
     } finally {
       setLoading(false);
     }

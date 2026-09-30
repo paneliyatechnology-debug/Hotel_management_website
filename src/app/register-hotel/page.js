@@ -494,17 +494,34 @@ export default function RegisterHotelPage() {
                         <div className="pt-4 space-y-3">
                           <button
                             type="button"
-                            onClick={handleNextStep}
-                            className="w-full py-3.5 rounded-xl bg-[#00C2A8] hover:bg-[#00A892] text-white font-bold text-sm shadow-md shadow-[#00C2A8]/25 transition-all hover:scale-[1.01]"
+                            onClick={handleSubmit}
+                            disabled={loading}
+                            className="w-full py-3.5 rounded-xl bg-[#00C2A8] hover:bg-[#00A892] text-white font-bold text-sm shadow-md shadow-[#00C2A8]/25 transition-all hover:scale-[1.01] flex items-center justify-center gap-2 disabled:opacity-50"
                           >
-                            Register Hotel
+                            {loading ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>Registering Hotel...</span>
+                              </>
+                            ) : (
+                              <span>Register Hotel &amp; Activate 30-Day Free Trial →</span>
+                            )}
                           </button>
 
-                          <div className="text-center text-xs text-slate-500 font-medium">
-                            Already have an account?{" "}
-                            <Link href="/login" className="text-[#00C2A8] font-bold hover:underline">
-                              Login
-                            </Link>
+                          <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
+                            <span>
+                              Already have an account?{" "}
+                              <Link href="/login" className="text-[#00C2A8] font-bold hover:underline">
+                                Login
+                              </Link>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={handleNextStep}
+                              className="text-slate-600 font-semibold hover:text-[#00C2A8] underline"
+                            >
+                              Add Optional Address &amp; Documents →
+                            </button>
                           </div>
                         </div>
                       </div>

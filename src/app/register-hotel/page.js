@@ -496,52 +496,6 @@ export default function RegisterHotelPage() {
                             />
                           </div>
 
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                              Business License
-                            </label>
-                            <div className="relative">
-                              <label className="flex items-center justify-between w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-[#F8FAFC] text-xs cursor-pointer hover:bg-slate-100 transition-all">
-                                <span className="text-slate-500 font-medium truncate">
-                                  {formData.businessLicenseName || "Choose file"}
-                                </span>
-                                <span className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-600 shadow-xs">
-                                  Choose file
-                                </span>
-                                <input
-                                  type="file"
-                                  accept=".pdf,.jpg,.png,.jpeg"
-                                  onChange={(e) => handleFileChange(e, "businessLicense")}
-                                  className="hidden"
-                                />
-                              </label>
-                            </div>
-                            <span className="text-[10px] text-slate-400 mt-1 block">
-                              Upload Business License (PDF, JPG, PNG)
-                            </span>
-                          </div>
-
-                          <div className="sm:col-span-2">
-                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                              Hotel Location *
-                            </label>
-                            <div className="relative">
-                              <select
-                                value={formData.location}
-                                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-[#00C2A8] focus:border-[#00C2A8] outline-none bg-[#F8FAFC] text-slate-700 appearance-none pr-9"
-                              >
-                                <option>Select location</option>
-                                <option>Ahmedabad, Gujarat</option>
-                                <option>Mumbai, Maharashtra</option>
-                                <option>Delhi, NCR</option>
-                                <option>Bangalore, Karnataka</option>
-                                <option>Goa</option>
-                                <option>Jaipur, Rajasthan</option>
-                              </select>
-                              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
-                            </div>
-                          </div>
                         </div>
 
                         {/* Submit / Next Button */}
@@ -690,27 +644,6 @@ export default function RegisterHotelPage() {
                             />
                           </div>
 
-                          <div className="sm:col-span-2">
-                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                              Property Ownership / Lease Agreement
-                            </label>
-                            <div className="relative">
-                              <label className="flex items-center justify-between w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-[#F8FAFC] text-xs cursor-pointer hover:bg-slate-100 transition-all">
-                                <span className="text-slate-500 font-medium truncate">
-                                  {formData.ownershipDocName || "Upload Property Agreement (PDF, JPG)"}
-                                </span>
-                                <span className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-600">
-                                  Browse
-                                </span>
-                                <input
-                                  type="file"
-                                  accept=".pdf,.jpg,.png"
-                                  onChange={(e) => handleFileChange(e, "ownershipDoc")}
-                                  className="hidden"
-                                />
-                              </label>
-                            </div>
-                          </div>
                         </div>
 
                         <div className="flex items-center justify-between pt-4">

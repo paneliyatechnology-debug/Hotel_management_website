@@ -6,6 +6,115 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Check, ArrowRight, ShieldCheck, Clock, CheckCircle2 } from "lucide-react";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
+const fallbackMonthly = [
+  {
+    _id: "starter_m",
+    name: "Starter Boutique",
+    description: "Perfect for boutique hotels, B&Bs up to 15 rooms.",
+    price: 4999,
+    maxRooms: 15,
+    billingCycle: "MONTHLY",
+    features: [
+      "Up to 15 Rooms Inventory",
+      "Front Desk & Walk-in Wizard",
+      "Govt ID Compliance & Ledger",
+      "GST Tax Invoice & Receipt Generator",
+      "Standard Email Support",
+    ],
+    isPopular: false,
+    badge: "",
+  },
+  {
+    _id: "pro_m",
+    name: "Professional Resort",
+    description: "For mid-size luxury hotels & resorts with multi-staff operations.",
+    price: 9999,
+    maxRooms: 50,
+    billingCycle: "MONTHLY",
+    features: [
+      "Up to 50 Rooms Inventory",
+      "Full PMS Operations & Room Matrix",
+      "Multi-Staff Shifts & Receptionist Roster",
+      "In-Room POS Ancillary Charges",
+      "Advanced Revenue & Occupancy Reports",
+      "Priority Support",
+    ],
+    isPopular: true,
+    badge: "MOST POPULAR",
+  },
+  {
+    _id: "enterprise_m",
+    name: "Enterprise Grand",
+    description: "For large hotel chains, resorts & multi-property groups.",
+    price: 19999,
+    maxRooms: 9999,
+    billingCycle: "MONTHLY",
+    features: [
+      "Unlimited Rooms & Properties",
+      "Complete Hotel PMS Operations",
+      "Custom Financial Export & Audit",
+      "Dedicated Account Manager",
+      "24/7 SLA Priority Phone Support",
+    ],
+    isPopular: false,
+    badge: "",
+  },
+];
+
+const fallbackAnnual = [
+  {
+    _id: "starter_a",
+    name: "Starter Boutique (Annual)",
+    description: "Perfect for boutique hotels up to 15 rooms (Saved 20%).",
+    price: 47990,
+    maxRooms: 15,
+    billingCycle: "ANNUAL",
+    features: [
+      "Up to 15 Rooms Inventory",
+      "Front Desk & Walk-in Wizard",
+      "Govt ID Compliance & Ledger",
+      "GST Tax Invoice & Receipt Generator",
+      "2 Months Free (Save 20%)",
+    ],
+    isPopular: false,
+    badge: "",
+  },
+  {
+    _id: "pro_a",
+    name: "Professional Resort (Annual)",
+    description: "For mid-size luxury hotels & resorts (Saved 20%).",
+    price: 95990,
+    maxRooms: 50,
+    billingCycle: "ANNUAL",
+    features: [
+      "Up to 50 Rooms Inventory",
+      "Full PMS Operations & Room Matrix",
+      "Multi-Staff Shifts & Receptionist Roster",
+      "In-Room POS Ancillary Charges",
+      "Advanced Revenue & Occupancy Reports",
+      "2 Months Free (Save 20%)",
+    ],
+    isPopular: true,
+    badge: "MOST POPULAR",
+  },
+  {
+    _id: "enterprise_a",
+    name: "Enterprise Grand (Annual)",
+    description: "For large hotel chains & multi-property groups (Saved 20%).",
+    price: 191990,
+    maxRooms: 9999,
+    billingCycle: "ANNUAL",
+    features: [
+      "Unlimited Rooms & Properties",
+      "Complete Hotel PMS Operations",
+      "Custom Financial Export & Audit",
+      "Dedicated Account Manager",
+      "24/7 SLA Priority Phone Support",
+    ],
+    isPopular: false,
+    badge: "",
+  },
+];
 
 export default function PricingPage() {
   const [isYearly, setIsYearly] = useState(false);
@@ -83,116 +192,115 @@ export default function PricingPage() {
       {/* 3 Pricing Cards */}
       <section className="py-16 bg-[#F8FAFA]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
-            {/* Starter */}
-            <div className="bg-white rounded-3xl p-8 border border-[#DDE8E6] shadow-sm flex flex-col justify-between">
-              <div>
-                <h3 className="text-xl font-serif font-bold text-[#0F172A]">Starter</h3>
-                <p className="text-xs text-[#64748B] mt-1">Perfect for small hotels</p>
-                <div className="mt-6 mb-6">
-                  <span className="text-4xl font-serif font-bold text-[#0F172A]">
-                    ₹{isYearly ? "2,399" : "2,999"}
-                  </span>
-                  <span className="text-xs text-[#64748B]"> /month</span>
-                </div>
+          {(() => {
+            const monthlyList = dynamicPlans?.monthly?.length ? dynamicPlans.monthly : null;
+            const annualList = dynamicPlans?.annual?.length ? dynamicPlans.annual : null;
+            const plans = isYearly ? (annualList || fallbackAnnual) : (monthlyList || fallbackMonthly);
 
-                <div className="space-y-3 text-xs sm:text-sm text-[#0F172A] pt-4 border-t border-[#F1F5F9]">
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-[#0F766E] flex-shrink-0" /> Up to 10 rooms
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-[#0F766E] flex-shrink-0" /> Basic features
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-[#0F766E] flex-shrink-0" /> Online support
-                  </div>
-                </div>
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
+                {plans.map((plan, idx) => {
+                  const isFeatured = plan.isPopular || plan.badge === "MOST POPULAR" || idx === 1;
+                  const priceStr = plan.price ? plan.price.toLocaleString("en-IN") : "0";
+                  const periodStr = plan.billingCycle === "ANNUAL" ? "/year" : "/month";
+
+                  if (isFeatured) {
+                    return (
+                      <div
+                        key={plan._id || plan.code || idx}
+                        className="bg-[#0B2A27] text-white rounded-3xl p-8 border-2 border-[#14B8A6] shadow-xl flex flex-col justify-between relative transform lg:-translate-y-2"
+                      >
+                        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-[#14B8A6] text-[#091F1C] px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                          {plan.badge || "Most Popular"}
+                        </div>
+
+                        <div>
+                          <h3 className="text-xl font-serif font-bold text-white">{plan.name}</h3>
+                          <p className="text-xs text-[#CBD5E1] mt-1">{plan.description || "Ideal for growing hotels"}</p>
+                          <div className="mt-6 mb-6">
+                            <span className="text-4xl font-serif font-bold text-white">
+                              ₹{priceStr}
+                            </span>
+                            <span className="text-xs text-[#CBD5E1]"> {periodStr}</span>
+                          </div>
+
+                          <div className="space-y-3 text-xs sm:text-sm text-[#E2E8F0] pt-4 border-t border-[#143B36]">
+                            {Array.isArray(plan.features) && plan.features.length > 0 ? (
+                              plan.features.map((feat, fIdx) => (
+                                <div key={fIdx} className="flex items-center gap-2">
+                                  <Check className="w-4 h-4 text-[#14B8A6] flex-shrink-0" /> {feat}
+                                </div>
+                              ))
+                            ) : (
+                              <>
+                                <div className="flex items-center gap-2">
+                                  <Check className="w-4 h-4 text-[#14B8A6] flex-shrink-0" /> Up to {plan.maxRooms || 50} rooms
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Check className="w-4 h-4 text-[#14B8A6] flex-shrink-0" /> Advanced PMS features
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <Link
+                          href="/register-hotel"
+                          className="mt-8 w-full py-3 rounded-xl bg-[#0F766E] hover:bg-[#115E59] text-white font-bold text-xs text-center transition-all block shadow-lg shadow-[#0F766E]/40"
+                        >
+                          Start Free Trial
+                        </Link>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={plan._id || plan.code || idx}
+                      className="bg-white rounded-3xl p-8 border border-[#DDE8E6] shadow-sm flex flex-col justify-between"
+                    >
+                      <div>
+                        <h3 className="text-xl font-serif font-bold text-[#0F172A]">{plan.name}</h3>
+                        <p className="text-xs text-[#64748B] mt-1">{plan.description || "Perfect for your hotel"}</p>
+                        <div className="mt-6 mb-6">
+                          <span className="text-4xl font-serif font-bold text-[#0F172A]">
+                            ₹{priceStr}
+                          </span>
+                          <span className="text-xs text-[#64748B]"> {periodStr}</span>
+                        </div>
+
+                        <div className="space-y-3 text-xs sm:text-sm text-[#0F172A] pt-4 border-t border-[#F1F5F9]">
+                          {Array.isArray(plan.features) && plan.features.length > 0 ? (
+                            plan.features.map((feat, fIdx) => (
+                              <div key={fIdx} className="flex items-center gap-2">
+                                <Check className="w-4 h-4 text-[#0F766E] flex-shrink-0" /> {feat}
+                              </div>
+                            ))
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-2">
+                                <Check className="w-4 h-4 text-[#0F766E] flex-shrink-0" /> Up to {plan.maxRooms || 15} rooms
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Check className="w-4 h-4 text-[#0F766E] flex-shrink-0" /> Basic features
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <Link
+                        href={idx === 2 ? "/contact" : "/register-hotel"}
+                        className="mt-8 w-full py-3 rounded-xl bg-[#F0FDFA] hover:bg-[#CCFBF1] text-[#0F766E] font-semibold text-xs text-center transition-colors block border border-[#CCFBF1]"
+                      >
+                        {idx === 2 ? "Contact Sales" : "Start Free Trial"}
+                      </Link>
+                    </div>
+                  );
+                })}
               </div>
-
-              <Link
-                href="/register-hotel"
-                className="mt-8 w-full py-3 rounded-xl bg-[#F0FDFA] hover:bg-[#CCFBF1] text-[#0F766E] font-semibold text-xs text-center transition-colors block border border-[#CCFBF1]"
-              >
-                Start Free Trial
-              </Link>
-            </div>
-
-            {/* Professional (Featured Dark Card) */}
-            <div className="bg-[#0B2A27] text-white rounded-3xl p-8 border-2 border-[#14B8A6] shadow-xl flex flex-col justify-between relative transform lg:-translate-y-2">
-              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-[#14B8A6] text-[#091F1C] px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                Most Popular
-              </div>
-
-              <div>
-                <h3 className="text-xl font-serif font-bold text-white">Professional</h3>
-                <p className="text-xs text-[#CBD5E1] mt-1">Ideal for growing hotels</p>
-                <div className="mt-6 mb-6">
-                  <span className="text-4xl font-serif font-bold text-white">
-                    ₹{isYearly ? "4,799" : "5,999"}
-                  </span>
-                  <span className="text-xs text-[#CBD5E1]"> /month</span>
-                </div>
-
-                <div className="space-y-3 text-xs sm:text-sm text-[#E2E8F0] pt-4 border-t border-[#143B36]">
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-[#14B8A6] flex-shrink-0" /> Up to 50 rooms
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-[#14B8A6] flex-shrink-0" /> Advanced features
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-[#14B8A6] flex-shrink-0" /> Reports & analytics
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-[#14B8A6] flex-shrink-0" /> Priority support
-                  </div>
-                </div>
-              </div>
-
-              <Link
-                href="/register-hotel"
-                className="mt-8 w-full py-3 rounded-xl bg-[#0F766E] hover:bg-[#115E59] text-white font-bold text-xs text-center transition-all block shadow-lg shadow-[#0F766E]/40"
-              >
-                Start Free Trial
-              </Link>
-            </div>
-
-            {/* Enterprise */}
-            <div className="bg-white rounded-3xl p-8 border border-[#DDE8E6] shadow-sm flex flex-col justify-between">
-              <div>
-                <h3 className="text-xl font-serif font-bold text-[#0F172A]">Enterprise</h3>
-                <p className="text-xs text-[#64748B] mt-1">For large hotel chains</p>
-                <div className="mt-6 mb-6">
-                  <span className="text-4xl font-serif font-bold text-[#0F172A]">
-                    ₹{isYearly ? "7,999" : "9,999"}
-                  </span>
-                  <span className="text-xs text-[#64748B]"> /month</span>
-                </div>
-
-                <div className="space-y-3 text-xs sm:text-sm text-[#0F172A] pt-4 border-t border-[#F1F5F9]">
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-[#0F766E] flex-shrink-0" /> Unlimited rooms
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-[#0F766E] flex-shrink-0" /> All features
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-[#0F766E] flex-shrink-0" /> Dedicated support
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-[#0F766E] flex-shrink-0" /> Custom integrations
-                  </div>
-                </div>
-              </div>
-
-              <Link
-                href="/contact"
-                className="mt-8 w-full py-3 rounded-xl bg-[#F0FDFA] hover:bg-[#CCFBF1] text-[#0F766E] font-semibold text-xs text-center transition-colors block border border-[#CCFBF1]"
-              >
-                Contact Sales
-              </Link>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* 3 Trust points */}
           <div className="mt-12 flex flex-wrap items-center justify-center gap-8 text-xs text-[#64748B] font-medium">

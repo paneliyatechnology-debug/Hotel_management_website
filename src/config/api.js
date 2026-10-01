@@ -70,6 +70,7 @@ export const API_ENDPOINTS = {
     PLANS: `${API_BASE_URL}/api/v1/super-admin/subscription-plans`,
     PLAN_BY_ID: (id) => `${API_BASE_URL}/api/v1/super-admin/subscription-plans/${id}`,
     RESET_DEFAULT_PLANS: `${API_BASE_URL}/api/v1/super-admin/subscription-plans/reset-defaults`,
+    HOTEL_GUESTS: (id) => `${API_BASE_URL}/api/v1/super-admin/hotels/${id}/guests`,
   },
   SUBSCRIPTION_PLANS: {
     PUBLIC: `${API_BASE_URL}/api/v1/subscription-plans`,

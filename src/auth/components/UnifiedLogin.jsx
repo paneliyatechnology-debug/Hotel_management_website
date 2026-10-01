@@ -33,8 +33,8 @@ import { toast } from "@/shared/utils/toast";
 
 export default function UnifiedLogin({ onLoginSuccess }) {
   const { themeConfig } = useAppTheme();
-  const [email, setEmail] = useState("superadmin@hotelmgmt.com");
-  const [password, setPassword] = useState("SuperAdmin@2026");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");

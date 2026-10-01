@@ -521,7 +521,7 @@ export default function UnifiedLogin({ onLoginSuccess }) {
             /* STEP 1: Enter Email to Receive OTP */
             <Box sx={{ mt: 0.5 }}>
               <Typography variant="body2" sx={{ color: themeConfig.textMuted, mb: 2 }}>
-                તમારો રજીસ્ટર્ડ ઈમેઈલ એડ્રેસ નાખો. અમે તમને 6-આંકડાનો વેરિફિકેશન OTP મોકલીશું.
+                Enter your registered email address. We will send you a 6-digit verification OTP code.
               </Typography>
 
               {forgotError && (
@@ -556,10 +556,10 @@ export default function UnifiedLogin({ onLoginSuccess }) {
             /* STEP 2: Enter & Verify 6-digit OTP in 6 individual boxes */
             <Box sx={{ mt: 0.5 }}>
               <Typography variant="body2" sx={{ color: themeConfig.textMuted, mb: 1 }}>
-                <strong>{forgotEmail}</strong> પર મોકલેલો 6-આંકડાનો OTP કોડ દાખલ કરો:
+                Enter the 6-digit OTP code sent to <strong>{forgotEmail}</strong>:
               </Typography>
               <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 600, display: "block", mb: 2 }}>
-                (તમે આખો OTP સીધો અહીં Paste (Ctrl+V) પણ કરી શકો છો)
+                (You can also paste the full OTP directly here via Ctrl+V)
               </Typography>
 
               {forgotMsg && (
@@ -638,7 +638,7 @@ export default function UnifiedLogin({ onLoginSuccess }) {
                   disabled={forgotLoading}
                   sx={{ color: themeConfig.primary, fontSize: "0.75rem", textTransform: "none", fontWeight: 700 }}
                 >
-                  Resend OTP (ફરીથી મોકલો)
+                  Resend OTP
                 </Button>
               </Box>
             </Box>
@@ -648,7 +648,7 @@ export default function UnifiedLogin({ onLoginSuccess }) {
             /* STEP 3: Enter New Password & Submit */
             <Box sx={{ mt: 0.5 }}>
               <Typography variant="body2" sx={{ color: themeConfig.textMuted, mb: 2 }}>
-                OTP સફળતાપૂર્વક વેરિફાય થઈ ગયો છે! કૃપા કરીને નવો કાયમી પાસવર્ડ બનાવો:
+                OTP verified successfully! Please set your new permanent password below:
               </Typography>
 
               {forgotMsg && (
@@ -741,7 +741,7 @@ export default function UnifiedLogin({ onLoginSuccess }) {
               disabled={forgotLoading}
               sx={{ bgcolor: themeConfig.primary, "&:hover": { bgcolor: themeConfig.primaryDark }, fontWeight: 800, textTransform: "none", px: 2.5 }}
             >
-              {forgotLoading ? <CircularProgress size={20} color="inherit" /> : "Verify OTP (વેરિફાય કરો)"}
+              {forgotLoading ? <CircularProgress size={20} color="inherit" /> : "Verify OTP"}
             </Button>
           )}
           {forgotStep === 3 && (
@@ -751,7 +751,7 @@ export default function UnifiedLogin({ onLoginSuccess }) {
               disabled={forgotLoading}
               sx={{ bgcolor: "#10B981", "&:hover": { bgcolor: "#059669" }, fontWeight: 800, textTransform: "none", px: 2.5 }}
             >
-              {forgotLoading ? <CircularProgress size={20} color="inherit" /> : "Change Password (પાસવર્ડ બદલો)"}
+              {forgotLoading ? <CircularProgress size={20} color="inherit" /> : "Change Password"}
             </Button>
           )}
         </DialogActions>

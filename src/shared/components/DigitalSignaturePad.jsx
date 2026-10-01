@@ -287,7 +287,7 @@ export default function DigitalSignaturePad({
               <Create style={{ fontSize: 13, color: "#D97706" }} />
             )
           }
-          label={hasSignature ? "Signed (સહી થયેલ છે)" : "Pending (બાકી છે)"}
+          label={hasSignature ? "Signed" : "Pending"}
           size="small"
           sx={{
             fontWeight: 800,
@@ -332,19 +332,19 @@ export default function DigitalSignaturePad({
             value="QR_MOBILE"
             icon={<Smartphone sx={{ fontSize: 14 }} />}
             iconPosition="start"
-            label="📱 Phone QR (મોબાઇલથી)"
+            label="📱 Phone QR"
           />
           <Tab
             value="DRAW"
             icon={<Create sx={{ fontSize: 14 }} />}
             iconPosition="start"
-            label="Screen Draw (હાથેથી)"
+            label="Screen Draw"
           />
           <Tab
             value="TYPE"
             icon={<TextFields sx={{ fontSize: 14 }} />}
             iconPosition="start"
-            label="Type (ટાઇપ)"
+            label="Type"
           />
         </Tabs>
 
@@ -365,7 +365,7 @@ export default function DigitalSignaturePad({
               "&:hover": { bgcolor: "rgba(239, 68, 68, 0.15)" },
             }}
           >
-            Clear (ફરીથી)
+            Clear
           </Button>
         )}
       </Box>
@@ -388,7 +388,7 @@ export default function DigitalSignaturePad({
                 ✅ Signature Received from Mobile!
               </Typography>
               <Typography variant="caption" sx={{ color: "#059669", fontWeight: 700, display: "block", mt: 0.5 }}>
-                મોબાઇલ ફોનમાંથી સહી સફળતાપૂર્વક મેળવી લેવામાં આવી છે.
+                Signature has been successfully saved from mobile device.
               </Typography>
               {value && (
                 <Box
@@ -432,7 +432,7 @@ export default function DigitalSignaturePad({
                     color: themeConfig.textMain || "#0F172A",
                   }}
                 >
-                  તમારા ફોનમાંથી QR કોડ સ્કેન કરો અને આંગળીથી સહી કરો ✍️
+                  Scan QR code with your phone camera to sign ✍️
                 </Typography>
               </Box>
 
@@ -475,16 +475,16 @@ export default function DigitalSignaturePad({
                 {/* Steps and Live Sync Status */}
                 <Box sx={{ textAlign: "left", maxWidth: 300 }}>
                   <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain || "#0F172A", mb: 0.8 }}>
-                    3 સરળ સ્ટેપ્સ (Easy Steps):
+                    3 Easy Steps:
                   </Typography>
                   <Typography variant="caption" sx={{ display: "block", color: "#475569", fontWeight: 700, mb: 0.5 }}>
-                    1️⃣ ફોનનો કેમેરો આ QR કોડ તરફ રાખો
+                    1️⃣ Point your phone camera at this QR code
                   </Typography>
                   <Typography variant="caption" sx={{ display: "block", color: "#475569", fontWeight: 700, mb: 0.5 }}>
-                    2️⃣ ફોનમાં સ્ક્રીન પર સહી કરીને Save કરો
+                    2️⃣ Sign on your phone screen and tap Save
                   </Typography>
                   <Typography variant="caption" sx={{ display: "block", color: "#475569", fontWeight: 700, mb: 1.5 }}>
-                    3️⃣ અહીં ઓટોમેટિક સહી આવી જશે!
+                    3️⃣ Signature will automatically sync here!
                   </Typography>
 
                   {/* Live Status indicator */}
@@ -577,7 +577,7 @@ export default function DigitalSignaturePad({
             ref={sigPadRef}
             height={180}
             color={isDarkMode ? "#38BDF8" : themeConfig.textMain || "#0F172A"}
-            placeholder="Touchscreen અથવા Mouse થી અહીં સહી કરો"
+            placeholder="Sign here using touchscreen or mouse"
             onSignChange={(signed, dataUrl) => {
               setHasSignature(signed);
               if (signed && onChange) {

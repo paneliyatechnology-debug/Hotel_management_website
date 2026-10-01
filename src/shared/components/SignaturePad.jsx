@@ -12,7 +12,7 @@ const SignaturePad = forwardRef(function SignaturePad(
   {
     height = 260,
     color = "#0F172A",
-    placeholder = "Sign here using finger (આંગળીથી સહી કરો)",
+    placeholder = "Sign here using finger or mouse",
     onSignChange,
   },
   ref

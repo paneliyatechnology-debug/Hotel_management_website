@@ -1404,7 +1404,7 @@ export default function CheckInWizardPage({
                 {/* Main Guest Digital E-Signature Pad */}
                 <Box sx={{ mt: 3, pt: 2.5, borderTop: `1px dashed ${themeConfig.border}` }}>
                   <DigitalSignaturePad
-                    title="Main Guest Signature (ડિજિટલ સહી)"
+                    title="Main Guest Digital Signature"
                     signerName={checkInData.fullName || "Primary Guest"}
                     signerRole="Primary Guest"
                     value={checkInData.guestSignature}
@@ -1769,7 +1769,7 @@ export default function CheckInWizardPage({
                       {/* Member Digital E-Signature Pad */}
                       <Box sx={{ mt: 2, pt: 1.8, borderTop: `1px dashed ${themeConfig.border}` }}>
                         <DigitalSignaturePad
-                          title={`Member #${index + 1} Signature (સહી)`}
+                          title={`Member #${index + 1} Signature`}
                           signerName={member.name || `Member #${index + 1}`}
                           signerRole={member.relationship ? `Member (${member.relationship})` : "Co-Guest"}
                           value={member.signature || (checkInData.memberSignatures && checkInData.memberSignatures[member.id])}
@@ -2415,13 +2415,13 @@ export default function CheckInWizardPage({
                 </Box>
               </Box>
 
-              {/* 5. DIGITAL E-SIGNATURE VERIFICATION SECTION (ડિજિટલ સહી) */}
+              {/* 5. DIGITAL E-SIGNATURE VERIFICATION SECTION */}
               <Box sx={{ mt: 3.5, pt: 3, borderTop: `1.5px dashed ${themeConfig.border}` }}>
                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexWrap: "wrap", gap: 1 }}>
                   <div>
                     <Typography variant="subtitle1" sx={{ fontWeight: 900, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 1 }}>
                       <Draw sx={{ color: themeConfig.primary, fontSize: 22 }} />
-                      Digital E-Signature Verification (ડિજિટલ સહી)
+                      Digital E-Signature Verification
                     </Typography>
                     <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
                       Collect digital sign-off from Primary Guest and accompanying members for check-in declaration.

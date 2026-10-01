@@ -347,7 +347,7 @@ export default function HotelOverviewPage({
 
   // Greeting according to local time
   const currentHour = new Date(nowTime).getHours();
-  const timeGreeting = currentHour < 12 ? "સુપ્રભાત (Good Morning)" : currentHour < 17 ? "શુભ બપોર (Good Afternoon)" : "શુભ સંધ્યા (Good Evening)";
+  const timeGreeting = currentHour < 12 ? "Good Morning" : currentHour < 17 ? "Good Afternoon" : "Good Evening";
   const liveClockString = new Date(nowTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
 
   return (

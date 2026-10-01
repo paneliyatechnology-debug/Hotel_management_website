@@ -1,12 +1,12 @@
 /**
- * 🛠️ API Environment Configuration (સીધું અહીંથી જ Toggle કરો)
+ * 🛠️ API Environment Configuration
  * 
- * મોડ બદલવા માટે નીચે ENVIRONMENT માં "LOCAL" અથવા "LIVE" લખો:
+ * Toggle mode by setting ENVIRONMENT below to "LOCAL" or "LIVE":
  * - "LOCAL" -> http://localhost:5000
  * - "LIVE"  -> https://hotelmanagementbackend-dev.up.railway.app
  */
 
-export const ENVIRONMENT = "LIVE"; // 👉 અહીં "LOCAL" અથવા "LIVE" બદલો
+export const ENVIRONMENT = "LIVE"; // 👉 Toggle "LOCAL" or "LIVE" here
 
 export const LOCAL_API_URL = "http://localhost:5000";
 export const LIVE_API_URL = "https://hotelmanagementbackend-dev.up.railway.app";

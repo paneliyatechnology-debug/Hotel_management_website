@@ -382,23 +382,20 @@ export default function UnifiedLogin({ onLoginSuccess }) {
           {/* Header */}
           <Box sx={{ textAlign: "center", mb: 4 }}>
             <Box
+              component="img"
+              src="/logo.png"
+              alt="MYOWNPMS Logo"
               sx={{
-                width: 52,
-                height: 52,
-                borderRadius: 0,
-                bgcolor: themeConfig.primary,
-                color: "#ffffff",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
+                width: 64,
+                height: 64,
+                objectFit: "contain",
+                borderRadius: "14px",
                 mb: 1.5,
-                boxShadow: `0 4px 14px ${themeConfig.primaryGlow || "rgba(0,0,0,0.15)"}`,
+                boxShadow: "0 6px 16px rgba(0,0,0,0.08)",
               }}
-            >
-              <HotelIcon sx={{ fontSize: 28 }} />
-            </Box>
-            <Typography variant="h5" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-              Grand Royale Portal
+            />
+            <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5 }}>
+              MYOWNPMS Portal
             </Typography>
             <Typography variant="body2" sx={{ color: themeConfig.textMuted, mt: 0.5 }}>
               Universal Sign-In for Super Admin, Hotel Admin & Receptionists

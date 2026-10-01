@@ -11,12 +11,10 @@ export default function Footer() {
           {/* Brand & Socials */}
           <div className="md:col-span-4 space-y-5">
             <Link href="/" className="flex items-center gap-3 group">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#F59E0B] via-[#00D0B4] to-[#008A76] text-[#072F2A] shadow-md shadow-[#00D0B4]/20 transition-transform group-hover:scale-105">
-                <Crown className="h-5 w-5 fill-[#072F2A] stroke-[1.5]" />
-              </div>
+              <img src="/logo.png" alt="MYOWNPMS Logo" className="h-10 w-10 object-contain rounded-lg transition-transform group-hover:scale-105" />
               <div className="flex flex-col">
-                <span className="font-serif text-base sm:text-lg font-black tracking-wider text-white uppercase leading-none">
-                  GRAND ROYALE
+                <span className="font-sans text-base sm:text-lg font-black tracking-wider text-white uppercase leading-none">
+                  MYOWNPMS
                 </span>
                 <span className="text-[9.5px] font-sans font-bold tracking-[0.22em] text-[#00D0B4] uppercase leading-snug mt-0.5">
                   HOTEL MANAGEMENT

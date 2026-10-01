@@ -173,19 +173,18 @@ export default function DashboardLayout({
         >
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
             <Avatar
+              src="/logo.png"
+              alt="MYOWNPMS Logo"
               sx={{
-                background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
                 width: 38,
                 height: 38,
-                borderRadius: "12px",
-                boxShadow: `0 4px 12px ${themeConfig.primaryGlow}, inset 0 1px 0 rgba(255,255,255,0.4)`,
+                borderRadius: "10px",
+                bgcolor: "transparent",
               }}
-            >
-              <HotelIcon sx={{ color: "#FFFFFF", fontSize: 20 }} />
-            </Avatar>
+            />
             <Box>
-              <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1.1, color: themeConfig.textMain, fontSize: "0.95rem" }}>
-                GRAND ROYALE
+              <Typography variant="subtitle1" sx={{ fontWeight: 900, lineHeight: 1.1, color: themeConfig.textMain, fontSize: "0.95rem", letterSpacing: "0.02em" }}>
+                MYOWNPMS
               </Typography>
               <Typography variant="caption" sx={{ color: themeConfig.primaryDark, fontWeight: 700, letterSpacing: "0.05em", fontSize: "0.68rem" }}>
                 {user?.role === "SUPER_ADMIN"

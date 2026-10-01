@@ -22,8 +22,11 @@ const outfit = Outfit({
 });
 
 export const metadata = {
-  title: "The Grand Royale | Hotel Management System",
+  title: "MYOWNPMS | Hotel Management System",
   description: "Next-Generation Multi-Tenant Hotel Management & Cloud PMS Platform",
+  icons: {
+    icon: "/logo.png",
+  },
 };
 
 export default function RootLayout({ children }) {

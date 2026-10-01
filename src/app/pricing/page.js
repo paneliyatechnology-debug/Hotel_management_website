@@ -6,130 +6,27 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Check, ArrowRight, ShieldCheck, Clock, CheckCircle2 } from "lucide-react";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
-const fallbackMonthly = [
-  {
-    _id: "starter_m",
-    name: "Starter Boutique",
-    description: "Perfect for boutique hotels, B&Bs up to 15 rooms.",
-    price: 4999,
-    maxRooms: 15,
-    billingCycle: "MONTHLY",
-    features: [
-      "Up to 15 Rooms Inventory",
-      "Front Desk & Walk-in Wizard",
-      "Govt ID Compliance & Ledger",
-      "GST Tax Invoice & Receipt Generator",
-      "Standard Email Support",
-    ],
-    isPopular: false,
-    badge: "",
-  },
-  {
-    _id: "pro_m",
-    name: "Professional Resort",
-    description: "For mid-size luxury hotels & resorts with multi-staff operations.",
-    price: 9999,
-    maxRooms: 50,
-    billingCycle: "MONTHLY",
-    features: [
-      "Up to 50 Rooms Inventory",
-      "Full PMS Operations & Room Matrix",
-      "Multi-Staff Shifts & Receptionist Roster",
-      "In-Room POS Ancillary Charges",
-      "Advanced Revenue & Occupancy Reports",
-      "Priority Support",
-    ],
-    isPopular: true,
-    badge: "MOST POPULAR",
-  },
-  {
-    _id: "enterprise_m",
-    name: "Enterprise Grand",
-    description: "For large hotel chains, resorts & multi-property groups.",
-    price: 19999,
-    maxRooms: 9999,
-    billingCycle: "MONTHLY",
-    features: [
-      "Unlimited Rooms & Properties",
-      "Complete Hotel PMS Operations",
-      "Custom Financial Export & Audit",
-      "Dedicated Account Manager",
-      "24/7 SLA Priority Phone Support",
-    ],
-    isPopular: false,
-    badge: "",
-  },
-];
-
-const fallbackAnnual = [
-  {
-    _id: "starter_a",
-    name: "Starter Boutique (Annual)",
-    description: "Perfect for boutique hotels up to 15 rooms (Saved 20%).",
-    price: 47990,
-    maxRooms: 15,
-    billingCycle: "ANNUAL",
-    features: [
-      "Up to 15 Rooms Inventory",
-      "Front Desk & Walk-in Wizard",
-      "Govt ID Compliance & Ledger",
-      "GST Tax Invoice & Receipt Generator",
-      "2 Months Free (Save 20%)",
-    ],
-    isPopular: false,
-    badge: "",
-  },
-  {
-    _id: "pro_a",
-    name: "Professional Resort (Annual)",
-    description: "For mid-size luxury hotels & resorts (Saved 20%).",
-    price: 95990,
-    maxRooms: 50,
-    billingCycle: "ANNUAL",
-    features: [
-      "Up to 50 Rooms Inventory",
-      "Full PMS Operations & Room Matrix",
-      "Multi-Staff Shifts & Receptionist Roster",
-      "In-Room POS Ancillary Charges",
-      "Advanced Revenue & Occupancy Reports",
-      "2 Months Free (Save 20%)",
-    ],
-    isPopular: true,
-    badge: "MOST POPULAR",
-  },
-  {
-    _id: "enterprise_a",
-    name: "Enterprise Grand (Annual)",
-    description: "For large hotel chains & multi-property groups (Saved 20%).",
-    price: 191990,
-    maxRooms: 9999,
-    billingCycle: "ANNUAL",
-    features: [
-      "Unlimited Rooms & Properties",
-      "Complete Hotel PMS Operations",
-      "Custom Financial Export & Audit",
-      "Dedicated Account Manager",
-      "24/7 SLA Priority Phone Support",
-    ],
-    isPopular: false,
-    badge: "",
-  },
-];
 
 export default function PricingPage() {
   const [isYearly, setIsYearly] = useState(false);
   const [dynamicPlans, setDynamicPlans] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const [trialText, setTrialText] = useState("30-Day");
 
   useEffect(() => {
     async function loadData() {
+      setLoading(true);
       try {
         const res = await apiRequest(API_ENDPOINTS.SUBSCRIPTION_PLANS.PUBLIC);
         if (res && res.data) {
           setDynamicPlans(res.data);
         }
-      } catch (err) {}
+      } catch (err) {
+        console.error("Failed to load live subscription plans:", err);
+      } finally {
+        setLoading(false);
+      }
       
       try {
         const res = await apiRequest(API_ENDPOINTS.SETTINGS.PUBLIC);
@@ -193,9 +90,26 @@ export default function PricingPage() {
       <section className="py-16 bg-[#F8FAFA]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {(() => {
-            const monthlyList = dynamicPlans?.monthly?.length ? dynamicPlans.monthly : null;
-            const annualList = dynamicPlans?.annual?.length ? dynamicPlans.annual : null;
-            const plans = isYearly ? (annualList || fallbackAnnual) : (monthlyList || fallbackMonthly);
+            if (loading) {
+              return (
+                <div className="flex items-center justify-center py-16 text-[#0F766E] font-medium gap-3">
+                  <div className="w-8 h-8 border-4 border-[#0F766E] border-t-transparent rounded-full animate-spin" />
+                  <span>Loading live pricing plans...</span>
+                </div>
+              );
+            }
+
+            const monthlyList = dynamicPlans?.monthly || [];
+            const annualList = dynamicPlans?.annual || [];
+            const plans = isYearly ? annualList : monthlyList;
+
+            if (!plans || plans.length === 0) {
+              return (
+                <div className="text-center py-12 text-[#64748B] font-medium">
+                  No active subscription plans found.
+                </div>
+              );
+            }
 
             return (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">

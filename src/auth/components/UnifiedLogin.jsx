@@ -422,7 +422,8 @@ export default function UnifiedLogin({ onLoginSuccess }) {
           {/* Login Form */}
           <form onSubmit={handleLogin}>
             <TextField
-              label="Staff / Administrator Email"
+              label="Enter your email"
+              placeholder="Enter your email"
               type="email"
               fullWidth
               required
@@ -441,7 +442,8 @@ export default function UnifiedLogin({ onLoginSuccess }) {
             />
 
             <TextField
-              label="Password"
+              label="Enter your password"
+              placeholder="Enter your password"
               type={showPassword ? "text" : "password"}
               fullWidth
               required

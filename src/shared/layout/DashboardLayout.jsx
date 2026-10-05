@@ -42,6 +42,8 @@ import {
   LightMode,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
+import { usePresence } from "@/shared/context/SocketContext";
+import PresenceBadge from "@/shared/components/PresenceBadge";
 
 const DRAWER_WIDTH = 270;
 const HEADER_HEIGHT = 64;
@@ -55,6 +57,7 @@ export default function DashboardLayout({
   children,
 }) {
   const { themeConfig, paletteKey, setPaletteKey, themePalettes, isDarkMode, toggleThemeMode } = useAppTheme();
+  const { isConnected } = usePresence();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [sidebarOpen, setSidebarOpen] = useState(false);

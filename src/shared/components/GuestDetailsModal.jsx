@@ -147,7 +147,22 @@ export default function GuestDetailsModal({
   const accompanyingGuests = activeBooking?.accompanyingGuests || guest?.accompanyingGuests || [];
 
   const bookingStatus = activeBooking?.status || (guest.status === "IN-HOUSE" ? "CHECKED_IN" : guest.status || "REGISTERED");
-  const isPaid = paymentDetails?.dueAmount === 0 || (activeBooking && activeBooking.dueAmount === 0);
+  
+  const rawDue = paymentDetails?.dueAmount !== undefined ? paymentDetails.dueAmount : (activeBooking?.dueAmount !== undefined ? activeBooking.dueAmount : (guest?.dueAmount !== undefined ? guest.dueAmount : guest?.balanceAmount));
+  const rawPaid = paymentDetails?.paidAmount !== undefined ? paymentDetails.paidAmount : (activeBooking?.paidAmount !== undefined ? activeBooking.paidAmount : (guest?.paidAmount !== undefined ? guest.paidAmount : guest?.advanceAmount || 0));
+  const rawTotal = paymentDetails?.totalAmount !== undefined ? paymentDetails.totalAmount : (activeBooking?.totalAmount !== undefined ? activeBooking.totalAmount : (guest?.totalAmount || 0));
+
+  let guestPayStatus = (paymentDetails?.paymentStatus || activeBooking?.paymentStatus || guest?.paymentStatus || "").toUpperCase();
+  if (guestPayStatus === "PARTIALLY_PAID") guestPayStatus = "PARTIAL";
+  if (!guestPayStatus || guestPayStatus === "PENDING") {
+    if (rawDue !== undefined && rawDue !== null && Number(rawDue) <= 0 && (Number(rawPaid) > 0 || Number(rawTotal) > 0)) {
+      guestPayStatus = "PAID";
+    } else if (Number(rawPaid) > 0) {
+      guestPayStatus = "PARTIAL";
+    } else {
+      guestPayStatus = "PENDING";
+    }
+  }
 
   return (
     <>
@@ -205,14 +220,30 @@ export default function GuestDetailsModal({
                 </Typography>
                 <StatusChip status={bookingStatus} />
                 <Chip
-                  label={isPaid ? "PAID" : "PENDING DUE"}
+                  label={guestPayStatus === "PAID" ? "PAID" : guestPayStatus === "PARTIAL" ? "PARTIAL" : "PENDING DUE"}
                   size="small"
                   sx={{
                     fontWeight: 800,
                     fontSize: "0.72rem",
-                    bgcolor: isPaid ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.15)",
-                    color: isPaid ? "#10B981" : "#EF4444",
-                    border: `1px solid ${isPaid ? "rgba(16, 185, 129, 0.3)" : "rgba(239, 68, 68, 0.3)"}`,
+                    bgcolor:
+                      guestPayStatus === "PAID"
+                        ? "rgba(16, 185, 129, 0.15)"
+                        : guestPayStatus === "PARTIAL"
+                        ? "rgba(245, 158, 11, 0.15)"
+                        : "rgba(239, 68, 68, 0.15)",
+                    color:
+                      guestPayStatus === "PAID"
+                        ? "#10B981"
+                        : guestPayStatus === "PARTIAL"
+                        ? "#F59E0B"
+                        : "#EF4444",
+                    border: `1px solid ${
+                      guestPayStatus === "PAID"
+                        ? "rgba(16, 185, 129, 0.3)"
+                        : guestPayStatus === "PARTIAL"
+                        ? "rgba(245, 158, 11, 0.3)"
+                        : "rgba(239, 68, 68, 0.3)"
+                    }`,
                   }}
                 />
               </Box>

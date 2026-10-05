@@ -245,164 +245,101 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
   };
 
   return (
-    <Box sx={{ px: { xs: 2, sm: 3, md: 3.5 }, py: { xs: 2, sm: 3.5 }, display: "flex", flexDirection: "column", gap: 3.5 }}>
+    <Box sx={{ px: { xs: 2, sm: 3, md: 3.5 }, py: { xs: 2, sm: 3 }, display: "flex", flexDirection: "column", gap: 3 }}>
       {/* Header */}
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: { xs: "flex-start", sm: "center" }, flexDirection: { xs: "column", sm: "row" }, gap: 2 }}>
         <div>
           <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5 }}>
-            Daily Collections & Cash Drawer Settlement
+            Daily Collections &amp; Cash Drawer
           </Typography>
-          <Typography variant="body2" sx={{ color: themeConfig.textMuted }}>
-            Daily revenue reconciliation, percentage growth telemetry & admin vault cash handover
+          <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontSize: "0.85rem" }}>
+            Real-time collection ledger &amp; shift handover reconciliation
           </Typography>
         </div>
 
-        <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "center" }}>
+        <Box sx={{ display: "flex", gap: 1.2, flexWrap: "wrap", alignItems: "center" }}>
           <Button
             variant="outlined"
             startIcon={<Refresh />}
             onClick={fetchDailyData}
-            className="btn-3d"
             sx={{
               borderRadius: "12px",
               borderColor: themeConfig.border,
               bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#FFFFFF",
               color: themeConfig.textMain,
               fontWeight: 700,
+              fontSize: "0.82rem",
               textTransform: "none",
             }}
           >
-            Refresh Live Figures
+            Refresh
           </Button>
 
           <Button
             variant="contained"
+            startIcon={<Handshake sx={{ fontSize: "18px !important" }} />}
+            disabled={Number(telemetry.unsettledTotal || 0) <= 0}
+            onClick={() => setHandoverModalOpen(true)}
+            sx={{
+              borderRadius: "12px",
+              py: 0.9,
+              px: 2,
+              background: telemetry.cashInDrawer > 0
+                ? "linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important"
+                : "linear-gradient(135deg, #10B981 0%, #059669 100%) !important",
+              color: "#FFFFFF !important",
+              fontWeight: 800,
+              fontSize: "0.82rem",
+              textTransform: "none",
+              boxShadow: telemetry.cashInDrawer > 0
+                ? "0 4px 14px rgba(245, 158, 11, 0.35)"
+                : "0 4px 14px rgba(16, 185, 129, 0.35)",
+              "& .MuiSvgIcon-root": {
+                color: "#FFFFFF !important",
+              },
+              "&:hover": {
+                filter: "brightness(1.08)",
+              },
+              "&.Mui-disabled": {
+                background: (isDarkMode ? "rgba(255,255,255,0.08)" : "#E2E8F0") + " !important",
+                color: (isDarkMode ? "#94A3B8" : "#64748B") + " !important",
+                border: `1px solid ${themeConfig.border}`,
+                boxShadow: "none !important",
+                cursor: "not-allowed",
+                "& .MuiSvgIcon-root": {
+                  color: (isDarkMode ? "#94A3B8" : "#64748B") + " !important",
+                },
+              },
+            }}
+          >
+            {telemetry.cashInDrawer > 0
+              ? `Settle Cash Handover (₹${formatRupee(telemetry.cashInDrawer)})`
+              : "Settle Shift Handover (₹0 Balanced)"}
+          </Button>
+
+          <Button
+            variant="outlined"
             startIcon={<Download />}
             onClick={() => {
               downloadDailyLedgerPDF(data?.payments || [], telemetry, hotelSettings || user?.hotel || {});
               showToast("Treasury Statement PDF generated successfully!", "success");
             }}
-            className="btn-3d"
             sx={{
               borderRadius: "12px",
-              background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-              color: "#FFFFFF",
-              fontWeight: 800,
+              borderColor: themeConfig.border,
+              bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#FFFFFF",
+              color: themeConfig.textMain,
+              fontWeight: 700,
+              fontSize: "0.82rem",
               textTransform: "none",
-              boxShadow: `0 6px 16px ${themeConfig.primaryGlow}`,
             }}
           >
-            Download Statement (PDF)
+            Export PDF
           </Button>
         </Box>
       </Box>
 
-      {/* HERO SECTION: Live Cash Drawer Vault & Settle Handover Action */}
-      <Card
-        className="card-3d"
-        sx={{
-          p: 3.5,
-          borderRadius: "22px",
-          bgcolor: themeConfig.bgCard,
-          border: `1px solid ${themeConfig.border}`,
-          background: isDarkMode
-            ? (themeConfig.bgCard || "#0E312C")
-            : telemetry.cashInDrawer > 0
-              ? "linear-gradient(135deg, #FFFFFF 0%, #F0FDF4 100%)"
-              : "linear-gradient(135deg, #FFFFFF 0%, #FAFBFD 100%)",
-          boxShadow: isDarkMode
-            ? "0 12px 30px rgba(0, 0, 0, 0.4)"
-            : "0 12px 30px rgba(12, 39, 59, 0.07), inset 0 1px 1px #FFFFFF",
-        }}
-      >
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: { xs: "column", md: "row" },
-            justifyContent: "space-between",
-            alignItems: { xs: "flex-start", md: "center" },
-            gap: 3,
-          }}
-        >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2.5 }}>
-            <Box
-              sx={{
-                width: 68,
-                height: 68,
-                borderRadius: "18px",
-                bgcolor: telemetry.cashInDrawer > 0 ? (isDarkMode ? "rgba(16, 185, 129, 0.2)" : "#ECFDF5") : themeConfig.champagne,
-                color: telemetry.cashInDrawer > 0 ? "#10B981" : themeConfig.primary,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: "0 6px 16px rgba(0,0,0,0.06)",
-              }}
-            >
-              {telemetry.cashInDrawer > 0 ? <LockOpen sx={{ fontSize: 34 }} /> : <Lock sx={{ fontSize: 34 }} />}
-            </Box>
-
-            <div>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 0.5 }}>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  Front Desk Counter Cash Drawer
-                </Typography>
-                <Chip
-                  label={telemetry.cashInDrawer > 0 ? "⚠️ Cash Awaiting Admin Collection" : "✅ Drawer Balanced (₹0 at Counter)"}
-                  size="small"
-                  sx={{
-                    fontWeight: 800,
-                    bgcolor: telemetry.cashInDrawer > 0 ? (isDarkMode ? "rgba(245, 158, 11, 0.2)" : "#FEF3C7") : (isDarkMode ? "rgba(16, 185, 129, 0.2)" : "#ECFDF5"),
-                    color: telemetry.cashInDrawer > 0 ? "#F59E0B" : "#10B981",
-                    borderRadius: "6px",
-                  }}
-                />
-              </Box>
-              <Typography variant="h3" sx={{ fontWeight: 900, color: telemetry.cashInDrawer > 0 ? (isDarkMode ? "#10B981" : "#059669") : themeConfig.textMain, letterSpacing: -1 }}>
-                ₹{formatRupee(telemetry.cashInDrawer)}
-              </Typography>
-              <Typography variant="body2" sx={{ color: themeConfig.textMuted }}>
-                Total Vault Realized: <strong>₹{formatRupee(telemetry.totalVaultSettled)}</strong> &bull; Total Today Gross: <strong>₹{formatRupee(telemetry.todayGross)}</strong>
-              </Typography>
-            </div>
-          </Box>
-
-          <Button
-            variant="contained"
-            size="large"
-            startIcon={<Handshake sx={{ fontSize: 20 }} />}
-            disabled={Number(telemetry.unsettledTotal || 0) <= 0}
-            onClick={() => setHandoverModalOpen(true)}
-            className="btn-3d"
-            sx={{
-              color: "#FFFFFF !important",
-              background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-              borderRadius: "14px",
-              py: 1.5,
-              px: 3.5,
-              fontWeight: 900,
-              fontSize: "1rem",
-              textTransform: "none",
-              boxShadow: `0 8px 24px ${themeConfig.primaryGlow}`,
-              "& .MuiSvgIcon-root": {
-                color: "#FFFFFF !important",
-              },
-              "&.Mui-disabled": {
-                background: isDarkMode ? "rgba(255,255,255,0.08) !important" : "#E2E8F0 !important",
-                color: isDarkMode ? "rgba(255,255,255,0.35) !important" : "#64748B !important",
-                boxShadow: "none !important",
-                cursor: "not-allowed",
-                "& .MuiSvgIcon-root": {
-                  color: isDarkMode ? "rgba(255,255,255,0.35) !important" : "#64748B !important",
-                },
-              },
-            }}
-          >
-            Settle & Collect Cash Handover (Vault Deposit & Reset to ₹0)
-          </Button>
-        </Box>
-      </Card>
-
-      {/* 4 PERCENTAGE & REVENUE CALCULATION CARDS */}
+      {/* 4 ESSENTIAL DAILY COLLECTION STAT CARDS */}
       <Box
         sx={{
           display: "grid",
@@ -411,219 +348,183 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
             sm: "repeat(2, 1fr)",
             md: "repeat(4, 1fr)",
           },
-          gap: 2.5,
+          gap: 2,
         }}
       >
-        {/* CARD 1: Today Target % */}
+        {/* CARD 1: Cash in Counter Drawer */}
         <Paper
-          className="card-3d"
+          elevation={0}
           sx={{
-            p: 2.5,
+            p: 2.2,
             borderRadius: "18px",
-            bgcolor: themeConfig.bgCard,
-            border: `1px solid ${themeConfig.border}`,
-            background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #FAFBFD 100%)",
-            boxShadow: isDarkMode ? "0 6px 18px rgba(0,0,0,0.3)" : "0 6px 18px rgba(12, 39, 59, 0.04), inset 0 1px 1px #FFFFFF",
+            bgcolor: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "#FFFFFF",
+            border: `1.5px solid ${telemetry.cashInDrawer > 0 ? "rgba(245, 158, 11, 0.35)" : themeConfig.border}`,
+            boxShadow: telemetry.cashInDrawer > 0
+              ? (isDarkMode ? "0 8px 24px rgba(245, 158, 11, 0.15)" : "0 8px 24px rgba(245, 158, 11, 0.08)")
+              : "0 4px 14px rgba(0,0,0,0.03)",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
           }}
         >
-          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-            <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase" }}>
-              Today Target Achieved
-            </Typography>
-            <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.primary }}>
-              {percentages.dailyTargetPercentage || 0}%
-            </Typography>
-          </Box>
-          <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 1 }}>
-            ₹{formatRupee(telemetry.todayGross)}
-          </Typography>
-          <LinearProgress
-            variant="determinate"
-            value={Math.min(100, percentages.dailyTargetPercentage || 0)}
-            sx={{
-              height: 8,
-              borderRadius: 4,
-              bgcolor: themeConfig.champagne,
-              "& .MuiLinearProgress-bar": {
-                bgcolor: themeConfig.primary,
-                borderRadius: 4,
-              },
-              mb: 1,
-            }}
-          />
-          <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-            Daily Benchmark Target: ₹{formatRupee(percentages.dailyTarget)}
-          </Typography>
-        </Paper>
-
-        {/* CARD 2: Day-over-Day Growth % */}
-        <Paper
-          className="card-3d"
-          sx={{
-            p: 2.5,
-            borderRadius: "18px",
-            bgcolor: themeConfig.bgCard,
-            border: `1px solid ${themeConfig.border}`,
-            background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #FAFBFD 100%)",
-            boxShadow: isDarkMode ? "0 6px 18px rgba(0,0,0,0.3)" : "0 6px 18px rgba(12, 39, 59, 0.04), inset 0 1px 1px #FFFFFF",
-          }}
-        >
-          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-            <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase" }}>
-              Day Growth %
-            </Typography>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Avatar sx={{ width: 34, height: 34, bgcolor: telemetry.cashInDrawer > 0 ? "rgba(245, 158, 11, 0.15)" : "rgba(16, 185, 129, 0.15)", color: telemetry.cashInDrawer > 0 ? "#F59E0B" : "#10B981" }}>
+                {telemetry.cashInDrawer > 0 ? <LockOpen sx={{ fontSize: 18 }} /> : <Lock sx={{ fontSize: 18 }} />}
+              </Avatar>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", fontSize: "0.72rem" }}>
+                Cash in Drawer
+              </Typography>
+            </Box>
             <Chip
-              label={`${Number(percentages.dayGrowthPercentage || 0) >= 0 ? "+" : ""}${percentages.dayGrowthPercentage || 0}%`}
+              label={telemetry.cashInDrawer > 0 ? "At Counter" : "₹0 Balanced"}
               size="small"
               sx={{
                 fontWeight: 800,
-                bgcolor: Number(percentages.dayGrowthPercentage || 0) >= 0 ? (isDarkMode ? "rgba(16, 185, 129, 0.2)" : "#ECFDF5") : (isDarkMode ? "rgba(239, 68, 68, 0.2)" : "#FEF2F2"),
-                color: Number(percentages.dayGrowthPercentage || 0) >= 0 ? "#10B981" : themeConfig.danger,
-                borderRadius: "6px",
+                fontSize: "0.68rem",
+                height: 20,
+                bgcolor: telemetry.cashInDrawer > 0 ? "rgba(245, 158, 11, 0.15)" : "rgba(16, 185, 129, 0.15)",
+                color: telemetry.cashInDrawer > 0 ? "#D97706" : "#10B981",
               }}
             />
           </Box>
-          <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 0.5 }}>
-            ₹{formatRupee(telemetry.todayGross)}
+          <Typography variant="h4" sx={{ fontWeight: 900, color: telemetry.cashInDrawer > 0 ? (isDarkMode ? "#FBBF24" : "#D97706") : themeConfig.textMain, letterSpacing: -0.5, my: 0.5 }}>
+            ₹{formatRupee(telemetry.cashInDrawer)}
           </Typography>
-          <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-            Yesterday: ₹{formatRupee(telemetry.yesterdayGross)}
+          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem" }}>
+            Unsettled cash awaiting admin vault handover
           </Typography>
         </Paper>
 
-        {/* CARD 3: Monthly Revenue & Growth % */}
+        {/* CARD 2: Total Today Gross Collections */}
         <Paper
-          className="card-3d"
+          elevation={0}
           sx={{
-            p: 2.5,
+            p: 2.2,
             borderRadius: "18px",
-            bgcolor: themeConfig.bgCard,
-            border: `1px solid ${themeConfig.border}`,
-            background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #FAFBFD 100%)",
-            boxShadow: isDarkMode ? "0 6px 18px rgba(0,0,0,0.3)" : "0 6px 18px rgba(12, 39, 59, 0.04), inset 0 1px 1px #FFFFFF",
+            bgcolor: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "#FFFFFF",
+            border: `1.5px solid ${themeConfig.border}`,
+            boxShadow: "0 4px 14px rgba(0,0,0,0.03)",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
           }}
         >
-          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-            <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase" }}>
-              This Month Revenue
-            </Typography>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Avatar sx={{ width: 34, height: 34, bgcolor: "rgba(59, 130, 246, 0.12)", color: "#3B82F6" }}>
+                <TrendingUp sx={{ fontSize: 18 }} />
+              </Avatar>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", fontSize: "0.72rem" }}>
+                Today&apos;s Gross
+              </Typography>
+            </Box>
             <Chip
-              label={`${Number(percentages.monthGrowthPercentage || 0) >= 0 ? "+" : ""}${percentages.monthGrowthPercentage || 0}%`}
+              label={`${pagination.totalRecords || guestList.length} Receipts`}
               size="small"
               sx={{
                 fontWeight: 800,
-                bgcolor: isDarkMode ? "rgba(59, 130, 246, 0.2)" : "#EFF6FF",
-                color: isDarkMode ? "#60A5FA" : "#2563EB",
-                borderRadius: "6px",
+                fontSize: "0.68rem",
+                height: 20,
+                bgcolor: "rgba(59, 130, 246, 0.12)",
+                color: "#2563EB",
               }}
             />
           </Box>
-          <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 0.5 }}>
-            ₹{formatRupee(telemetry.thisMonthGross)}
+          <Typography variant="h4" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5, my: 0.5 }}>
+            ₹{formatRupee(telemetry.todayGross)}
           </Typography>
-          <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-            Est. Net Profit: ₹{formatRupee(telemetry.monthEstimatedNetEarnings)}
+          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem" }}>
+            Cash (₹{formatRupee(telemetry.todayCash)}) + Digital (₹{formatRupee((Number(telemetry.todayUpi) || 0) + (Number(telemetry.todayCard) || 0) + (Number(telemetry.todayBank) || 0))})
           </Typography>
         </Paper>
 
-        {/* CARD 4: Net Earnings Profit Margin % */}
+        {/* CARD 3: Digital Collections (UPI, Card, Bank) */}
         <Paper
-          className="card-3d"
+          elevation={0}
           sx={{
-            p: 2.5,
+            p: 2.2,
             borderRadius: "18px",
-            bgcolor: themeConfig.bgCard,
-            border: `1px solid ${themeConfig.border}`,
-            background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #F0FDF4 100%)",
-            boxShadow: isDarkMode ? "0 6px 18px rgba(0,0,0,0.3)" : "0 6px 18px rgba(12, 39, 59, 0.04), inset 0 1px 1px #FFFFFF",
+            bgcolor: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "#FFFFFF",
+            border: `1.5px solid ${themeConfig.border}`,
+            boxShadow: "0 4px 14px rgba(0,0,0,0.03)",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
           }}
         >
-          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-            <Typography variant="caption" sx={{ fontWeight: 800, color: "#10B981", textTransform: "uppercase" }}>
-              Net Profit Margin
-            </Typography>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Avatar sx={{ width: 34, height: 34, bgcolor: "rgba(139, 92, 246, 0.12)", color: "#8B5CF6" }}>
+                <QrCode2 sx={{ fontSize: 18 }} />
+              </Avatar>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", fontSize: "0.72rem" }}>
+                Digital Total
+              </Typography>
+            </Box>
             <Chip
-              label={`${percentages.netEarningsMarginPercentage || 0}%`}
+              label="UPI &amp; Card"
               size="small"
               sx={{
-                fontWeight: 900,
-                bgcolor: isDarkMode ? "rgba(16, 185, 129, 0.2)" : "#ECFDF5",
-                color: "#10B981",
-                borderRadius: "6px",
+                fontWeight: 800,
+                fontSize: "0.68rem",
+                height: 20,
+                bgcolor: "rgba(139, 92, 246, 0.12)",
+                color: "#7C3AED",
               }}
             />
           </Box>
-          <Typography variant="h5" sx={{ fontWeight: 900, color: "#10B981", mb: 0.5 }}>
-            ₹{formatRupee(telemetry.todayEstimatedNetEarnings)}
+          <Typography variant="h4" sx={{ fontWeight: 900, color: isDarkMode ? "#A78BFA" : "#7C3AED", letterSpacing: -0.5, my: 0.5 }}>
+            ₹{formatRupee((Number(telemetry.todayUpi) || 0) + (Number(telemetry.todayCard) || 0) + (Number(telemetry.todayBank) || 0))}
           </Typography>
-          <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-            Operating benchmark margin after expenses
+          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem" }}>
+            UPI: ₹{formatRupee(telemetry.todayUpi)} • Card: ₹{formatRupee(telemetry.todayCard)}
+          </Typography>
+        </Paper>
+
+        {/* CARD 4: Total Deposited in Vault */}
+        <Paper
+          elevation={0}
+          sx={{
+            p: 2.2,
+            borderRadius: "18px",
+            bgcolor: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "#FFFFFF",
+            border: `1.5px solid ${themeConfig.border}`,
+            boxShadow: "0 4px 14px rgba(0,0,0,0.03)",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+          }}
+        >
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Avatar sx={{ width: 34, height: 34, bgcolor: "rgba(16, 185, 129, 0.12)", color: "#10B981" }}>
+                <AccountBalance sx={{ fontSize: 18 }} />
+              </Avatar>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", fontSize: "0.72rem" }}>
+                In Admin Vault
+              </Typography>
+            </Box>
+            <Chip
+              label="Settled"
+              size="small"
+              sx={{
+                fontWeight: 800,
+                fontSize: "0.68rem",
+                height: 20,
+                bgcolor: "rgba(16, 185, 129, 0.12)",
+                color: "#059669",
+              }}
+            />
+          </Box>
+          <Typography variant="h4" sx={{ fontWeight: 900, color: "#10B981", letterSpacing: -0.5, my: 0.5 }}>
+            ₹{formatRupee(telemetry.totalVaultSettled)}
+          </Typography>
+          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem" }}>
+            Historical verified vault deposits
           </Typography>
         </Paper>
       </Box>
-
-      {/* MODE DISTRIBUTION BREAKDOWN STRIP */}
-      <Card
-        className="card-3d"
-        sx={{
-          p: 2.5,
-          borderRadius: "18px",
-          bgcolor: themeConfig.bgCard,
-          border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "0 6px 18px rgba(0,0,0,0.3)" : "0 6px 18px rgba(12, 39, 59, 0.04), inset 0 1px 1px #FFFFFF",
-        }}
-      >
-        <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 1.5 }}>
-          Payment Mode Percentage Distribution
-        </Typography>
-
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: {
-              xs: "1fr 1fr",
-              md: "repeat(4, 1fr)",
-            },
-            gap: 2,
-          }}
-        >
-          <Box sx={{ p: 1.5, borderRadius: "12px", bgcolor: isDarkMode ? "rgba(16, 185, 129, 0.15)" : "#ECFDF5", border: isDarkMode ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid #A7F3D0" }}>
-            <Typography variant="caption" sx={{ fontWeight: 800, color: "#10B981", textTransform: "uppercase" }}>
-              Cash ({percentages.cashPercentage || 0}%)
-            </Typography>
-            <Typography variant="h6" sx={{ fontWeight: 900, color: "#10B981" }}>
-              ₹{formatRupee(telemetry.todayCash)}
-            </Typography>
-          </Box>
-
-          <Box sx={{ p: 1.5, borderRadius: "12px", bgcolor: isDarkMode ? "rgba(139, 92, 246, 0.15)" : "#F5F3FF", border: isDarkMode ? "1px solid rgba(139, 92, 246, 0.3)" : "1px solid #DDD6FE" }}>
-            <Typography variant="caption" sx={{ fontWeight: 800, color: isDarkMode ? "#A78BFA" : "#7C3AED", textTransform: "uppercase" }}>
-              UPI QR ({percentages.upiPercentage || 0}%)
-            </Typography>
-            <Typography variant="h6" sx={{ fontWeight: 900, color: isDarkMode ? "#A78BFA" : "#7C3AED" }}>
-              ₹{formatRupee(telemetry.todayUpi)}
-            </Typography>
-          </Box>
-
-          <Box sx={{ p: 1.5, borderRadius: "12px", bgcolor: isDarkMode ? "rgba(59, 130, 246, 0.15)" : "#EFF6FF", border: isDarkMode ? "1px solid rgba(59, 130, 246, 0.3)" : "1px solid #BFDBFE" }}>
-            <Typography variant="caption" sx={{ fontWeight: 800, color: isDarkMode ? "#60A5FA" : "#2563EB", textTransform: "uppercase" }}>
-              Card POS ({percentages.cardPercentage || 0}%)
-            </Typography>
-            <Typography variant="h6" sx={{ fontWeight: 900, color: isDarkMode ? "#60A5FA" : "#2563EB" }}>
-              ₹{formatRupee(telemetry.todayCard)}
-            </Typography>
-          </Box>
-
-          <Box sx={{ p: 1.5, borderRadius: "12px", bgcolor: isDarkMode ? "rgba(245, 158, 11, 0.15)" : "#FFFBEB", border: isDarkMode ? "1px solid rgba(245, 158, 11, 0.3)" : "1px solid #FDE68A" }}>
-            <Typography variant="caption" sx={{ fontWeight: 800, color: isDarkMode ? "#FBBF24" : "#D97706", textTransform: "uppercase" }}>
-              Bank NEFT ({percentages.bankPercentage || 0}%)
-            </Typography>
-            <Typography variant="h6" sx={{ fontWeight: 900, color: isDarkMode ? "#FBBF24" : "#D97706" }}>
-              ₹{formatRupee(telemetry.todayBank)}
-            </Typography>
-          </Box>
-        </Box>
-      </Card>
 
       {/* TODAY'S GUEST PAYMENTS LIST */}
       <Card

@@ -20,6 +20,7 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   CircularProgress,
+  Divider,
 } from "@mui/material";
 import {
   WorkspacePremium,
@@ -87,16 +88,24 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
     }
   };
 
-  // Real-time dynamic trial calculations
-  const trialEnd = sub.trialEndDate ? new Date(sub.trialEndDate) : new Date(Date.now() + 24 * 86400000);
-  const trialStart = sub.trialStartDate ? new Date(sub.trialStartDate) : new Date(trialEnd.getTime() - 30 * 86400000);
+  // Real-time dynamic trial calculations (strictly from Admin configured trial dates)
+  const now = new Date();
+  const trialEnd = sub.trialEndDate ? new Date(sub.trialEndDate) : new Date(now.getTime() + 5 * 86400000);
+  const trialStart = sub.trialStartDate ? new Date(sub.trialStartDate) : new Date(trialEnd.getTime() - 5 * 86400000);
 
-  const daysLeft = countdown.isExpired ? 0 : countdown.days;
-  const totalDays = sub.totalDays || 30;
-  const elapsedDays = Math.max(0, Math.min(totalDays, totalDays - daysLeft));
-  const elapsedPercentage = Math.min(100, Math.max(0, Math.round((elapsedDays / totalDays) * 100)));
+  // Total trial duration configured in system
+  const totalTrialMs = Math.max(86400000, trialEnd.getTime() - trialStart.getTime());
+  const totalDays = Number(sub.totalDays) > 0 ? Number(sub.totalDays) : Math.max(1, Math.round(totalTrialMs / (1000 * 60 * 60 * 24)));
 
-  const isExpired = countdown.isExpired || sub.isExpired || sub.status === "EXPIRED";
+  // Current elapsed day from trialStartDate to now (1-indexed)
+  const diffFromStartMs = Math.max(0, now.getTime() - trialStart.getTime());
+  const rawElapsed = Math.floor(diffFromStartMs / (1000 * 60 * 60 * 24)) + 1;
+  const isExpired = countdown.isExpired || sub.isExpired || sub.status === "EXPIRED" || (trialEnd.getTime() <= now.getTime());
+  const elapsedDays = isExpired ? totalDays : Math.max(1, Math.min(totalDays - (countdown.days > 0 ? 0 : 0), rawElapsed));
+
+  // Time-based proportional percentage (accurate ~80-90% when 1 day remaining, 100% only on expiry)
+  const rawPercentage = Math.round((diffFromStartMs / totalTrialMs) * 100);
+  const elapsedPercentage = isExpired ? 100 : Math.min(95, Math.max(1, rawPercentage));
 
   const trialEndFormatted = trialEnd.toLocaleString("en-IN", {
     day: "numeric",
@@ -130,20 +139,20 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
   const displayedPlans = plans.filter((p) => (p.billingCycle || "MONTHLY").toUpperCase() === billingCycle.toUpperCase());
 
   const getPlanIcon = (idx) => {
-    if (idx === 0) return <Hotel sx={{ fontSize: 24, color: themeConfig.primary }} />;
-    if (idx === 1) return <Apartment sx={{ fontSize: 24, color: themeConfig.accent || "#D97706" }} />;
-    return <CorporateFare sx={{ fontSize: 24, color: themeConfig.primaryDark }} />;
+    if (idx === 0) return <Hotel sx={{ fontSize: 26, color: "#0D9488" }} />;
+    if (idx === 1) return <Apartment sx={{ fontSize: 26, color: "#059669" }} />;
+    return <CorporateFare sx={{ fontSize: 26, color: "#4F46E5" }} />;
   };
 
   return (
-    <Box sx={{ maxWidth: 1060, mx: "auto", px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 } }}>
+    <Box sx={{ maxWidth: 1080, mx: "auto", px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 } }}>
       {/* Header */}
       <Box sx={{ mb: 3.5 }}>
         <Typography variant="h4" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5 }}>
-          Enterprise Subscription &amp; 30-Day Trial
+          Enterprise Subscription &amp; {totalDays}-Day Trial
         </Typography>
         <Typography variant="body2" sx={{ color: themeConfig.textMuted, mt: 0.5 }}>
-          Monitor your 30-day evaluation trial, active cloud modules, and commercial tier licensing.
+          Monitor your {totalDays}-day evaluation trial, active cloud modules, and commercial tier licensing.
         </Typography>
       </Box>
 
@@ -179,7 +188,7 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
             </Avatar>
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain, letterSpacing: -0.3 }}>
-                {isExpired ? "30-Day Free Trial Concluded" : "30-Day Evaluation License Active"}
+                {isExpired ? `${totalDays}-Day Free Trial Concluded` : `${totalDays}-Day Evaluation License Active`}
               </Typography>
               <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.82rem" }}>
                 Full unmetered access to PMS Front Desk, Cash Ledger, Room Matrix &amp; ID Compliance
@@ -259,7 +268,7 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
 
       {/* REAL SUBSCRIPTION PLANS LIST (From Database) */}
       <Box sx={{ mb: 4 }}>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2.5, flexWrap: "wrap", gap: 2 }}>
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3.5, flexWrap: "wrap", gap: 2 }}>
           <Box>
             <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
               Available Subscription Plans
@@ -308,57 +317,96 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
             <CircularProgress sx={{ color: themeConfig.primary }} />
           </Box>
         ) : (
-          <Grid container spacing={3}>
+          <Grid container spacing={3} sx={{ pt: 1.5, alignItems: "stretch" }}>
             {displayedPlans.map((plan, idx) => {
-              const isPopular = Boolean(plan.isPopular || plan.badge === "MOST POPULAR");
+              const isPopular = Boolean(plan.isPopular || plan.badge === "MOST POPULAR" || idx === 1);
+              const iconColors = [
+                { bg: isDarkMode ? "rgba(13, 148, 136, 0.18)" : "#CCFBF1", color: "#0D9488" },
+                { bg: isDarkMode ? "rgba(16, 185, 129, 0.2)" : "#D1FAE5", color: "#059669" },
+                { bg: isDarkMode ? "rgba(99, 102, 241, 0.18)" : "#E0E7FF", color: "#4F46E5" },
+              ][idx % 3];
 
               return (
-                <Grid size={{ xs: 12, md: 4 }} key={plan._id || idx}>
+                <Grid size={{ xs: 12, md: 4 }} key={plan._id || idx} sx={{ display: "flex" }}>
                   <Card
                     className="card-3d"
                     sx={{
-                      p: 3,
-                      borderRadius: "22px",
-                      border: isPopular ? `2px solid ${themeConfig.primary}` : `1px solid ${themeConfig.border}`,
+                      p: { xs: 2.5, sm: 3.5 },
+                      borderRadius: "24px",
+                      border: isPopular
+                        ? `2px solid ${themeConfig.primary}`
+                        : `1px solid ${themeConfig.border}`,
                       bgcolor: themeConfig.bgCard,
+                      background: isPopular
+                        ? (isDarkMode
+                            ? "linear-gradient(180deg, rgba(13, 148, 136, 0.12) 0%, rgba(14, 49, 44, 0.95) 100%)"
+                            : "linear-gradient(180deg, #F0FDFA 0%, #FFFFFF 100%)")
+                        : (isDarkMode ? themeConfig.bgCard : "#FFFFFF"),
                       position: "relative",
+                      overflow: "visible !important",
                       boxShadow: isPopular
-                        ? `0 14px 32px -4px ${themeConfig.primaryGlow}`
-                        : isDarkMode
-                          ? "0 8px 24px rgba(0,0,0,0.4)"
-                          : "0 6px 20px rgba(0,0,0,0.04)",
+                        ? (isDarkMode
+                            ? `0 20px 40px -8px rgba(0,0,0,0.6), 0 0 0 1px ${themeConfig.primary}`
+                            : `0 20px 40px -8px ${themeConfig.primaryGlow}, 0 0 0 1px ${themeConfig.primary}`)
+                        : (isDarkMode
+                            ? "0 10px 30px rgba(0,0,0,0.35)"
+                            : "0 10px 30px -5px rgba(12, 39, 59, 0.06), inset 0 1px 1px #FFFFFF"),
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: "space-between",
+                      width: "100%",
                       height: "100%",
-                      transition: "all 0.22s ease",
+                      transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
                       "&:hover": {
                         transform: "translateY(-4px)",
                         borderColor: themeConfig.primary,
+                        boxShadow: `0 20px 40px -6px ${themeConfig.primaryGlow}`,
                       },
                     }}
                   >
+                    {/* Floating Most Popular Badge with Guaranteed Visibility */}
                     {isPopular && (
-                      <Chip
-                        icon={<Star sx={{ fontSize: 14, color: "#FFFFFF !important" }} />}
-                        label="MOST POPULAR"
-                        size="small"
+                      <Box
                         sx={{
                           position: "absolute",
-                          top: -12,
-                          right: 20,
-                          bgcolor: themeConfig.primary,
+                          top: -14,
+                          left: "50%",
+                          transform: "translateX(-50%)",
+                          zIndex: 10,
+                          background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
                           color: "#FFFFFF",
                           fontWeight: 900,
-                          fontSize: "0.68rem",
-                          boxShadow: `0 4px 10px ${themeConfig.primaryGlow}`,
+                          fontSize: "0.72rem",
+                          letterSpacing: "0.8px",
+                          textTransform: "uppercase",
+                          px: 2,
+                          py: 0.55,
+                          borderRadius: "999px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 0.6,
+                          boxShadow: `0 6px 18px ${themeConfig.primaryGlow}`,
+                          border: `2px solid ${isDarkMode ? "#0E312C" : "#FFFFFF"}`,
+                          whiteSpace: "nowrap",
                         }}
-                      />
+                      >
+                        <Star sx={{ fontSize: 13, color: "#FDE047 !important" }} />
+                        Most Popular
+                      </Box>
                     )}
 
-                    <Box>
-                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
-                        <Avatar sx={{ bgcolor: themeConfig.champagne, width: 44, height: 44, borderRadius: "12px" }}>
+                    <Box sx={{ display: "flex", flexDirection: "column", flexGrow: 1 }}>
+                      {/* Top Row: Icon & Capacity */}
+                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                        <Avatar
+                          sx={{
+                            bgcolor: iconColors.bg,
+                            width: 48,
+                            height: 48,
+                            borderRadius: "14px",
+                            border: `1px solid ${iconColors.color}30`,
+                          }}
+                        >
                           {getPlanIcon(idx)}
                         </Avatar>
                         <Chip
@@ -366,38 +414,67 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
                           size="small"
                           sx={{
                             fontWeight: 800,
-                            borderRadius: "8px",
-                            bgcolor: themeConfig.bgMain,
+                            borderRadius: "10px",
+                            bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9",
                             color: themeConfig.textMain,
                             border: `1px solid ${themeConfig.border}`,
-                            fontSize: "0.72rem",
+                            fontSize: "0.74rem",
+                            px: 0.5,
+                            py: 0.3,
                           }}
                         />
                       </Box>
 
-                      <Typography variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                      {/* Plan Title & Tagline */}
+                      <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.3, mb: 0.5 }}>
                         {plan.name}
                       </Typography>
-                      {plan.tagline && (
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", mb: 1 }}>
-                          {plan.tagline}
-                        </Typography>
-                      )}
+                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.8rem", lineHeight: 1.4, minHeight: 20 }}>
+                        {plan.tagline || "Complete property management & guest automation"}
+                      </Typography>
 
-                      <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5, my: 1.5 }}>
-                        <Typography variant="h4" sx={{ fontWeight: 900, color: isDarkMode ? themeConfig.primary : themeConfig.primaryDark }}>
+                      {/* Price Display */}
+                      <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.8, my: 2.5 }}>
+                        <Typography
+                          variant="h3"
+                          sx={{
+                            fontWeight: 900,
+                            fontSize: { xs: "2.1rem", sm: "2.5rem" },
+                            color: isPopular ? (isDarkMode ? "#5EEAD4" : themeConfig.primaryDark) : themeConfig.textMain,
+                            letterSpacing: -0.8,
+                            lineHeight: 1,
+                          }}
+                        >
                           ₹{plan.price?.toLocaleString("en-IN")}
                         </Typography>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+                        <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontWeight: 700, fontSize: "0.85rem" }}>
                           / {billingCycle === "ANNUAL" ? "year" : "month"}
                         </Typography>
                       </Box>
 
-                      <Box sx={{ mt: 2.5, mb: 3 }}>
+                      <Divider sx={{ mb: 2.5, borderColor: themeConfig.border }} />
+
+                      {/* Features List with consistent height alignment */}
+                      <Box sx={{ flexGrow: 1, display: "flex", flexDirection: "column", gap: 1.4, mb: 3.5, minHeight: 180 }}>
                         {(plan.features || []).map((feat, fIdx) => (
-                          <Box key={fIdx} sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.2 }}>
-                            <Check sx={{ fontSize: 16, color: themeConfig.success }} />
-                            <Typography variant="caption" sx={{ color: themeConfig.textMain, fontWeight: 600 }}>
+                          <Box key={fIdx} sx={{ display: "flex", alignItems: "flex-start", gap: 1.2 }}>
+                            <Box
+                              sx={{
+                                width: 20,
+                                height: 20,
+                                borderRadius: "50%",
+                                bgcolor: "rgba(16, 185, 129, 0.15)",
+                                color: "#10B981",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flexShrink: 0,
+                                mt: 0.2,
+                              }}
+                            >
+                              <Check sx={{ fontSize: 13, strokeWidth: 2.5 }} />
+                            </Box>
+                            <Typography variant="body2" sx={{ color: themeConfig.textMain, fontWeight: 600, fontSize: "0.83rem", lineHeight: 1.4 }}>
                               {feat}
                             </Typography>
                           </Box>
@@ -405,24 +482,38 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
                       </Box>
                     </Box>
 
+                    {/* Action Button */}
                     <Button
                       variant={isPopular ? "contained" : "outlined"}
                       fullWidth
                       className={isPopular ? "btn-3d" : ""}
                       onClick={() => handleOpenUpgrade(plan)}
                       sx={{
-                        borderRadius: "12px",
-                        fontWeight: 800,
-                        py: 1.1,
-                        fontSize: "0.82rem",
+                        borderRadius: "14px",
+                        fontWeight: 900,
+                        py: 1.3,
+                        fontSize: "0.86rem",
+                        transition: "all 0.2s ease",
                         ...(isPopular
                           ? {
                               background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
                               color: "#FFFFFF",
+                              boxShadow: `0 8px 24px ${themeConfig.primaryGlow}`,
+                              "&:hover": {
+                                transform: "translateY(-2px)",
+                                boxShadow: `0 12px 28px ${themeConfig.primaryGlow}`,
+                              },
                             }
                           : {
+                              bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F8FAFC",
                               borderColor: themeConfig.border,
-                              color: isDarkMode ? themeConfig.primary : themeConfig.primaryDark,
+                              color: themeConfig.textMain,
+                              "&:hover": {
+                                bgcolor: themeConfig.champagne,
+                                borderColor: themeConfig.primary,
+                                color: themeConfig.primaryDark,
+                                transform: "translateY(-2px)",
+                              },
                             }),
                       }}
                     >

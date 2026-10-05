@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Box,
   Typography,
@@ -99,22 +99,12 @@ export default function ReceptionistOverviewPage({
   });
   const [telemetrySearch, setTelemetrySearch] = useState("");
 
-  // Live Current Clock for Operational Banner
+  // Live Current Clock for Operational Banner & Housekeeping Countdown
   const [liveCurrentTime, setLiveCurrentTime] = useState(new Date());
+  const resolvedCleaningRoomIds = useRef(new Set());
 
-  useEffect(() => {
-    const timer = setInterval(() => setLiveCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const liveCurrentTimeFormatted = liveCurrentTime.toLocaleTimeString("en-IN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
-
-  const handleQuickRoomStatusChange = async (room, nextStatus) => {
+  const handleQuickRoomStatusChange = async (room, nextStatus = "AVAILABLE") => {
+    if (!room?._id) return;
     try {
       await apiRequest(API_ENDPOINTS.RECEPTIONIST.UPDATE_ROOM_STATUS(room._id), {
         method: "PUT",
@@ -125,6 +115,63 @@ export default function ReceptionistOverviewPage({
     } catch (err) {
       toast.error(err.message || "Failed to update room status");
     }
+  };
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = new Date();
+      setLiveCurrentTime(now);
+
+      // Auto-transition 100% completed cleaning rooms to AVAILABLE
+      if (Array.isArray(rooms) && rooms.length > 0) {
+        const nowMs = now.getTime();
+        rooms.forEach((r) => {
+          if (r.status === "CLEANING") {
+            const startedAt = r.cleaningStartedAt
+              ? new Date(r.cleaningStartedAt).getTime()
+              : new Date(r.updatedAt || nowMs).getTime();
+            const durationSec = (r.cleaningDurationMinutes || 15) * 60;
+            const elapsedSec = Math.floor((nowMs - startedAt) / 1000);
+            if (elapsedSec >= durationSec && !resolvedCleaningRoomIds.current.has(r._id)) {
+              resolvedCleaningRoomIds.current.add(r._id);
+              handleQuickRoomStatusChange(r, "AVAILABLE");
+            }
+          }
+        });
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [rooms]);
+
+  const liveCurrentTimeFormatted = liveCurrentTime.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+
+  // Helper to calculate remaining cleaning time & status
+  const getCleaningTimerData = (room) => {
+    if (room.status !== "CLEANING") return null;
+    const startedAt = room.cleaningStartedAt
+      ? new Date(room.cleaningStartedAt).getTime()
+      : new Date(room.updatedAt || Date.now()).getTime();
+    const durationSec = (room.cleaningDurationMinutes || 15) * 60;
+    const elapsedSec = Math.floor((liveCurrentTime.getTime() - startedAt) / 1000);
+    const remainingSec = Math.max(0, durationSec - elapsedSec);
+
+    const mins = Math.floor(remainingSec / 60);
+    const secs = remainingSec % 60;
+    const formatted = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    const progressPercent = Math.min(100, Math.max(0, Math.round(((durationSec - remainingSec) / durationSec) * 100)));
+    const isComplete = remainingSec <= 0;
+
+    return {
+      isComplete,
+      remainingSec,
+      formatted,
+      progressPercent,
+    };
   };
 
   // Overall Global Counts
@@ -1395,6 +1442,8 @@ export default function ReceptionistOverviewPage({
                     <TableBody>
                       {cleaningRooms.map((r) => {
                         const cat = r.roomType?.name || r.category || r.type || "Standard Room";
+                        const timerData = getCleaningTimerData(r);
+                        const isDone = timerData?.isComplete;
                         return (
                           <TableRow key={r._id} hover>
                             <TableCell sx={{ fontWeight: 900, color: themeConfig.primaryDark, whiteSpace: "nowrap" }}>
@@ -1408,7 +1457,16 @@ export default function ReceptionistOverviewPage({
                             <TableCell sx={{ fontWeight: 700, color: themeConfig.textMain, whiteSpace: "nowrap" }}>{cat}</TableCell>
                             <TableCell sx={{ color: themeConfig.textMuted, fontWeight: 700, whiteSpace: "nowrap" }}>Floor {r.floor || 1}</TableCell>
                             <TableCell sx={{ whiteSpace: "nowrap" }}>
-                              <Chip label="Sanitation In-Progress" size="small" sx={{ bgcolor: "rgba(217, 119, 6, 0.15)", color: "#D97706", fontWeight: 800, fontSize: "0.7rem" }} />
+                              <Chip
+                                label={isDone ? "✨ Cleaning Done (100%)" : `🧹 ${timerData?.formatted || "12:00"} (${timerData?.progressPercent || 50}%)`}
+                                size="small"
+                                sx={{
+                                  bgcolor: isDone ? "rgba(16, 185, 129, 0.15)" : "rgba(139, 92, 246, 0.15)",
+                                  color: isDone ? "#10B981" : "#8B5CF6",
+                                  fontWeight: 800,
+                                  fontSize: "0.7rem",
+                                }}
+                              />
                             </TableCell>
                             <TableCell sx={{ textAlign: "right", whiteSpace: "nowrap" }}>
                               <Button
@@ -1424,7 +1482,7 @@ export default function ReceptionistOverviewPage({
                                   "&:hover": { bgcolor: "#059669" },
                                 }}
                               >
-                                Mark Clean & Ready
+                                {isDone ? "Set Available Now" : "Mark Clean & Ready"}
                               </Button>
                             </TableCell>
                           </TableRow>

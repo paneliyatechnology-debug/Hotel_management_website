@@ -640,7 +640,67 @@ export function DailyTargetGauge({ currentRevenue = 0, targetRevenue = 0 }) {
  */
 export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
   const { themeConfig, isDarkMode } = useAppTheme();
-  const [viewType, setViewType] = useState("WEEKLY"); // "WEEKLY" or "HOURLY"
+  const [viewType, setViewType] = useState("HOURLY"); // Default to Hourly view
+
+  // Helper to extract exact check-in hour (0-23) from booking object
+  const getBookingCheckInHour = (b) => {
+    if (b.actualCheckIn) {
+      const dt = new Date(b.actualCheckIn);
+      if (!isNaN(dt.getTime())) return dt.getHours();
+    }
+    if (b.checkInTime && typeof b.checkInTime === "string") {
+      const timeStr = b.checkInTime.trim().toUpperCase();
+      const isPM = timeStr.includes("PM");
+      const isAM = timeStr.includes("AM");
+      const clean = timeStr.replace(/[^0-9:]/g, "");
+      const parts = clean.split(":").map(Number);
+      if (!isNaN(parts[0])) {
+        let h = parts[0];
+        if (isPM && h < 12) h += 12;
+        if (isAM && h === 12) h = 0;
+        return h;
+      }
+    }
+    if (b.createdAt) {
+      const dt = new Date(b.createdAt);
+      if (!isNaN(dt.getTime())) return dt.getHours();
+    }
+    if (b.checkInDate) {
+      const dt = new Date(b.checkInDate);
+      if (!isNaN(dt.getTime()) && (dt.getHours() !== 0 || dt.getMinutes() !== 0)) {
+        return dt.getHours();
+      }
+    }
+    return 14; // Default check-in time 2:00 PM (14:00)
+  };
+
+  // Helper to extract exact check-out hour (0-23) from booking object
+  const getBookingCheckOutHour = (b) => {
+    if (b.actualCheckOut) {
+      const dt = new Date(b.actualCheckOut);
+      if (!isNaN(dt.getTime())) return dt.getHours();
+    }
+    if (b.checkOutTime && typeof b.checkOutTime === "string") {
+      const timeStr = b.checkOutTime.trim().toUpperCase();
+      const isPM = timeStr.includes("PM");
+      const isAM = timeStr.includes("AM");
+      const clean = timeStr.replace(/[^0-9:]/g, "");
+      const parts = clean.split(":").map(Number);
+      if (!isNaN(parts[0])) {
+        let h = parts[0];
+        if (isPM && h < 12) h += 12;
+        if (isAM && h === 12) h = 0;
+        return h;
+      }
+    }
+    if (b.checkOutDate) {
+      const dt = new Date(b.checkOutDate);
+      if (!isNaN(dt.getTime()) && (dt.getHours() !== 0 || dt.getMinutes() !== 0)) {
+        return dt.getHours();
+      }
+    }
+    return 11; // Default check-out time 11:00 AM (11:00)
+  };
 
   const weeklyData = useMemo(() => {
     const days = [
@@ -673,21 +733,22 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
         checkins,
         checkouts,
         total: checkins + checkouts,
-        isPeak: checkins + checkouts > 5,
+        isPeak: checkins + checkouts > 4,
       };
     });
   }, [bookings]);
 
   const hourlyData = useMemo(() => {
     const slots = [
-      { label: "8 AM", hour: 8 },
-      { label: "10 AM", hour: 10 },
-      { label: "12 PM", hour: 12 },
-      { label: "2 PM", hour: 14 },
-      { label: "4 PM", hour: 16 },
-      { label: "6 PM", hour: 18 },
-      { label: "8 PM", hour: 20 },
-      { label: "10 PM", hour: 22 },
+      { label: "6 AM", range: "6:00 AM - 8:00 AM", startH: 6, endH: 8 },
+      { label: "8 AM", range: "8:00 AM - 10:00 AM", startH: 8, endH: 10 },
+      { label: "10 AM", range: "10:00 AM - 12:00 PM", startH: 10, endH: 12 },
+      { label: "12 PM", range: "12:00 PM - 2:00 PM", startH: 12, endH: 14 },
+      { label: "2 PM", range: "2:00 PM - 4:00 PM", startH: 14, endH: 16 },
+      { label: "4 PM", range: "4:00 PM - 6:00 PM", startH: 16, endH: 18 },
+      { label: "6 PM", range: "6:00 PM - 8:00 PM", startH: 18, endH: 20 },
+      { label: "8 PM", range: "8:00 PM - 10:00 PM", startH: 20, endH: 22 },
+      { label: "10 PM", range: "10:00 PM - 12:00 AM", startH: 22, endH: 24 },
     ];
 
     return slots.map((s) => {
@@ -695,30 +756,32 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
       let checkouts = 0;
 
       bookings.forEach((b) => {
-        if (b.checkInDate || b.createdAt) {
-          const dt = new Date(b.checkInDate || b.createdAt);
-          if (Math.abs(dt.getHours() - s.hour) <= 1) checkins++;
+        const inHour = getBookingCheckInHour(b);
+        if (inHour >= s.startH && inHour < s.endH) {
+          checkins++;
         }
-        if (b.checkOutDate) {
-          const dt = new Date(b.checkOutDate);
-          if (Math.abs(dt.getHours() - s.hour) <= 1) checkouts++;
+        const outHour = getBookingCheckOutHour(b);
+        if (outHour >= s.startH && outHour < s.endH) {
+          checkouts++;
         }
       });
 
       return {
         ...s,
+        dayFull: s.range,
         checkins,
         checkouts,
+        total: checkins + checkouts,
         isPeak: checkins + checkouts > 2,
       };
     });
   }, [bookings]);
 
-  const currentData = viewType === "WEEKLY" ? weeklyData : hourlyData;
+  const currentData = viewType === "HOURLY" ? hourlyData : weeklyData;
   const maxVal = Math.max(...currentData.map((d) => Math.max(d.checkins, d.checkouts)), 1);
 
-  const totalWeeklyIn = weeklyData.reduce((sum, d) => sum + d.checkins, 0);
-  const totalWeeklyOut = weeklyData.reduce((sum, d) => sum + d.checkouts, 0);
+  const totalIn = currentData.reduce((sum, d) => sum + d.checkins, 0);
+  const totalOut = currentData.reduce((sum, d) => sum + d.checkouts, 0);
 
   return (
     <Card
@@ -742,18 +805,35 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
           <Box>
             <Typography variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 1, fontSize: "1rem" }}>
               <Schedule sx={{ color: "#6366F1", fontSize: 20 }} />
-              {viewType === "WEEKLY" ? "Weekly Reception Traffic" : "Hourly Reception Traffic"}
+              {viewType === "HOURLY" ? "Hourly Reception Traffic" : "Weekly Reception Traffic"}
             </Typography>
             <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-              {viewType === "WEEKLY"
-                ? "7-Day guest check-in vs check-out volume"
-                : "Guest check-in vs check-out rush by hour"}
+              {viewType === "HOURLY"
+                ? "Guest check-in vs check-out rush by hour (કલાક મુજબ ટ્રાફિક)"
+                : "7-Day guest check-in vs check-out volume"}
             </Typography>
           </Box>
 
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
             {/* View Switcher Toggle Button */}
             <Box sx={{ display: "flex", bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : themeConfig.champagne, p: 0.3, borderRadius: "10px", border: `1px solid ${themeConfig.border}` }}>
+              <Button
+                size="small"
+                onClick={() => setViewType("HOURLY")}
+                sx={{
+                  py: 0.3,
+                  px: 1.2,
+                  fontSize: "0.7rem",
+                  fontWeight: 800,
+                  borderRadius: "8px",
+                  bgcolor: viewType === "HOURLY" ? (isDarkMode ? "rgba(255,255,255,0.15)" : "#FFFFFF") : "transparent",
+                  color: viewType === "HOURLY" ? (themeConfig.primaryDark || "#0C273B") : themeConfig.textMuted,
+                  boxShadow: viewType === "HOURLY" ? "0 2px 6px rgba(0,0,0,0.08)" : "none",
+                  minWidth: "auto",
+                }}
+              >
+                Hourly (કલાક)
+              </Button>
               <Button
                 size="small"
                 onClick={() => setViewType("WEEKLY")}
@@ -770,23 +850,6 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
                 }}
               >
                 Weekly
-              </Button>
-              <Button
-                size="small"
-                onClick={() => setViewType("HOURLY")}
-                sx={{
-                  py: 0.3,
-                  px: 1.2,
-                  fontSize: "0.7rem",
-                  fontWeight: 800,
-                  borderRadius: "8px",
-                  bgcolor: viewType === "HOURLY" ? (isDarkMode ? "rgba(255,255,255,0.15)" : "#FFFFFF") : "transparent",
-                  color: viewType === "HOURLY" ? (themeConfig.primaryDark || "#0C273B") : themeConfig.textMuted,
-                  boxShadow: viewType === "HOURLY" ? "0 2px 6px rgba(0,0,0,0.08)" : "none",
-                  minWidth: "auto",
-                }}
-              >
-                Hourly
               </Button>
             </Box>
 
@@ -877,15 +940,17 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
         {/* Footer Summary Strip */}
         <Box sx={{ p: 1.2, borderRadius: "12px", bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : themeConfig.champagne, display: "flex", justifyContent: "space-between", alignItems: "center", mt: 1, border: `1px solid ${themeConfig.border}` }}>
           <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.75rem", fontWeight: 700 }}>
-            {viewType === "WEEKLY" ? "Weekly Total Flow:" : "Peak Activity Window:"}
+            {viewType === "HOURLY" ? "Hourly Traffic Summary:" : "Weekly Total Flow:"}
           </Typography>
           <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.primaryDark, fontSize: "0.75rem" }}>
-            {viewType === "WEEKLY"
-              ? `${totalWeeklyIn} Check-Ins • ${totalWeeklyOut} Check-Outs (${totalWeeklyIn + totalWeeklyOut} Total)`
-              : (() => {
-                  const peak = hourlyData.reduce((max, cur) => (cur.total > max.total ? cur : max), { total: 0, label: "" });
-                  return peak.total > 0 ? `Peak Rush at ${peak.label} (${peak.total} Movements)` : "Standard Check-In Window (11:00 AM – 2:00 PM)";
-                })()}
+            {viewType === "HOURLY"
+              ? (() => {
+                  const peak = hourlyData.reduce((max, cur) => (cur.total > max.total ? cur : max), { total: 0, label: "", range: "" });
+                  return peak.total > 0
+                    ? `Peak Rush at ${peak.label} (${peak.range || peak.label}) • ${totalIn} In / ${totalOut} Out`
+                    : `${totalIn} Check-Ins • ${totalOut} Check-Outs (Live Flow)`;
+                })()
+              : `${totalIn} Check-Ins • ${totalOut} Check-Outs (${totalIn + totalOut} Total)`}
           </Typography>
         </Box>
       </CardContent>

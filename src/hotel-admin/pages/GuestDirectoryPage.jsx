@@ -44,6 +44,7 @@ import { toast } from "@/shared/utils/toast";
 
 export default function GuestDirectoryPage({
   guests = [],
+  bookings = [],
   rooms = [],
   guestSearch = "",
   setGuestSearch,
@@ -412,7 +413,30 @@ export default function GuestDirectoryPage({
                   const gCheckIn = guest.checkInDate || guest.checkIn || "01 Oct";
                   const gCheckOut = guest.checkOutDate || guest.checkOut || "03 Oct";
                   const gPax = guest.totalGuests || guest.numberOfGuests || (guest.accompanyingGuests ? guest.accompanyingGuests.length + 1 : 2);
-                  const gPaymentStatus = (guest.paymentStatus || (guest.balanceAmount === 0 ? "PAID" : guest.advanceAmount > 0 ? "PARTIAL" : "PENDING")).toUpperCase();
+                  
+                  // Match guest with live bookings if available
+                  const matchingBooking = (bookings || []).find((b) =>
+                    (b.guest && (b.guest._id === guest._id || b.guest === guest._id)) ||
+                    (b.bookingNumber && (b.bookingNumber === guest.activeBookingNumber || b.bookingNumber === guest.bookingNumber)) ||
+                    (guest.phone && b.guestPhone && b.guestPhone === guest.phone) ||
+                    (guest.mobileNumber && b.guestPhone && b.guestPhone === guest.mobileNumber)
+                  );
+
+                  const liveDue = guest.dueAmount !== undefined ? Number(guest.dueAmount) : (matchingBooking?.dueAmount !== undefined ? Number(matchingBooking.dueAmount) : (guest.balanceAmount !== undefined ? Number(guest.balanceAmount) : null));
+                  const livePaid = guest.paidAmount !== undefined ? Number(guest.paidAmount) : (matchingBooking?.paidAmount !== undefined ? Number(matchingBooking.paidAmount) : (guest.advanceAmount !== undefined ? Number(guest.advanceAmount) : 0));
+                  const liveTotal = guest.totalAmount !== undefined ? Number(guest.totalAmount) : (matchingBooking?.totalAmount !== undefined ? Number(matchingBooking.totalAmount) : (guest.totalBilled || 0));
+
+                  let gPaymentStatus = (guest.paymentStatus || matchingBooking?.paymentStatus || "").toUpperCase();
+                  if (gPaymentStatus === "PARTIALLY_PAID") gPaymentStatus = "PARTIAL";
+                  if (!gPaymentStatus || gPaymentStatus === "PENDING") {
+                    if (liveDue !== null && liveDue <= 0 && (livePaid > 0 || liveTotal > 0)) {
+                      gPaymentStatus = "PAID";
+                    } else if (livePaid > 0) {
+                      gPaymentStatus = "PARTIAL";
+                    } else {
+                      gPaymentStatus = "PENDING";
+                    }
+                  }
                   const gBookingStatus = (guest.status || guest.bookingStatus || "CHECKED_IN").toUpperCase();
 
                   return (

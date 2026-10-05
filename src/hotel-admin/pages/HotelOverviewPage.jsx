@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Box,
   Typography,
@@ -97,6 +97,7 @@ export default function HotelOverviewPage({
   onTabChange,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
+  const [localRooms, setLocalRooms] = useState(rooms);
   const [showRevenueDetailsView, setShowRevenueDetailsView] = useState(false);
   const [revenueFilterMode, setRevenueFilterMode] = useState("THIS_WEEK");
   const [selectedGuestModal, setSelectedGuestModal] = useState({ open: false, guestId: null, guestData: null });
@@ -104,6 +105,11 @@ export default function HotelOverviewPage({
   const [nowTime, setNowTime] = useState(Date.now());
   const [guestPage, setGuestPage] = useState(0);
   const [guestRowsPerPage, setGuestRowsPerPage] = useState(5);
+
+  // Sync localRooms with incoming prop
+  useEffect(() => {
+    setLocalRooms(rooms);
+  }, [rooms]);
 
   // Room Matrix Pagination (8 rooms per page)
   const [roomPage, setRoomPage] = useState(1);
@@ -114,13 +120,59 @@ export default function HotelOverviewPage({
 
   const [notification, setNotification] = useState({ show: false, message: "", severity: "success" });
 
-  // 1-second interval ticker for live housekeeping cleaning countdown & real-time clock
+  const resolvedCleaningRoomIds = useRef(new Set());
+
+  // Quick Room Status Handler (e.g. Mark Cleaned / AVAILABLE)
+  const handleQuickRoomStatusChange = async (room, nextStatus = "AVAILABLE") => {
+    if (!room?._id) return;
+    try {
+      // 1. Instant optimistic update in local state
+      setLocalRooms((prev) =>
+        prev.map((r) =>
+          r._id === room._id
+            ? { ...r, status: nextStatus, cleaningStartedAt: null, cleaningDurationMinutes: undefined }
+            : r
+        )
+      );
+
+      // 2. Persist to Backend API
+      await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.UPDATE_ROOM_STATUS(room._id), {
+        method: "PUT",
+        body: { status: nextStatus },
+      });
+
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      console.error("Failed to update room status:", err);
+      if (onRefresh) onRefresh();
+    }
+  };
+
+  // 1-second interval ticker for live housekeeping cleaning countdown & auto-transition
   useEffect(() => {
     const timer = setInterval(() => {
-      setNowTime(Date.now());
+      const now = Date.now();
+      setNowTime(now);
+
+      // 🧹 Auto-transition 100% completed cleaning rooms to AVAILABLE
+      if (Array.isArray(localRooms) && localRooms.length > 0) {
+        localRooms.forEach((r) => {
+          if (r.status === "CLEANING") {
+            const startedAt = r.cleaningStartedAt
+              ? new Date(r.cleaningStartedAt).getTime()
+              : new Date(r.updatedAt || now).getTime();
+            const durationSec = (r.cleaningDurationMinutes || 15) * 60;
+            const elapsedSec = Math.floor((now - startedAt) / 1000);
+            if (elapsedSec >= durationSec && !resolvedCleaningRoomIds.current.has(r._id)) {
+              resolvedCleaningRoomIds.current.add(r._id);
+              handleQuickRoomStatusChange(r, "AVAILABLE");
+            }
+          }
+        });
+      }
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [localRooms]);
 
   // Helper to calculate remaining cleaning time & status
   const getCleaningTimerData = (room) => {
@@ -147,7 +199,7 @@ export default function HotelOverviewPage({
   };
 
   const filteredRooms = useMemo(() => {
-    return rooms.filter((r) => {
+    return localRooms.filter((r) => {
       if (selectedFloor !== "ALL" && r.floor !== Number(selectedFloor)) return false;
       if (selectedStatus !== "ALL" && r.status !== selectedStatus) return false;
       if (roomSearch.trim()) {
@@ -159,7 +211,7 @@ export default function HotelOverviewPage({
       }
       return true;
     });
-  }, [rooms, selectedFloor, selectedStatus, roomSearch]);
+  }, [localRooms, selectedFloor, selectedStatus, roomSearch]);
 
   // Reset room page when filters change
   useEffect(() => {
@@ -170,18 +222,18 @@ export default function HotelOverviewPage({
   const totalRoomPages = Math.ceil(filteredRooms.length / roomsPerPage) || 1;
   const paginatedRooms = filteredRooms.slice((roomPage - 1) * roomsPerPage, roomPage * roomsPerPage);
 
-  const totalOccupied = rooms.filter((r) => r.status === "OCCUPIED").length;
-  const totalAvailable = rooms.filter((r) => r.status === "AVAILABLE").length;
-  const totalCleaning = rooms.filter((r) => r.status === "CLEANING").length;
-  const totalMaintenance = rooms.filter((r) => r.status === "MAINTENANCE" || r.status === "BLOCKED").length;
-  const totalReserved = rooms.filter((r) => r.status === "RESERVED").length;
+  const totalOccupied = localRooms.filter((r) => r.status === "OCCUPIED").length;
+  const totalAvailable = localRooms.filter((r) => r.status === "AVAILABLE").length;
+  const totalCleaning = localRooms.filter((r) => r.status === "CLEANING").length;
+  const totalMaintenance = localRooms.filter((r) => r.status === "MAINTENANCE" || r.status === "BLOCKED").length;
+  const totalReserved = localRooms.filter((r) => r.status === "RESERVED").length;
 
   // Live occupied rooms stay tariff sum
   const occupiedTariffSum = useMemo(() => {
-    return rooms
+    return localRooms
       .filter((r) => r.status === "OCCUPIED")
       .reduce((acc, r) => acc + (Number(r.pricePerNight) || Number(r.price) || 0), 0);
-  }, [rooms]);
+  }, [localRooms]);
 
   // Real live calculated data from backend & database (100% matched with Revenue Details screen)
   const fin = dashboardData?.financials || {};
@@ -994,21 +1046,22 @@ export default function HotelOverviewPage({
                           {/* CLEANING: Housekeeping Countdown Box */}
                           {room.status === "CLEANING" && (() => {
                             const timerData = getCleaningTimerData(room);
+                            const isDone = timerData?.isComplete;
                             return (
                               <Box
                                 sx={{
                                   p: 1.4,
                                   borderRadius: "14px",
-                                  bgcolor: isDarkMode ? "rgba(139, 92, 246, 0.08)" : "rgba(139, 92, 246, 0.05)",
-                                  border: `1px solid ${isDarkMode ? "rgba(139, 92, 246, 0.2)" : "rgba(139, 92, 246, 0.15)"}`,
+                                  bgcolor: isDone ? "rgba(16, 185, 129, 0.08)" : (isDarkMode ? "rgba(139, 92, 246, 0.08)" : "rgba(139, 92, 246, 0.05)"),
+                                  border: `1px solid ${isDone ? "rgba(16, 185, 129, 0.3)" : (isDarkMode ? "rgba(139, 92, 246, 0.2)" : "rgba(139, 92, 246, 0.15)")}`,
                                   mb: 1,
                                 }}
                               >
                                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
-                                  <Typography variant="caption" sx={{ fontWeight: 800, color: "#8B5CF6", fontSize: "0.72rem" }}>
-                                    🧹 Turnaround: {timerData?.formatted || "12:00"}
+                                  <Typography variant="caption" sx={{ fontWeight: 800, color: isDone ? "#10B981" : "#8B5CF6", fontSize: "0.72rem" }}>
+                                    {isDone ? "✨ Cleaning Done (100%)" : `🧹 Turnaround: ${timerData?.formatted || "12:00"}`}
                                   </Typography>
-                                  <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.7rem", fontWeight: 700 }}>
+                                  <Typography variant="caption" sx={{ color: isDone ? "#10B981" : themeConfig.textMuted, fontSize: "0.7rem", fontWeight: 700 }}>
                                     {timerData?.progressPercent || 50}%
                                   </Typography>
                                 </Box>
@@ -1018,10 +1071,36 @@ export default function HotelOverviewPage({
                                   sx={{
                                     borderRadius: "6px",
                                     height: 6,
-                                    bgcolor: "rgba(139, 92, 246, 0.2)",
-                                    "& .MuiLinearProgress-bar": { bgcolor: "#8B5CF6" },
+                                    bgcolor: isDone ? "rgba(16, 185, 129, 0.2)" : "rgba(139, 92, 246, 0.2)",
+                                    "& .MuiLinearProgress-bar": { bgcolor: isDone ? "#10B981" : "#8B5CF6" },
                                   }}
                                 />
+                                <Button
+                                  size="small"
+                                  fullWidth
+                                  variant={isDone ? "contained" : "outlined"}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleQuickRoomStatusChange(room, "AVAILABLE");
+                                  }}
+                                  sx={{
+                                    mt: 1,
+                                    py: 0.4,
+                                    fontSize: "0.72rem",
+                                    fontWeight: 800,
+                                    borderRadius: "8px",
+                                    textTransform: "none",
+                                    bgcolor: isDone ? "#10B981" : "transparent",
+                                    color: isDone ? "#FFFFFF" : "#8B5CF6",
+                                    borderColor: isDone ? "#10B981" : "rgba(139, 92, 246, 0.4)",
+                                    "&:hover": {
+                                      bgcolor: isDone ? "#059669" : "rgba(139, 92, 246, 0.1)",
+                                      borderColor: isDone ? "#059669" : "#8B5CF6",
+                                    },
+                                  }}
+                                >
+                                  {isDone ? "✓ Set Available Now" : "⚡ Mark Cleaned (Make Available)"}
+                                </Button>
                               </Box>
                             );
                           })()}
@@ -1179,9 +1258,52 @@ export default function HotelOverviewPage({
                                     )}
                                   </Box>
                                 </Box>
-                              ) : (
+                              ) : room.status === "CLEANING" ? (() => {
+                                const timerData = getCleaningTimerData(room);
+                                const isDone = timerData?.isComplete;
+                                return (
+                                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                    <Chip
+                                      size="small"
+                                      label={isDone ? "✨ 100% Done" : `🧹 ${timerData?.formatted || "12:00"} (${timerData?.progressPercent || 50}%)`}
+                                      sx={{
+                                        height: 22,
+                                        fontSize: "0.68rem",
+                                        fontWeight: 800,
+                                        bgcolor: isDone ? "rgba(16, 185, 129, 0.12)" : "rgba(139, 92, 246, 0.12)",
+                                        color: isDone ? "#10B981" : "#8B5CF6",
+                                        border: `1px solid ${isDone ? "rgba(16, 185, 129, 0.3)" : "rgba(139, 92, 246, 0.3)"}`,
+                                      }}
+                                    />
+                                    <Button
+                                      size="small"
+                                      variant="outlined"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleQuickRoomStatusChange(room, "AVAILABLE");
+                                      }}
+                                      sx={{
+                                        py: 0.2,
+                                        px: 1,
+                                        height: 22,
+                                        fontSize: "0.68rem",
+                                        fontWeight: 800,
+                                        borderRadius: "6px",
+                                        textTransform: "none",
+                                        color: isDone ? "#10B981" : "#8B5CF6",
+                                        borderColor: isDone ? "#10B981" : "rgba(139, 92, 246, 0.4)",
+                                        "&:hover": {
+                                          bgcolor: isDone ? "rgba(16, 185, 129, 0.1)" : "rgba(139, 92, 246, 0.1)",
+                                        },
+                                      }}
+                                    >
+                                      {isDone ? "Set Available" : "Make Available"}
+                                    </Button>
+                                  </Box>
+                                );
+                              })() : (
                                 <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontStyle: "italic" }}>
-                                  {room.status === "CLEANING" ? "🧹 Turnaround in Progress" : room.status === "AVAILABLE" ? "✨ Ready for Guest" : "⚠️ Maintenance / Blocked"}
+                                  {room.status === "AVAILABLE" ? "✨ Ready for Guest" : "⚠️ Maintenance / Blocked"}
                                 </Typography>
                               )}
                             </TableCell>

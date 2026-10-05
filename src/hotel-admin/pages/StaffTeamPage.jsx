@@ -50,6 +50,8 @@ import {
   AdminPanelSettings,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
+import { usePresence } from "@/shared/context/SocketContext";
+import PresenceBadge from "@/shared/components/PresenceBadge";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 
@@ -90,6 +92,7 @@ export default function StaffTeamPage({
   getInitialStaffForm,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
+  const { isUserOnline } = usePresence();
 
   const totalReceptionists = staffList.filter((s) => (s.role || "").toUpperCase().includes("RECEPTIONIST")).length;
   const totalManagers = staffList.filter((s) => (s.role || "").toUpperCase().includes("MANAGER")).length;
@@ -368,9 +371,12 @@ export default function StaffTeamPage({
                         {(staff.name || "S").charAt(0).toUpperCase()}
                       </Avatar>
                       <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                          {staff.name}
-                        </Typography>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                            {staff.name}
+                          </Typography>
+                          <PresenceBadge isOnline={isUserOnline(staff._id || staff.id)} size="small" />
+                        </Box>
                         <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "flex", alignItems: "center", gap: 0.5 }}>
                           <Email sx={{ fontSize: 12, color: themeConfig.primary }} />
                           {staff.email}

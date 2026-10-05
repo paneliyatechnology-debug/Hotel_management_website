@@ -937,9 +937,31 @@ export default function RoomTypesPage({
                               color: themeConfig.info,
                               borderRadius: "10px",
                               border: `1px solid ${themeConfig.info}30`,
+                              "&:hover": {
+                                bgcolor: "rgba(11, 142, 224, 0.2)",
+                              },
                             }}
                           >
                             <Edit fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+
+                        <Tooltip title={`Delete Category '${cat.name}' & All Associated Rooms`}>
+                          <IconButton
+                            size="small"
+                            onClick={() => onDeleteRoomType && onDeleteRoomType(cat)}
+                            sx={{
+                              bgcolor: "rgba(220, 38, 38, 0.1)",
+                              color: themeConfig.danger,
+                              borderRadius: "10px",
+                              border: "1px solid rgba(220, 38, 38, 0.25)",
+                              "&:hover": {
+                                bgcolor: "rgba(220, 38, 38, 0.2)",
+                                borderColor: themeConfig.danger,
+                              },
+                            }}
+                          >
+                            <Delete fontSize="small" />
                           </IconButton>
                         </Tooltip>
                       </Box>

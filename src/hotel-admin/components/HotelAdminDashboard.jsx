@@ -523,33 +523,36 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
   };
 
   const handleDeleteRoomType = (roomType) => {
-    // 🔒 Check if any room under this category is currently not AVAILABLE
     const linkedRooms = rooms.filter((r) => {
       const typeId = typeof r.roomType === "object" ? r.roomType?._id : r.roomType;
       return typeId === roomType._id;
     });
-    const busyRooms = linkedRooms.filter((r) => r.status !== "AVAILABLE");
+    const occupiedRooms = linkedRooms.filter((r) => r.status === "OCCUPIED" || r.status === "RESERVED");
 
-    if (busyRooms.length > 0) {
-      const busySummary = busyRooms.map((r) => `Room ${r.roomNumber} (${r.status})`).join(", ");
-      showToast(
-        `Cannot delete Category '${roomType.name}'. ${busyRooms.length} room(s) are currently active/not available (${busySummary}). Ensure all rooms are available and not booked or under housekeeping first.`,
-        "error"
-      );
-      return;
+    let confirmMsg = `Are you sure you want to delete Room Category "${roomType.name}"? This will delete all ${linkedRooms.length} room(s) assigned to this category.`;
+    if (occupiedRooms.length > 0) {
+      confirmMsg += ` ${occupiedRooms.length} room(s) currently have resident guests — they will be automatically checked out, and guest profiles and folio records will remain safely preserved.`;
     }
 
     setConfirmDelete({
       open: true,
-      title: "Archive Room Category",
-      message: `Are you sure you want to soft-delete / archive category "${roomType.name}"? Active bookings and revenue records will remain safe.`,
+      title: `Delete Category "${roomType.name}"`,
+      message: confirmMsg,
       onConfirm: async () => {
         try {
           const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DELETE_ROOM_TYPE(roomType._id), {
             method: "DELETE",
           });
-          setRoomTypes(roomTypes.filter((rt) => rt._id !== roomType._id));
-          showToast(res.message || "Room category archived successfully.");
+          setRoomTypes((prev) => prev.filter((rt) => rt._id !== roomType._id));
+          setRooms((prev) =>
+            prev.filter((r) => {
+              const typeId = typeof r.roomType === "object" ? r.roomType?._id : r.roomType;
+              return typeId !== roomType._id;
+            })
+          );
+          showToast(res.message || "Room category and associated rooms deleted successfully.");
+          // Refresh background data to sync dashboard metrics & guest directory
+          fetchAllData();
         } catch (err) {
           showToast(err.message || "Failed to delete room category", "error");
         } finally {
@@ -601,6 +604,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       {activeNav === 2 && (
         <GuestDirectoryPage
           guests={guests}
+          bookings={bookings}
           rooms={rooms}
           guestSearch={guestSearch}
           setGuestSearch={setGuestSearch}

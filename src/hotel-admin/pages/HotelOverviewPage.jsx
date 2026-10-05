@@ -209,7 +209,9 @@ export default function HotelOverviewPage({
   const maintenancePercentage = rooms.length > 0 ? Math.round((totalMaintenance / rooms.length) * 100) : 0;
 
   // Average Daily Rate (ADR) & RevPAR calculation
-  const adrNum = totalOccupied > 0 ? Math.round(liveTodayRevNum / totalOccupied) : (rooms[0]?.pricePerNight || 3200);
+  const adrNum = totalOccupied > 0
+    ? Math.round(liveTodayRevNum / totalOccupied)
+    : (Number(rooms[0]?.customPricePerNight || rooms[0]?.pricePerNight || rooms[0]?.roomType?.basePrice || 0));
   const revParNum = rooms.length > 0 ? Math.round(liveTodayRevNum / rooms.length) : 0;
 
   const inTimeFormatted = formatTime12Hour(hotelSettings?.checkInTime || "14:00");
@@ -276,8 +278,9 @@ export default function HotelOverviewPage({
         return matchedBookings.map((b) => {
           const g = typeof b.guest === "object" ? b.guest : {};
           const paidAmt = b.paidAmount !== undefined ? Number(b.paidAmount) : (b.advancePaymentAmount !== undefined ? Number(b.advancePaymentAmount) : (b.advancePaid !== undefined ? Number(b.advancePaid) : (b.advancePayment || 0)));
-          const totalAmt = Number(b.totalAmount || 3500);
+          const totalAmt = Number(b.totalAmount || b.room?.customPricePerNight || b.room?.pricePerNight || 0);
           const dueAmt = b.dueAmount !== undefined ? Number(b.dueAmount) : Math.max(0, totalAmt - paidAmt);
+          const assignedRoom = b.roomNumber || b.room?.roomNumber || (Array.isArray(b.roomNumbers) && b.roomNumbers.length > 0 ? b.roomNumbers.join(", ") : "-");
           return {
             _id: b._id,
             bookingId: b._id,
@@ -285,7 +288,7 @@ export default function HotelOverviewPage({
             name: g?.fullName || g?.name || b.guestName || "Resident Guest",
             email: g?.email || b.email || "",
             phone: g?.mobileNumber || g?.phone || b.mobileNumber || b.guestPhone || "N/A",
-            roomAssigned: b.roomNumber || b.room?.roomNumber || "101",
+            roomAssigned: assignedRoom,
             checkInDate: inDateFormattedDate(b.checkInDate) || "Today",
             checkOutDate: inDateFormattedDate(b.checkOutDate) || "Tomorrow",
             totalAmount: totalAmt,
@@ -299,15 +302,16 @@ export default function HotelOverviewPage({
 
     return (guests || []).map((g) => {
       const paidAmt = g.paidAmount !== undefined ? Number(g.paidAmount) : (g.advancePayment || 0);
-      const totalAmt = Number(g.totalAmount || 3500);
+      const totalAmt = Number(g.totalAmount || 0);
       const dueAmt = g.dueAmount !== undefined ? Number(g.dueAmount) : Math.max(0, totalAmt - paidAmt);
+      const assignedRoom = g.roomNumber || g.roomAssigned || (Array.isArray(g.roomNumbers) && g.roomNumbers.length > 0 ? g.roomNumbers.join(", ") : "-");
       return {
         _id: g._id,
         guestId: g._id,
         name: g.fullName || g.name || "Guest",
         email: g.email || "",
         phone: g.mobileNumber || g.phone || "N/A",
-        roomAssigned: g.roomNumber || g.roomAssigned || "101",
+        roomAssigned: assignedRoom,
         checkInDate: inDateFormattedDate(g.checkInDate) || "Today",
         checkOutDate: inDateFormattedDate(g.checkOutDate) || "Tomorrow",
         totalAmount: totalAmt,
@@ -431,7 +435,7 @@ export default function HotelOverviewPage({
             </Typography>
             <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.8)", mt: 0.5, fontSize: "0.85rem", display: "flex", alignItems: "center", gap: 1 }}>
               <LocationOn sx={{ fontSize: 15 }} />
-              {user?.hotel?.city || "Gujarat, India"} &bull; Total Inventory: <strong>{rooms.length || 24} Rooms</strong> &bull; Occupancy: <strong>{occupancyRate}</strong>
+              {user?.hotel?.city ? `${user.hotel.city} • ` : ""}Total Inventory: <strong>{rooms.length} Rooms</strong> &bull; Occupancy: <strong>{occupancyRate}</strong>
             </Typography>
           </Box>
 
@@ -622,7 +626,7 @@ export default function HotelOverviewPage({
           <Box sx={{ gridColumn: { xs: "span 12", md: "span 5" } }}>
             <DailyTargetGauge
               currentRevenue={liveTodayRevNum ?? 0}
-              targetRevenue={hotelSettings?.dailyRevenueTarget ?? 35000}
+              targetRevenue={Number(hotelSettings?.dailyRevenueTarget || (rooms.reduce((acc, r) => acc + (Number(r.customPricePerNight || r.roomType?.basePrice || r.pricePerNight || 0)), 0)) || 0)}
             />
           </Box>
 
@@ -893,7 +897,7 @@ export default function HotelOverviewPage({
                               }}
                             />
                             <Typography variant="caption" sx={{ fontWeight: 800, fontSize: "0.82rem", color: themeConfig.primary }}>
-                              ₹{(room.customPricePerNight || room.roomType?.basePrice || room.pricePerNight || 3500).toLocaleString("en-IN")}/night
+                              ₹{(Number(room.customPricePerNight || room.roomType?.basePrice || room.pricePerNight || 0)).toLocaleString("en-IN")}/night
                             </Typography>
                           </Box>
 
@@ -1182,7 +1186,7 @@ export default function HotelOverviewPage({
                               )}
                             </TableCell>
                             <TableCell sx={{ fontWeight: 800, color: themeConfig.primary }}>
-                              ₹{(room.customPricePerNight || room.roomType?.basePrice || room.pricePerNight || 3500).toLocaleString("en-IN")}/n
+                              ₹{(Number(room.customPricePerNight || room.roomType?.basePrice || room.pricePerNight || 0)).toLocaleString("en-IN")}/night
                             </TableCell>
                             <TableCell>
                               {room.status === "OCCUPIED" ? (

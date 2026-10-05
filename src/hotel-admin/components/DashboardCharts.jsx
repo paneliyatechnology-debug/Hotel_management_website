@@ -250,35 +250,51 @@ export function OccupancyDonutChart({ rooms = [] }) {
  */
 export function RevenueWaveChart({ dashboardData, isDarkMode }) {
   const { themeConfig } = useAppTheme();
-  const [timeRange, setTimeRange] = useState("7D");
   const [activePoint, setActivePoint] = useState(null);
 
   const todayRev = Number(dashboardData?.financials?.todayRevenue ?? dashboardData?.todayRevenue ?? 0);
   const yesterdayRev = Number(dashboardData?.financials?.yesterdayRevenue ?? 0);
+  const dayGrowthRate = dashboardData?.financials?.dayGrowthRate;
+
+  const weeklyBreakdown = dashboardData?.weeklyRevenue?.breakdown || [];
 
   const revenueData = useMemo(() => {
-    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Today"];
+    if (Array.isArray(weeklyBreakdown) && weeklyBreakdown.length > 0) {
+      return weeklyBreakdown.map((item, idx) => {
+        const amt = Number(item.amount || 0);
+        return {
+          day: item.formattedDate || (item.day ? item.day.slice(0, 3) : `Day ${idx + 1}`),
+          dayFull: item.day || item.formattedDate,
+          total: amt,
+          upi: Number(item.upiAmount ?? Math.round(amt * 0.7)),
+          cash: Number(item.cashAmount ?? Math.round(amt * 0.3)),
+          index: idx,
+        };
+      });
+    }
+
+    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Yesterday", "Today"];
     return days.map((day, idx) => {
       if (idx === 6) {
-        return { day, total: todayRev, upi: Math.round(todayRev * 0.65), cash: Math.round(todayRev * 0.35), index: idx };
+        return { day, dayFull: "Today", total: todayRev, upi: Math.round(todayRev * 0.7), cash: Math.round(todayRev * 0.3), index: idx };
       }
       if (idx === 5) {
-        return { day, total: yesterdayRev, upi: Math.round(yesterdayRev * 0.65), cash: Math.round(yesterdayRev * 0.35), index: idx };
+        return { day, dayFull: "Yesterday", total: yesterdayRev, upi: Math.round(yesterdayRev * 0.7), cash: Math.round(yesterdayRev * 0.3), index: idx };
       }
-      return { day, total: 0, upi: 0, cash: 0, index: idx };
+      return { day, dayFull: day, total: 0, upi: 0, cash: 0, index: idx };
     });
-  }, [todayRev, yesterdayRev]);
+  }, [weeklyBreakdown, todayRev, yesterdayRev]);
 
   // SVG Chart Geometry
   const width = 500;
   const height = 180;
   const padding = { top: 20, right: 20, bottom: 30, left: 30 };
 
-  const maxVal = Math.max(...revenueData.map((d) => d.total)) * 1.15 || 10000;
+  const maxVal = Math.max(...revenueData.map((d) => d.total)) * 1.15 || 1000;
   const minVal = 0;
 
   const points = revenueData.map((d, i) => {
-    const x = padding.left + (i / (revenueData.length - 1)) * (width - padding.left - padding.right);
+    const x = padding.left + (i / Math.max(1, revenueData.length - 1)) * (width - padding.left - padding.right);
     const y = height - padding.bottom - ((d.total - minVal) / (maxVal - minVal)) * (height - padding.top - padding.bottom);
     return { x, y, ...d };
   });
@@ -304,9 +320,9 @@ export function RevenueWaveChart({ dashboardData, isDarkMode }) {
   };
 
   const linePath = createSmoothPath(points);
-  const areaPath = `${linePath} L ${points[points.length - 1].x} ${height - padding.bottom} L ${points[0].x} ${height - padding.bottom} Z`;
+  const areaPath = points.length > 0 ? `${linePath} L ${points[points.length - 1].x} ${height - padding.bottom} L ${points[0].x} ${height - padding.bottom} Z` : "";
 
-  const totalWeek = revenueData.reduce((acc, cur) => acc + cur.total, 0);
+  const totalWeek = Number(dashboardData?.weeklyRevenue?.totalThisWeek ?? revenueData.reduce((acc, cur) => acc + cur.total, 0));
   const upiTotal = revenueData.reduce((acc, cur) => acc + cur.upi, 0);
   const upiPercent = totalWeek > 0 ? Math.round((upiTotal / totalWeek) * 100) : 0;
   const cashPercent = totalWeek > 0 ? 100 - upiPercent : 0;
@@ -390,18 +406,20 @@ export function RevenueWaveChart({ dashboardData, isDarkMode }) {
             })}
 
             {/* Area Fill */}
-            <path d={areaPath} fill="url(#revAreaGrad)" />
+            {areaPath && <path d={areaPath} fill="url(#revAreaGrad)" />}
 
             {/* Glowing Stroke Line */}
-            <path
-              d={linePath}
-              fill="none"
-              stroke="url(#revLineGrad)"
-              strokeWidth="3.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ filter: "drop-shadow(0 4px 8px rgba(67, 97, 238, 0.35))" }}
-            />
+            {linePath && (
+              <path
+                d={linePath}
+                fill="none"
+                stroke="url(#revLineGrad)"
+                strokeWidth="3.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ filter: "drop-shadow(0 4px 8px rgba(67, 97, 238, 0.35))" }}
+              />
+            )}
 
             {/* Points & Interactive Hover Area */}
             {points.map((pt, idx) => (
@@ -464,14 +482,14 @@ export function RevenueWaveChart({ dashboardData, isDarkMode }) {
               }}
             >
               <Typography variant="caption" sx={{ fontWeight: 800, color: "#93C5FD", display: "block" }}>
-                {activePoint.day} Collection
+                {activePoint.dayFull || activePoint.day} Collection
               </Typography>
               <Typography variant="body2" sx={{ fontWeight: 900, color: "#10B981" }}>
                 ₹{activePoint.total.toLocaleString("en-IN")}
               </Typography>
               <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, mt: 0.5, fontSize: "0.65rem", color: "#CBD5E1" }}>
-                <span>UPI: ₹{activePoint.upi}</span>
-                <span>Cash: ₹{activePoint.cash}</span>
+                <span>UPI: ₹{activePoint.upi.toLocaleString("en-IN")}</span>
+                <span>Cash: ₹{activePoint.cash.toLocaleString("en-IN")}</span>
               </Box>
             </Box>
           )}
@@ -485,8 +503,8 @@ export function RevenueWaveChart({ dashboardData, isDarkMode }) {
               Projected Month End: <strong style={{ color: themeConfig.textMain }}>₹{(todayRev * 30).toLocaleString("en-IN")}</strong>
             </Typography>
           </Box>
-          <Typography variant="caption" sx={{ color: "#10B981", fontWeight: 800 }}>
-            +14.8% vs last week
+          <Typography variant="caption" sx={{ color: (dayGrowthRate ?? 0) >= 0 ? "#10B981" : "#EF4444", fontWeight: 800 }}>
+            {dayGrowthRate != null ? `${dayGrowthRate >= 0 ? "+" : ""}${dayGrowthRate}% vs yesterday` : "Live telemetry"}
           </Typography>
         </Box>
       </CardContent>
@@ -497,10 +515,12 @@ export function RevenueWaveChart({ dashboardData, isDarkMode }) {
 /**
  * 3. DAILY REVENUE TARGET SPEEDOMETER / RADIAL GAUGE
  */
-export function DailyTargetGauge({ currentRevenue = 18500, targetRevenue = 25000 }) {
+export function DailyTargetGauge({ currentRevenue = 0, targetRevenue = 0 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
 
-  const percentage = Math.min(100, Math.round((currentRevenue / targetRevenue) * 100));
+  const safeTarget = Number(targetRevenue) || 0;
+  const safeCurrent = Number(currentRevenue) || 0;
+  const percentage = safeTarget > 0 ? Math.min(100, Math.round((safeCurrent / safeTarget) * 100)) : (safeCurrent > 0 ? 100 : 0);
 
   // 180-degree semi-circle gauge
   const size = 180;
@@ -533,7 +553,7 @@ export function DailyTargetGauge({ currentRevenue = 18500, targetRevenue = 25000
           </Typography>
           <Chip
             size="small"
-            label={percentage >= 100 ? "🎯 Target Achieved" : "⚡ In Progress"}
+            label={percentage >= 100 ? "🎯 Target Achieved" : safeTarget > 0 ? "⚡ In Progress" : "📊 Realtime Tracker"}
             sx={{
               fontWeight: 800,
               bgcolor: percentage >= 100 ? "rgba(16, 185, 129, 0.15)" : "rgba(245, 158, 11, 0.15)",
@@ -542,7 +562,7 @@ export function DailyTargetGauge({ currentRevenue = 18500, targetRevenue = 25000
           />
         </Box>
         <Typography variant="caption" sx={{ color: themeConfig.textMuted, mb: 1 }}>
-          Target: ₹{targetRevenue.toLocaleString("en-IN")} / Day
+          {safeTarget > 0 ? `Target: ₹${safeTarget.toLocaleString("en-IN")} / Day` : "Full Occupancy Capacity Tracking"}
         </Typography>
 
         {/* Semi Circle Gauge SVG */}
@@ -596,7 +616,7 @@ export function DailyTargetGauge({ currentRevenue = 18500, targetRevenue = 25000
               {percentage}%
             </Typography>
             <Typography variant="caption" sx={{ fontWeight: 800, color: "#10B981", mt: 0.3 }}>
-              ₹{currentRevenue.toLocaleString("en-IN")} Achieved
+              ₹{safeCurrent.toLocaleString("en-IN")} Achieved
             </Typography>
           </Box>
         </Box>
@@ -604,10 +624,10 @@ export function DailyTargetGauge({ currentRevenue = 18500, targetRevenue = 25000
         {/* Bottom target remaining indicator */}
         <Box sx={{ p: 1.2, borderRadius: "12px", bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)", display: "flex", justifyContent: "space-between", alignItems: "center", mt: 1 }}>
           <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-            Remaining to Goal:
+            {safeTarget > 0 ? "Remaining to Goal:" : "Current Collections:"}
           </Typography>
           <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-            ₹{Math.max(0, targetRevenue - currentRevenue).toLocaleString("en-IN")}
+            ₹{safeTarget > 0 ? Math.max(0, safeTarget - safeCurrent).toLocaleString("en-IN") : safeCurrent.toLocaleString("en-IN")}
           </Typography>
         </Box>
       </CardContent>
@@ -857,12 +877,15 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
         {/* Footer Summary Strip */}
         <Box sx={{ p: 1.2, borderRadius: "12px", bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : themeConfig.champagne, display: "flex", justifyContent: "space-between", alignItems: "center", mt: 1, border: `1px solid ${themeConfig.border}` }}>
           <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.75rem", fontWeight: 700 }}>
-            {viewType === "WEEKLY" ? "Weekly Total Flow:" : "Peak Turnaround Window:"}
+            {viewType === "WEEKLY" ? "Weekly Total Flow:" : "Peak Activity Window:"}
           </Typography>
           <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.primaryDark, fontSize: "0.75rem" }}>
             {viewType === "WEEKLY"
               ? `${totalWeeklyIn} Check-Ins • ${totalWeeklyOut} Check-Outs (${totalWeeklyIn + totalWeeklyOut} Total)`
-              : "11:00 AM – 2:30 PM (Turnaround Rush)"}
+              : (() => {
+                  const peak = hourlyData.reduce((max, cur) => (cur.total > max.total ? cur : max), { total: 0, label: "" });
+                  return peak.total > 0 ? `Peak Rush at ${peak.label} (${peak.total} Movements)` : "Standard Check-In Window (11:00 AM – 2:00 PM)";
+                })()}
           </Typography>
         </Box>
       </CardContent>

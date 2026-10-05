@@ -24,11 +24,9 @@ import {
   DialogActions,
   Tooltip,
   TextField,
-  InputAdornment,
-  Snackbar,
-  Alert,
   Divider,
 } from "@mui/material";
+import { toast } from "@/shared/utils/toast";
 import {
   HowToReg,
   CleaningServices,
@@ -100,7 +98,6 @@ export default function ReceptionistOverviewPage({
     type: null, // "AVAILABLE" | "OCCUPIED" | "CLEANING" | "MAINTENANCE" | "IN_HOUSE_GUESTS"
   });
   const [telemetrySearch, setTelemetrySearch] = useState("");
-  const [toast, setToast] = useState({ open: false, message: "", severity: "info" });
 
   // Live Current Clock for Operational Banner
   const [liveCurrentTime, setLiveCurrentTime] = useState(new Date());
@@ -123,10 +120,10 @@ export default function ReceptionistOverviewPage({
         method: "PUT",
         body: { status: nextStatus },
       });
-      setToast({ open: true, message: `Room ${room.roomNumber} updated to ${nextStatus}!`, severity: "success" });
+      toast.success(`Room ${room.roomNumber} updated to ${nextStatus}!`);
       if (onRefresh) await onRefresh();
     } catch (err) {
-      setToast({ open: true, message: err.message || "Failed to update room status", severity: "error" });
+      toast.error(err.message || "Failed to update room status");
     }
   };
 
@@ -1321,7 +1318,7 @@ export default function ReceptionistOverviewPage({
                                         booking: booking || { guestName: gName, roomNumber: room.roomNumber },
                                         guest: guest || { name: gName, mobileNumber: gPhone },
                                         hotel: hotelSettings?.hotel || {},
-                                        onShowToast: (msg, sev) => setToast({ open: true, message: msg, severity: sev }),
+                                        onShowToast: (msg, sev) => toast.show(msg, sev),
                                       });
                                     }}
                                     sx={{
@@ -1640,7 +1637,7 @@ export default function ReceptionistOverviewPage({
                                         booking: g.booking || { guestName: name, roomNumber: room },
                                         guest: g.guest || g,
                                         hotel: hotelSettings?.hotel || {},
-                                        onShowToast: (msg, sev) => setToast({ open: true, message: msg, severity: sev }),
+                                        onShowToast: (msg, sev) => toast.show(msg, sev),
                                       });
                                     }}
                                     sx={{
@@ -1700,18 +1697,6 @@ export default function ReceptionistOverviewPage({
           </DialogActions>
         </Dialog>
       )}
-
-      {/* Toast Notification */}
-      <Snackbar
-        open={toast.open}
-        autoHideDuration={4000}
-        onClose={() => setToast({ ...toast, open: false })}
-        anchorOrigin={{ vertical: "top", horizontal: "right" }}
-      >
-        <Alert severity={toast.severity || "info"} onClose={() => setToast({ ...toast, open: false })}>
-          {toast.message}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 }

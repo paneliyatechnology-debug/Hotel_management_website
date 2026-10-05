@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&family=Playfair+Display:wght@500;600;700;800;900&display=swap');
+@import "react-toastify/dist/ReactToastify.css";
 @import "tailwindcss";
 
 @theme {
@@ -192,4 +193,49 @@ body {
 .animate-pulse-glow {
   animation: pulseGlow 4s ease-in-out infinite;
 }
+
+/* ====================================================================
+ * TOASTIFY MODERN LUXURY STYLING
+ * ==================================================================== */
+.Toastify__toast-container {
+  z-index: 999999 !important;
+}
+
+.Toastify__toast {
+  border-radius: 16px !important;
+  font-family: var(--font-sans) !important;
+  font-weight: 600 !important;
+  font-size: 0.88rem !important;
+  box-shadow: 0 16px 40px -8px rgba(12, 39, 59, 0.25), 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+  backdrop-filter: blur(12px) !important;
+  padding: 14px 18px !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  margin-bottom: 10px !important;
+}
+
+.Toastify__toast--success {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+  color: #FFFFFF !important;
+}
+
+.Toastify__toast--error {
+  background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%) !important;
+  color: #FFFFFF !important;
+}
+
+.Toastify__toast--warning {
+  background: linear-gradient(135deg, #D97706 0%, #B45309 100%) !important;
+  color: #FFFFFF !important;
+}
+
+.Toastify__toast--info {
+  background: linear-gradient(135deg, #0284C7 0%, #0369A1 100%) !important;
+  color: #FFFFFF !important;
+}
+
+.Toastify__progress-bar {
+  height: 4px !important;
+  border-radius: 0 0 16px 16px !important;
+}
+
 

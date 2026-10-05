@@ -54,13 +54,13 @@ import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useSocket } from "@/shared/context/SocketContext";
 import EmptyState from "@/shared/components/EmptyState";
 import { downloadDailyLedgerPDF, downloadHandoverVoucherPDF } from "@/shared/utils/pdfGenerator";
+import { toast } from "@/shared/utils/toast";
 
 export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOverview }) {
   const { themeConfig, isDarkMode } = useAppTheme();
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
-  const [toast, setToast] = useState({ show: false, message: "", severity: "success" });
 
   // Backend Pagination & Search Filters
   const [page, setPage] = useState(1);
@@ -144,8 +144,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
   };
 
   const showToast = (message, severity = "success") => {
-    setToast({ show: true, message, severity });
-    setTimeout(() => setToast({ show: false, message: "", severity: "success" }), 4000);
+    toast.show(message, severity);
   };
 
   const handleSettleDrawer = async () => {
@@ -247,23 +246,6 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
 
   return (
     <Box sx={{ px: { xs: 2, sm: 3, md: 3.5 }, py: { xs: 2, sm: 3.5 }, display: "flex", flexDirection: "column", gap: 3.5 }}>
-      {/* Toast Alert */}
-      {toast.show && (
-        <Alert
-          severity={toast.severity}
-          sx={{
-            position: "fixed",
-            top: 24,
-            right: 24,
-            zIndex: 9999,
-            boxShadow: themeConfig.shadowModal,
-            borderRadius: "12px",
-          }}
-        >
-          {toast.message}
-        </Alert>
-      )}
-
       {/* Header */}
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: { xs: "flex-start", sm: "center" }, flexDirection: { xs: "column", sm: "row" }, gap: 2 }}>
         <div>
@@ -298,7 +280,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
             startIcon={<Download />}
             onClick={() => {
               downloadDailyLedgerPDF(data?.payments || [], telemetry, hotelSettings || user?.hotel || {});
-              setToast({ show: true, message: "Treasury Statement PDF generated successfully!", severity: "success" });
+              showToast("Treasury Statement PDF generated successfully!", "success");
             }}
             className="btn-3d"
             sx={{
@@ -1262,7 +1244,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
                   startIcon={<Download sx={{ fontSize: 18 }} />}
                   onClick={() => {
                     downloadHandoverVoucherPDF(voucherModal.record, hotelSettings || user?.hotel || {});
-                    setToast({ show: true, message: "Handover slip PDF downloaded!", severity: "success" });
+                    showToast("Handover slip PDF downloaded!", "success");
                   }}
                   sx={{
                     borderRadius: "10px",

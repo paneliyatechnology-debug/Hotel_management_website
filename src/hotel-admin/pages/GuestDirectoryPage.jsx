@@ -40,7 +40,7 @@ import EmptyState from "@/shared/components/EmptyState";
 import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
 import { downloadGuestDirectoryPDF, downloadGovtIdReportPDF } from "@/shared/utils/pdfGenerator";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
-import { Alert, Snackbar } from "@mui/material";
+import { toast } from "@/shared/utils/toast";
 
 export default function GuestDirectoryPage({
   guests = [],
@@ -146,8 +146,6 @@ export default function GuestDirectoryPage({
     setViewGuestModal?.({ open: true, guest });
   };
 
-  const [toast, setToast] = useState({ open: false, message: "", severity: "info" });
-
   const handleSendWhatsApp = (guest) => {
     const isDeparted = (guest.status || guest.bookingStatus || "").toUpperCase() === "DEPARTED" || (guest.status || guest.bookingStatus || "").toUpperCase() === "CHECKED_OUT";
     if (isDeparted) {
@@ -163,7 +161,7 @@ export default function GuestDirectoryPage({
           paidAmount: guest.paidAmount || guest.totalBilled || 0,
         },
         hotel: hotelSettings?.hotel || {},
-        onShowToast: (msg, sev) => setToast({ open: true, message: msg, severity: sev }),
+        onShowToast: (msg, sev) => toast.show(msg, sev),
       });
     } else {
       sendCheckInWhatsApp({
@@ -177,7 +175,7 @@ export default function GuestDirectoryPage({
           adults: guest.adults || 1,
         },
         hotel: hotelSettings?.hotel || {},
-        onShowToast: (msg, sev) => setToast({ open: true, message: msg, severity: sev }),
+        onShowToast: (msg, sev) => toast.show(msg, sev),
       });
     }
   };
@@ -647,18 +645,6 @@ export default function GuestDirectoryPage({
         guestData={activeGuestDetail.guest || viewGuestModal?.guest}
         hotelSettings={hotelSettings}
       />
-
-      {/* Toast Notification */}
-      <Snackbar
-        open={toast.open}
-        autoHideDuration={4000}
-        onClose={() => setToast({ ...toast, open: false })}
-        anchorOrigin={{ vertical: "top", horizontal: "right" }}
-      >
-        <Alert severity={toast.severity || "info"} onClose={() => setToast({ ...toast, open: false })}>
-          {toast.message}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 }

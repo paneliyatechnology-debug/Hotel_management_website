@@ -61,7 +61,7 @@ import StatCard from "@/shared/components/StatCard";
 import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
 import { formatTime12Hour, calculateOverstayFee } from "@/shared/utils/timeUtils";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
-import { Alert, Snackbar } from "@mui/material";
+import { toast } from "@/shared/utils/toast";
 
 export default function InHouseFoliosPage({
   bookings = [],
@@ -82,7 +82,6 @@ export default function InHouseFoliosPage({
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [toast, setToast] = useState({ open: false, message: "", severity: "info" });
 
   // Check-Out Settlement Dialog State
   const [checkoutDialog, setCheckoutDialog] = useState({
@@ -778,14 +777,14 @@ export default function InHouseFoliosPage({
                                     booking: b,
                                     guest: b.guest || { name: b.guestName, mobileNumber: b.guestPhone },
                                     hotel: hotelSettings,
-                                    onShowToast: (msg, sev) => setToast({ open: true, message: msg, severity: sev }),
+                                    onShowToast: (msg, sev) => toast.show(msg, sev),
                                   });
                                 } else {
                                   sendCheckoutBillWhatsApp({
                                     booking: b,
                                     guest: b.guest || { name: b.guestName, mobileNumber: b.guestPhone },
                                     hotel: hotelSettings,
-                                    onShowToast: (msg, sev) => setToast({ open: true, message: msg, severity: sev }),
+                                    onShowToast: (msg, sev) => toast.show(msg, sev),
                                   });
                                 }
                               }}
@@ -1319,7 +1318,7 @@ export default function InHouseFoliosPage({
                   settlementPaymentAmount: checkoutDialog.amount,
                   lateCheckoutFee: checkoutDialog.lateFee,
                 },
-                onShowToast: (msg, sev) => setToast({ open: true, message: msg, severity: sev }),
+                onShowToast: (msg, sev) => toast.show(msg, sev),
               });
             }}
             sx={{
@@ -1625,7 +1624,7 @@ export default function InHouseFoliosPage({
                   booking: b,
                   guest: b?.guest || { name: b?.guestName, mobileNumber: b?.guestPhone },
                   hotel: hotelSettings,
-                  onShowToast: (msg, sev) => setToast({ open: true, message: msg, severity: sev }),
+                  onShowToast: (msg, sev) => toast.show(msg, sev),
                 });
               }}
               sx={{
@@ -1648,7 +1647,7 @@ export default function InHouseFoliosPage({
                   booking: b,
                   guest: b?.guest || { name: b?.guestName, mobileNumber: b?.guestPhone },
                   hotel: hotelSettings,
-                  onShowToast: (msg, sev) => setToast({ open: true, message: msg, severity: sev }),
+                  onShowToast: (msg, sev) => toast.show(msg, sev),
                 });
               }}
               sx={{
@@ -1725,18 +1724,6 @@ export default function InHouseFoliosPage({
           )}
         </Box>
       </Dialog>
-
-      {/* Toast Notification */}
-      <Snackbar
-        open={toast.open}
-        autoHideDuration={4000}
-        onClose={() => setToast({ ...toast, open: false })}
-        anchorOrigin={{ vertical: "top", horizontal: "right" }}
-      >
-        <Alert severity={toast.severity || "info"} onClose={() => setToast({ ...toast, open: false })}>
-          {toast.message}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 }

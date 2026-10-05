@@ -55,7 +55,7 @@ import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import StatusChip from "@/shared/components/StatusChip";
 import { downloadGuestFolioPDF, downloadTaxInvoicePDF } from "@/shared/utils/pdfGenerator";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
-import { Alert, Snackbar } from "@mui/material";
+import { toast } from "@/shared/utils/toast";
 
 export default function GuestDetailsModal({
   open = false,
@@ -69,7 +69,6 @@ export default function GuestDetailsModal({
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
-  const [toast, setToast] = useState({ open: false, message: "", severity: "info" });
 
   const targetId =
     guestId ||
@@ -882,7 +881,7 @@ export default function GuestDetailsModal({
                   booking: activeBooking || { guestName: guest.name || guest.fullName, roomNumber: guest.roomAssigned },
                   guest,
                   hotel: guest?.hotel || {},
-                  onShowToast: (msg, sev) => setToast({ open: true, message: msg, severity: sev }),
+                  onShowToast: (msg, sev) => toast.show(msg, sev),
                 });
               }}
               sx={{
@@ -912,7 +911,7 @@ export default function GuestDetailsModal({
                     booking: activeBooking,
                     guest,
                     hotel: guest?.hotel || {},
-                    onShowToast: (msg, sev) => setToast({ open: true, message: msg, severity: sev }),
+                    onShowToast: (msg, sev) => toast.show(msg, sev),
                   });
                 }}
                 sx={{
@@ -953,18 +952,6 @@ export default function GuestDetailsModal({
           </Button>
         </DialogActions>
       </Dialog>
-
-      {/* WhatsApp / Notification Toast */}
-      <Snackbar
-        open={toast.open}
-        autoHideDuration={4000}
-        onClose={() => setToast({ ...toast, open: false })}
-        anchorOrigin={{ vertical: "top", horizontal: "right" }}
-      >
-        <Alert severity={toast.severity || "info"} onClose={() => setToast({ ...toast, open: false })}>
-          {toast.message}
-        </Alert>
-      </Snackbar>
 
       {/* Image Zoom / Lightbox Preview Modal */}
       {previewImage && (

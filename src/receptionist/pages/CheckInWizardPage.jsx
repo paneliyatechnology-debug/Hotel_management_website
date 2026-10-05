@@ -23,7 +23,6 @@ import {
   FormControlLabel,
   Radio,
   Alert,
-  Snackbar,
   IconButton,
   Checkbox,
   InputAdornment,
@@ -38,6 +37,7 @@ import {
 } from "@mui/material";
 import { calculateMultiRoomBookingGST } from "@/shared/utils/gstUtils";
 import { uploadToCloudinaryServer } from "@/shared/utils/uploadService";
+import { toast } from "@/shared/utils/toast";
 import {
   CheckCircle,
   VerifiedUser,
@@ -212,9 +212,8 @@ export default function CheckInWizardPage({
   const [liveTime, setLiveTime] = useState(getCurrentLocalTime());
   const [liveDate, setLiveDate] = useState(getTodayLocalDate());
 
-  // Form validation feedback & Toast state
+  // Form validation feedback
   const [stepError, setStepError] = useState("");
-  const [toast, setToast] = useState({ open: false, message: "", severity: "warning" });
 
   useEffect(() => {
     const initialTime = getCurrentLocalTime();
@@ -1036,7 +1035,7 @@ export default function CheckInWizardPage({
   // Step Validation Helpers & Error Alerts (Toast Notification System)
   const showErrorAlert = (msg, severity = "warning") => {
     setStepError(msg);
-    setToast({ open: true, message: msg, severity });
+    toast.show(msg, severity);
   };
 
   const handleNext = () => {
@@ -1133,32 +1132,6 @@ export default function CheckInWizardPage({
 
   return (
     <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 } }}>
-      {/* Sleek Top Floating Toast Notification */}
-      <Snackbar
-        open={toast.open}
-        autoHideDuration={5000}
-        onClose={() => setToast((prev) => ({ ...prev, open: false }))}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
-        sx={{ zIndex: 99999 }}
-      >
-        <Alert
-          onClose={() => setToast((prev) => ({ ...prev, open: false }))}
-          severity={toast.severity || "warning"}
-          variant="filled"
-          sx={{
-            width: "100%",
-            fontWeight: 800,
-            fontSize: "0.92rem",
-            boxShadow: "0 10px 30px rgba(0, 0, 0, 0.25)",
-            borderRadius: "14px",
-            display: "flex",
-            alignItems: "center",
-          }}
-        >
-          {toast.message}
-        </Alert>
-      </Snackbar>
-
       <Card
         className="card-3d"
         sx={{

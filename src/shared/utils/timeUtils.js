@@ -128,17 +128,29 @@ export function validateHotelTimings(checkInTime, checkOutTime) {
 
 /**
  * Automatically calculates late check-out / overstay billing tariff.
- * If a guest stays past standard check-out time (e.g. 12:00 PM) + 30-min grace period (2-3+ hours late or next day),
- * this automatically charges the extra day(s) room tariff to the guest folio ledger.
+ * - Grace Period: 5-10 minutes (default 10 minutes from hotelSettings). Within grace period => ₹0 extra charge.
+ * - Beyond Grace Period:
+ *     Hourly Rate = Daily Room Rent / 12 (Strict 12 hours/day formula)
+ *     Hourly Charge = Hourly Rate * Chargeable Late Hours
+ *     Full Day Charge = Daily Room Rent * Math.max(1, Math.ceil(Chargeable Late Hours / 24))
+ * - Supports user option selection: 'hourly' vs 'full_day'
  */
-export function calculateOverstayFee(booking, hotelSettings = {}) {
-  if (!booking || (booking.status && booking.status !== "CHECKED_IN")) {
+export function calculateOverstayFee(booking, hotelSettings = {}, options = {}) {
+  if (!booking || (booking.status && booking.status !== "CHECKED_IN" && booking.status !== "CONFIRMED")) {
     return {
       isOverstay: false,
+      isLate: false,
+      isWithinGracePeriod: false,
+      gracePeriodMinutes: 10,
+      overdueMinutes: 0,
       overdueHours: 0,
-      extraDays: 0,
+      chargeableHours: 0,
       dailyRate: 0,
+      hourlyRate: 0,
+      fullDayCharge: 0,
+      hourlyCharge: 0,
       lateFee: 0,
+      lateCheckoutType: "none",
       description: "",
     };
   }
@@ -147,10 +159,18 @@ export function calculateOverstayFee(booking, hotelSettings = {}) {
   if (!outDateStr) {
     return {
       isOverstay: false,
+      isLate: false,
+      isWithinGracePeriod: false,
+      gracePeriodMinutes: 10,
+      overdueMinutes: 0,
       overdueHours: 0,
-      extraDays: 0,
+      chargeableHours: 0,
       dailyRate: 0,
+      hourlyRate: 0,
+      fullDayCharge: 0,
+      hourlyCharge: 0,
       lateFee: 0,
+      lateCheckoutType: "none",
       description: "",
     };
   }
@@ -163,54 +183,87 @@ export function calculateOverstayFee(booking, hotelSettings = {}) {
   const [year, month, day] = outDateStr.split("-").map(Number);
   const scheduledOutDate = new Date(year, (month || 1) - 1, day || 1, isNaN(outH) ? 12 : outH, isNaN(outM) ? 0 : outM, 0);
 
-  const now = new Date();
+  const now = options.checkoutTime ? new Date(options.checkoutTime) : new Date();
   const diffMs = now.getTime() - scheduledOutDate.getTime();
-  const overdueHours = diffMs / (1000 * 60 * 60);
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
 
-  // Grace period: 30 minutes (0.5 hours). Beyond 30 mins overstay (e.g., 2-3 hours late), charge extra day
-  if (overdueHours > 0.5) {
-    // Number of additional days: minimum 1 day for any overstay > 30 mins up to 24 hours, then ceil for subsequent days
-    const extraDays = Math.max(1, Math.ceil(overdueHours / 24));
+  // Configurable Grace Period (default 10 minutes, allowed 5-10 mins)
+  const graceMinutes = typeof hotelSettings?.lateCheckoutGraceMinutes === "number"
+    ? hotelSettings.lateCheckoutGraceMinutes
+    : 10;
 
-    // Calculate original daily room rate
-    let originalNights = 1;
-    if (booking.numberOfNights && booking.numberOfNights > 0) {
-      originalNights = Number(booking.numberOfNights);
-    } else if (booking.checkInDate && booking.checkOutDate) {
-      const inD = new Date(String(booking.checkInDate).split("T")[0]);
-      const outD = new Date(outDateStr);
-      const diffDays = Math.round((outD - inD) / (1000 * 60 * 60 * 24));
-      if (diffDays > 0) originalNights = diffDays;
-    }
+  // Calculate daily room rate from booking
+  let originalNights = 1;
+  if (booking.numberOfNights && booking.numberOfNights > 0) {
+    originalNights = Number(booking.numberOfNights);
+  } else if (booking.checkInDate && booking.checkOutDate) {
+    const inD = new Date(String(booking.checkInDate).split("T")[0]);
+    const outD = new Date(outDateStr);
+    const diffDays = Math.round((outD - inD) / (1000 * 60 * 60 * 24));
+    if (diffDays > 0) originalNights = diffDays;
+  }
 
-    const posChargesTotal = (booking.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
-    const baseRoomTariff = (booking.totalAmount || 0) > posChargesTotal ? (booking.totalAmount - posChargesTotal) : (booking.totalAmount || 0);
+  const posChargesTotal = (booking.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
+  const baseRoomTariff = (booking.totalAmount || 0) > posChargesTotal ? (booking.totalAmount - posChargesTotal) : (booking.totalAmount || 0);
 
-    const calculatedDailyRate = baseRoomTariff > 0
-      ? Math.round(baseRoomTariff / originalNights)
-      : (booking.room?.customPricePerNight || booking.roomType?.basePrice || 2500);
+  const dailyRate = booking.dailyRoomRate || (baseRoomTariff > 0
+    ? Math.round(baseRoomTariff / originalNights)
+    : (booking.room?.customPricePerNight || booking.roomType?.basePrice || 3000));
 
-    const lateFee = calculatedDailyRate * extraDays;
+  // Hourly Rate formula: Daily Room Rent / 12
+  const hourlyRate = booking.hourlyRate || Math.round(dailyRate / 12);
 
+  // Case 1: Within Grace Period (<= 10 mins late or checked out early/on-time)
+  if (diffMinutes <= graceMinutes) {
     return {
-      isOverstay: true,
-      overdueHours: Number(overdueHours.toFixed(1)),
-      extraDays,
-      dailyRate: calculatedDailyRate,
-      lateFee,
+      isOverstay: false,
+      isLate: false,
+      isWithinGracePeriod: diffMinutes > 0 && diffMinutes <= graceMinutes,
+      gracePeriodMinutes: graceMinutes,
+      overdueMinutes: Math.max(0, diffMinutes),
+      overdueHours: 0,
+      chargeableHours: 0,
+      dailyRate,
+      hourlyRate,
+      fullDayCharge: dailyRate,
+      hourlyCharge: 0,
+      lateFee: 0,
+      lateCheckoutType: "none",
       scheduledCheckOutTime: outTime24,
       scheduledCheckOutDate: outDateStr,
-      description: `Late Check-Out Overstay (+${overdueHours.toFixed(1)} hrs past ${formatTime12Hour(outTime24)}) &bull; ${extraDays} Extra Day Room Tariff`,
+      actualCheckOutTime: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
+      description: diffMinutes > 0 ? `Late Checkout within ${graceMinutes}-min grace period (${diffMinutes} min late) &bull; No Extra Charge` : "",
     };
   }
 
+  // Case 2: Past Grace Period (> 10 mins late)
+  const chargeableHours = Math.max(1, Math.ceil(diffMinutes / 60));
+  const hourlyCharge = hourlyRate * chargeableHours;
+  const extraDays = Math.max(1, Math.ceil(chargeableHours / 24));
+  const fullDayCharge = dailyRate * extraDays;
+
+  // Selected Option: 'hourly' or 'full_day' (defaults to 'hourly' or booking snapshot)
+  const selectedType = options.selectedOption || booking.lateCheckoutType || "hourly";
+  const lateFee = selectedType === "full_day" ? fullDayCharge : hourlyCharge;
+
   return {
-    isOverstay: false,
-    overdueHours: 0,
-    extraDays: 0,
-    dailyRate: 0,
-    lateFee: 0,
-    description: "",
+    isOverstay: true,
+    isLate: true,
+    isWithinGracePeriod: false,
+    gracePeriodMinutes: graceMinutes,
+    overdueMinutes: diffMinutes,
+    overdueHours: Number((diffMinutes / 60).toFixed(1)),
+    chargeableHours,
+    dailyRate,
+    hourlyRate,
+    fullDayCharge,
+    hourlyCharge,
+    lateFee,
+    lateCheckoutType: selectedType,
+    scheduledCheckOutTime: outTime24,
+    scheduledCheckOutDate: outDateStr,
+    actualCheckOutTime: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
+    description: `Late Check-Out (+${chargeableHours}h past ${formatTime12Hour(outTime24)}) &bull; ${selectedType === "full_day" ? `Full Day Charge (₹${fullDayCharge.toLocaleString("en-IN")})` : `${chargeableHours}h @ ₹${hourlyRate}/hr (₹${hourlyCharge.toLocaleString("en-IN")})`}`,
   };
 }
 

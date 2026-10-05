@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -18,10 +19,14 @@ import {
   Building,
   Grid,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  X,
+  CheckCircle2,
 } from "lucide-react";
 
 export default function HomePage() {
+  const [demoOpen, setDemoOpen] = useState(false);
+
   const featureChips = [
     { title: "Room Management", icon: BedDouble },
     { title: "Reports & Analytics", icon: TrendingUp },
@@ -82,15 +87,16 @@ export default function HomePage() {
                 Get Started Free
               </Link>
 
-              <Link
-                href="/features"
-                className="inline-flex items-center justify-center gap-2.5 px-7 py-4 rounded-full bg-transparent hover:bg-white/10 text-white border border-[#00D0B4]/50 font-bold text-sm backdrop-blur-md transition-all"
+              <button
+                type="button"
+                onClick={() => setDemoOpen(true)}
+                className="inline-flex items-center justify-center gap-2.5 px-7 py-4 rounded-full bg-transparent hover:bg-white/10 text-white border border-[#00D0B4]/50 font-bold text-sm backdrop-blur-md transition-all cursor-pointer"
               >
                 <div className="w-6 h-6 rounded-full border border-white/60 flex items-center justify-center">
                   <Play className="w-3 h-3 text-white fill-white ml-0.5" />
                 </div>
                 Watch Demo
-              </Link>
+              </button>
             </div>
           </div>
 
@@ -191,7 +197,10 @@ export default function HomePage() {
                 
                 {/* Centered Play Button Overlay */}
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-16 h-16 rounded-full bg-[#00D0B4] text-[#072F2A] flex items-center justify-center shadow-xl shadow-[#00D0B4]/40 hover:scale-110 transition-transform cursor-pointer">
+                  <div
+                    onClick={() => setDemoOpen(true)}
+                    className="w-16 h-16 rounded-full bg-[#00D0B4] text-[#072F2A] flex items-center justify-center shadow-xl shadow-[#00D0B4]/40 hover:scale-110 transition-transform cursor-pointer"
+                  >
                     <Play className="w-7 h-7 fill-[#072F2A] ml-1 text-[#072F2A]" />
                   </div>
                 </div>
@@ -311,6 +320,84 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Watch Demo Modal */}
+      {demoOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
+          <div className="relative w-full max-w-4xl bg-[#072F2A] border border-[#00D0B4]/40 rounded-3xl overflow-hidden shadow-2xl text-white">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#0F4A42]">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-[#00D0B4]/20 flex items-center justify-center text-[#00D0B4]">
+                  <Play className="w-4 h-4 fill-current" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-bold text-base sm:text-lg text-white">
+                    Grand Royale Hotel PMS Walkthrough
+                  </h3>
+                  <p className="text-xs text-slate-300">
+                    Explore room inventory, guest check-ins, automated billing, and live reports.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDemoOpen(false)}
+                className="p-2 rounded-full hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                aria-label="Close demo"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Video / Interactive Player Area */}
+            <div className="relative aspect-video bg-slate-950 flex items-center justify-center overflow-hidden">
+              <video
+                controls
+                autoPlay
+                className="w-full h-full object-cover"
+                poster="https://images.unsplash.com/photo-1590490360182-c33d57733427?w=1200&q=85"
+              >
+                <source
+                  src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+                  type="video/mp4"
+                />
+                Your browser does not support the video tag.
+              </video>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-[#062823] border-t border-[#0F4A42] flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-6 text-xs text-slate-300 font-medium">
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-[#00D0B4]" /> Instant 5-Step Check-In
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-[#00D0B4]" /> Multi-Role Staff Access
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-[#00D0B4]" /> Automated GST Invoicing
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/register-hotel"
+                  onClick={() => setDemoOpen(false)}
+                  className="px-5 py-2.5 rounded-full bg-[#00D0B4] hover:bg-[#00BFA5] text-[#072F2A] font-extrabold text-xs transition-all shadow-md"
+                >
+                  Start Free Trial →
+                </Link>
+                <button
+                  onClick={() => setDemoOpen(false)}
+                  className="px-4 py-2.5 rounded-full border border-white/30 text-white font-semibold text-xs hover:bg-white/10 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <Footer />

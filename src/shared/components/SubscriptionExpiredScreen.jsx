@@ -765,7 +765,7 @@ export default function SubscriptionExpiredScreen({
             <Button
               variant="contained"
               className="btn-3d"
-              startIcon={<AutoAwesome />}
+              startIcon={<WorkspacePremium />}
               onClick={() => handleOpenUpgrade("Priority Commercial Plan")}
               sx={{
                 background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,

@@ -13,18 +13,21 @@ export default function StatCard({
   trendType = "up",
   color,
   badgeText,
+  onClick,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
   const cardColor = color || themeConfig.primary;
 
   return (
     <Card
+      onClick={onClick}
       sx={{
         borderRadius: "22px",
         height: "100%",
         minHeight: 180,
         display: "flex",
         flexDirection: "column",
+        cursor: onClick ? "pointer" : "default",
         background: isDarkMode
           ? `linear-gradient(135deg, ${themeConfig.bgCard || "#162032"} 0%, #1A2638 100%)`
           : `linear-gradient(145deg, #FFFFFF 0%, #F8FAFC 100%)`,
@@ -49,7 +52,7 @@ export default function StatCard({
           opacity: 0.95,
         },
         "&:hover": {
-          transform: "translateY(-4px)",
+          transform: onClick ? "translateY(-5px) scale(1.01)" : "translateY(-4px)",
           boxShadow: `0 18px 32px -8px rgba(12, 39, 59, 0.14), 0 0 0 1px ${cardColor}40`,
         },
       }}

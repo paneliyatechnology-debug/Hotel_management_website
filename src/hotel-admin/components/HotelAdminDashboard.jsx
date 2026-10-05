@@ -49,6 +49,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
 
   function getInitialRoomForm(prefillCategory = null) {
     const defaultCat = prefillCategory || roomTypes[0];
+    const catGstRate = defaultCat?.gstRate ?? 18;
     return {
       _id: "",
       roomNumber: "",
@@ -61,6 +62,11 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       status: "AVAILABLE",
       notes: "",
       amenities: defaultCat?.amenities?.length ? [...defaultCat.amenities] : ["Free WiFi", "Air Conditioner (AC)", "Smart LED TV", "Attached Bathroom"],
+      gstEnabled: defaultCat?.gstEnabled !== false,
+      gstRate: catGstRate,
+      cgstRate: defaultCat?.cgstRate ?? catGstRate / 2,
+      sgstRate: defaultCat?.sgstRate ?? catGstRate / 2,
+      taxInclusive: Boolean(defaultCat?.taxInclusive),
     };
   }
 
@@ -75,6 +81,11 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       bedType: "",
       description: "",
       amenities: [],
+      gstEnabled: true,
+      gstRate: 18,
+      cgstRate: 9,
+      sgstRate: 9,
+      taxInclusive: false,
     };
   }
 
@@ -258,11 +269,17 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       return;
     }
 
+    const cleanPhone = staffModal.data.phone.toString().replace(/\D/g, "");
+    if (cleanPhone.length !== 10) {
+      showToast("Phone number must contain exactly 10 numeric digits", "error");
+      return;
+    }
+
     try {
       const payload = {
         name: staffModal.data.name,
         email: staffModal.data.email,
-        phone: staffModal.data.phone,
+        phone: cleanPhone,
         role: staffModal.data.role || "RECEPTIONIST",
         shift: staffModal.data.shift || "Morning (07:00 - 15:00)",
       };
@@ -357,6 +374,11 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         status: roomModal.data.status || "AVAILABLE",
         notes: roomModal.data.notes || "",
         amenities: roomModal.data.amenities || [],
+        gstEnabled: roomModal.data.gstEnabled !== false,
+        gstRate: Number(roomModal.data.gstRate) || 0,
+        cgstRate: Number(roomModal.data.cgstRate) || (Number(roomModal.data.gstRate) || 0) / 2,
+        sgstRate: Number(roomModal.data.sgstRate) || (Number(roomModal.data.gstRate) || 0) / 2,
+        taxInclusive: Boolean(roomModal.data.taxInclusive),
       };
 
       if (roomModal.mode === "EDIT" && roomModal.data._id) {
@@ -410,7 +432,8 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
           await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DELETE_ROOM(room._id), {
             method: "DELETE",
           });
-          setRooms(rooms.filter((r) => r._id !== room._id));
+          setRooms((prev) => prev.filter((r) => r._id !== room._id && r.id !== room._id));
+          await fetchAllData();
           showToast(`Room ${room.roomNumber} removed.`);
         } catch (err) {
           showToast(err.message || "Failed to delete room", "error");
@@ -467,6 +490,11 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         bedCount: Number(typeModal.data.bedCount) || 1,
         bedType: typeModal.data.bedType || "1 King Size Bed",
         amenities: typeModal.data.amenities || [],
+        gstEnabled: typeModal.data.gstEnabled !== false,
+        gstRate: Number(typeModal.data.gstRate) || 0,
+        cgstRate: Number(typeModal.data.cgstRate) || (Number(typeModal.data.gstRate) || 0) / 2,
+        sgstRate: Number(typeModal.data.sgstRate) || (Number(typeModal.data.gstRate) || 0) / 2,
+        taxInclusive: Boolean(typeModal.data.taxInclusive),
       };
 
       if (typeModal.mode === "EDIT" && typeModal.data._id) {

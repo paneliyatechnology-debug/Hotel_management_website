@@ -22,11 +22,12 @@ import {
   TableCell,
   TableContainer,
 } from "@mui/material";
-import { Download, Print } from "@/shared/icons";
+import { Download, Print, WhatsApp, CheckCircle, FileDownload } from "@/shared/icons";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { toast } from "@/shared/utils/toast";
-import { downloadTaxInvoicePDF } from "@/shared/utils/pdfGenerator";
+import { downloadTaxInvoicePDF, downloadGuestFolioPDF } from "@/shared/utils/pdfGenerator";
+import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
 import { calculateOverstayFee, formatTime12Hour } from "@/shared/utils/timeUtils";
 import SettingsView from "@/shared/components/SettingsView";
 import ReceptionistOverviewPage from "../pages/ReceptionistOverviewPage";
@@ -52,6 +53,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
   const [notification, setNotification] = useState({ show: false, message: "", severity: "success" });
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
   const [initialSelectedCategory, setInitialSelectedCategory] = useState(null);
+  const [checkInSuccessModal, setCheckInSuccessModal] = useState({ open: false, booking: null, guest: null });
 
   // Helper for current local date in YYYY-MM-DD
   const getTodayLocalDate = () => {
@@ -201,17 +203,19 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
 
       const payload = {
         guestId: checkInData.guestId,
-        fullName: checkInData.fullName,
-        mobileNumber: checkInData.mobile,
-        email: checkInData.email,
-        address: checkInData.address,
+        fullName: checkInData.fullName || checkInData.guestName || "Walk-in Guest",
+        mobileNumber: checkInData.mobile || checkInData.mobileNumber || checkInData.phone || "",
+        email: checkInData.email || "",
+        address: checkInData.address || "",
         govtIdType: checkInData.govtIdType || "AADHAAR",
         govtIdNumber: checkInData.govtIdNumber || "PENDING",
+        frontImage: checkInData.frontImage || checkInData.idProofImage || "",
+        backImage: checkInData.backImage || checkInData.idProofBackImage || "",
         reusePreviousId: checkInData.reusePreviousId !== false,
         roomId: checkInData.roomId || resolvedRoomIds[0],
         roomIds: resolvedRoomIds,
         roomNumber: checkInData.selectedRoomNumbers?.join(", ") || checkInData.roomNumber,
-        checkInDate: checkInData.isCustomCheckInTime ? checkInData.checkInDate : getTodayLocalDate(),
+        checkInDate: checkInData.checkInDate || getTodayLocalDate(),
         checkInTime: checkInData.isCustomCheckInTime ? checkInData.checkInTime : getCurrentLocalTime(),
         checkOutDate: checkInData.checkOutDate,
         checkOutTime: "12:00",
@@ -225,7 +229,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         transactionId: checkInData.transactionId || "",
         paymentReference: checkInData.paymentReference || "",
         paymentNote: `${checkInData.paymentMethod || "CASH"} settlement at check-in${secDepAmt > 0 ? ` (Includes ₹${secDepAmt} security deposit)` : ""}`,
-        isInstantCheckIn: true,
+        isInstantCheckIn: (checkInData.checkInDate || getTodayLocalDate()) <= getTodayLocalDate(),
       };
 
       const res = await apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, {
@@ -233,7 +237,30 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         body: payload,
       });
 
-      showToast(res.message || `Guest ${checkInData.fullName} successfully checked in to Room ${payload.roomNumber}!`);
+      const confirmedBooking = res?.data?.booking || res?.data || payload;
+      const successMsg = payload.isInstantCheckIn
+        ? `Guest ${checkInData.fullName} successfully checked in to Room ${payload.roomNumber}!`
+        : `Advance reservation confirmed for ${checkInData.fullName} in Room ${payload.roomNumber} (${payload.checkInDate} to ${payload.checkOutDate})!`;
+      showToast(res.message || successMsg);
+      setCheckInSuccessModal({
+        open: true,
+        booking: {
+          ...confirmedBooking,
+          bookingNumber: confirmedBooking.bookingNumber || res?.data?.bookingNumber || `BK-${Date.now().toString().slice(-6)}`,
+          roomNumber: payload.roomNumber,
+          checkInDate: payload.checkInDate,
+          checkOutDate: payload.checkOutDate,
+          adults: payload.adults,
+          children: payload.children,
+          totalAmount: checkInData.total || 0,
+          paidAmount: payload.advancePaymentAmount || 0,
+        },
+        guest: {
+          fullName: checkInData.fullName,
+          mobile: checkInData.mobile,
+          email: checkInData.email,
+        },
+      });
       await fetchFrontDeskData();
       setActiveStep(0);
       setCheckInData({
@@ -336,6 +363,12 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         body: {
           settlementPaymentAmount: Number(amount) || 0,
           lateCheckoutFee: Number(settlementData.lateCheckoutFee) || 0,
+          lateCheckoutType: settlementData.lateCheckoutType || "none",
+          lateCheckoutHours: Number(settlementData.lateCheckoutHours) || 0,
+          lateCheckoutMinutes: Number(settlementData.lateCheckoutMinutes) || 0,
+          hourlyRate: Number(settlementData.hourlyRate) || 0,
+          dailyRoomRate: Number(settlementData.dailyRoomRate) || 0,
+          gracePeriodMinutes: Number(settlementData.gracePeriodMinutes) || 10,
           paymentMethod: method,
           transactionId: settlementData.transactionId || "",
           paymentReference: settlementData.paymentReference || "",
@@ -381,8 +414,9 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
       const netTot = Math.max(0, baseTot - disc) + (prev.collectSecurityDeposit ? (Number(prev.securityDepositAmount) || 1000) : 0);
       return {
         ...prev,
-        roomId: firstRoom._id,
-        roomIds: roomsArr.map((r) => r._id),
+        activeRoomId: String(firstRoom._id),
+        roomId: String(firstRoom._id),
+        roomIds: roomsArr.map((r) => String(r._id)),
         roomNumber: roomNumbersStr,
         selectedRooms: roomsArr,
         selectedRoomNumbers: roomsArr.map((r) => String(r.roomNumber)),
@@ -397,6 +431,9 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
     });
     setActiveStep(0);
     setIsCheckInOpen(true);
+    if (onTabChange) {
+      onTabChange(1);
+    }
   };
 
   const handleDeleteRoom = async (room) => {
@@ -509,6 +546,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
               onRefresh={fetchFrontDeskData}
               onNavigateTab={(tab) => onTabChange && onTabChange(tab)}
               onRoomStatusChange={handleRoomStatusToggle}
+              onCheckOut={handleCheckOut}
               onSelectRoomForCheckIn={handleSelectRoomForCheckIn}
               onDeleteRoom={handleDeleteRoom}
             />
@@ -619,7 +657,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
               <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", pb: 2, borderBottom: `2px solid ${themeConfig.primary}` }}>
                 <div>
                   <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-                    {user?.hotel?.name || "Grand Royale Luxury Resort & Spa"}
+                    {user?.hotel?.name || "MYOWNPMS"}
                   </Typography>
                   <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
                     {user?.hotel?.address || "Front Desk Operations Center"}
@@ -725,25 +763,70 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
                 </Table>
               </TableContainer>
 
-              <DialogActions sx={{ p: 0, pt: 2, display: "flex", justifyContent: "space-between" }}>
-                <Button onClick={() => setInvoiceModal({ open: false, booking: null })} sx={{ borderRadius: "10px" }}>
+              <DialogActions sx={{ p: 0, pt: 2.5, display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${themeConfig.border}`, mt: 2 }}>
+                <Button
+                  onClick={() => setInvoiceModal({ open: false, booking: null })}
+                  sx={{
+                    borderRadius: "10px",
+                    fontWeight: 700,
+                    color: themeConfig.textMuted,
+                    px: 2,
+                    "&:hover": { bgcolor: "rgba(0,0,0,0.04)" },
+                  }}
+                >
                   Close
                 </Button>
-                <Box sx={{ display: "flex", gap: 1 }}>
+                <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "nowrap" }}>
+                  <Button
+                    variant="contained"
+                    startIcon={<WhatsApp sx={{ color: "#FFFFFF !important" }} />}
+                    onClick={() => {
+                      sendCheckoutBillWhatsApp({
+                        booking: b,
+                        guest: b.guest || { name: b.guestName, mobileNumber: b.guestPhone },
+                        hotel: { ...hotelSettings, ...(user?.hotel || {}) },
+                        onShowToast: (msg, sev) => showToast(msg, sev),
+                      });
+                    }}
+                    sx={{
+                      borderRadius: "10px",
+                      fontWeight: 800,
+                      fontSize: "0.82rem",
+                      bgcolor: "#25D366",
+                      color: "#FFFFFF",
+                      boxShadow: "0 4px 12px rgba(37, 211, 102, 0.25)",
+                      whiteSpace: "nowrap",
+                      px: 1.8,
+                      "&:hover": { bgcolor: "#1EBE5D" },
+                    }}
+                  >
+                    Send WhatsApp
+                  </Button>
+
                   <Button
                     variant="outlined"
-                    startIcon={<Download />}
+                    startIcon={<Download sx={{ fontSize: 18 }} />}
                     onClick={() => {
                       downloadTaxInvoicePDF(b, { ...hotelSettings, ...(user?.hotel || {}) });
                       showToast("PDF Tax Invoice opened / downloaded successfully!");
                     }}
-                    sx={{ borderRadius: "10px", borderColor: themeConfig.border, color: themeConfig.textMain, fontWeight: 700 }}
+                    sx={{
+                      borderRadius: "10px",
+                      borderColor: themeConfig.border,
+                      color: themeConfig.textMain,
+                      fontWeight: 700,
+                      fontSize: "0.82rem",
+                      whiteSpace: "nowrap",
+                      px: 1.5,
+                      "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne },
+                    }}
                   >
-                    Download PDF
+                    Download
                   </Button>
+
                   <Button
                     variant="contained"
-                    startIcon={<Print />}
+                    startIcon={<Print sx={{ fontSize: 18 }} />}
                     onClick={() => {
                       downloadTaxInvoicePDF(b, { ...hotelSettings, ...(user?.hotel || {}) });
                     }}
@@ -752,9 +835,13 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
                       background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
                       borderRadius: "10px",
                       fontWeight: 800,
+                      fontSize: "0.82rem",
+                      whiteSpace: "nowrap",
+                      px: 1.8,
+                      boxShadow: `0 4px 12px ${themeConfig.primaryGlow}`,
                     }}
                   >
-                    Print / Save PDF
+                    Print / PDF
                   </Button>
                 </Box>
               </DialogActions>
@@ -762,6 +849,121 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
           );
         })()}
       </Dialog>
+
+      {/* Check-In Success Confirmation & WhatsApp Action Modal */}
+      {checkInSuccessModal.open && checkInSuccessModal.booking && (
+        <Dialog
+          open={checkInSuccessModal.open}
+          onClose={() => setCheckInSuccessModal({ open: false, booking: null, guest: null })}
+          maxWidth="sm"
+          fullWidth
+          slotProps={{
+            paper: {
+              sx: {
+                borderRadius: "20px",
+                p: 2.5,
+                bgcolor: themeConfig.bgCard,
+                border: `1.5px solid ${themeConfig.border}`,
+              },
+            },
+          }}
+        >
+          <DialogTitle component="div" sx={{ display: "flex", alignItems: "center", gap: 1.5, pb: 1 }}>
+            <CheckCircle sx={{ color: "#10B981", fontSize: 28 }} />
+            <Box>
+              <Typography variant="h6" component="div" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+                Check-In Completed Successfully!
+              </Typography>
+              <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+                Guest has been assigned to Room {checkInSuccessModal.booking?.roomNumber}
+              </Typography>
+            </Box>
+          </DialogTitle>
+          <DialogContent dividers sx={{ borderColor: themeConfig.border }}>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, py: 1 }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Guest Name:</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                  {checkInSuccessModal.guest?.fullName || checkInSuccessModal.booking?.guestName || "Resident Guest"}
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Mobile Number:</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.primary }}>
+                  {checkInSuccessModal.guest?.mobile || checkInSuccessModal.booking?.guestPhone || "N/A"}
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Booking Ref #:</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 800, fontFamily: "monospace" }}>
+                  #{checkInSuccessModal.booking?.bookingNumber}
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Room Allocation:</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.primaryDark }}>
+                  Room {checkInSuccessModal.booking?.roomNumber}
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Check-in & Check-out:</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                  {checkInSuccessModal.booking?.checkInDate} to {checkInSuccessModal.booking?.checkOutDate}
+                </Typography>
+              </Box>
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ p: 2, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 1 }}>
+            <Button
+              startIcon={<FileDownload />}
+              variant="outlined"
+              onClick={() => {
+                downloadGuestFolioPDF(
+                  {
+                    guest: checkInSuccessModal.guest || {},
+                    activeBooking: checkInSuccessModal.booking,
+                  },
+                  user?.hotel || {}
+                );
+              }}
+              sx={{ borderRadius: "10px", fontWeight: 700, borderColor: themeConfig.border, color: themeConfig.textMain }}
+            >
+              Print Folio PDF
+            </Button>
+            <Box sx={{ display: "flex", gap: 1 }}>
+              <Button
+                variant="contained"
+                startIcon={<WhatsApp sx={{ color: "#FFFFFF" }} />}
+                onClick={() => {
+                  sendCheckInWhatsApp({
+                    booking: checkInSuccessModal.booking,
+                    guest: checkInSuccessModal.guest,
+                    hotel: user?.hotel || {},
+                    onShowToast: (msg, sev) => showToast(msg, sev),
+                  });
+                }}
+                sx={{
+                  borderRadius: "10px",
+                  fontWeight: 800,
+                  bgcolor: "#25D366",
+                  color: "#FFFFFF",
+                  boxShadow: "0 4px 12px rgba(37, 211, 102, 0.35)",
+                  "&:hover": { bgcolor: "#1EBE5D" },
+                }}
+              >
+                Send WhatsApp
+              </Button>
+              <Button
+                onClick={() => setCheckInSuccessModal({ open: false, booking: null, guest: null })}
+                variant="outlined"
+                sx={{ borderRadius: "10px", fontWeight: 700 }}
+              >
+                Done
+              </Button>
+            </Box>
+          </DialogActions>
+        </Dialog>
+      )}
     </Box>
   );
 }

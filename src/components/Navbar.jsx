@@ -71,16 +71,10 @@ export default function Navbar() {
         </div>
 
         {/* Mobile Hamburger Button */}
-        <div className="md:hidden flex items-center gap-2">
-          <Link
-            href="/register-hotel"
-            className="px-3.5 py-1.5 rounded-full bg-white text-[#062925] font-extrabold text-xs"
-          >
-            Register
-          </Link>
+        <div className="md:hidden flex items-center">
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 text-white hover:text-[#00D0B4]"
+            className="p-2 text-white hover:text-[#00D0B4] rounded-lg focus:outline-none"
             aria-label="Toggle menu"
           >
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}

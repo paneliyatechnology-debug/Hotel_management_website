@@ -48,7 +48,9 @@ import {
   Search,
   ArrowForward,
   People,
+  Receipt,
   ReceiptLong,
+  CalendarMonth,
   LocationOn,
   Security,
   Payments,
@@ -70,6 +72,8 @@ import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import StatCard from "@/shared/components/StatCard";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
+import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
+import RevenueDetailsPage from "./RevenueDetailsPage";
 import { formatTime12Hour, getTurnaroundWindow } from "@/shared/utils/timeUtils";
 import {
   OccupancyDonutChart,
@@ -93,6 +97,9 @@ export default function HotelOverviewPage({
   onTabChange,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
+  const [showRevenueDetailsView, setShowRevenueDetailsView] = useState(false);
+  const [revenueFilterMode, setRevenueFilterMode] = useState("THIS_WEEK");
+  const [selectedGuestModal, setSelectedGuestModal] = useState({ open: false, guestId: null, guestData: null });
   const [roomSearch, setRoomSearch] = useState("");
   const [nowTime, setNowTime] = useState(Date.now());
   const [guestPage, setGuestPage] = useState(0);
@@ -176,34 +183,19 @@ export default function HotelOverviewPage({
       .reduce((acc, r) => acc + (Number(r.pricePerNight) || Number(r.price) || 0), 0);
   }, [rooms]);
 
-  // Real live calculated data from backend & database
+  // Real live calculated data from backend & database (100% matched with Revenue Details screen)
   const fin = dashboardData?.financials || {};
   const ops = dashboardData?.operationsSummary || {};
 
-  const liveTodayRevNum = Number(fin.todayRevenue ?? (dashboardData?.todayRevenue || 0));
-  const effectiveTodayRev = liveTodayRevNum > 0 ? liveTodayRevNum : (occupiedTariffSum > 0 ? occupiedTariffSum : 0);
-
-  // Weekly Revenue / Earnings (last 7 days rolling sum)
-  const liveWeeklyRevNum = useMemo(() => {
-    if (fin.weeklyRevenue != null && Number(fin.weeklyRevenue) > 0) return Number(fin.weeklyRevenue);
-    if (dashboardData?.weeklyRevenue != null && Number(dashboardData.weeklyRevenue) > 0) return Number(dashboardData.weeklyRevenue);
-
-    const now = new Date();
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
-    let sum = 0;
-    if (Array.isArray(bookings) && bookings.length > 0) {
-      bookings.forEach((b) => {
-        const bDate = new Date(b.createdAt || b.checkInDate || b.date);
-        if (!isNaN(bDate.getTime()) && bDate >= sevenDaysAgo && b.status !== "CANCELLED") {
-          sum += Number(b.totalAmount || b.total || b.paidAmount || b.rate || 0);
-        }
-      });
-    }
-    return sum > 0 ? sum : (liveTodayRevNum > 0 ? liveTodayRevNum * 7 : (occupiedTariffSum > 0 ? occupiedTariffSum * 7 : 0));
-  }, [fin.weeklyRevenue, dashboardData?.weeklyRevenue, bookings, liveTodayRevNum, occupiedTariffSum]);
-
-  const liveMonthRevNum = Number(fin.monthlyRevenue ?? (dashboardData?.monthlyRevenue || liveTodayRevNum));
+  const liveTodayRevNum = Number(fin.todayRevenue ?? dashboardData?.todayRevenue ?? 0);
+  const liveWeeklyRevNum = Number(
+    fin.weeklyRevenue ??
+    fin.weekRevenue ??
+    dashboardData?.weeklyRevenue?.totalThisWeek ??
+    dashboardData?.weeklyRevenue ??
+    0
+  );
+  const liveMonthRevNum = Number(fin.monthlyRevenue ?? dashboardData?.monthlyRevenue ?? 0);
   const liveTotalGuests = guests.length || ops.currentGuests || 0;
   const liveInHouseGuests = guests.filter((g) => g.status === "IN-HOUSE").length || ops.currentGuests || 0;
 
@@ -213,6 +205,8 @@ export default function HotelOverviewPage({
   const dayGrowthPercentage = fin.dayGrowthRate != null ? fin.dayGrowthRate : (liveTodayRevNum > 0 ? 100 : 0);
   const occupancyPercentageNum = rooms.length > 0 ? Math.round((totalOccupied / rooms.length) * 100) : 0;
   const occupancyRate = `${occupancyPercentageNum}%`;
+  const cleaningPercentage = rooms.length > 0 ? Math.round((totalCleaning / rooms.length) * 100) : 0;
+  const maintenancePercentage = rooms.length > 0 ? Math.round((totalMaintenance / rooms.length) * 100) : 0;
 
   // Average Daily Rate (ADR) & RevPAR calculation
   const adrNum = totalOccupied > 0 ? Math.round(liveTodayRevNum / totalOccupied) : (rooms[0]?.pricePerNight || 3200);
@@ -281,39 +275,47 @@ export default function HotelOverviewPage({
       if (matchedBookings.length > 0) {
         return matchedBookings.map((b) => {
           const g = typeof b.guest === "object" ? b.guest : {};
+          const paidAmt = b.paidAmount !== undefined ? Number(b.paidAmount) : (b.advancePaymentAmount !== undefined ? Number(b.advancePaymentAmount) : (b.advancePaid !== undefined ? Number(b.advancePaid) : (b.advancePayment || 0)));
+          const totalAmt = Number(b.totalAmount || 3500);
+          const dueAmt = b.dueAmount !== undefined ? Number(b.dueAmount) : Math.max(0, totalAmt - paidAmt);
           return {
             _id: b._id,
             bookingId: b._id,
             guestId: g?._id || b.guest,
             name: g?.fullName || g?.name || b.guestName || "Resident Guest",
             email: g?.email || b.email || "",
-            phone: g?.mobileNumber || g?.phone || b.mobileNumber || "9876543210",
+            phone: g?.mobileNumber || g?.phone || b.mobileNumber || b.guestPhone || "N/A",
             roomAssigned: b.roomNumber || b.room?.roomNumber || "101",
             checkInDate: inDateFormattedDate(b.checkInDate) || "Today",
             checkOutDate: inDateFormattedDate(b.checkOutDate) || "Tomorrow",
-            totalAmount: b.totalAmount || 3500,
-            advancePayment: b.advancePayment || 0,
-            pendingDues: Math.max(0, (b.totalAmount || 3500) - (b.advancePayment || 0)),
+            totalAmount: totalAmt,
+            advancePayment: paidAmt,
+            pendingDues: dueAmt,
             status: b.status === "CHECKED_IN" ? "IN-HOUSE" : b.status === "CHECKED_OUT" ? "DEPARTED" : b.status || "IN-HOUSE",
           };
         });
       }
     }
 
-    return (guests || []).map((g) => ({
-      _id: g._id,
-      guestId: g._id,
-      name: g.fullName || g.name || "Guest",
-      email: g.email || "",
-      phone: g.mobileNumber || g.phone || "9876543210",
-      roomAssigned: g.roomNumber || g.roomAssigned || "101",
-      checkInDate: inDateFormattedDate(g.checkInDate) || "Today",
-      checkOutDate: inDateFormattedDate(g.checkOutDate) || "Tomorrow",
-      totalAmount: g.totalAmount || 3500,
-      advancePayment: g.advancePayment || 0,
-      pendingDues: Math.max(0, (g.totalAmount || 3500) - (g.advancePayment || 0)),
-      status: g.status || "IN-HOUSE",
-    }));
+    return (guests || []).map((g) => {
+      const paidAmt = g.paidAmount !== undefined ? Number(g.paidAmount) : (g.advancePayment || 0);
+      const totalAmt = Number(g.totalAmount || 3500);
+      const dueAmt = g.dueAmount !== undefined ? Number(g.dueAmount) : Math.max(0, totalAmt - paidAmt);
+      return {
+        _id: g._id,
+        guestId: g._id,
+        name: g.fullName || g.name || "Guest",
+        email: g.email || "",
+        phone: g.mobileNumber || g.phone || "N/A",
+        roomAssigned: g.roomNumber || g.roomAssigned || "101",
+        checkInDate: inDateFormattedDate(g.checkInDate) || "Today",
+        checkOutDate: inDateFormattedDate(g.checkOutDate) || "Tomorrow",
+        totalAmount: totalAmt,
+        advancePayment: paidAmt,
+        pendingDues: dueAmt,
+        status: g.status || "IN-HOUSE",
+      };
+    });
   }, [bookings, guests, todayStr]);
 
   function inDateFormattedDate(val) {
@@ -329,7 +331,7 @@ export default function HotelOverviewPage({
 
   // 1-Click WhatsApp Direct Message Dispatcher
   const handleSendWhatsAppInvoice = (guest) => {
-    const hotelName = user?.hotel?.name || "Grand Royale Luxury Resort";
+    const hotelName = user?.hotel?.name || "MYOWNPMS";
     const phoneClean = (guest.phone || "").replace(/[^0-9]/g, "");
     const targetPhone = phoneClean.length === 10 ? `91${phoneClean}` : phoneClean;
     const msgText = encodeURIComponent(
@@ -349,6 +351,19 @@ export default function HotelOverviewPage({
   const currentHour = new Date(nowTime).getHours();
   const timeGreeting = currentHour < 12 ? "Good Morning" : currentHour < 17 ? "Good Afternoon" : "Good Evening";
   const liveClockString = new Date(nowTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
+
+  // Show Full Dedicated Revenue Details Page when requested
+  if (showRevenueDetailsView) {
+    return (
+      <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 } }}>
+        <RevenueDetailsPage
+          onBackToDashboard={() => setShowRevenueDetailsView(false)}
+          hotelSettings={hotelSettings}
+          initialFilter={revenueFilterMode}
+        />
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 } }}>
@@ -406,13 +421,13 @@ export default function HotelOverviewPage({
                   gap: 0.6,
                 }}
               >
-                <AutoAwesome sx={{ fontSize: 14 }} />
+                <HotelIcon sx={{ fontSize: 14 }} />
                 {timeGreeting} &bull; Live Operations Center
               </Typography>
             </Box>
 
             <Typography variant="h4" sx={{ fontWeight: 900, color: "#FFFFFF", letterSpacing: -0.5, fontSize: { xs: "1.4rem", sm: "1.8rem" } }}>
-              {user?.hotel?.name || "Grand Royale Luxury Resort"}
+              {user?.hotel?.name || "MYOWNPMS"}
             </Typography>
             <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.8)", mt: 0.5, fontSize: "0.85rem", display: "flex", alignItems: "center", gap: 1 }}>
               <LocationOn sx={{ fontSize: 15 }} />
@@ -469,12 +484,12 @@ export default function HotelOverviewPage({
       </Box>
 
       {/* ========================================================================= */}
-      {/* 4. FINANCIAL & REVENUE TELEMETRY STAT CARDS                               */}
+      {/* 4. FINANCIAL & REVENUE TELEMETRY (4 STAT CARDS - PHOTO 2 DESIGN)          */}
       {/* ========================================================================= */}
       <Box sx={{ mb: 3.5 }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-            <Avatar sx={{ bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, width: 32, height: 32, borderRadius: "8px" }}>
+            <Avatar sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", color: "#10B981", width: 32, height: 32, borderRadius: "8px" }}>
               <CurrencyRupee sx={{ fontSize: 18 }} />
             </Avatar>
             <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "1.05rem" }}>
@@ -484,71 +499,83 @@ export default function HotelOverviewPage({
           <Chip
             label="Live Real-time Audit"
             size="small"
-            sx={{ fontWeight: 800, fontSize: "0.7rem", borderRadius: "8px", bgcolor: themeConfig.champagne, color: themeConfig.primaryDark }}
+            sx={{
+              fontWeight: 800,
+              fontSize: "0.72rem",
+              borderRadius: "8px",
+              bgcolor: "rgba(16, 185, 129, 0.12)",
+              color: "#059669",
+              border: "1px solid rgba(16, 185, 129, 0.3)",
+            }}
           />
         </Box>
 
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(4, 1fr)" },
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" },
             gap: 2.5,
           }}
         >
+          {/* Card 1: Today's Revenue */}
           <StatCard
-            title="Today's Revenue"
+            title="TODAY'S REVENUE"
             value={todayRevenue}
-            subtitle={
-              liveTodayRevNum > 0
-                ? "Live collections today"
-                : occupiedTariffSum > 0
-                ? `₹${occupiedTariffSum.toLocaleString("en-IN")} Active Stay Tariff`
-                : "No new billing today"
-            }
+            subtitle={liveTodayRevNum > 0 ? "Verified collections today" : "No new billing transactions today"}
             icon={<CurrencyRupee />}
             color="#10B981"
-            trend={
-              liveTodayRevNum > 0
-                ? `${dayGrowthPercentage >= 0 ? "+" : ""}${dayGrowthPercentage}%`
-                : occupiedTariffSum > 0
-                ? "Active In-House"
-                : "Live Counter"
-            }
+            trend="Live Counter"
             trendType="up"
-            badgeText={liveTodayRevNum > 0 ? "Today" : "Counter"}
+            badgeText="Counter"
+            onClick={() => {
+              setRevenueFilterMode("TODAY");
+              setShowRevenueDetailsView(true);
+            }}
           />
 
+          {/* Card 2: Weekly Total Earnings */}
           <StatCard
-            title="Weekly Total Earnings"
+            title="WEEKLY TOTAL EARNINGS"
             value={weeklyEarnings}
-            subtitle={
-              liveWeeklyRevNum > 0
-                ? "Total revenue for last 7 days"
-                : "7-day rolling revenue total"
-            }
+            subtitle="7-day rolling revenue aggregate"
             icon={<TrendingUp />}
             color="#0B8EE0"
             trend="Last 7 Days"
             trendType="up"
             badgeText="Weekly Total"
+            onClick={() => {
+              setRevenueFilterMode("THIS_WEEK");
+              setShowRevenueDetailsView(true);
+            }}
           />
 
+          {/* Card 3: Total Guests */}
           <StatCard
-            title="Total Guests"
-            value={`${liveTotalGuests} Guests`}
-            subtitle={`${liveInHouseGuests} Active in-house • ${totalOccupied} Rooms`}
+            title="TOTAL GUESTS"
+            value={`${liveTotalGuests || liveInHouseGuests || 0} Guests`}
+            subtitle={`${liveInHouseGuests || 0} Active in-house • ${totalOccupied} Rooms`}
             icon={<Person />}
             color="#8B5CF6"
             badgeText="In-House"
+            onClick={() => {
+              if (onTabChange) {
+                onTabChange(2);
+              }
+            }}
           />
 
+          {/* Card 4: Monthly Revenue */}
           <StatCard
-            title="Monthly Revenue"
+            title="MONTHLY REVENUE"
             value={monthlyRevenue}
             subtitle="Current billing cycle"
             icon={<AccountBalanceWallet />}
             color="#F59E0B"
             badgeText="Monthly Total"
+            onClick={() => {
+              setRevenueFilterMode("THIS_MONTH");
+              setShowRevenueDetailsView(true);
+            }}
           />
         </Box>
       </Box>
@@ -567,7 +594,7 @@ export default function HotelOverviewPage({
             </Typography>
           </Box>
           <Chip
-            icon={<AutoAwesome sx={{ fontSize: "14px !important", color: themeConfig.primary }} />}
+            icon={<TrendingUp sx={{ fontSize: "14px !important", color: themeConfig.primary }} />}
             label="Live Realtime Telemetry"
             size="small"
             sx={{ fontWeight: 800, fontSize: "0.7rem", borderRadius: "8px", bgcolor: themeConfig.champagne, color: themeConfig.primaryDark }}
@@ -786,14 +813,49 @@ export default function HotelOverviewPage({
                       statusLabelColor = "#EF4444";
                     }
 
-                    const matchedBooking = bookings.find(
-                      (b) => String(b.roomNumber) === String(room.roomNumber) && (b.status === "CHECKED_IN" || b.status === "IN-HOUSE")
-                    );
+                    const matchedBooking = bookings.find((b) => {
+                      const bStatus = b.status === "CHECKED_IN" || b.status === "IN-HOUSE";
+                      if (!bStatus) return false;
+                      const rNum = String(room.roomNumber);
+                      const rId = String(room._id || room.id);
+                      const bRoomId = String(b.room?._id || b.room || "");
+                      const bRoomNum = String(b.roomNumber || b.room?.roomNumber || "");
+                      const bRoomsList = Array.isArray(b.roomNumbers) ? b.roomNumbers.map(String) : [];
+                      const bRoomIdsList = Array.isArray(b.rooms) ? b.rooms.map((r) => String(typeof r === "object" ? r._id || r.id : r)) : [];
+                      return bRoomNum === rNum || bRoomId === rId || bRoomsList.includes(rNum) || bRoomIdsList.includes(rId);
+                    });
 
-                    const guestName = room.guestName || matchedBooking?.guestName || (room.status === "OCCUPIED" ? "Resident Guest" : null);
-                    const totalBill = matchedBooking?.totalAmount || room.customPricePerNight || room.pricePerNight || 0;
-                    const advancePaid = matchedBooking?.advancePayment || 0;
-                    const duesAmount = Math.max(0, totalBill - advancePaid);
+                    const guestName =
+                      matchedBooking?.guest?.fullName ||
+                      matchedBooking?.guest?.name ||
+                      matchedBooking?.guestName ||
+                      room.guestName ||
+                      (room.status === "OCCUPIED" ? "Resident Guest" : null);
+
+                    const guestPhone =
+                      matchedBooking?.guest?.mobileNumber ||
+                      matchedBooking?.guest?.phone ||
+                      matchedBooking?.guestPhone ||
+                      matchedBooking?.mobileNumber ||
+                      "";
+
+                    const totalBill =
+                      matchedBooking?.totalAmount !== undefined
+                        ? Number(matchedBooking.totalAmount)
+                        : Number(room.customPricePerNight || room.pricePerNight || 0);
+
+                    const advancePaid =
+                      matchedBooking?.paidAmount !== undefined
+                        ? Number(matchedBooking.paidAmount)
+                        : matchedBooking?.advancePaymentAmount !== undefined
+                        ? Number(matchedBooking.advancePaymentAmount)
+                        : matchedBooking?.advancePaid !== undefined
+                        ? Number(matchedBooking.advancePaid)
+                        : 0;
+
+                    const duesAmount = matchedBooking?.dueAmount !== undefined
+                      ? Number(matchedBooking.dueAmount)
+                      : Math.max(0, totalBill - advancePaid);
 
                     return (
                       <Card
@@ -867,9 +929,9 @@ export default function HotelOverviewPage({
                                   <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>
                                     {guestName}
                                   </Typography>
-                                  {matchedBooking?.guestPhone && (
+                                  {guestPhone && (
                                     <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.68rem", display: "block" }}>
-                                      📱 {matchedBooking.guestPhone}
+                                      📱 {guestPhone}
                                     </Typography>
                                   )}
                                 </Box>
@@ -1025,13 +1087,46 @@ export default function HotelOverviewPage({
                     </TableHead>
                     <TableBody>
                       {paginatedRooms.map((room) => {
-                        const matchedBooking = bookings.find(
-                          (b) => String(b.roomNumber) === String(room.roomNumber) && (b.status === "CHECKED_IN" || b.status === "IN-HOUSE")
-                        );
-                        const guestName = room.guestName || matchedBooking?.guestName || (room.status === "OCCUPIED" ? "Resident Guest" : null);
-                        const totalBill = matchedBooking?.totalAmount || room.customPricePerNight || room.pricePerNight || 0;
-                        const advancePaid = matchedBooking?.advancePayment || 0;
-                        const duesAmount = Math.max(0, totalBill - advancePaid);
+                        const matchedBooking = bookings.find((b) => {
+                          const bStatus = b.status === "CHECKED_IN" || b.status === "IN-HOUSE" || b.status === "RESERVED" || b.status === "CONFIRMED";
+                          if (!bStatus) return false;
+                          const rNum = String(room.roomNumber);
+                          const rId = String(room._id || room.id);
+                          const bRoomId = String(b.room?._id || b.room || "");
+                          const bRoomNum = String(b.roomNumber || b.room?.roomNumber || "");
+                          const bRoomsList = Array.isArray(b.roomNumbers) ? b.roomNumbers.map(String) : [];
+                          const bRoomIdsList = Array.isArray(b.rooms) ? b.rooms.map((r) => String(typeof r === "object" ? r._id || r.id : r)) : [];
+                          return bRoomNum === rNum || bRoomId === rId || bRoomsList.includes(rNum) || bRoomIdsList.includes(rId);
+                        });
+
+                        const guestName = (room.status === "OCCUPIED" || room.status === "RESERVED")
+                          ? (matchedBooking?.guest?.fullName || matchedBooking?.guest?.name || matchedBooking?.guestName || room.guestName || "Resident Guest")
+                          : null;
+
+                        const guestPhone =
+                          matchedBooking?.guest?.mobileNumber ||
+                          matchedBooking?.guest?.phone ||
+                          matchedBooking?.guestPhone ||
+                          matchedBooking?.mobileNumber ||
+                          "";
+
+                        const totalBill =
+                          matchedBooking?.totalAmount !== undefined
+                            ? Number(matchedBooking.totalAmount)
+                            : Number(room.customPricePerNight || room.pricePerNight || 0);
+
+                        const advancePaid =
+                          matchedBooking?.paidAmount !== undefined
+                            ? Number(matchedBooking.paidAmount)
+                            : matchedBooking?.advancePaymentAmount !== undefined
+                            ? Number(matchedBooking.advancePaymentAmount)
+                            : matchedBooking?.advancePaid !== undefined
+                            ? Number(matchedBooking.advancePaid)
+                            : 0;
+
+                        const duesAmount = matchedBooking?.dueAmount !== undefined
+                          ? Number(matchedBooking.dueAmount)
+                          : Math.max(0, totalBill - advancePaid);
 
                         return (
                           <TableRow
@@ -1073,9 +1168,9 @@ export default function HotelOverviewPage({
                                     <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
                                       {guestName}
                                     </Typography>
-                                    {matchedBooking?.guestPhone && (
+                                    {guestPhone && (
                                       <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.68rem" }}>
-                                        📱 {matchedBooking.guestPhone}
+                                        📱 {guestPhone}
                                       </Typography>
                                     )}
                                   </Box>
@@ -1230,7 +1325,15 @@ export default function HotelOverviewPage({
                   activeRecentGuests
                     .slice(guestPage * guestRowsPerPage, guestPage * guestRowsPerPage + guestRowsPerPage)
                     .map((g) => (
-                      <TableRow key={g._id || g.name} sx={{ "&:hover": { bgcolor: `${themeConfig.primaryGlow} !important` } }}>
+                      <TableRow
+                        key={g._id || g.name}
+                        hover
+                        onClick={() => setSelectedGuestModal({ open: true, guestId: g.guestId || g._id, guestData: g })}
+                        sx={{
+                          cursor: "pointer",
+                          "&:hover": { bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(16, 185, 129, 0.05)" },
+                        }}
+                      >
                         <TableCell sx={{ fontWeight: 700, color: themeConfig.textMain }}>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
                             <Avatar sx={{ width: 32, height: 32, fontSize: "0.8rem", fontWeight: 800, bgcolor: themeConfig.primary, color: "#FFFFFF" }}>
@@ -1262,7 +1365,7 @@ export default function HotelOverviewPage({
                         <TableCell>
                           <StatusChip status={g.status} size="small" />
                         </TableCell>
-                        <TableCell align="center">
+                        <TableCell align="center" onClick={(e) => e.stopPropagation()}>
                           <Tooltip title="Send Folio & Invoice on WhatsApp">
                             <IconButton
                               size="small"
@@ -1302,6 +1405,15 @@ export default function HotelOverviewPage({
           )}
         </CardContent>
       </Card>
+
+      {/* Full Comprehensive Guest Details & Folio Modal (Requirement #8 & #9) */}
+      <GuestDetailsModal
+        open={selectedGuestModal.open}
+        guestId={selectedGuestModal.guestId}
+        guestData={selectedGuestModal.guestData}
+        onClose={() => setSelectedGuestModal({ open: false, guestId: null, guestData: null })}
+        hotelSettings={hotelSettings}
+      />
     </Box>
   );
 }

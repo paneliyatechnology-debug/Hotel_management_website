@@ -173,7 +173,7 @@ export default function StaffTeamPage({
                   gap: 0.6,
                 }}
               >
-                <AutoAwesome sx={{ fontSize: 14 }} />
+                <People sx={{ fontSize: 14 }} />
                 Staff Hierarchy &bull; Shift Schedules &bull; Role Access
               </Typography>
             </Box>
@@ -611,15 +611,31 @@ export default function StaffTeamPage({
 
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                  Contact Phone Number *
+                  Contact Phone Number * (10 Digits)
                 </Typography>
                 <TextField
                   fullWidth
                   size="small"
                   required
                   value={staffModal.data?.phone || ""}
-                  onChange={(e) => setStaffModal({ ...staffModal, data: { ...staffModal.data, phone: e.target.value } })}
-                  placeholder="+91 98201 55667"
+                  onChange={(e) => {
+                    const numericVal = e.target.value.replace(/\D/g, "").slice(0, 10);
+                    setStaffModal({ ...staffModal, data: { ...staffModal.data, phone: numericVal } });
+                  }}
+                  error={Boolean(staffModal.data?.phone && staffModal.data.phone.length !== 10)}
+                  helperText={
+                    staffModal.data?.phone && staffModal.data.phone.length !== 10
+                      ? `Phone number must be exactly 10 digits (${staffModal.data.phone.length}/10)`
+                      : "Enter 10-digit mobile number (e.g. 9820155667)"
+                  }
+                  placeholder="9820155667"
+                  slotProps={{
+                    htmlInput: {
+                      inputMode: "numeric",
+                      pattern: "[0-9]{10}",
+                      maxLength: 10,
+                    },
+                  }}
                   sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
                 />
               </Grid>

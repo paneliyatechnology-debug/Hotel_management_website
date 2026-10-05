@@ -378,7 +378,7 @@ export default function DashboardLayout({
 
               <Typography variant="subtitle1" sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: { xs: "0.85rem", sm: "0.95rem" }, textTransform: "capitalize", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {user?.role === "SUPER_ADMIN"
-                  ? "Grand Royale"
+                  ? "MYOWNPMS"
                   : user?.hotel?.name || "Hotel Management Portal"}
               </Typography>
             </Box>
@@ -386,108 +386,6 @@ export default function DashboardLayout({
             {/* Right Tools */}
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
               {getRoleChip(user?.role)}
-
-              {/* Light / Dark Mode Toggle Button */}
-              <Tooltip title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
-                <IconButton
-                  size="small"
-                  onClick={toggleThemeMode}
-                  sx={{
-                    bgcolor: isDarkMode ? "rgba(251, 191, 36, 0.15)" : themeConfig.champagne,
-                    color: isDarkMode ? "#FBBF24" : themeConfig.primaryDark,
-                    border: `1px solid ${themeConfig.border}`,
-                    borderRadius: "10px",
-                    width: 36,
-                    height: 36,
-                    boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
-                    transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
-                    "&:hover": {
-                      bgcolor: isDarkMode ? "rgba(251, 191, 36, 0.25)" : themeConfig.primaryGlow,
-                      transform: "scale(1.08) rotate(12deg)",
-                    },
-                  }}
-                >
-                  {isDarkMode ? (
-                    <LightMode fontSize="small" sx={{ fontSize: 20 }} />
-                  ) : (
-                    <DarkMode fontSize="small" sx={{ fontSize: 20 }} />
-                  )}
-                </IconButton>
-              </Tooltip>
-
-              {/* Theme Palette Switcher Dropdown (Commented Out as single unified Luxury Theme is active) */}
-              {/* <Tooltip title="Quick Theme Switcher">
-                <IconButton
-                  size="small"
-                  onClick={(e) => setPaletteMenuAnchor(e.currentTarget)}
-                  sx={{
-                    bgcolor: themeConfig.champagne,
-                    color: themeConfig.primaryDark,
-                    border: `1px solid ${themeConfig.border}`,
-                    borderRadius: "10px",
-                    width: 36,
-                    height: 36,
-                    boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
-                    transition: "all 0.2s ease",
-                    "&:hover": { bgcolor: themeConfig.primaryGlow, transform: "translateY(-1px)" },
-                  }}
-                >
-                  <Palette fontSize="small" />
-                </IconButton>
-              </Tooltip>
-
-              <Menu
-                anchorEl={paletteMenuAnchor}
-                open={Boolean(paletteMenuAnchor)}
-                onClose={() => setPaletteMenuAnchor(null)}
-                slotProps={{
-                  paper: {
-                    sx: {
-                      width: 280,
-                      p: 1,
-                      borderRadius: "16px",
-                      border: `1px solid ${themeConfig.border}`,
-                      boxShadow: "0 16px 36px -6px rgba(12, 39, 59, 0.16), inset 0 1px 0 #FFFFFF",
-                    },
-                  },
-                }}
-              >
-                <Box sx={{ px: 1.5, py: 0.8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                    Theme Palettes
-                  </Typography>
-                </Box>
-                <Divider sx={{ my: 0.5 }} />
-                {Object.entries(themePalettes).map(([key, pal]) => {
-                  const isCurrent = paletteKey === key;
-                  return (
-                    <MenuItem
-                      key={key}
-                      onClick={() => {
-                        setPaletteKey(key);
-                        setPaletteMenuAnchor(null);
-                      }}
-                      sx={{
-                        borderRadius: "10px",
-                        mb: 0.3,
-                        bgcolor: isCurrent ? pal.primaryGlow : "transparent",
-                        "&:hover": { bgcolor: pal.primaryGlow },
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                        <Box sx={{ width: 18, height: 18, borderRadius: "6px", bgcolor: pal.primary, border: "2px solid #FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
-                        <Typography variant="body2" sx={{ fontWeight: isCurrent ? 800 : 600, color: pal.textMain, fontSize: "0.82rem" }}>
-                          {pal.name}
-                        </Typography>
-                      </Box>
-                      {isCurrent && <CheckCircle fontSize="small" sx={{ color: pal.primary, fontSize: 16 }} />}
-                    </MenuItem>
-                  );
-                })}
-              </Menu> */}
             </Box>
           </Toolbar>
         </AppBar>

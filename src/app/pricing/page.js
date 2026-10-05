@@ -44,41 +44,45 @@ export default function PricingPage() {
       <Navbar />
 
       {/* Header */}
-      <section className="relative pt-24 pb-16 lg:pt-28 lg:pb-20 text-center border-b border-[#DDE8E6] overflow-hidden">
+      <section className="relative pt-24 pb-16 lg:pt-28 lg:pb-20 text-center bg-[#072F2A] text-white border-b border-[#0F4A42] overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img
             src="https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=1600&q=80"
             alt="Hotel Room"
-            className="w-full h-full object-cover opacity-50"
+            className="w-full h-full object-cover opacity-35"
           />
-          <div className="absolute inset-0 bg-white/70" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#072F2A] via-[#072F2A]/90 to-[#072F2A]/70" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#072F2A] via-transparent to-[#072F2A]/50" />
         </div>
         <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6">
-          <h1 className="text-3xl sm:text-[2.75rem] font-sans font-bold text-[#0D2825] tracking-tight leading-[1.2]">
-            Simple & Transparent Pricing
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#00D0B4]/15 border border-[#00D0B4]/40 text-[#00D0B4] text-[11px] sm:text-xs font-outfit font-extrabold uppercase tracking-[0.18em] mb-6">
+            TRANSPARENT PRICING
+          </div>
+          <h1 className="text-3xl sm:text-[2.75rem] font-serif font-extrabold text-white tracking-tight leading-[1.2]">
+            Simple &amp; Transparent Pricing
           </h1>
-          <p className="mt-4 text-base sm:text-[1.1rem] text-[#476C67] font-medium max-w-2xl mx-auto">
+          <p className="mt-4 text-base sm:text-[1.1rem] text-emerald-100/90 font-medium max-w-2xl mx-auto">
             Choose the plan that fits your hotel's needs. Start with a {trialText.toLowerCase()} free trial.
           </p>
 
           {/* Billing Cycle Toggle */}
-          <div className="mt-10 inline-flex items-center p-1 bg-white rounded-full border border-[#CCFBF1] shadow-sm">
+          <div className="mt-10 inline-flex items-center p-1 bg-[#062823] rounded-full border border-[#00D0B4]/40 shadow-lg">
             <button
               onClick={() => setIsYearly(false)}
-              className={`px-7 py-2.5 rounded-full text-sm font-bold transition-all ${
-                !isYearly ? "bg-[#F0FDFA] text-[#0F766E] border border-[#CCFBF1]" : "text-[#476C67] border border-transparent hover:text-[#0F766E]"
+              className={`px-7 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer ${
+                !isYearly ? "bg-[#00D0B4] text-[#072F2A] shadow-md" : "text-slate-300 hover:text-white"
               }`}
             >
               Monthly
             </button>
             <button
               onClick={() => setIsYearly(true)}
-              className={`px-7 py-2.5 rounded-full text-sm font-bold transition-all flex items-center gap-2.5 ${
-                isYearly ? "bg-[#F0FDFA] text-[#0F766E] border border-[#CCFBF1]" : "text-[#476C67] border border-transparent hover:text-[#0F766E]"
+              className={`px-7 py-2.5 rounded-full text-sm font-bold transition-all flex items-center gap-2.5 cursor-pointer ${
+                isYearly ? "bg-[#00D0B4] text-[#072F2A] shadow-md" : "text-slate-300 hover:text-white"
               }`}
             >
               Yearly
-              <span className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-[#FDE68A] text-[#92400E]">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-[#FDE68A] text-[#92400E]">
                 Save 20%
               </span>
             </button>

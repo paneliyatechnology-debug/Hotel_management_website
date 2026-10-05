@@ -80,6 +80,13 @@ export default function RegisterHotelPage() {
     },
   ];
 
+  const handleStepClick = (targetStepId) => {
+    if (targetStepId < activeStep) {
+      setError("");
+      setActiveStep(targetStepId);
+    }
+  };
+
   const handleNextStep = (e) => {
     if (e) e.preventDefault();
     setError("");
@@ -234,13 +241,16 @@ export default function RegisterHotelPage() {
                     {steps.map((step, idx) => {
                       const isActive = activeStep === step.id;
                       const isPassed = activeStep > step.id;
+                      const isFuture = step.id > activeStep;
                       const isLast = idx === steps.length - 1;
 
                       return (
                         <div key={step.id} className="flex-1 flex items-center relative">
                           <div
-                            onClick={() => setActiveStep(step.id)}
-                            className="flex flex-col items-center gap-1 cursor-pointer z-10 mx-auto"
+                            onClick={() => handleStepClick(step.id)}
+                            className={`flex flex-col items-center gap-1 z-10 mx-auto ${
+                              isPassed ? "cursor-pointer" : isFuture ? "cursor-not-allowed opacity-60" : "cursor-default"
+                            }`}
                           >
                             <div
                               className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs transition-all ${
@@ -284,12 +294,18 @@ export default function RegisterHotelPage() {
                   {steps.map((step) => {
                     const isActive = activeStep === step.id;
                     const isPassed = activeStep > step.id;
+                    const isFuture = step.id > activeStep;
+
                     return (
                       <div
                         key={step.id}
-                        onClick={() => setActiveStep(step.id)}
-                        className={`relative z-10 flex items-start gap-4 cursor-pointer transition-all ${
-                          isActive || isPassed ? "opacity-100" : "opacity-60 hover:opacity-90"
+                        onClick={() => handleStepClick(step.id)}
+                        className={`relative z-10 flex items-start gap-4 transition-all ${
+                          isPassed
+                            ? "cursor-pointer opacity-100 hover:opacity-90"
+                            : isActive
+                            ? "cursor-default opacity-100"
+                            : "cursor-not-allowed opacity-45"
                         }`}
                       >
                         <div

@@ -31,6 +31,8 @@ import {
   Tab,
   Tabs,
   Badge,
+  Switch,
+  FormControlLabel,
 } from "@mui/material";
 import {
   Add,
@@ -67,11 +69,208 @@ import {
   Category,
   ViewModule,
   ViewList,
+  ReceiptLong,
+  Percent,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import { getAmenityIcon } from "@/shared/utils/amenityUtils";
+import { calculateSingleRoomGST } from "@/shared/utils/gstUtils";
+
+// Reusable Room GST Configuration Section Component
+export function RoomGstFields({ formData = {}, setFormData, basePrice = 0, themeConfig, isDarkMode }) {
+  const gstEnabled = formData.gstEnabled !== false;
+  const gstRate = Number(formData.gstRate) ?? 18;
+  const taxInclusive = Boolean(formData.taxInclusive);
+
+  const calculated = calculateSingleRoomGST({
+    basePrice,
+    gstEnabled,
+    gstRate,
+    taxInclusive,
+    nights: 1,
+  });
+
+  const handleRateSelect = (rate) => {
+    const numericRate = Number(rate);
+    const half = numericRate / 2;
+    if (typeof setFormData === "function") {
+      setFormData((prev) => ({
+        ...prev,
+        data: {
+          ...prev.data,
+          gstEnabled: numericRate > 0,
+          gstRate: numericRate,
+          cgstRate: half,
+          sgstRate: half,
+        },
+      }));
+    }
+  };
+
+  return (
+    <Box sx={{ p: 2, borderRadius: "16px", bgcolor: themeConfig.bgMain, border: `1px solid ${themeConfig.border}` }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <ReceiptLong sx={{ color: themeConfig.primary }} />
+          <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+            Room GST / CGST / SGST Tax Configuration
+          </Typography>
+        </Box>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={gstEnabled}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                if (typeof setFormData === "function") {
+                  setFormData((prev) => ({
+                    ...prev,
+                    data: {
+                      ...prev.data,
+                      gstEnabled: checked,
+                      gstRate: checked ? (prev.data?.gstRate || 18) : 0,
+                      cgstRate: checked ? ((prev.data?.gstRate || 18) / 2) : 0,
+                      sgstRate: checked ? ((prev.data?.gstRate || 18) / 2) : 0,
+                    },
+                  }));
+                }
+              }}
+              color="primary"
+            />
+          }
+          label={
+            <Typography variant="caption" sx={{ fontWeight: 800, color: gstEnabled ? themeConfig.primary : themeConfig.textMuted }}>
+              GST {gstEnabled ? "ENABLED" : "DISABLED (0%)"}
+            </Typography>
+          }
+        />
+      </Box>
+
+      {gstEnabled && (
+        <Grid container spacing={2}>
+          {/* Preset GST Rate options & Tax Mode */}
+          <Grid size={{ xs: 12, sm: 7 }}>
+            <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, display: "block", mb: 0.8 }}>
+              SELECT GST RATE % *
+            </Typography>
+            <Box sx={{ display: "flex", gap: 0.8, flexWrap: "wrap", mb: 1.5 }}>
+              {[0, 5, 12, 18].map((rate) => (
+                <Chip
+                  key={rate}
+                  label={`${rate}% GST`}
+                  clickable
+                  onClick={() => handleRateSelect(rate)}
+                  sx={{
+                    fontWeight: 800,
+                    fontSize: "0.78rem",
+                    bgcolor: gstRate === rate ? themeConfig.primary : (isDarkMode ? "rgba(255,255,255,0.06)" : "#FFFFFF"),
+                    color: gstRate === rate ? "#FFFFFF" : themeConfig.textMain,
+                    border: `1px solid ${gstRate === rate ? themeConfig.primary : themeConfig.border}`,
+                  }}
+                />
+              ))}
+            </Box>
+
+            <Grid container spacing={1.5}>
+              <Grid size={{ xs: 6 }}>
+                <TextField
+                  label="GST Rate (%)"
+                  type="number"
+                  size="small"
+                  fullWidth
+                  value={formData.gstRate ?? 18}
+                  onChange={(e) => {
+                    const val = Math.max(0, Number(e.target.value) || 0);
+                    handleRateSelect(val);
+                  }}
+                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "10px" } }}
+                />
+              </Grid>
+              <Grid size={{ xs: 6 }}>
+                <TextField
+                  select
+                  label="Tax Calculation Mode"
+                  size="small"
+                  fullWidth
+                  value={taxInclusive ? "INCLUSIVE" : "EXCLUSIVE"}
+                  onChange={(e) => {
+                    const isInc = e.target.value === "INCLUSIVE";
+                    if (typeof setFormData === "function") {
+                      setFormData((prev) => ({
+                        ...prev,
+                        data: {
+                          ...prev.data,
+                          taxInclusive: isInc,
+                        },
+                      }));
+                    }
+                  }}
+                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "10px" } }}
+                >
+                  <MenuItem value="EXCLUSIVE">Exclusive (Base + GST)</MenuItem>
+                  <MenuItem value="INCLUSIVE">Inclusive (Tax inside price)</MenuItem>
+                </TextField>
+              </Grid>
+            </Grid>
+
+            {/* Split Read-only indicator */}
+            <Box sx={{ display: "flex", gap: 1, mt: 1.5 }}>
+              <Chip
+                label={`CGST: ${calculated.cgstRate}%`}
+                size="small"
+                sx={{ fontWeight: 800, bgcolor: themeConfig.champagne, color: themeConfig.primaryDark }}
+              />
+              <Chip
+                label={`SGST: ${calculated.sgstRate}%`}
+                size="small"
+                sx={{ fontWeight: 800, bgcolor: themeConfig.champagne, color: themeConfig.primaryDark }}
+              />
+            </Box>
+          </Grid>
+
+          {/* Dynamic Live Tax Preview Card (Requirement #3) */}
+          <Grid size={{ xs: 12, sm: 5 }}>
+            <Card
+              sx={{
+                p: 1.8,
+                borderRadius: "14px",
+                bgcolor: isDarkMode ? "#092420" : "#F0FDF4",
+                border: `1px solid ${isDarkMode ? "rgba(16,185,129,0.3)" : "#BBF7D0"}`,
+              }}
+            >
+              <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.primaryDark, display: "block", mb: 1, letterSpacing: 0.5 }}>
+                📊 LIVE ROOM TAX BREAKDOWN
+              </Typography>
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.4 }}>
+                <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>Base Price:</Typography>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain }}>₹{calculated.taxableAmount.toLocaleString("en-IN")}</Typography>
+              </Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.4 }}>
+                <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>GST ({calculated.gstRate}%):</Typography>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.primary }}>Total ₹{calculated.gstAmount.toLocaleString("en-IN")}</Typography>
+              </Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.4, pl: 1 }}>
+                <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>• CGST ({calculated.cgstRate}%):</Typography>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain }}>₹{calculated.cgstAmount.toLocaleString("en-IN")}</Typography>
+              </Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.8, pl: 1 }}>
+                <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>• SGST ({calculated.sgstRate}%):</Typography>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain }}>₹{calculated.sgstAmount.toLocaleString("en-IN")}</Typography>
+              </Box>
+              <Divider sx={{ my: 0.6, borderColor: themeConfig.border }} />
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.textMain }}>Final Price:</Typography>
+                <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.primaryDark }}>₹{calculated.finalAmount.toLocaleString("en-IN")}/night</Typography>
+              </Box>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+    </Box>
+  );
+}
 
 // Standard Popular Hotel Amenities with Icons & Labels
 export const POPULAR_AMENITIES = [
@@ -725,6 +924,11 @@ export default function RoomTypesPage({
                                   maxChildren: cat.capacity?.children || 1,
                                   description: cat.description || "",
                                   amenities: cat.amenities || [],
+                                  gstEnabled: cat.gstEnabled !== false,
+                                  gstRate: cat.gstRate ?? 18,
+                                  cgstRate: cat.cgstRate ?? (cat.gstRate ? cat.gstRate / 2 : 9),
+                                  sgstRate: cat.sgstRate ?? (cat.gstRate ? cat.gstRate / 2 : 9),
+                                  taxInclusive: Boolean(cat.taxInclusive),
                                 },
                               })
                             }
@@ -788,6 +992,14 @@ export default function RoomTypesPage({
                             ? room.amenities
                             : catAmenities;
 
+                          const roomGstCalc = calculateSingleRoomGST({
+                            basePrice: effectiveTariff,
+                            gstEnabled: room.gstEnabled !== false && (room.gstEnabled !== undefined || cat.gstEnabled !== false),
+                            gstRate: room.gstRate ?? cat.gstRate ?? 18,
+                            taxInclusive: room.taxInclusive ?? cat.taxInclusive ?? false,
+                            nights: 1,
+                          });
+
                           return (
                             <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={room._id || room.roomNumber}>
                               <Card
@@ -840,24 +1052,55 @@ export default function RoomTypesPage({
                                     <StatusChip status={room.status || "AVAILABLE"} size="small" />
                                   </Box>
 
-                                  {/* Pricing, Bed Configuration & Capacity */}
-                                  <Box sx={{ mb: 1.5, p: 1.2, borderRadius: "10px", bgcolor: themeConfig.bgMain }}>
-                                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
-                                      <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.primary }}>
-                                        ₹{effectiveTariff.toLocaleString("en-IN")}
-                                        <Typography component="span" variant="caption" sx={{ color: themeConfig.textMuted }}>
-                                          /night
-                                        </Typography>
+                                  {/* Requirement #3: Pricing & GST Tax Breakdown Box */}
+                                  <Box sx={{ mb: 1.5, p: 1.2, borderRadius: "10px", bgcolor: themeConfig.bgMain, border: `1px solid ${themeConfig.border}` }}>
+                                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.3 }}>
+                                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+                                        Base Price:
                                       </Typography>
                                       <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                                        👥 {room.seatingCapacity || 2} Guests
+                                        ₹{roomGstCalc.taxableAmount.toLocaleString("en-IN")}/night
                                       </Typography>
                                     </Box>
-                                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.6 }}>
-                                      <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.primaryDark, fontSize: "0.72rem" }}>
-                                        🛏️ {room.bedType || `${room.bedCount || 1} Bed(s)`}
-                                      </Typography>
-                                    </Box>
+
+                                    {roomGstCalc.gstEnabled ? (
+                                      <>
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.3 }}>
+                                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+                                            GST ({roomGstCalc.gstRate}%):
+                                          </Typography>
+                                          <Chip
+                                            label={`CGST ${roomGstCalc.cgstRate}% | SGST ${roomGstCalc.sgstRate}%`}
+                                            size="small"
+                                            sx={{ height: 16, fontSize: "0.6rem", fontWeight: 800, bgcolor: themeConfig.champagne, color: themeConfig.primaryDark }}
+                                          />
+                                        </Box>
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.3 }}>
+                                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+                                            Total Tax:
+                                          </Typography>
+                                          <Typography variant="caption" sx={{ fontWeight: 800, color: "#D97706" }}>
+                                            +₹{roomGstCalc.totalTax.toLocaleString("en-IN")}
+                                          </Typography>
+                                        </Box>
+                                        <Divider sx={{ my: 0.4, borderColor: themeConfig.border }} />
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                          <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+                                            Final Price:
+                                          </Typography>
+                                          <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.primaryDark || "#0F766E" }}>
+                                            ₹{roomGstCalc.finalAmount.toLocaleString("en-IN")}/night
+                                          </Typography>
+                                        </Box>
+                                      </>
+                                    ) : (
+                                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 0.3 }}>
+                                        <Chip label="No GST (0%)" size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#E5E7EB" }} />
+                                        <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.primary }}>
+                                          ₹{roomGstCalc.finalAmount.toLocaleString("en-IN")}/night
+                                        </Typography>
+                                      </Box>
+                                    )}
                                   </Box>
 
                                   {/* Room Amenities Badges */}
@@ -931,6 +1174,11 @@ export default function RoomTypesPage({
                                             status: room.status || "AVAILABLE",
                                             notes: room.notes || "",
                                             amenities: room.amenities || catAmenities,
+                                            gstEnabled: room.gstEnabled !== false,
+                                            gstRate: room.gstRate ?? cat.gstRate ?? 18,
+                                            cgstRate: room.cgstRate ?? (room.gstRate ? room.gstRate / 2 : 9),
+                                            sgstRate: room.sgstRate ?? (room.gstRate ? room.gstRate / 2 : 9),
+                                            taxInclusive: Boolean(room.taxInclusive ?? cat.taxInclusive),
                                           },
                                         })
                                       }
@@ -1520,6 +1768,11 @@ export default function RoomTypesPage({
                                   bedType: rt.bedType || "1 King Size Bed",
                                   description: rt.description || "",
                                   amenities: rt.amenities || [],
+                                  gstEnabled: rt.gstEnabled !== false,
+                                  gstRate: rt.gstRate ?? 18,
+                                  cgstRate: rt.cgstRate ?? (rt.gstRate ? rt.gstRate / 2 : 9),
+                                  sgstRate: rt.sgstRate ?? (rt.gstRate ? rt.gstRate / 2 : 9),
+                                  taxInclusive: Boolean(rt.taxInclusive),
                                 },
                               })
                             }
@@ -1791,6 +2044,21 @@ export default function RoomTypesPage({
                 />
               </Grid>
 
+              {/* GST Configuration Section (Requirement #1 & #2) */}
+              <Grid size={{ xs: 12 }}>
+                <RoomGstFields
+                  formData={roomModal.data || {}}
+                  setFormData={setRoomModal}
+                  basePrice={
+                    Number(roomModal.data?.customPricePerNight) ||
+                    Number(roomTypes.find((t) => t._id === roomModal.data?.roomType)?.basePrice) ||
+                    0
+                  }
+                  themeConfig={themeConfig}
+                  isDarkMode={isDarkMode}
+                />
+              </Grid>
+
               {/* =================================================== */}
               {/* INTERACTIVE AMENITIES BUILDER SECTION               */}
               {/* =================================================== */}
@@ -2005,6 +2273,32 @@ export default function RoomTypesPage({
                 />
               </Grid>
 
+              {/* Base Tariff (₹) */}
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField
+                  label="Category Base Price (₹ / night) *"
+                  type="number"
+                  required
+                  fullWidth
+                  size="small"
+                  value={typeModal.data.basePrice ?? ""}
+                  onChange={(e) => setTypeModal({ ...typeModal, data: { ...typeModal.data, basePrice: e.target.value } })}
+                  placeholder="e.g. 3000"
+                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
+                />
+              </Grid>
+
+              {/* Category Default GST Configuration */}
+              <Grid size={{ xs: 12 }}>
+                <RoomGstFields
+                  formData={typeModal.data || {}}
+                  setFormData={setTypeModal}
+                  basePrice={Number(typeModal.data.basePrice) || 0}
+                  themeConfig={themeConfig}
+                  isDarkMode={isDarkMode}
+                />
+              </Grid>
+
               {/* Category Default Amenities Selector */}
               <Grid size={{ xs: 12 }}>
                 <Box
@@ -2138,16 +2432,18 @@ export default function RoomTypesPage({
         onClose={() => setTrialLimitModalOpen(false)}
         maxWidth="xs"
         fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: "24px",
-            p: 1,
-            bgcolor: isDarkMode ? "#0F172A" : "#FFFFFF",
-            boxShadow: "0 24px 48px -12px rgba(0,0,0,0.3)",
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: "24px",
+              p: 1,
+              bgcolor: isDarkMode ? "#0F172A" : "#FFFFFF",
+              boxShadow: "0 24px 48px -12px rgba(0,0,0,0.3)",
+            },
           },
         }}
       >
-        <DialogTitle sx={{ textAlign: "center", pt: 3, pb: 1 }}>
+        <DialogTitle component="div" sx={{ textAlign: "center", pt: 3, pb: 1 }}>
           <Avatar
             sx={{
               width: 64,

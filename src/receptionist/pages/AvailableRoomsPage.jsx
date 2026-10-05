@@ -27,6 +27,10 @@ import {
   TablePagination,
   Checkbox,
   Collapse,
+  FormControl,
+  InputLabel,
+  Select,
+  Divider,
 } from "@mui/material";
 import {
   CleaningServices,
@@ -59,18 +63,41 @@ import {
   KeyboardArrowRight,
   ExpandMore,
   ExpandLess,
+  Receipt,
+  Logout,
+  CurrencyRupee,
+  Schedule,
+  Warning,
+  ContentCopy,
+  CreditCard,
+  AccountBalance,
+  QrCode2,
+  Check,
+  Phone,
+  InfoOutlined,
+  Person,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import EmptyState from "@/shared/components/EmptyState";
 import StatusChip from "@/shared/components/StatusChip";
+import { formatTime12Hour, calculateOverstayFee } from "@/shared/utils/timeUtils";
 
 export default function AvailableRoomsPage({
   user,
   rooms = [],
   roomTypes = [],
   bookings = [],
+  guests = [],
+  dashboardData,
+  hotelSettings = {
+    checkInTime: "14:00",
+    checkOutTime: "12:00",
+    timezone: "Asia/Kolkata",
+    upiId: "jatinkakadiya234-1@okicici",
+  },
   onRefresh,
   onRoomStatusChange,
+  onCheckOut,
   onSelectRoomForCheckIn,
   initialSelectedCategory = null,
   onClearInitialCategory,
@@ -78,14 +105,17 @@ export default function AvailableRoomsPage({
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
 
-  // Helper to reliably resolve guest name from room or active bookings (including multi-room bookings)
+  // Helper to reliably resolve guest name ONLY for currently occupied/reserved rooms
   const getRoomGuestName = (room) => {
+    if (!room || (room.status !== "OCCUPIED" && room.status !== "RESERVED")) {
+      return "";
+    }
     if (room?.guestName && room.guestName.trim()) return room.guestName;
     const rId = String(room?._id || "");
     const rNum = String(room?.roomNumber || "");
 
     const activeBooking = bookings.find((b) => {
-      const isLive = b.status === "CHECKED_IN" || b.status === "CONFIRMED" || b.status === "OCCUPIED";
+      const isLive = b.status === "CHECKED_IN" || b.status === "OCCUPIED";
       if (!isLive) return false;
 
       const matchPrimary = String(b.room?._id || b.room || "") === rId || String(b.roomNumber || "") === rNum;
@@ -101,13 +131,13 @@ export default function AvailableRoomsPage({
   };
 
   // Primary Global View Mode: "BOX" (Categories Box Grid) or "TABLE" (All Rooms Table)
-  const [viewMode, setViewMode] = useState("TABLE");
+  const [viewMode, setViewMode] = useState("BOX");
 
   // Box View Navigation: null = Categories Overview, string (categoryId) = Category Drilldown
   const [selectedCategory, setSelectedCategory] = useState(null);
 
   // Category Drilldown Sub View Mode: "BOX" (Room Cards) or "TABLE" (Category Rooms Table)
-  const [categorySubViewMode, setCategorySubViewMode] = useState("TABLE");
+  const [categorySubViewMode, setCategorySubViewMode] = useState("BOX");
 
   // Track if user navigated here from another route (e.g. Dashboard)
   const [cameFromExternalRoute, setCameFromExternalRoute] = useState(false);
@@ -116,7 +146,7 @@ export default function AvailableRoomsPage({
   useEffect(() => {
     if (initialSelectedCategory) {
       setSelectedCategory(initialSelectedCategory);
-      setCategorySubViewMode("TABLE");
+      setCategorySubViewMode("BOX");
       setCameFromExternalRoute(true);
       setPage(0);
       if (onClearInitialCategory) onClearInitialCategory();
@@ -150,7 +180,7 @@ export default function AvailableRoomsPage({
 
   // Selected room objects list
   const selectedRoomsList = useMemo(() => {
-    return rooms.filter((r) => selectedRoomIds.includes(r._id));
+    return rooms.filter((r) => selectedRoomIds.map(String).includes(String(r._id)));
   }, [rooms, selectedRoomIds]);
 
   // Combined stats for selected rooms
@@ -197,8 +227,21 @@ export default function AvailableRoomsPage({
     }
   };
 
-  // Room Status Modal
-  const [statusDialog, setStatusDialog] = useState({ open: false, room: null, newStatus: "AVAILABLE" });
+  // Room Status & Checkout Settlement Modal State
+  const [statusDialog, setStatusDialog] = useState({
+    open: false,
+    room: null,
+    newStatus: "AVAILABLE",
+    booking: null,
+    overstay: null,
+    lateOption: "hourly",
+    lateFee: 0,
+    paymentMethod: "CASH",
+    amount: 0,
+    transactionId: "",
+    paymentReference: "",
+  });
+  const [copiedUpi, setCopiedUpi] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Dynamic Category Icon helper
@@ -431,23 +474,123 @@ export default function AvailableRoomsPage({
     });
   }, [categoryStats, selectedCategoryFilter, selectedStatus, roomSearch, bookings]);
 
-  // Open Room Status Change Dialog
+  // Open Room Status Change / Checkout Settlement Dialog
   const handleOpenStatusDialog = (room) => {
+    const rId = String(room?._id || "");
+    const rNum = String(room?.roomNumber || "");
+
+    const matchedBooking = bookings.find((b) => {
+      const isLive = b.status === "CHECKED_IN" || b.status === "IN-HOUSE" || b.status === "OCCUPIED";
+      if (!isLive) return false;
+
+      const matchPrimary = String(b.room?._id || b.room || "") === rId || String(b.roomNumber || "") === rNum;
+      const matchRoomsArr = Array.isArray(b.rooms) && b.rooms.some((id) => String(id?._id || id) === rId);
+      const matchRoomNums = Array.isArray(b.roomNumbers) && b.roomNumbers.some((num) => String(num) === rNum);
+      return matchPrimary || matchRoomsArr || matchRoomNums;
+    });
+
+    let overstay = null;
+    let due = 0;
+    let grandTotal = 0;
+    let lateFee = 0;
+
+    if (matchedBooking) {
+      overstay = calculateOverstayFee(matchedBooking, hotelSettings, { selectedOption: "hourly" });
+      const posChargesTotal = (matchedBooking.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
+      lateFee = overstay?.lateFee || 0;
+      grandTotal = (matchedBooking.totalAmount || 0) + posChargesTotal + lateFee;
+      const paidTotal = matchedBooking.paidAmount || 0;
+      due = Math.max(0, grandTotal - paidTotal);
+    }
+
     setStatusDialog({
       open: true,
       room,
-      newStatus: room.status || "AVAILABLE",
+      newStatus: room.status === "OCCUPIED" ? "CLEANING" : (room.status || "AVAILABLE"),
+      booking: matchedBooking || null,
+      overstay,
+      lateOption: "hourly",
+      lateFee,
+      paymentMethod: due > 0 ? "UPI" : "CASH",
+      amount: due,
+      transactionId: "",
+      paymentReference: "",
     });
+  };
+
+  const handleDialogLateOptionChange = (newOption) => {
+    if (!statusDialog.booking) return;
+    const overstay = calculateOverstayFee(statusDialog.booking, hotelSettings, { selectedOption: newOption });
+    const posChargesTotal = (statusDialog.booking.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
+    const lateFee = overstay?.lateFee || 0;
+    const grandTotal = (statusDialog.booking.totalAmount || 0) + posChargesTotal + lateFee;
+    const paidTotal = statusDialog.booking.paidAmount || 0;
+    const due = Math.max(0, grandTotal - paidTotal);
+
+    setStatusDialog((prev) => ({
+      ...prev,
+      overstay,
+      lateOption: newOption,
+      lateFee,
+      amount: due,
+      paymentMethod: due > 0 ? prev.paymentMethod || "UPI" : "CASH",
+    }));
+  };
+
+  const handleCopyUpiId = () => {
+    const hotelUpi = hotelSettings?.upiId || "jatinkakadiya234-1@okicici";
+    navigator.clipboard.writeText(hotelUpi);
+    setCopiedUpi(true);
+    setTimeout(() => setCopiedUpi(false), 2000);
   };
 
   const handleConfirmStatusChange = async () => {
     if (!statusDialog.room) return;
     try {
       setIsSubmitting(true);
-      if (onRoomStatusChange) {
+      const isOccupied = statusDialog.room.status === "OCCUPIED";
+      const isVacating = statusDialog.newStatus === "AVAILABLE" || statusDialog.newStatus === "CLEANING" || statusDialog.newStatus === "MAINTENANCE" || statusDialog.newStatus === "BLOCKED";
+
+      // If room was occupied with an active booking and is now being checked out / released:
+      if (statusDialog.booking && isOccupied && isVacating && onCheckOut) {
+        await onCheckOut(statusDialog.booking, {
+          paymentMethod: statusDialog.paymentMethod,
+          settlementPaymentAmount: Number(statusDialog.amount) || 0,
+          lateCheckoutFee: Number(statusDialog.lateFee) || 0,
+          lateCheckoutType: statusDialog.overstay?.lateCheckoutType || statusDialog.lateOption || "none",
+          lateCheckoutHours: statusDialog.overstay?.chargeableHours || 0,
+          lateCheckoutMinutes: statusDialog.overstay?.overdueMinutes || 0,
+          hourlyRate: statusDialog.overstay?.hourlyRate || 0,
+          dailyRoomRate: statusDialog.overstay?.dailyRate || 0,
+          gracePeriodMinutes: statusDialog.overstay?.gracePeriodMinutes || 10,
+          overstayData: statusDialog.overstay,
+          transactionId: statusDialog.transactionId,
+          paymentReference: statusDialog.paymentReference,
+        });
+      }
+
+      // If chosen status is not CLEANING (onCheckOut sets room to CLEANING), or if there was no active booking:
+      if (onRoomStatusChange && (!statusDialog.booking || statusDialog.newStatus !== "CLEANING")) {
         await onRoomStatusChange(statusDialog.room, statusDialog.newStatus);
       }
-      setStatusDialog({ open: false, room: null, newStatus: "AVAILABLE" });
+
+      if (onRefresh) {
+        await onRefresh();
+      }
+
+      setStatusDialog({
+        open: false,
+        room: null,
+        newStatus: "AVAILABLE",
+        booking: null,
+        overstay: null,
+        lateOption: "hourly",
+        lateFee: 0,
+        paymentMethod: "CASH",
+        amount: 0,
+        transactionId: "",
+        paymentReference: "",
+      });
     } catch (err) {
       console.error("Error updating room status:", err);
     } finally {
@@ -615,7 +758,7 @@ export default function AvailableRoomsPage({
                       className="card-3d"
                       onClick={() => {
                         setSelectedCategory(cat._id);
-                        setCategorySubViewMode("TABLE");
+                        setCategorySubViewMode("BOX");
                         setPage(0);
                       }}
                       sx={{
@@ -868,7 +1011,7 @@ export default function AvailableRoomsPage({
             )
           )}
 
-          {/* 2. TABLE VIEW: ALL CATEGORIES SINGLE MASTER TABLE */}
+          {/* 2. TABLE VIEW: ALL ROOMS MASTER TABLE */}
           {viewMode === "TABLE" && (
             <Box>
               {/* Table Filters & Stats Bar */}
@@ -884,23 +1027,22 @@ export default function AvailableRoomsPage({
               >
                 <Box
                   sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    flexWrap: "wrap",
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "2fr 1fr 1fr 1fr" },
                     gap: 1.5,
+                    mb: 1.5,
                   }}
                 >
-                  {/* Search Category / Room / Bed */}
+                  {/* Search Room / Guest / Category */}
                   <TextField
                     size="small"
-                    placeholder="Search category, bed type, room #..."
+                    placeholder="Search room #, guest, category..."
                     value={roomSearch}
                     onChange={(e) => {
                       setRoomSearch(e.target.value);
                       setPage(0);
                     }}
-                    sx={{ minWidth: { xs: "100%", sm: 300 }, "& .MuiOutlinedInput-root": { borderRadius: "10px" } }}
+                    sx={{ "& .MuiOutlinedInput-root": { borderRadius: "10px" } }}
                     slotProps={{
                       input: {
                         startAdornment: (
@@ -912,54 +1054,118 @@ export default function AvailableRoomsPage({
                     }}
                   />
 
-                  {/* Summary Stats Badges */}
+                  {/* Category Filter */}
+                  <TextField
+                    select
+                    fullWidth
+                    size="small"
+                    value={selectedCategoryFilter}
+                    onChange={(e) => {
+                      setSelectedCategoryFilter(e.target.value);
+                      setPage(0);
+                    }}
+                    sx={{ "& .MuiOutlinedInput-root": { borderRadius: "10px", fontWeight: 700 } }}
+                  >
+                    <MenuItem value="ALL">All Categories</MenuItem>
+                    {categoryStats.map((cat) => (
+                      <MenuItem key={cat._id} value={cat._id}>
+                        {cat.name} ({cat.totalRooms})
+                      </MenuItem>
+                    ))}
+                  </TextField>
+
+                  {/* Floor Filter */}
+                  <TextField
+                    select
+                    fullWidth
+                    size="small"
+                    value={selectedFloor}
+                    onChange={(e) => {
+                      setSelectedFloor(e.target.value);
+                      setPage(0);
+                    }}
+                    sx={{ "& .MuiOutlinedInput-root": { borderRadius: "10px", fontWeight: 700 } }}
+                  >
+                    <MenuItem value="ALL">All Floors</MenuItem>
+                    {distinctFloors.map((fl) => (
+                      <MenuItem key={fl} value={String(fl)}>
+                        Floor {fl}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+
+                  {/* Status Filter */}
+                  <TextField
+                    select
+                    fullWidth
+                    size="small"
+                    value={selectedStatus}
+                    onChange={(e) => {
+                      setSelectedStatus(e.target.value);
+                      setPage(0);
+                    }}
+                    sx={{ "& .MuiOutlinedInput-root": { borderRadius: "10px", fontWeight: 700 } }}
+                  >
+                    <MenuItem value="ALL">All Status</MenuItem>
+                    <MenuItem value="AVAILABLE">🟢 Available ({globalStats.available})</MenuItem>
+                    <MenuItem value="OCCUPIED">🔵 Occupied ({globalStats.occupied})</MenuItem>
+                    <MenuItem value="CLEANING">🟡 Cleaning ({globalStats.cleaning})</MenuItem>
+                    <MenuItem value="MAINTENANCE">🔴 Maintenance ({globalStats.maintenance})</MenuItem>
+                    <MenuItem value="BLOCKED">⚪ Blocked</MenuItem>
+                  </TextField>
+                </Box>
+
+                {/* Summary Stats Badges */}
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1, pt: 1, borderTop: `1px solid ${themeConfig.border}` }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
                     <Chip
-                      label={`🏢 ${categoryStats.length} Categories`}
+                      label={`🚪 ${filteredAllRooms.length} of ${rooms.length} Rooms`}
                       size="small"
                       sx={{ fontWeight: 800, bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, fontSize: "0.75rem" }}
                     />
                     <Chip
-                      label={`🚪 ${globalStats.total} Rooms`}
-                      size="small"
-                      sx={{ fontWeight: 800, bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, fontSize: "0.75rem" }}
-                    />
-                    <Chip
-                      label={`🟢 ${globalStats.available} Available`}
+                      label={`🟢 ${filteredAllRooms.filter((r) => r.status === "AVAILABLE").length} Available`}
                       size="small"
                       sx={{ fontWeight: 800, bgcolor: "rgba(16, 185, 129, 0.12)", color: "#059669", fontSize: "0.75rem" }}
                     />
                     <Chip
-                      label={`🔵 ${globalStats.occupied} Booked`}
+                      label={`🔵 ${filteredAllRooms.filter((r) => r.status === "OCCUPIED" || r.status === "RESERVED").length} Occupied`}
                       size="small"
                       sx={{ fontWeight: 800, bgcolor: "rgba(11, 142, 224, 0.12)", color: "#0284C7", fontSize: "0.75rem" }}
                     />
-                    {globalStats.cleaning > 0 && (
+                    {filteredAllRooms.filter((r) => r.status === "CLEANING").length > 0 && (
                       <Chip
-                        label={`🟡 ${globalStats.cleaning} Cleaning`}
+                        label={`🟡 ${filteredAllRooms.filter((r) => r.status === "CLEANING").length} Cleaning`}
                         size="small"
                         sx={{ fontWeight: 800, bgcolor: "rgba(217, 119, 6, 0.12)", color: "#D97706", fontSize: "0.75rem" }}
                       />
                     )}
-                    {roomSearch && (
-                      <Button
-                        size="small"
-                        onClick={() => setRoomSearch("")}
-                        sx={{ fontWeight: 800, color: "#EF4444", fontSize: "0.75rem", textTransform: "none", px: 1 }}
-                      >
-                        Clear Search
-                      </Button>
-                    )}
                   </Box>
+
+                  {(roomSearch || selectedCategoryFilter !== "ALL" || selectedFloor !== "ALL" || selectedStatus !== "ALL") && (
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        setRoomSearch("");
+                        setSelectedCategoryFilter("ALL");
+                        setSelectedFloor("ALL");
+                        setSelectedStatus("ALL");
+                        setPage(0);
+                      }}
+                      sx={{ fontWeight: 800, color: "#EF4444", fontSize: "0.75rem", textTransform: "none" }}
+                    >
+                      Clear All Filters
+                    </Button>
+                  )}
                 </Box>
               </Card>
 
-              {/* Single Category Master Table */}
-              {filteredCategoriesForTable.length === 0 ? (
+              {/* All Rooms Master Table */}
+              {filteredAllRooms.length === 0 ? (
                 <Box sx={{ py: 6 }}>
                   <EmptyState
-                    title="No Categories Found"
-                    description="No room categories match the search query."
+                    title="No Rooms Found"
+                    description="No rooms match the selected filter criteria."
                   />
                 </Box>
               ) : (
@@ -972,27 +1178,42 @@ export default function AvailableRoomsPage({
                     bgcolor: themeConfig.bgCard || "#FFFFFF",
                   }}
                 >
-                  <TableContainer sx={{ maxHeight: { xs: 520, md: 680 } }}>
+                  <TableContainer sx={{ maxHeight: { xs: 520, md: 680 }, overflowX: "auto" }}>
                     <Table stickyHeader size="small" sx={{ minWidth: 740 }}>
                       <TableHead>
                         <TableRow sx={{ bgcolor: themeConfig.champagne }}>
-                          <TableCell sx={{ width: 44, fontWeight: 900, color: themeConfig.textMain, py: 1.5, fontSize: "0.82rem", pl: 2.5 }}>
-                            #
+                          <TableCell padding="checkbox" sx={{ pl: 2, bgcolor: themeConfig.champagne }}>
+                            <Checkbox
+                              size="small"
+                              color="success"
+                              checked={
+                                filteredAllRooms.filter((r) => r.status === "AVAILABLE").length > 0 &&
+                                filteredAllRooms.filter((r) => r.status === "AVAILABLE").every((r) => selectedRoomIds.includes(r._id))
+                              }
+                              indeterminate={
+                                filteredAllRooms.some((r) => r.status === "AVAILABLE" && selectedRoomIds.includes(r._id)) &&
+                                !filteredAllRooms.filter((r) => r.status === "AVAILABLE").every((r) => selectedRoomIds.includes(r._id))
+                              }
+                              onChange={() => handleSelectAllAvailable(filteredAllRooms)}
+                            />
                           </TableCell>
                           <TableCell sx={{ fontWeight: 900, color: themeConfig.textMain, py: 1.5, fontSize: "0.82rem", whiteSpace: "nowrap" }}>
+                            Room Number
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "0.82rem", whiteSpace: "nowrap" }}>
                             Category / Room Type
                           </TableCell>
                           <TableCell sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "0.82rem", whiteSpace: "nowrap" }}>
-                            Bed & Capacity
+                            Floor
                           </TableCell>
                           <TableCell sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "0.82rem", whiteSpace: "nowrap" }}>
-                            Tariff / Night
-                          </TableCell>
-                          <TableCell sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "0.82rem", whiteSpace: "nowrap" }}>
-                            Total Rooms
+                            Rate / Tariff
                           </TableCell>
                           <TableCell sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "0.82rem", whiteSpace: "nowrap" }}>
                             Live Status
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "0.82rem", whiteSpace: "nowrap" }}>
+                            Guest / Occupant
                           </TableCell>
                           <TableCell sx={{ fontWeight: 900, color: themeConfig.textMain, textAlign: "right", pr: 2.5, fontSize: "0.82rem", whiteSpace: "nowrap" }}>
                             Action
@@ -1000,162 +1221,228 @@ export default function AvailableRoomsPage({
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {filteredCategoriesForTable.map((cat, idx) => (
-                          <TableRow
-                            key={cat._id}
-                            hover
-                            onClick={() => {
-                              setSelectedCategory(cat._id);
-                              setCategorySubViewMode("TABLE");
-                              setPage(0);
-                            }}
-                            sx={{
-                              cursor: "pointer",
-                              transition: "all 0.15s ease",
-                              "&:hover": {
-                                bgcolor: isDarkMode ? "rgba(255, 255, 255, 0.04)" : "rgba(11, 142, 224, 0.04)",
-                              },
-                            }}
-                          >
-                            {/* Index */}
-                            <TableCell sx={{ pl: 2.5, color: themeConfig.textMuted, fontWeight: 800, fontSize: "0.78rem" }}>
-                              {idx + 1}
-                            </TableCell>
+                        {filteredAllRooms
+                          .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                          .map((room) => {
+                            const rtObj = typeof room.roomType === "object" ? room.roomType : roomTypes.find((t) => String(t._id) === String(room.roomType));
+                            const catName = rtObj?.name || room.category || room.type || "Room";
+                            const tariff = room.customPricePerNight || rtObj?.basePrice || room.basePrice || 0;
+                            const isAvail = room.status === "AVAILABLE";
+                            const isOcc = room.status === "OCCUPIED" || room.status === "RESERVED";
+                            const isCln = room.status === "CLEANING";
+                            const isSelected = selectedRoomIds.includes(room._id);
+                            const roomGuestName = getRoomGuestName(room);
 
-                            {/* Category Icon & Name */}
-                            <TableCell sx={{ py: 1.5, whiteSpace: "nowrap" }}>
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                                <Avatar
-                                  sx={{
-                                    bgcolor: themeConfig.champagne,
-                                    color: themeConfig.primaryDark,
-                                    width: 38,
-                                    height: 38,
-                                    borderRadius: "11px",
-                                    border: `1px solid ${themeConfig.border}`,
-                                  }}
-                                >
-                                  {getCategoryIcon(cat.name)}
-                                </Avatar>
-                                <Box>
-                                  <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "0.92rem" }}>
-                                    {cat.name}
-                                  </Typography>
-                                  <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem" }}>
-                                    Click to view {cat.totalRooms} rooms &rarr;
-                                  </Typography>
-                                </Box>
-                              </Box>
-                            </TableCell>
-
-                            {/* Bed & Capacity */}
-                            <TableCell sx={{ whiteSpace: "nowrap" }}>
-                              <Typography variant="body2" sx={{ fontWeight: 700, color: themeConfig.textMuted, fontSize: "0.82rem" }}>
-                                {cat.bedCount} Bed ({cat.bedType}) &bull; Max {cat.capacity?.adults || 2} Guests
-                              </Typography>
-                            </TableCell>
-
-                            {/* Tariff / Night */}
-                            <TableCell sx={{ whiteSpace: "nowrap" }}>
-                              <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.primary, fontSize: "0.92rem" }}>
-                                ₹{Number(cat.basePrice || 0).toLocaleString()}
-                                <Typography component="span" variant="caption" sx={{ color: themeConfig.textMuted, ml: 0.5, fontSize: "0.72rem" }}>
-                                  / night
-                                </Typography>
-                              </Typography>
-                            </TableCell>
-
-                            {/* Total Rooms */}
-                            <TableCell sx={{ whiteSpace: "nowrap" }}>
-                              <Chip
-                                label={`${cat.totalRooms} Rooms`}
-                                size="small"
-                                sx={{
-                                  bgcolor: themeConfig.champagne,
-                                  color: themeConfig.primaryDark,
-                                  fontWeight: 900,
-                                  fontSize: "0.75rem",
-                                  height: 24,
+                            return (
+                              <TableRow
+                                key={room._id || room.roomNumber}
+                                hover
+                                onClick={() => {
+                                  if (isAvail) {
+                                    handleToggleRoomSelection(room._id);
+                                  } else {
+                                    handleOpenStatusDialog(room);
+                                  }
                                 }}
-                              />
-                            </TableCell>
+                                sx={{
+                                  cursor: "pointer",
+                                  bgcolor: isSelected
+                                    ? (isDarkMode ? "rgba(16, 185, 129, 0.12)" : "rgba(16, 185, 129, 0.06)")
+                                    : "transparent",
+                                  "&:hover": {
+                                    bgcolor: isSelected
+                                      ? (isDarkMode ? "rgba(16, 185, 129, 0.18)" : "rgba(16, 185, 129, 0.1)")
+                                      : "rgba(11, 142, 224, 0.04)",
+                                  },
+                                  transition: "background 0.15s ease",
+                                }}
+                              >
+                                {/* Multi-select Checkbox */}
+                                <TableCell padding="checkbox" sx={{ pl: 2 }} onClick={(e) => {
+                                  if (isAvail) handleToggleRoomSelection(room._id, e);
+                                }}>
+                                  {isAvail ? (
+                                    <Checkbox
+                                      size="small"
+                                      color="success"
+                                      checked={isSelected}
+                                      onChange={(e) => handleToggleRoomSelection(room._id, e)}
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                  ) : (
+                                    <Box sx={{ width: 24, height: 24 }} />
+                                  )}
+                                </TableCell>
 
-                            {/* Status Badges */}
-                            <TableCell sx={{ whiteSpace: "nowrap" }}>
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
-                                <Chip
-                                  label={`🟢 ${cat.available} Available`}
-                                  size="small"
-                                  sx={{
-                                    fontWeight: 800,
-                                    fontSize: "0.72rem",
-                                    bgcolor: "rgba(16, 185, 129, 0.12)",
-                                    color: "#059669",
-                                    height: 24,
-                                  }}
-                                />
-                                <Chip
-                                  label={`🔵 ${cat.occupied + cat.reserved} Booked`}
-                                  size="small"
-                                  sx={{
-                                    fontWeight: 800,
-                                    fontSize: "0.72rem",
-                                    bgcolor: "rgba(11, 142, 224, 0.12)",
-                                    color: "#0284C7",
-                                    height: 24,
-                                  }}
-                                />
-                                {cat.cleaning > 0 && (
+                                {/* Room Number */}
+                                <TableCell sx={{ py: 1.2, whiteSpace: "nowrap" }}>
+                                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                                    <Avatar
+                                      sx={{
+                                        bgcolor: isAvail
+                                          ? "rgba(16, 185, 129, 0.15)"
+                                          : isOcc
+                                            ? "rgba(11, 142, 224, 0.15)"
+                                            : isCln
+                                              ? "rgba(217, 119, 6, 0.15)"
+                                              : "rgba(239, 68, 68, 0.15)",
+                                        color: isAvail
+                                          ? "#10B981"
+                                          : isOcc
+                                            ? "#0B8EE0"
+                                            : isCln
+                                              ? "#D97706"
+                                              : "#EF4444",
+                                        width: 32,
+                                        height: 32,
+                                        fontSize: "0.8rem",
+                                        fontWeight: 900,
+                                        borderRadius: "9px",
+                                      }}
+                                    >
+                                      {room.roomNumber}
+                                    </Avatar>
+                                    <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+                                      Room #{room.roomNumber}
+                                    </Typography>
+                                  </Box>
+                                </TableCell>
+
+                                {/* Category */}
+                                <TableCell sx={{ whiteSpace: "nowrap" }}>
+                                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
+                                    {getCategoryIcon(catName)}
+                                    <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.82rem" }}>
+                                      {catName}
+                                    </Typography>
+                                  </Box>
+                                </TableCell>
+
+                                {/* Floor */}
+                                <TableCell sx={{ whiteSpace: "nowrap" }}>
                                   <Chip
-                                    label={`🟡 ${cat.cleaning} Cln`}
+                                    label={`Floor ${room.floor || 1}`}
                                     size="small"
                                     sx={{
                                       fontWeight: 800,
                                       fontSize: "0.72rem",
-                                      bgcolor: "rgba(217, 119, 6, 0.12)",
-                                      color: "#D97706",
-                                      height: 24,
+                                      bgcolor: themeConfig.champagne,
+                                      color: themeConfig.primaryDark,
+                                      height: 22,
                                     }}
                                   />
-                                )}
-                              </Box>
-                            </TableCell>
+                                </TableCell>
 
-                            {/* Action Button */}
-                            <TableCell sx={{ textAlign: "right", pr: 2.5, whiteSpace: "nowrap" }}>
-                              <Button
-                                size="small"
-                                variant="contained"
-                                endIcon={<ArrowForward sx={{ fontSize: 14 }} />}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedCategory(cat._id);
-                                  setCategorySubViewMode("TABLE");
-                                  setPage(0);
-                                }}
-                                sx={{
-                                  borderRadius: "9px",
-                                  fontWeight: 900,
-                                  fontSize: "0.75rem",
-                                  textTransform: "none",
-                                  background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                                  color: "#FFFFFF",
-                                  boxShadow: `0 2px 8px ${themeConfig.primaryGlow}`,
-                                  px: 1.8,
-                                  py: 0.5,
-                                  "&:hover": {
-                                    background: themeConfig.primaryDark,
-                                  },
-                                }}
-                              >
-                                View Rooms ({cat.totalRooms})
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                                {/* Rate */}
+                                <TableCell sx={{ whiteSpace: "nowrap" }}>
+                                  <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "0.85rem" }}>
+                                    ₹{Number(tariff).toLocaleString()}
+                                    <Typography component="span" variant="caption" sx={{ color: themeConfig.textMuted, ml: 0.4, fontSize: "0.7rem" }}>
+                                      / night
+                                    </Typography>
+                                  </Typography>
+                                </TableCell>
+
+                                {/* Live Status */}
+                                <TableCell sx={{ whiteSpace: "nowrap" }}>
+                                  <StatusChip status={room.status} size="small" />
+                                </TableCell>
+
+                                {/* Guest / Occupant */}
+                                <TableCell sx={{ whiteSpace: "nowrap" }}>
+                                  {roomGuestName ? (
+                                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
+                                      <Avatar sx={{ width: 22, height: 22, fontSize: "0.68rem", fontWeight: 900, bgcolor: themeConfig.primary }}>
+                                        {roomGuestName.charAt(0).toUpperCase()}
+                                      </Avatar>
+                                      <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.82rem" }}>
+                                        {roomGuestName}
+                                      </Typography>
+                                    </Box>
+                                  ) : room.advanceBookingSummary ? (
+                                    <Typography variant="caption" sx={{ color: "#D97706", fontWeight: 800, fontSize: "0.75rem" }}>
+                                      📅 {room.advanceBookingSummary}
+                                    </Typography>
+                                  ) : (
+                                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontStyle: "italic" }}>
+                                      — Vacant —
+                                    </Typography>
+                                  )}
+                                </TableCell>
+
+                                {/* Action */}
+                                <TableCell sx={{ textAlign: "right", pr: 2.5, whiteSpace: "nowrap" }}>
+                                  <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 0.8 }} onClick={(e) => e.stopPropagation()}>
+                                    {isAvail && onSelectRoomForCheckIn && (
+                                      <Button
+                                        size="small"
+                                        variant="contained"
+                                        startIcon={<Bolt sx={{ fontSize: 13 }} />}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onSelectRoomForCheckIn(room);
+                                        }}
+                                        sx={{
+                                          borderRadius: "8px",
+                                          fontWeight: 900,
+                                          fontSize: "0.7rem",
+                                          textTransform: "none",
+                                          background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
+                                          color: "#FFFFFF",
+                                          boxShadow: "0 2px 6px rgba(16, 185, 129, 0.3)",
+                                          px: 1.4,
+                                          py: 0.4,
+                                        }}
+                                      >
+                                        Check-In
+                                      </Button>
+                                    )}
+
+                                    <Button
+                                      size="small"
+                                      variant="outlined"
+                                      startIcon={<Edit sx={{ fontSize: 12 }} />}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenStatusDialog(room);
+                                      }}
+                                      sx={{
+                                        borderRadius: "8px",
+                                        fontWeight: 800,
+                                        fontSize: "0.7rem",
+                                        borderColor: themeConfig.border,
+                                        color: themeConfig.textMain,
+                                        "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne },
+                                      }}
+                                    >
+                                      Status
+                                    </Button>
+                                  </Box>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
                       </TableBody>
                     </Table>
                   </TableContainer>
+
+                  {/* Table Pagination */}
+                  <TablePagination
+                    rowsPerPageOptions={[5, 10, 25, 50]}
+                    component="div"
+                    count={filteredAllRooms.length}
+                    rowsPerPage={rowsPerPage}
+                    page={page}
+                    onPageChange={(e, newPage) => setPage(newPage)}
+                    onRowsPerPageChange={(e) => {
+                      setRowsPerPage(parseInt(e.target.value, 10));
+                      setPage(0);
+                    }}
+                    sx={{
+                      borderTop: `1px solid ${themeConfig.border}`,
+                      bgcolor: themeConfig.bgCard || "#FFFFFF",
+                    }}
+                  />
                 </Paper>
               )}
             </Box>
@@ -1496,11 +1783,15 @@ export default function AvailableRoomsPage({
                               <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.primary }}>
                                 ₹{Number(tariff).toLocaleString()} <span style={{ fontSize: "0.72rem", color: themeConfig.textMuted, fontWeight: 600 }}>/ night</span>
                               </Typography>
-                              {roomGuestName && (
+                              {roomGuestName ? (
                                 <Typography variant="caption" sx={{ color: themeConfig.textMain, fontWeight: 800, mt: 0.3, display: "block" }}>
                                   👤 {roomGuestName}
                                 </Typography>
-                              )}
+                              ) : room.advanceBookingSummary ? (
+                                <Typography variant="caption" sx={{ color: "#D97706", fontWeight: 800, mt: 0.3, display: "block", fontSize: "0.7rem" }}>
+                                  📅 {room.advanceBookingSummary}
+                                </Typography>
+                              ) : null}
                             </Box>
                           </div>
 
@@ -1749,6 +2040,10 @@ export default function AvailableRoomsPage({
                                           {roomGuestName}
                                         </Typography>
                                       </Box>
+                                    ) : room.advanceBookingSummary ? (
+                                      <Typography variant="caption" sx={{ color: "#D97706", fontWeight: 700, display: "flex", alignItems: "center", gap: 0.5 }}>
+                                        📅 {room.advanceBookingSummary}
+                                      </Typography>
                                     ) : (
                                       <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontStyle: "italic" }}>
                                         &mdash; Vacant &mdash;
@@ -1837,78 +2132,502 @@ export default function AvailableRoomsPage({
 
 
       {/* ========================================================================= */}
-      {/* DIALOG: QUICK ROOM STATUS CONTROL                                         */}
+      {/* DIALOG: QUICK ROOM STATUS & IN-HOUSE CHECKOUT SETTLEMENT CONTROL          */}
       {/* ========================================================================= */}
-      <Dialog
-        open={statusDialog.open}
-        onClose={() => setStatusDialog({ open: false, room: null, newStatus: "AVAILABLE" })}
-        maxWidth="xs"
-        fullWidth
-        slotProps={{
-          paper: {
-            sx: {
-              borderRadius: "20px",
-              p: 1.5,
-              border: `1px solid ${themeConfig.border}`,
-              bgcolor: themeConfig.bgCard || "#FFFFFF",
-              boxShadow: "0 20px 40px rgba(0,0,0,0.18)",
-            },
-          },
-        }}
-      >
-        <DialogTitle component="div" sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Typography component="div" variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-            Room #{statusDialog.room?.roomNumber} Status
-          </Typography>
-          <IconButton onClick={() => setStatusDialog({ open: false, room: null, newStatus: "AVAILABLE" })} sx={{ borderRadius: "10px" }}>
-            <Close />
-          </IconButton>
-        </DialogTitle>
+      {(() => {
+        const isOccupiedWithBooking = statusDialog.room?.status === "OCCUPIED" && Boolean(statusDialog.booking);
+        const guestObj = statusDialog.booking?.guest || {};
+        const guestName = guestObj.fullName || guestObj.name || statusDialog.booking?.guestName || "Guest";
+        const guestPhone = guestObj.phoneNumber || guestObj.phone || statusDialog.booking?.guestPhone || "";
+        const hotelUpi = hotelSettings?.upiId || "jatinkakadiya234-1@okicici";
+        const upiAmount = Number(statusDialog.amount) || 0;
+        const upiPayee = encodeURIComponent(hotelSettings?.hotelName || "Hotel Merigold");
+        const upiNote = encodeURIComponent(`Room ${statusDialog.room?.roomNumber || ""} Checkout Settlement`);
+        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+          `upi://pay?pa=${hotelUpi}&pn=${upiPayee}&am=${upiAmount}&cu=INR&tn=${upiNote}`
+        )}`;
+        const posChargesTotal = (statusDialog.booking?.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
+        const folioGrandTotal = (statusDialog.booking?.totalAmount || 0) + posChargesTotal + (statusDialog.lateFee || 0);
+        const paidAmount = statusDialog.booking?.paidAmount || 0;
 
-        <DialogContent dividers sx={{ borderColor: themeConfig.border }}>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <Typography variant="body2" sx={{ color: themeConfig.textMuted }}>
-              Update operational or housekeeping status for Room #{statusDialog.room?.roomNumber}:
-            </Typography>
-
-            <TextField
-              select
-              fullWidth
-              size="small"
-              value={statusDialog.newStatus}
-              onChange={(e) => setStatusDialog({ ...statusDialog, newStatus: e.target.value })}
-              sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px", fontWeight: 700 } }}
-            >
-              <MenuItem value="AVAILABLE">🟢 AVAILABLE (Clean & Ready)</MenuItem>
-              <MenuItem value="CLEANING">🟡 CLEANING (Housekeeping in Progress)</MenuItem>
-              <MenuItem value="OCCUPIED">🔵 OCCUPIED (In-House Guest)</MenuItem>
-              <MenuItem value="MAINTENANCE">🔴 MAINTENANCE (Out of Service)</MenuItem>
-              <MenuItem value="BLOCKED">⚪ BLOCKED (Locked by Admin)</MenuItem>
-            </TextField>
-          </Box>
-        </DialogContent>
-
-        <DialogActions sx={{ p: 2, gap: 1 }}>
-          <Button onClick={() => setStatusDialog({ open: false, room: null, newStatus: "AVAILABLE" })} sx={{ borderRadius: "10px", fontWeight: 700 }}>
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            disabled={isSubmitting}
-            onClick={handleConfirmStatusChange}
-            sx={{
-              background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-              color: "#FFFFFF",
-              fontWeight: 800,
-              borderRadius: "10px",
-              px: 3,
-              boxShadow: `0 4px 12px ${themeConfig.primaryGlow}`,
+        return (
+          <Dialog
+            open={statusDialog.open}
+            onClose={() =>
+              setStatusDialog({
+                open: false,
+                room: null,
+                newStatus: "AVAILABLE",
+                booking: null,
+                overstay: null,
+                lateOption: "hourly",
+                lateFee: 0,
+                paymentMethod: "CASH",
+                amount: 0,
+                transactionId: "",
+                paymentReference: "",
+              })
+            }
+            maxWidth={isOccupiedWithBooking ? "sm" : "xs"}
+            fullWidth
+            slotProps={{
+              paper: {
+                sx: {
+                  borderRadius: "22px",
+                  p: { xs: 1.5, sm: 2 },
+                  border: `1px solid ${themeConfig.border}`,
+                  bgcolor: themeConfig.bgCard || "#FFFFFF",
+                  boxShadow: "0 24px 48px rgba(0,0,0,0.22)",
+                  maxHeight: "90vh",
+                },
+              },
             }}
           >
-            {isSubmitting ? "Updating..." : "Update Status"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+            <DialogTitle component="div" sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pb: 1.5 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                <Avatar sx={{ bgcolor: themeConfig.primary, width: 36, height: 36, color: "#FFF", fontWeight: 900 }}>
+                  <MeetingRoom sx={{ fontSize: 20 }} />
+                </Avatar>
+                <div>
+                  <Typography component="div" variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, lineHeight: 1.2 }}>
+                    Room #{statusDialog.room?.roomNumber} Status
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+                    {isOccupiedWithBooking ? "Active In-House Guest Settlement & Checkout" : "Operational Status Control"}
+                  </Typography>
+                </div>
+              </Box>
+              <IconButton
+                onClick={() =>
+                  setStatusDialog({
+                    open: false,
+                    room: null,
+                    newStatus: "AVAILABLE",
+                    booking: null,
+                    overstay: null,
+                    lateOption: "hourly",
+                    lateFee: 0,
+                    paymentMethod: "CASH",
+                    amount: 0,
+                    transactionId: "",
+                    paymentReference: "",
+                  })
+                }
+                sx={{ borderRadius: "10px" }}
+              >
+                <Close />
+              </IconButton>
+            </DialogTitle>
+
+            <DialogContent dividers sx={{ borderColor: themeConfig.border, display: "flex", flexDirection: "column", gap: 2.2 }}>
+              {/* SCENARIO 1: IN-HOUSE OCCUPIED ROOM WITH ACTIVE BOOKING */}
+              {isOccupiedWithBooking ? (
+                <>
+                  {/* Guest Dossier Info Banner */}
+                  <Paper
+                    sx={{
+                      p: 1.8,
+                      borderRadius: "16px",
+                      bgcolor: isDarkMode ? "rgba(11, 142, 224, 0.08)" : "rgba(11, 142, 224, 0.05)",
+                      border: `1.5px solid ${themeConfig.primary}33`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      flexWrap: "wrap",
+                      gap: 1.5,
+                    }}
+                  >
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                      <Avatar sx={{ bgcolor: themeConfig.primary, width: 44, height: 44, fontWeight: 900, fontSize: "1.1rem" }}>
+                        {guestName.charAt(0).toUpperCase()}
+                      </Avatar>
+                      <div>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 900, color: themeConfig.textMain, lineHeight: 1.2 }}>
+                          {guestName}
+                        </Typography>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.3, flexWrap: "wrap" }}>
+                          {guestPhone && (
+                            <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "flex", alignItems: "center", gap: 0.4 }}>
+                              <Phone sx={{ fontSize: 13 }} /> {guestPhone}
+                            </Typography>
+                          )}
+                          <Chip
+                            label={`Folio #${statusDialog.booking?.bookingNumber || "Active"}`}
+                            size="small"
+                            sx={{ fontWeight: 800, fontSize: "0.68rem", height: 20, bgcolor: themeConfig.champagne, color: themeConfig.primary }}
+                          />
+                        </Box>
+                      </div>
+                    </Box>
+
+                    <Box sx={{ textAlign: { xs: "left", sm: "right" } }}>
+                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block" }}>
+                        Check-in: {statusDialog.booking?.checkInDate || "Active"}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block" }}>
+                        Exp. Checkout: {statusDialog.booking?.checkOutDate || "Today"} ({formatTime12Hour(hotelSettings?.checkOutTime || "12:00")})
+                      </Typography>
+                    </Box>
+                  </Paper>
+
+                  {/* Overstay / Late Checkout Warning Card */}
+                  {statusDialog.overstay?.isLate && (
+                    <Paper
+                      sx={{
+                        p: 1.8,
+                        borderRadius: "16px",
+                        bgcolor: "rgba(239, 68, 68, 0.06)",
+                        border: "1.5px solid rgba(239, 68, 68, 0.35)",
+                      }}
+                    >
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                        <Avatar sx={{ bgcolor: "#DC2626", color: "#FFF", width: 28, height: 28 }}>
+                          <Schedule sx={{ fontSize: 16 }} />
+                        </Avatar>
+                        <div>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 900, color: "#DC2626", lineHeight: 1.2 }}>
+                            Late Check-Out (+{statusDialog.overstay?.chargeableHours}h overdue)
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
+                            Standard check-out was {formatTime12Hour(statusDialog.overstay?.scheduledCheckOutTime || "12:00")}. Grace period: {statusDialog.overstay?.gracePeriodMinutes}m.
+                          </Typography>
+                        </div>
+                      </Box>
+
+                      <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, mt: 1.2 }}>
+                        <Paper
+                          onClick={() => handleDialogLateOptionChange("hourly")}
+                          sx={{
+                            p: 1.2,
+                            borderRadius: "10px",
+                            cursor: "pointer",
+                            border: `2px solid ${statusDialog.lateOption === "hourly" ? "#059669" : "rgba(5, 150, 105, 0.25)"}`,
+                            bgcolor: statusDialog.lateOption === "hourly" ? "#F0FDF4" : "#FFFFFF",
+                          }}
+                        >
+                          <Typography variant="caption" sx={{ fontWeight: 900, color: statusDialog.lateOption === "hourly" ? "#059669" : themeConfig.textMain, display: "block" }}>
+                            Hourly Charge ({statusDialog.overstay?.chargeableHours}h)
+                          </Typography>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 900, color: "#059669" }}>
+                            ₹{statusDialog.overstay?.hourlyCharge?.toLocaleString()}
+                          </Typography>
+                        </Paper>
+
+                        <Paper
+                          onClick={() => handleDialogLateOptionChange("full_day")}
+                          sx={{
+                            p: 1.2,
+                            borderRadius: "10px",
+                            cursor: "pointer",
+                            border: `2px solid ${statusDialog.lateOption === "full_day" ? "#DC2626" : "rgba(239, 68, 68, 0.25)"}`,
+                            bgcolor: statusDialog.lateOption === "full_day" ? "#FEF2F2" : "#FFFFFF",
+                          }}
+                        >
+                          <Typography variant="caption" sx={{ fontWeight: 900, color: statusDialog.lateOption === "full_day" ? "#DC2626" : themeConfig.textMain, display: "block" }}>
+                            Full Day Charge
+                          </Typography>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 900, color: "#DC2626" }}>
+                            ₹{statusDialog.overstay?.fullDayCharge?.toLocaleString()}
+                          </Typography>
+                        </Paper>
+                      </Box>
+                    </Paper>
+                  )}
+
+                  {/* Itemized Folio Billing Breakdown Table */}
+                  <Paper
+                    sx={{
+                      p: 1.5,
+                      borderRadius: "16px",
+                      border: `1px solid ${themeConfig.border}`,
+                      bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#FFFFFF",
+                    }}
+                  >
+                    <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 1, display: "flex", alignItems: "center", gap: 0.8, fontSize: "0.82rem" }}>
+                      <Receipt sx={{ fontSize: 16, color: themeConfig.primary }} />
+                      Folio Billing & Dues Verification
+                    </Typography>
+
+                    <TableContainer sx={{ borderRadius: "10px", border: `1px solid ${themeConfig.border}` }}>
+                      <Table size="small">
+                        <TableHead sx={{ bgcolor: themeConfig.champagne }}>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 800, fontSize: "0.75rem", py: 0.8 }}>Item / Description</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 800, fontSize: "0.75rem", py: 0.8 }}>Amount</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          <TableRow>
+                            <TableCell sx={{ fontSize: "0.8rem", color: themeConfig.textMain, py: 0.8 }}>
+                              Room Tariff ({statusDialog.booking?.roomType?.name || "Room Stay"})
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.8rem", py: 0.8 }}>
+                              ₹{(statusDialog.booking?.totalAmount || 0).toLocaleString()}
+                            </TableCell>
+                          </TableRow>
+
+                          {statusDialog.lateFee > 0 && (
+                            <TableRow sx={{ bgcolor: "rgba(239, 68, 68, 0.04)" }}>
+                              <TableCell sx={{ fontSize: "0.8rem", color: "#DC2626", py: 0.8 }}>
+                                ⏰ Late Check-Out Charge ({statusDialog.lateOption === "full_day" ? "Full Day" : `${statusDialog.overstay?.chargeableHours || 0}h`})
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 800, color: "#DC2626", fontSize: "0.8rem", py: 0.8 }}>
+                                +₹{Number(statusDialog.lateFee).toLocaleString()}
+                              </TableCell>
+                            </TableRow>
+                          )}
+
+                          {(statusDialog.booking?.posCharges || []).map((c, i) => (
+                            <TableRow key={i}>
+                              <TableCell sx={{ fontSize: "0.8rem", color: themeConfig.textMain, py: 0.8 }}>
+                                {c.description || c.item || "Extra POS / Food Charge"}
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.8rem", py: 0.8 }}>
+                                +₹{(c.amount || 0).toLocaleString()}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+
+                          <TableRow sx={{ bgcolor: themeConfig.champagne }}>
+                            <TableCell sx={{ fontWeight: 900, fontSize: "0.82rem", color: themeConfig.textMain, py: 0.8 }}>
+                              Total Folio Charges
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 900, fontSize: "0.88rem", color: themeConfig.textMain, py: 0.8 }}>
+                              ₹{folioGrandTotal.toLocaleString()}
+                            </TableCell>
+                          </TableRow>
+
+                          <TableRow>
+                            <TableCell sx={{ fontSize: "0.8rem", color: "#059669", py: 0.8 }}>
+                              Advance Paid at Check-In
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 800, color: "#059669", fontSize: "0.8rem", py: 0.8 }}>
+                              -₹{paidAmount.toLocaleString()}
+                            </TableCell>
+                          </TableRow>
+
+                          <TableRow sx={{ bgcolor: statusDialog.amount > 0 ? "rgba(239, 68, 68, 0.08)" : "rgba(16, 185, 129, 0.08)" }}>
+                            <TableCell sx={{ fontWeight: 900, fontSize: "0.85rem", color: statusDialog.amount > 0 ? "#DC2626" : "#059669", py: 1 }}>
+                              {statusDialog.amount > 0 ? "⚠️ Remaining Dues to Collect:" : "Folio Settlement Status:"}
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 900, fontSize: "0.98rem", color: statusDialog.amount > 0 ? "#DC2626" : "#059669", py: 1 }}>
+                              {statusDialog.amount > 0 ? `₹${statusDialog.amount.toLocaleString()}` : "✓ ₹0 Due (Fully Cleared)"}
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Paper>
+
+                  {/* Target Operational Status */}
+                  <Box>
+                    <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.textMain, display: "block", mb: 0.8, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      Room Status After Check-Out:
+                    </Typography>
+                    <TextField
+                      select
+                      fullWidth
+                      size="small"
+                      value={statusDialog.newStatus}
+                      onChange={(e) => setStatusDialog({ ...statusDialog, newStatus: e.target.value })}
+                      sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px", fontWeight: 700 } }}
+                    >
+                      <MenuItem value="CLEANING">🟡 CLEANING (Housekeeping in Progress - Recommended)</MenuItem>
+                      <MenuItem value="AVAILABLE">🟢 AVAILABLE (Clean & Ready Instantly)</MenuItem>
+                      <MenuItem value="MAINTENANCE">🔴 MAINTENANCE (Needs Service/Repairs)</MenuItem>
+                      <MenuItem value="BLOCKED">⚪ BLOCKED (Hold/Locked)</MenuItem>
+                    </TextField>
+                  </Box>
+
+                  {/* Dues Collection & Payment Mode (if amount > 0) */}
+                  {statusDialog.amount > 0 ? (
+                    <Box sx={{ p: 1.8, borderRadius: "16px", bgcolor: "rgba(239, 68, 68, 0.04)", border: "1.5px solid rgba(239, 68, 68, 0.25)" }}>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
+                        <div>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 900, color: "#DC2626" }}>
+                            Collect Dues: ₹{statusDialog.amount.toLocaleString()}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
+                            Select payment method to settle outstanding balance before release:
+                          </Typography>
+                        </div>
+                        <Chip
+                          label={`₹${statusDialog.amount.toLocaleString()} PENDING`}
+                          size="small"
+                          sx={{ bgcolor: "#DC2626", color: "#FFF", fontWeight: 900, fontSize: "0.72rem" }}
+                        />
+                      </Box>
+
+                      <FormControl fullWidth size="small" sx={{ mb: 1.5 }}>
+                        <InputLabel>Settlement Payment Method</InputLabel>
+                        <Select
+                          value={statusDialog.paymentMethod}
+                          label="Settlement Payment Method"
+                          onChange={(e) => setStatusDialog({ ...statusDialog, paymentMethod: e.target.value })}
+                          sx={{ borderRadius: "12px", fontWeight: 700 }}
+                        >
+                          <MenuItem value="UPI">📱 UPI / QR Code (Instant Scan)</MenuItem>
+                          <MenuItem value="CARD">💳 Credit / Debit Card (POS)</MenuItem>
+                          <MenuItem value="CASH">💵 Cash at Front Desk</MenuItem>
+                          <MenuItem value="BANK_TRANSFER">🏦 Bank Transfer (NEFT / IMPS)</MenuItem>
+                        </Select>
+                      </FormControl>
+
+                      {/* UPI QR Payment UI */}
+                      {statusDialog.paymentMethod === "UPI" && (
+                        <Paper
+                          sx={{
+                            p: 1.5,
+                            borderRadius: "14px",
+                            bgcolor: themeConfig.bgCard,
+                            border: `1.5px solid ${themeConfig.primary}`,
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            gap: 1.2,
+                            boxShadow: "0 4px 12px rgba(11, 142, 224, 0.1)",
+                          }}
+                        >
+                          <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.primary, textTransform: "uppercase" }}>
+                            Scan UPI QR to Settle ₹{statusDialog.amount.toLocaleString()}
+                          </Typography>
+
+                          <Box
+                            component="img"
+                            src={qrCodeUrl}
+                            alt="UPI Payment QR Code"
+                            sx={{
+                              width: 140,
+                              height: 140,
+                              borderRadius: "12px",
+                              border: `2px solid ${themeConfig.border}`,
+                              p: 0.5,
+                              bgcolor: "#FFFFFF",
+                            }}
+                          />
+
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 1, bgcolor: themeConfig.champagne, px: 1.5, py: 0.6, borderRadius: "8px" }}>
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.75rem" }}>
+                              UPI ID: <strong>{hotelUpi}</strong>
+                            </Typography>
+                            <Tooltip title={copiedUpi ? "Copied!" : "Copy UPI ID"}>
+                              <IconButton size="small" onClick={handleCopyUpiId} sx={{ p: 0.4, color: themeConfig.primary }}>
+                                {copiedUpi ? <Check sx={{ fontSize: 14, color: "#10B981" }} /> : <ContentCopy sx={{ fontSize: 14 }} />}
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        </Paper>
+                      )}
+
+                      <TextField
+                        fullWidth
+                        size="small"
+                        placeholder="Reference / Transaction / UTR No. (Optional)"
+                        value={statusDialog.transactionId}
+                        onChange={(e) => setStatusDialog({ ...statusDialog, transactionId: e.target.value })}
+                        sx={{ mt: 1.5, "& .MuiOutlinedInput-root": { borderRadius: "10px" } }}
+                      />
+                    </Box>
+                  ) : (
+                    <Paper
+                      sx={{
+                        p: 1.5,
+                        borderRadius: "14px",
+                        bgcolor: "rgba(16, 185, 129, 0.08)",
+                        border: "1.5px solid rgba(16, 185, 129, 0.3)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1.2,
+                      }}
+                    >
+                      <CheckCircle sx={{ color: "#059669", fontSize: 24 }} />
+                      <div>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 900, color: "#059669" }}>
+                          ✓ Account Fully Cleared
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
+                          No pending balance or extra fees for this room. Ready for instant checkout.
+                        </Typography>
+                      </div>
+                    </Paper>
+                  )}
+                </>
+              ) : (
+                /* SCENARIO 2: NON-OCCUPIED ROOM REGULAR STATUS CHANGE */
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <Typography variant="body2" sx={{ color: themeConfig.textMuted }}>
+                    Update operational or housekeeping status for Room #{statusDialog.room?.roomNumber}:
+                  </Typography>
+
+                  <TextField
+                    select
+                    fullWidth
+                    size="small"
+                    value={statusDialog.newStatus}
+                    onChange={(e) => setStatusDialog({ ...statusDialog, newStatus: e.target.value })}
+                    sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px", fontWeight: 700 } }}
+                  >
+                    <MenuItem value="AVAILABLE">🟢 AVAILABLE (Clean & Ready)</MenuItem>
+                    <MenuItem value="CLEANING">🟡 CLEANING (Housekeeping in Progress)</MenuItem>
+                    <MenuItem value="OCCUPIED">🔵 OCCUPIED (Manual Override)</MenuItem>
+                    <MenuItem value="MAINTENANCE">🔴 MAINTENANCE (Out of Service)</MenuItem>
+                    <MenuItem value="BLOCKED">⚪ BLOCKED (Locked by Admin)</MenuItem>
+                  </TextField>
+                </Box>
+              )}
+            </DialogContent>
+
+            <DialogActions sx={{ p: 2, gap: 1 }}>
+              <Button
+                onClick={() =>
+                  setStatusDialog({
+                    open: false,
+                    room: null,
+                    newStatus: "AVAILABLE",
+                    booking: null,
+                    overstay: null,
+                    lateOption: "hourly",
+                    lateFee: 0,
+                    paymentMethod: "CASH",
+                    amount: 0,
+                    transactionId: "",
+                    paymentReference: "",
+                  })
+                }
+                sx={{ borderRadius: "10px", fontWeight: 700 }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                disabled={isSubmitting}
+                onClick={handleConfirmStatusChange}
+                startIcon={isOccupiedWithBooking ? <Logout sx={{ fontSize: 16 }} /> : null}
+                sx={{
+                  background: isOccupiedWithBooking && statusDialog.amount > 0
+                    ? "linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)"
+                    : isOccupiedWithBooking
+                    ? "linear-gradient(135deg, #059669 0%, #047857 100%)"
+                    : `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
+                  color: "#FFFFFF",
+                  fontWeight: 900,
+                  borderRadius: "10px",
+                  px: 3,
+                  boxShadow: "0 4px 14px rgba(0,0,0,0.18)",
+                }}
+              >
+                {isSubmitting
+                  ? "Processing..."
+                  : isOccupiedWithBooking
+                  ? statusDialog.amount > 0
+                    ? `Collect ₹${statusDialog.amount.toLocaleString()} & Check Out`
+                    : "Complete Check-Out & Release Room"
+                  : "Update Status"}
+              </Button>
+            </DialogActions>
+          </Dialog>
+        );
+      })()}
 
       {/* ========================================================================= */}
       {/* FLOATING MULTI-ROOM SELECTION ACTION DOCK                                 */}

@@ -70,7 +70,7 @@ export default function Footer() {
             <ul className="space-y-3 text-xs font-medium">
               <li><Link href="/contact" className="hover:text-[#00D0B4] transition-colors">Help Center</Link></li>
               <li><Link href="/terms" className="hover:text-[#00D0B4] transition-colors">Terms of Service</Link></li>
-              <li><Link href="/privacy" className="hover:text-[#00D0B4] transition-colors text-[#00D0B4]">Privacy Policy</Link></li>
+              <li><Link href="/privacy" className="hover:text-[#00D0B4] transition-colors">Privacy Policy</Link></li>
               <li><Link href="/contact" className="hover:text-[#00D0B4] transition-colors">Contact</Link></li>
             </ul>
           </div>
@@ -85,7 +85,7 @@ export default function Footer() {
               </li>
               <li className="flex items-center gap-3">
                 <Mail className="w-4 h-4 text-[#00D0B4]" />
-                <span>support@grandroyale.com</span>
+                <span>support@myownpms.com</span>
               </li>
               <li className="flex items-center gap-3">
                 <MapPin className="w-4 h-4 text-[#00D0B4]" />
@@ -97,7 +97,7 @@ export default function Footer() {
 
         {/* Bottom Social & Copyright */}
         <div className="mt-12 pt-8 border-t border-[#0F4A42]/60 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-medium text-slate-400">
-          <div>© {new Date().getFullYear()} Grand Royale. All rights reserved.</div>
+          <div>© {new Date().getFullYear()} MYOWNPMS. All rights reserved.</div>
         </div>
       </div>
     </footer>

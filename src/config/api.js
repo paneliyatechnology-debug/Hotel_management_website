@@ -6,7 +6,7 @@
  * - "LIVE"  -> https://hotelmanagementbackend-dev.up.railway.app
  */
 
-export const ENVIRONMENT = "LIVE"; // 👉 Toggle "LOCAL" or "LIVE" here
+export const ENVIRONMENT = "LOCAL"; // 👉 Toggle "LOCAL" or "LIVE" here
 
 export const LOCAL_API_URL = "http://localhost:5000";
 export const LIVE_API_URL = "https://hotelmanagementbackend-dev.up.railway.app";
@@ -110,6 +110,7 @@ export const API_ENDPOINTS = {
     SETTLE_HANDOVER: `${API_BASE_URL}/api/v1/admin/daily-collections/handover`,
     PROFILE: `${API_BASE_URL}/api/v1/admin/profile`,
     REPORTS: `${API_BASE_URL}/api/v1/admin/reports`,
+    REVENUE_DETAILS: `${API_BASE_URL}/api/v1/admin/revenue-details`,
   },
   RECEPTIONIST: {
     DASHBOARD: `${API_BASE_URL}/api/v1/receptionist/dashboard`,
@@ -120,6 +121,7 @@ export const API_ENDPOINTS = {
     UPDATE_ROOM: (id) => `${API_BASE_URL}/api/v1/receptionist/rooms/${id}`,
     DELETE_ROOM: (id) => `${API_BASE_URL}/api/v1/receptionist/rooms/${id}`,
     GUESTS: `${API_BASE_URL}/api/v1/receptionist/guests`,
+    GUEST_BY_ID: (id) => `${API_BASE_URL}/api/v1/receptionist/guests/${id}`,
     GUEST_LOOKUP: (query) => `${API_BASE_URL}/api/v1/receptionist/guests/lookup?query=${encodeURIComponent(query)}`,
     DELETE_GUEST: (id) => `${API_BASE_URL}/api/v1/receptionist/guests/${id}`,
     VERIFY_GUEST_ID: (id) => `${API_BASE_URL}/api/v1/receptionist/guests/${id}/verify-id`,
@@ -137,6 +139,8 @@ export const API_ENDPOINTS = {
   SETTINGS: {
     PUBLIC: `${API_BASE_URL}/api/v1/settings`,
   },
+  UPLOAD: `${API_BASE_URL}/api/v1/upload`,
+  UPLOAD_MULTIPLE: `${API_BASE_URL}/api/v1/upload/multiple`,
   TRIAL_REQUESTS: {
     SUBMIT: `${API_BASE_URL}/api/v1/hotels/request-trial-extension`,
     SUPER_ADMIN_LIST: `${API_BASE_URL}/api/v1/super-admin/trial-requests`,
@@ -193,6 +197,13 @@ export async function apiRequest(endpoint, options = {}) {
     fullUrl = `${currentBase}/${endpoint.replace(/^\/+/, "")}`;
   }
 
+  console.log(`📡 [API Request] ${method} -> ${fullUrl}`, {
+    baseUrl: currentBase,
+    endpoint,
+    payload: body ? (typeof body === 'string' ? JSON.parse(body) : body) : null,
+    headers: reqHeaders,
+  });
+
   // Generate fallback candidates in case fetch fails
   const candidateUrls = [fullUrl];
   if (fullUrl.includes("localhost:5000")) {
@@ -219,18 +230,24 @@ export async function apiRequest(endpoint, options = {}) {
       if (response && response.ok) break;
     } catch (netErr) {
       lastError = netErr;
-      console.warn(`[API Network Warning] Attempt to reach ${targetUrl} failed, trying next candidate...`);
+      console.warn(`⚠️ [API Network Retry] Attempt to reach ${targetUrl} failed, trying next candidate...`);
     }
   }
 
   if (!response) {
-    console.error(`[API Network Error] All candidates failed for ${fullUrl}:`, lastError);
+    console.error(`❌ [API Network Error] All candidates failed for ${fullUrl}:`, lastError);
     throw new Error(
       `Network request failed to reach the server. Please check if the backend server is running.`
     );
   }
 
   const data = await response.json().catch(() => ({}));
+
+  if (response.ok) {
+    console.log(`✅ [API Response ${response.status}] <- ${fullUrl}`, data);
+  } else {
+    console.warn(`⚠️ [API Error ${response.status}] <- ${fullUrl}`, data);
+  }
 
   if (!response.ok) {
     if (

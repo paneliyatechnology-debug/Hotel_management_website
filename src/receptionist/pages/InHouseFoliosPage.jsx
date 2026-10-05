@@ -28,6 +28,7 @@ import {
   InputLabel,
   Select,
   IconButton,
+  Grid,
   Divider,
   TablePagination,
 } from "@mui/material";
@@ -51,12 +52,16 @@ import {
   InfoOutlined,
   Fastfood,
   Check,
+  WhatsApp,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import StatCard from "@/shared/components/StatCard";
+import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
 import { formatTime12Hour, calculateOverstayFee } from "@/shared/utils/timeUtils";
+import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
+import { Alert, Snackbar } from "@mui/material";
 
 export default function InHouseFoliosPage({
   bookings = [],
@@ -77,12 +82,14 @@ export default function InHouseFoliosPage({
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [toast, setToast] = useState({ open: false, message: "", severity: "info" });
 
   // Check-Out Settlement Dialog State
   const [checkoutDialog, setCheckoutDialog] = useState({
     open: false,
     booking: null,
     overstay: null,
+    lateOption: "hourly",
     lateFee: 0,
     paymentMethod: "CASH",
     amount: 0,
@@ -95,6 +102,16 @@ export default function InHouseFoliosPage({
     open: false,
     booking: null,
   });
+
+  // Guest Details Dossier Modal State
+  const [selectedGuestModal, setSelectedGuestModal] = useState({
+    open: false,
+    guest: null,
+    guestId: null,
+  });
+
+  // Full-size Photo Preview Modal State
+  const [previewImage, setPreviewImage] = useState(null);
 
   const hotelUpi = hotelSettings?.upiId || "jatinkakadiya234-1@okicici";
   const checkOutTimeFormatted = formatTime12Hour(hotelSettings?.checkOutTime || "12:00");
@@ -174,7 +191,8 @@ export default function InHouseFoliosPage({
   });
 
   const handleOpenCheckout = (booking) => {
-    const overstay = calculateOverstayFee(booking, hotelSettings);
+    const defaultOption = "hourly";
+    const overstay = calculateOverstayFee(booking, hotelSettings, { selectedOption: defaultOption });
     const posChargesTotal = (booking.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
     const grandTotal = (booking.totalAmount || 0) + posChargesTotal + (overstay.lateFee || 0);
     const paidTotal = booking.paidAmount || 0;
@@ -184,6 +202,7 @@ export default function InHouseFoliosPage({
       open: true,
       booking,
       overstay,
+      lateOption: defaultOption,
       lateFee: overstay.lateFee || 0,
       paymentMethod: due > 0 ? "UPI" : "CASH",
       amount: due,
@@ -192,12 +211,36 @@ export default function InHouseFoliosPage({
     });
   };
 
+  const handleLateOptionChange = (newOption) => {
+    if (!checkoutDialog.booking) return;
+    const overstay = calculateOverstayFee(checkoutDialog.booking, hotelSettings, { selectedOption: newOption });
+    const posChargesTotal = (checkoutDialog.booking.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
+    const grandTotal = (checkoutDialog.booking.totalAmount || 0) + posChargesTotal + (overstay.lateFee || 0);
+    const paidTotal = checkoutDialog.booking.paidAmount || 0;
+    const due = Math.max(0, grandTotal - paidTotal);
+
+    setCheckoutDialog((prev) => ({
+      ...prev,
+      overstay,
+      lateOption: newOption,
+      lateFee: overstay.lateFee || 0,
+      amount: due,
+      paymentMethod: due > 0 ? prev.paymentMethod || "UPI" : "CASH",
+    }));
+  };
+
   const handleConfirmCheckout = () => {
     if (checkoutDialog.booking && onCheckOut) {
       onCheckOut(checkoutDialog.booking, {
         paymentMethod: checkoutDialog.paymentMethod,
         settlementPaymentAmount: Number(checkoutDialog.amount) || 0,
         lateCheckoutFee: Number(checkoutDialog.lateFee) || 0,
+        lateCheckoutType: checkoutDialog.overstay?.lateCheckoutType || checkoutDialog.lateOption || "none",
+        lateCheckoutHours: checkoutDialog.overstay?.chargeableHours || 0,
+        lateCheckoutMinutes: checkoutDialog.overstay?.overdueMinutes || 0,
+        hourlyRate: checkoutDialog.overstay?.hourlyRate || 0,
+        dailyRoomRate: checkoutDialog.overstay?.dailyRate || 0,
+        gracePeriodMinutes: checkoutDialog.overstay?.gracePeriodMinutes || 10,
         overstayData: checkoutDialog.overstay,
         transactionId: checkoutDialog.transactionId,
         paymentReference: checkoutDialog.paymentReference,
@@ -206,6 +249,9 @@ export default function InHouseFoliosPage({
     setCheckoutDialog({
       open: false,
       booking: null,
+      overstay: null,
+      lateOption: "hourly",
+      lateFee: 0,
       paymentMethod: "CASH",
       amount: 0,
       transactionId: "",
@@ -483,19 +529,63 @@ export default function InHouseFoliosPage({
 
                       {/* Guest Details */}
                       <TableCell sx={{ whiteSpace: "nowrap" }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1.2,
+                            cursor: "pointer",
+                            "&:hover": { opacity: 0.8 },
+                          }}
+                          onClick={() => {
+                            const targetGuest = b.guest || {
+                              name: b.guestName || b.guest?.name,
+                              mobileNumber: b.guestPhone || b.guest?.mobileNumber,
+                              email: b.guestEmail || b.guest?.email,
+                              roomAssigned: roomsList.join(", "),
+                              booking: b,
+                            };
+                            setSelectedGuestModal({
+                              open: true,
+                              guest: targetGuest,
+                              guestId: b.guest?._id || b.guest?.id || (typeof b.guest === "string" ? b.guest : null),
+                            });
+                          }}
+                        >
                           <Avatar sx={{ bgcolor: themeConfig.primary, width: 34, height: 34, fontSize: "0.85rem", fontWeight: 800 }}>
                             {guestName.charAt(0).toUpperCase()}
                           </Avatar>
                           <div>
-                            <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                            <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, "&:hover": { textDecoration: "underline" } }}>
                               {guestName}
                             </Typography>
-                            {guestPhone && (
-                              <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "flex", alignItems: "center", gap: 0.5 }}>
-                                <Phone sx={{ fontSize: 11 }} /> {guestPhone}
-                              </Typography>
-                            )}
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, flexWrap: "wrap", mt: 0.4 }}>
+                              {guestPhone && (
+                                <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "flex", alignItems: "center", gap: 0.5 }}>
+                                  <Phone sx={{ fontSize: 11 }} /> {guestPhone}
+                                </Typography>
+                              )}
+                              {(b.guest?.idProof?.frontImage || b.guest?.frontImage) && (
+                                <Chip
+                                  label="📄 ID Photo"
+                                  size="small"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPreviewImage(b.guest?.idProof?.frontImage || b.guest?.frontImage);
+                                  }}
+                                  sx={{
+                                    height: 18,
+                                    fontSize: "0.65rem",
+                                    fontWeight: 800,
+                                    bgcolor: "rgba(16, 185, 129, 0.12)",
+                                    color: "#059669",
+                                    border: "1px solid rgba(16, 185, 129, 0.3)",
+                                    cursor: "pointer",
+                                    "&:hover": { bgcolor: "#10B981", color: "#FFF" },
+                                  }}
+                                />
+                              )}
+                            </Box>
                             {b.accompanyingGuests && b.accompanyingGuests.length > 0 && (
                               <Tooltip title={b.accompanyingGuests.map((m) => `${m.name} (${m.relationship || 'Family'})`).join(', ')}>
                                 <Chip
@@ -676,87 +766,95 @@ export default function InHouseFoliosPage({
                       </TableCell>
 
                       {/* Actions */}
-                      <TableCell align="right" sx={{ whiteSpace: "nowrap", pr: 2 }}>
-                        <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end", alignItems: "center" }}>
-                          {b.status === "CHECKED_IN" && (
-                            <Tooltip title="Post POS Ancillary Charge (In-Room Dining / Laundry / Spa)">
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                startIcon={<Add sx={{ fontSize: 14 }} />}
-                                onClick={() => onOpenPosCharge(b)}
-                                className="btn-3d"
-                                sx={{
-                                  borderColor: themeConfig.border,
-                                  bgcolor: themeConfig.bgCard,
-                                  color: themeConfig.textMain,
-                                  borderRadius: "10px",
-                                  fontSize: "0.75rem",
-                                  fontWeight: 700,
-                                  px: 1.2,
-                                  py: 0.4,
-                                  whiteSpace: "nowrap",
-                                  boxShadow: "0 2px 4px rgba(0,0,0,0.03)",
-                                  "&:hover": {
-                                    bgcolor: themeConfig.champagne,
-                                    borderColor: themeConfig.primary,
-                                  },
-                                }}
-                              >
-                                Charge
-                              </Button>
-                            </Tooltip>
-                          )}
-
-                          <Tooltip title="View & Print Official Tax Invoice">
-                            <Button
+                      <TableCell align="right" sx={{ whiteSpace: "nowrap", pr: 2.5 }}>
+                        <Box sx={{ display: "flex", gap: 0.8, justifyContent: "flex-end", alignItems: "center" }}>
+                          {/* 1. WhatsApp Notification */}
+                          <Tooltip title={b.status === "CHECKED_IN" ? "Send Check-In Confirmation on WhatsApp" : "Send Final Bill on WhatsApp"}>
+                            <IconButton
                               size="small"
-                              variant="contained"
-                              startIcon={<Receipt sx={{ fontSize: 14 }} />}
-                              onClick={() => onOpenInvoice(b)}
-                              className="btn-3d"
+                              onClick={() => {
+                                if (b.status === "CHECKED_IN") {
+                                  sendCheckInWhatsApp({
+                                    booking: b,
+                                    guest: b.guest || { name: b.guestName, mobileNumber: b.guestPhone },
+                                    hotel: hotelSettings,
+                                    onShowToast: (msg, sev) => setToast({ open: true, message: msg, severity: sev }),
+                                  });
+                                } else {
+                                  sendCheckoutBillWhatsApp({
+                                    booking: b,
+                                    guest: b.guest || { name: b.guestName, mobileNumber: b.guestPhone },
+                                    hotel: hotelSettings,
+                                    onShowToast: (msg, sev) => setToast({ open: true, message: msg, severity: sev }),
+                                  });
+                                }
+                              }}
                               sx={{
-                                background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                                color: "#FFFFFF",
+                                color: "#25D366",
+                                bgcolor: "rgba(37, 211, 102, 0.08)",
+                                border: "1px solid rgba(37, 211, 102, 0.28)",
                                 borderRadius: "10px",
-                                fontSize: "0.75rem",
-                                fontWeight: 800,
-                                px: 1.4,
-                                py: 0.4,
-                                whiteSpace: "nowrap",
-                                boxShadow: `0 4px 12px ${themeConfig.primaryGlow}`,
+                                p: 0.8,
+                                transition: "all 0.18s ease",
+                                "&:hover": {
+                                  bgcolor: "#25D366",
+                                  color: "#FFFFFF",
+                                  transform: "translateY(-2px)",
+                                  boxShadow: "0 4px 10px rgba(37, 211, 102, 0.35)",
+                                },
                               }}
                             >
-                              Invoice
-                            </Button>
+                              <WhatsApp sx={{ fontSize: 18 }} />
+                            </IconButton>
                           </Tooltip>
 
+                          {/* 3. View / Download Invoice */}
+                          <Tooltip title="View & Print Tax Invoice">
+                            <IconButton
+                              size="small"
+                              onClick={() => onOpenInvoice(b)}
+                              sx={{
+                                color: themeConfig.primary,
+                                bgcolor: isDarkMode ? "rgba(11, 142, 224, 0.12)" : themeConfig.champagne,
+                                border: `1px solid ${themeConfig.border}`,
+                                borderRadius: "10px",
+                                p: 0.8,
+                                transition: "all 0.18s ease",
+                                "&:hover": {
+                                  background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
+                                  color: "#FFFFFF",
+                                  transform: "translateY(-2px)",
+                                  boxShadow: `0 4px 10px ${themeConfig.primaryGlow}`,
+                                },
+                              }}
+                            >
+                              <Receipt sx={{ fontSize: 18 }} />
+                            </IconButton>
+                          </Tooltip>
+
+                          {/* 4. Check-Out Guest */}
                           {b.status === "CHECKED_IN" && (
-                            <Tooltip title="Process Final Check-Out & Mark Room for Cleaning">
-                              <Button
+                            <Tooltip title="Check-Out Guest & Release Room">
+                              <IconButton
                                 size="small"
-                                variant="outlined"
-                                startIcon={<Logout sx={{ fontSize: 14 }} />}
-                                color="error"
                                 onClick={() => handleOpenCheckout(b)}
-                                className="btn-3d"
                                 sx={{
+                                  color: "#DC2626",
+                                  bgcolor: "rgba(220, 38, 38, 0.08)",
+                                  border: "1px solid rgba(220, 38, 38, 0.28)",
                                   borderRadius: "10px",
-                                  fontSize: "0.75rem",
-                                  fontWeight: 800,
-                                  px: 1.2,
-                                  py: 0.4,
-                                  whiteSpace: "nowrap",
-                                  borderColor: "rgba(220, 38, 38, 0.3)",
-                                  color: themeConfig.danger,
+                                  p: 0.8,
+                                  transition: "all 0.18s ease",
                                   "&:hover": {
-                                    borderColor: themeConfig.danger,
-                                    bgcolor: "rgba(220, 38, 38, 0.08)",
+                                    bgcolor: "#DC2626",
+                                    color: "#FFFFFF",
+                                    transform: "translateY(-2px)",
+                                    boxShadow: "0 4px 10px rgba(220, 38, 38, 0.35)",
                                   },
                                 }}
                               >
-                                Check-Out
-                              </Button>
+                                <Logout sx={{ fontSize: 18 }} />
+                              </IconButton>
                             </Tooltip>
                           )}
                         </Box>
@@ -840,30 +938,225 @@ export default function InHouseFoliosPage({
               </Box>
             </Paper>
 
-            {/* Automatic Late Check-Out Policy Notice */}
-            {checkoutDialog.lateFee > 0 && (
+            {/* LATE CHECKOUT DETECTED SECTION (PART E) */}
+            {checkoutDialog.overstay?.isLate && (
               <Paper
                 sx={{
-                  p: 2,
-                  borderRadius: "14px",
-                  bgcolor: "rgba(239, 68, 68, 0.08)",
-                  border: "1.5px dashed rgba(239, 68, 68, 0.4)",
+                  p: 2.5,
+                  borderRadius: "16px",
+                  bgcolor: "rgba(239, 68, 68, 0.06)",
+                  border: "1.5px solid rgba(239, 68, 68, 0.35)",
                 }}
               >
-                <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.2 }}>
-                  <Warning sx={{ color: "#DC2626", fontSize: 24, mt: 0.2 }} />
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 1.5 }}>
+                  <Avatar sx={{ bgcolor: "#DC2626", color: "#FFF", width: 30, height: 30 }}>
+                    <Schedule sx={{ fontSize: 18 }} />
+                  </Avatar>
                   <div>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 900, color: "#DC2626" }}>
-                      ⏰ Automatic Late Check-Out Policy Applied (+₹{checkoutDialog.lateFee.toLocaleString()})
+                    <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#DC2626", lineHeight: 1.2 }}>
+                      Late Checkout Detected
                     </Typography>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMain, display: "block", mt: 0.4, lineHeight: 1.45 }}>
-                      The guest stayed <strong>+{checkoutDialog.overstay?.overdueHours} hours</strong> past standard check-out deadline ({formatTime12Hour(checkoutDialog.overstay?.scheduledCheckOutTime || "12:00")}).
-                      An additional <strong>{checkoutDialog.overstay?.extraDays} day room tariff</strong> (₹{checkoutDialog.overstay?.dailyRate?.toLocaleString()}/day) has been automatically added to this departure settlement bill.
+                    <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
+                      Exceeded standard {checkoutDialog.overstay?.gracePeriodMinutes}-minute grace period
                     </Typography>
                   </div>
                 </Box>
+
+                {/* Breakdown Grid */}
+                <Grid container spacing={1.5} sx={{ mb: 2 }}>
+                  <Grid size={{ xs: 6, sm: 3 }}>
+                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block" }}>Scheduled Checkout</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                      {formatTime12Hour(checkoutDialog.overstay?.scheduledCheckOutTime || "12:00")}
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 6, sm: 3 }}>
+                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block" }}>Actual Checkout</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 800, color: "#DC2626" }}>
+                      {formatTime12Hour(checkoutDialog.overstay?.actualCheckOutTime || "12:00")}
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 6, sm: 3 }}>
+                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block" }}>Late Duration</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 900, color: "#DC2626" }}>
+                      {checkoutDialog.overstay?.chargeableHours} Hour{checkoutDialog.overstay?.chargeableHours !== 1 ? "s" : ""}
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 6, sm: 3 }}>
+                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block" }}>Hourly Rate (Rent ÷ 12)</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.primary }}>
+                      ₹{checkoutDialog.overstay?.hourlyRate?.toLocaleString()}/hr
+                    </Typography>
+                  </Grid>
+                </Grid>
+
+                <Divider sx={{ my: 1.5, borderColor: "rgba(239, 68, 68, 0.2)" }} />
+
+                <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.textMain, display: "block", mb: 1, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Select Charging Option:
+                </Typography>
+
+                <Grid container spacing={1.5}>
+                  {/* OPTION 1: Charge Full Day */}
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <Paper
+                      onClick={() => handleLateOptionChange("full_day")}
+                      sx={{
+                        p: 1.5,
+                        borderRadius: "12px",
+                        cursor: "pointer",
+                        border: `2px solid ${checkoutDialog.lateOption === "full_day" ? "#DC2626" : "rgba(239, 68, 68, 0.25)"}`,
+                        bgcolor: checkoutDialog.lateOption === "full_day" ? "#FEF2F2" : "#FFFFFF",
+                        transition: "all 0.2s ease",
+                        "&:hover": { borderColor: "#DC2626" },
+                      }}
+                    >
+                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 900, color: checkoutDialog.lateOption === "full_day" ? "#DC2626" : themeConfig.textMain }}>
+                            Option 1 — Charge Full Day
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
+                            Full Day Charge: ₹{checkoutDialog.overstay?.fullDayCharge?.toLocaleString()}
+                          </Typography>
+                        </div>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#DC2626" }}>
+                          ₹{checkoutDialog.overstay?.fullDayCharge?.toLocaleString()}
+                        </Typography>
+                      </Box>
+                    </Paper>
+                  </Grid>
+
+                  {/* OPTION 2: Charge By Hour */}
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <Paper
+                      onClick={() => handleLateOptionChange("hourly")}
+                      sx={{
+                        p: 1.5,
+                        borderRadius: "12px",
+                        cursor: "pointer",
+                        border: `2px solid ${checkoutDialog.lateOption === "hourly" ? "#059669" : "rgba(5, 150, 105, 0.25)"}`,
+                        bgcolor: checkoutDialog.lateOption === "hourly" ? "#F0FDF4" : "#FFFFFF",
+                        transition: "all 0.2s ease",
+                        "&:hover": { borderColor: "#059669" },
+                      }}
+                    >
+                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 900, color: checkoutDialog.lateOption === "hourly" ? "#059669" : themeConfig.textMain }}>
+                            Option 2 — Charge {checkoutDialog.overstay?.chargeableHours} Hour{checkoutDialog.overstay?.chargeableHours !== 1 ? "s" : ""}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
+                            ₹{checkoutDialog.overstay?.hourlyRate}/hr &times; {checkoutDialog.overstay?.chargeableHours}h
+                          </Typography>
+                        </div>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#059669" }}>
+                          ₹{checkoutDialog.overstay?.hourlyCharge?.toLocaleString()}
+                        </Typography>
+                      </Box>
+                    </Paper>
+                  </Grid>
+                </Grid>
               </Paper>
             )}
+
+            {/* ITEMISED FOLIO BILL BREAKDOWN TABLE */}
+            <Paper
+              sx={{
+                p: 2,
+                borderRadius: "16px",
+                border: `1px solid ${themeConfig.border}`,
+                bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#FFFFFF",
+              }}
+            >
+              <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                <Receipt sx={{ fontSize: 18, color: themeConfig.primary }} />
+                Folio Billing & Settlement Breakdown
+              </Typography>
+              <TableContainer sx={{ borderRadius: "10px", border: `1px solid ${themeConfig.border}` }}>
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: themeConfig.champagne }}>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 800, fontSize: "0.78rem" }}>Bill Item / Description</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 800, fontSize: "0.78rem" }}>Amount (₹)</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {/* Base Room Stay Tariff */}
+                    <TableRow>
+                      <TableCell sx={{ fontSize: "0.82rem", color: themeConfig.textMain }}>
+                        <strong>Room Stay Tariff</strong>
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
+                          {checkoutDialog.booking?.roomType?.name || "Room"} &bull; {checkoutDialog.booking?.checkInDate || "In"} to {checkoutDialog.booking?.checkOutDate || "Out"}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.85rem" }}>
+                        ₹{(checkoutDialog.booking?.totalAmount || 0).toLocaleString()}
+                      </TableCell>
+                    </TableRow>
+
+                    {/* Late Checkout Fee if applicable */}
+                    {checkoutDialog.lateFee > 0 && (
+                      <TableRow sx={{ bgcolor: "rgba(239, 68, 68, 0.04)" }}>
+                        <TableCell sx={{ fontSize: "0.82rem", color: "#DC2626" }}>
+                          <strong>⏰ Late Check-Out Charge ({checkoutDialog.lateOption === "full_day" ? "Full Day" : `${checkoutDialog.overstay?.chargeableHours || 0} Extra Hours`})</strong>
+                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
+                            {checkoutDialog.lateOption === "full_day"
+                              ? "Charged standard 1-day tariff"
+                              : `${checkoutDialog.overstay?.chargeableHours || 0} hrs @ ₹${checkoutDialog.overstay?.hourlyRate || 0}/hr`}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 800, color: "#DC2626", fontSize: "0.85rem" }}>
+                          +₹{Number(checkoutDialog.lateFee).toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    )}
+
+                    {/* Ancillary / POS Charges if any */}
+                    {(checkoutDialog.booking?.posCharges || []).map((c, i) => (
+                      <TableRow key={i}>
+                        <TableCell sx={{ fontSize: "0.82rem", color: themeConfig.textMain }}>
+                          {c.description || c.item || `Extra Service (${c.serviceType || "POS"})`}
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.85rem" }}>
+                          +₹{(c.amount || 0).toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+
+                    {/* Grand Total */}
+                    <TableRow sx={{ bgcolor: themeConfig.champagne }}>
+                      <TableCell sx={{ fontWeight: 900, fontSize: "0.85rem", color: themeConfig.textMain }}>
+                        Total Folio Bill
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 900, fontSize: "0.92rem", color: themeConfig.textMain }}>
+                        ₹{((checkoutDialog.booking?.totalAmount || 0) + (checkoutDialog.lateFee || 0) + ((checkoutDialog.booking?.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0))).toLocaleString()}
+                      </TableCell>
+                    </TableRow>
+
+                    {/* Advance Already Paid */}
+                    <TableRow>
+                      <TableCell sx={{ fontSize: "0.82rem", color: "#059669" }}>
+                        <strong>Advance Payment Paid at Check-In</strong>
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 800, color: "#059669", fontSize: "0.85rem" }}>
+                        -₹{(checkoutDialog.booking?.paidAmount || 0).toLocaleString()}
+                      </TableCell>
+                    </TableRow>
+
+                    {/* Balance to Settle */}
+                    <TableRow sx={{ bgcolor: checkoutDialog.amount > 0 ? "rgba(239, 68, 68, 0.08)" : "rgba(16, 185, 129, 0.08)" }}>
+                      <TableCell sx={{ fontWeight: 900, fontSize: "0.88rem", color: checkoutDialog.amount > 0 ? "#DC2626" : "#059669" }}>
+                        {checkoutDialog.amount > 0 ? "Net Amount to Collect at Checkout:" : "Folio Balance Status:"}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 900, fontSize: "1rem", color: checkoutDialog.amount > 0 ? "#DC2626" : "#059669" }}>
+                        {checkoutDialog.amount > 0 ? `₹${checkoutDialog.amount.toLocaleString()}` : "₹0 (Fully Cleared)"}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Paper>
 
             {/* Dues & Payment Section */}
             {checkoutDialog.amount > 0 ? (
@@ -1012,29 +1305,71 @@ export default function InHouseFoliosPage({
           </Box>
         </DialogContent>
 
-        <DialogActions sx={{ p: 2, gap: 1 }}>
+        <DialogActions sx={{ p: 2.5, pt: 1, display: "flex", flexDirection: "column", gap: 1.5 }}>
           <Button
-            onClick={() => setCheckoutDialog({ open: false, booking: null, paymentMethod: "CASH", amount: 0, transactionId: "", paymentReference: "" })}
-            sx={{ borderRadius: "10px", fontWeight: 700 }}
-          >
-            Cancel
-          </Button>
-
-          <Button
+            fullWidth
             variant="contained"
-            onClick={handleConfirmCheckout}
-            className="btn-3d"
+            startIcon={<WhatsApp sx={{ color: "#FFFFFF" }} />}
+            onClick={() => {
+              sendCheckoutBillWhatsApp({
+                booking: checkoutDialog.booking,
+                guest: checkoutDialog.booking?.guest || { name: checkoutDialog.booking?.guestName, mobileNumber: checkoutDialog.booking?.guestPhone },
+                hotel: hotelSettings,
+                settlementData: {
+                  settlementPaymentAmount: checkoutDialog.amount,
+                  lateCheckoutFee: checkoutDialog.lateFee,
+                },
+                onShowToast: (msg, sev) => setToast({ open: true, message: msg, severity: sev }),
+              });
+            }}
             sx={{
-              background: `linear-gradient(135deg, ${themeConfig.danger} 0%, #B91C1C 100%)`,
-              color: "#FFFFFF",
+              borderRadius: "12px",
               fontWeight: 800,
-              borderRadius: "10px",
-              px: 3,
-              boxShadow: "0 4px 12px rgba(220, 38, 38, 0.3)",
+              py: 1.2,
+              bgcolor: "#25D366",
+              color: "#FFFFFF",
+              boxShadow: "0 4px 14px rgba(37, 211, 102, 0.3)",
+              "&:hover": { bgcolor: "#1EBE5D" },
             }}
           >
-            Confirm & Settle Check-Out
+            Send Bill on WhatsApp
           </Button>
+
+          <Box sx={{ display: "flex", width: "100%", gap: 1.5 }}>
+            <Button
+              fullWidth
+              variant="outlined"
+              onClick={() => setCheckoutDialog({ open: false, booking: null, paymentMethod: "CASH", amount: 0, transactionId: "", paymentReference: "" })}
+              sx={{
+                borderRadius: "12px",
+                fontWeight: 700,
+                py: 1.1,
+                borderColor: themeConfig.border,
+                color: themeConfig.textMain,
+                bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
+                "&:hover": { borderColor: themeConfig.primary, bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)" },
+              }}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              fullWidth
+              variant="contained"
+              onClick={handleConfirmCheckout}
+              className="btn-3d"
+              sx={{
+                background: `linear-gradient(135deg, ${themeConfig.danger} 0%, #B91C1C 100%)`,
+                color: "#FFFFFF",
+                fontWeight: 800,
+                py: 1.1,
+                borderRadius: "12px",
+                boxShadow: "0 4px 14px rgba(220, 38, 38, 0.3)",
+              }}
+            >
+              Confirm & Settle Check-Out
+            </Button>
+          </Box>
         </DialogActions>
       </Dialog>
 
@@ -1097,7 +1432,107 @@ export default function InHouseFoliosPage({
                       </Box>
                     </Box>
                   )}
-                </Paper>
+
+                  {/* Guest ID & Documents Showcase */}
+                  {(b.guest?.idProof?.frontImage || b.guest?.frontImage || b.guest?.idProof?.backImage || b.guest?.backImage || (b.accompanyingGuests && b.accompanyingGuests.some(m => m.frontImage || m.backImage))) && (
+                      <Box sx={{ mt: 2, pt: 1.5, borderTop: `1px dashed ${themeConfig.border}` }}>
+                        <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.primaryDark, display: "block", mb: 1 }}>
+                          📄 Guest ID Documents & Photo Verification:
+                        </Typography>
+                        <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+                          {/* Main Guest Front ID */}
+                          {(b.guest?.idProof?.frontImage || b.guest?.frontImage) && (
+                            <Paper
+                              sx={{
+                                p: 1,
+                                borderRadius: "10px",
+                                border: "1px solid #10B981",
+                                bgcolor: "rgba(16, 185, 129, 0.04)",
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                gap: 0.5,
+                                cursor: "pointer",
+                                "&:hover": { boxShadow: "0 4px 12px rgba(16, 185, 129, 0.2)" },
+                              }}
+                              onClick={() => setPreviewImage(b.guest?.idProof?.frontImage || b.guest?.frontImage)}
+                            >
+                              <Box
+                                component="img"
+                                src={b.guest?.idProof?.frontImage || b.guest?.frontImage}
+                                alt="Main Guest Front ID"
+                                sx={{ width: 110, height: 70, objectFit: "cover", borderRadius: "6px" }}
+                              />
+                              <Typography variant="caption" sx={{ fontWeight: 800, color: "#059669", fontSize: "0.68rem" }}>
+                                Main Front ID
+                              </Typography>
+                            </Paper>
+                          )}
+
+                          {/* Main Guest Back ID */}
+                          {(b.guest?.idProof?.backImage || b.guest?.backImage) && (
+                            <Paper
+                              sx={{
+                                p: 1,
+                                borderRadius: "10px",
+                                border: `1px solid ${themeConfig.border}`,
+                                bgcolor: themeConfig.bgCard,
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                gap: 0.5,
+                                cursor: "pointer",
+                                "&:hover": { borderColor: themeConfig.primary },
+                              }}
+                              onClick={() => setPreviewImage(b.guest?.idProof?.backImage || b.guest?.backImage)}
+                            >
+                              <Box
+                                component="img"
+                                src={b.guest?.idProof?.backImage || b.guest?.backImage}
+                                alt="Main Guest Back ID"
+                                sx={{ width: 110, height: 70, objectFit: "cover", borderRadius: "6px" }}
+                              />
+                              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, fontSize: "0.68rem" }}>
+                                Main Back ID
+                              </Typography>
+                            </Paper>
+                          )}
+
+                          {/* Accompanying Member IDs */}
+                          {(b.accompanyingGuests || []).map((m, mIdx) => (
+                            m.frontImage ? (
+                              <Paper
+                                key={mIdx}
+                                sx={{
+                                  p: 1,
+                                  borderRadius: "10px",
+                                  border: `1px solid ${themeConfig.border}`,
+                                  bgcolor: themeConfig.bgCard,
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  alignItems: "center",
+                                  gap: 0.5,
+                                  cursor: "pointer",
+                                  "&:hover": { borderColor: themeConfig.primary },
+                                }}
+                                onClick={() => setPreviewImage(m.frontImage)}
+                              >
+                                <Box
+                                  component="img"
+                                  src={m.frontImage}
+                                  alt={`${m.name} ID`}
+                                  sx={{ width: 110, height: 70, objectFit: "cover", borderRadius: "6px" }}
+                                />
+                                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.primary, fontSize: "0.68rem" }}>
+                                  {m.name || `Member ${mIdx + 1}`}
+                                </Typography>
+                              </Paper>
+                            ) : null
+                          ))}
+                        </Box>
+                      </Box>
+                    )}
+                  </Paper>
 
                 {overstay.isOverstay && (
                   <Paper sx={{ p: 1.8, borderRadius: "14px", bgcolor: "rgba(239, 68, 68, 0.08)", border: "1.5px dashed rgba(239, 68, 68, 0.4)" }}>
@@ -1179,30 +1614,129 @@ export default function InHouseFoliosPage({
           })()}
         </DialogContent>
 
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setDetailsModal({ open: false, booking: null })} sx={{ borderRadius: "10px" }}>
-            Close
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<Receipt />}
-            onClick={() => {
-              const b = detailsModal.booking;
-              setDetailsModal({ open: false, booking: null });
-              if (onOpenInvoice) onOpenInvoice(b);
-            }}
-            className="btn-3d"
-            sx={{
-              background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-              color: "#FFFFFF",
-              fontWeight: 800,
-              borderRadius: "10px",
-            }}
-          >
-            View Tax Invoice
-          </Button>
+        <DialogActions sx={{ p: 2, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 1 }}>
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <Button
+              variant="contained"
+              startIcon={<WhatsApp sx={{ color: "#FFFFFF" }} />}
+              onClick={() => {
+                const b = detailsModal.booking;
+                sendCheckoutBillWhatsApp({
+                  booking: b,
+                  guest: b?.guest || { name: b?.guestName, mobileNumber: b?.guestPhone },
+                  hotel: hotelSettings,
+                  onShowToast: (msg, sev) => setToast({ open: true, message: msg, severity: sev }),
+                });
+              }}
+              sx={{
+                borderRadius: "10px",
+                fontWeight: 800,
+                bgcolor: "#25D366",
+                color: "#FFFFFF",
+                boxShadow: "0 4px 12px rgba(37, 211, 102, 0.3)",
+                "&:hover": { bgcolor: "#1EBE5D" },
+              }}
+            >
+              Send Bill on WhatsApp
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<WhatsApp sx={{ color: "#25D366" }} />}
+              onClick={() => {
+                const b = detailsModal.booking;
+                sendCheckInWhatsApp({
+                  booking: b,
+                  guest: b?.guest || { name: b?.guestName, mobileNumber: b?.guestPhone },
+                  hotel: hotelSettings,
+                  onShowToast: (msg, sev) => setToast({ open: true, message: msg, severity: sev }),
+                });
+              }}
+              sx={{
+                borderRadius: "10px",
+                fontWeight: 800,
+                borderColor: "rgba(37, 211, 102, 0.5)",
+                color: isDarkMode ? "#25D366" : "#059669",
+                bgcolor: "rgba(37, 211, 102, 0.08)",
+                "&:hover": { bgcolor: "rgba(37, 211, 102, 0.16)", borderColor: "#25D366" },
+              }}
+            >
+              Send WhatsApp
+            </Button>
+          </Box>
+
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <Button onClick={() => setDetailsModal({ open: false, booking: null })} sx={{ borderRadius: "10px" }}>
+              Close
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<Receipt />}
+              onClick={() => {
+                const b = detailsModal.booking;
+                setDetailsModal({ open: false, booking: null });
+                if (onOpenInvoice) onOpenInvoice(b);
+              }}
+              className="btn-3d"
+              sx={{
+                background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
+                color: "#FFFFFF",
+                fontWeight: 800,
+                borderRadius: "10px",
+              }}
+            >
+              View Tax Invoice
+            </Button>
+          </Box>
         </DialogActions>
       </Dialog>
+
+      {/* Comprehensive Guest Details Dossier */}
+      <GuestDetailsModal
+        open={selectedGuestModal.open}
+        onClose={() => setSelectedGuestModal({ open: false, guest: null, guestId: null })}
+        guestId={selectedGuestModal.guestId}
+        guestData={selectedGuestModal.guest}
+        hotelSettings={hotelSettings}
+      />
+
+      {/* High-Resolution Document Image Zoom Preview Modal */}
+      <Dialog
+        open={Boolean(previewImage)}
+        onClose={() => setPreviewImage(null)}
+        maxWidth="md"
+        slotProps={{ paper: { sx: { borderRadius: "18px", p: 1.5, bgcolor: "#111827", color: "#FFF" } } }}
+      >
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", px: 1, pb: 1 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#F8FAFC" }}>
+            🔍 Document Photo Preview
+          </Typography>
+          <IconButton size="small" onClick={() => setPreviewImage(null)} sx={{ color: "#FFF" }}>
+            <Close fontSize="small" />
+          </IconButton>
+        </Box>
+        <Box sx={{ p: 1, display: "flex", justifyContent: "center", alignItems: "center", minHeight: 250 }}>
+          {previewImage && (
+            <Box
+              component="img"
+              src={previewImage}
+              alt="Document Full Preview"
+              sx={{ maxWidth: "100%", maxHeight: "75vh", objectFit: "contain", borderRadius: "10px", border: "1px solid #374151" }}
+            />
+          )}
+        </Box>
+      </Dialog>
+
+      {/* Toast Notification */}
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={4000}
+        onClose={() => setToast({ ...toast, open: false })}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        <Alert severity={toast.severity || "info"} onClose={() => setToast({ ...toast, open: false })}>
+          {toast.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

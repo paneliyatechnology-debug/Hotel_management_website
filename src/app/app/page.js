@@ -8,8 +8,10 @@ import { SocketProvider, useSocket } from "@/shared/context/SocketContext";
 import UnifiedLogin from "@/auth/components/UnifiedLogin";
 import HotelAdminLayout from "@/hotel-admin/layout/HotelAdminLayout";
 import ReceptionistLayout from "@/receptionist/layout/ReceptionistLayout";
+import SuperAdminLayout from "@/super-admin/layout/SuperAdminLayout";
 import HotelAdminDashboard from "@/hotel-admin/components/HotelAdminDashboard";
 import ReceptionistDashboard from "@/receptionist/components/ReceptionistDashboard";
+import SuperAdminDashboard from "@/super-admin/components/SuperAdminDashboard";
 import SubscriptionExpiredScreen from "@/shared/components/SubscriptionExpiredScreen";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 
@@ -60,6 +62,9 @@ function HotelWebAppContent() {
   const getNavListForUser = (currentUser, activeRole) => {
     if (!currentUser) return [];
     const effectiveRole = activeRole || currentUser.role;
+    if (effectiveRole === "SUPER_ADMIN") {
+      return ["overview", "hotels", "plans", "settings"];
+    }
     if (effectiveRole === "HOTEL_ADMIN") {
       return ["overview", "daily-collections", "guests", "staff", "rooms", "subscriptions", "settings"];
     }
@@ -293,6 +298,21 @@ function HotelWebAppContent() {
         />
       ) : (
         <>
+
+          {currentEffectiveRole === "SUPER_ADMIN" && (
+            <SuperAdminLayout
+              user={user}
+              activeTab={activeTab}
+              onTabChange={handleTabChange}
+              onLogout={handleLogout}
+            >
+              <SuperAdminDashboard
+                user={user}
+                activeNav={activeTab}
+                onTabChange={handleTabChange}
+              />
+            </SuperAdminLayout>
+          )}
 
           {currentEffectiveRole === "HOTEL_ADMIN" && (
             <HotelAdminLayout

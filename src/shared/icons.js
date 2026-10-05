@@ -167,7 +167,11 @@ export {
   FullscreenExit,
   Smartphone,
   PhoneAndroid,
-  QrCodeScanner,
   OpenInNew,
   Save,
+  Restaurant,
+  Timeline,
+  DoneAll,
+  FileDownload,
+  BookmarkBorder,
 } from "@mui/icons-material";

@@ -97,7 +97,7 @@ export function OccupancyDonutChart({ rooms = [] }) {
             </Typography>
           </Box>
           <Chip
-            icon={<AutoAwesome sx={{ fontSize: "14px !important", color: "#10B981" }} />}
+            icon={<CheckCircle sx={{ fontSize: "14px !important", color: "#10B981" }} />}
             label={`${occRate}% Occupied`}
             size="small"
             sx={{

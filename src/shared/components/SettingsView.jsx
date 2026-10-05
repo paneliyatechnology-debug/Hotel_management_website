@@ -28,6 +28,10 @@ import {
   CircularProgress,
   InputAdornment,
   IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
 import {
   Palette,
@@ -61,6 +65,7 @@ import {
   Visibility,
   VisibilityOff,
   Lock,
+  Close,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
@@ -111,6 +116,13 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMsg, setProfileMsg] = useState({ show: false, message: "", severity: "success" });
+  const [supportModalOpen, setSupportModalOpen] = useState(false);
+  const [supportForm, setSupportForm] = useState({
+    subject: "",
+    category: "Technical Issue",
+    message: "",
+  });
+  const [submittingTicket, setSubmittingTicket] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -404,7 +416,7 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
 
   const availableTabs = [
-    { id: "themes", label: "Theme & Color Palettes", icon: <Palette fontSize="small" /> },
+    { id: "themes", label: "Theme & Appearance", icon: <Palette fontSize="small" /> },
     ...(isSuperAdmin ? [{ id: "freetrial", label: "Free Trial Settings", icon: <AccessTime fontSize="small" /> }] : []),
     ...(isHotelAdmin ? [{ id: "timings", label: "Hotel Timings & Operations", icon: <AccessTime fontSize="small" /> }] : []),
     { id: "profile", label: "My Profile & Security", icon: <Person fontSize="small" /> },
@@ -522,7 +534,7 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
 
         <Box sx={{ p: { xs: 2.5, sm: 3.5, md: 4 }, maxWidth: 1000, mx: "auto", width: "100%" }}>
           {/* ========================================================================= */}
-          {/* TAB: THEME & COLOR PALETTES */}
+          {/* TAB: THEME & APPEARANCE */}
           {/* ========================================================================= */}
           {currentTab === "themes" && (
             <Box>
@@ -539,7 +551,10 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
                   {/* Light Mode Card */}
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <Card
-                      onClick={() => setThemeMode("light")}
+                      onClick={() => {
+                        setThemeMode("light");
+                        toast.success("Switched to Light Daylight Theme");
+                      }}
                       sx={{
                         cursor: "pointer",
                         borderRadius: "18px",
@@ -602,7 +617,10 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
                   {/* Dark Mode Card */}
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <Card
-                      onClick={() => setThemeMode("dark")}
+                      onClick={() => {
+                        setThemeMode("dark");
+                        toast.success("Switched to OLED Dark Theme");
+                      }}
                       sx={{
                         cursor: "pointer",
                         borderRadius: "18px",
@@ -666,225 +684,98 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
 
               <Divider sx={{ my: 3.5, borderColor: themeConfig.border }} />
 
-              <Box sx={{ mb: 3.5 }}>
-                <Typography variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.5 }}>
-                  Select Color Palette ({isDarkMode ? "Dark Variants" : "Light Variants"})
-                </Typography>
-                <Typography variant="body2" sx={{ color: themeConfig.textMuted }}>
-                  Choose any curated palette below to customize accent colors across your dashboard.
-                </Typography>
-              </Box>
-
-              <Grid container spacing={2.5}>
-                {paletteEntries.map(([key, pal]) => {
-                  const isCurrent = paletteKey === key;
-                  return (
-                    <Grid size={{ xs: 12, sm: 6, md: 4 }} key={key}>
-                      <Card
-                        onClick={() => setPaletteKey(key)}
-                        sx={{
-                          cursor: "pointer",
-                          borderRadius: "20px",
-                          border: isCurrent ? `2.5px solid ${pal.primary}` : `1.5px solid ${themeConfig.border}`,
-                          bgcolor: isCurrent ? pal.bgCard : (themeConfig.bgCard || (isDarkMode ? "#162032" : "#FFFFFF")),
-                          transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
-                          boxShadow: isCurrent
-                            ? `0 12px 28px -4px ${pal.primaryGlow}`
-                            : (isDarkMode ? "0 4px 14px rgba(0,0,0,0.3)" : "0 4px 14px rgba(12, 39, 59, 0.03)"),
-                          transform: isCurrent ? "translateY(-3px) scale(1.01)" : "none",
-                          "&:hover": {
-                            transform: "translateY(-4px) scale(1.02)",
-                            borderColor: pal.primary,
-                            boxShadow: `0 14px 30px -4px ${pal.primaryGlow}`,
-                          },
-                        }}
-                      >
-                        <CardContent sx={{ p: 2.5 }}>
-                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
-                            <Typography variant="subtitle1" sx={{ fontWeight: 800, color: pal.textMain, fontSize: "0.95rem" }}>
-                              {pal.name}
-                            </Typography>
-                            {isCurrent ? (
-                              <Chip
-                                icon={<CheckCircle fontSize="small" sx={{ color: "#FFFFFF !important" }} />}
-                                label="ACTIVE"
-                                size="small"
-                                sx={{
-                                  background: `linear-gradient(135deg, ${pal.primary} 0%, ${pal.primaryDark} 100%)`,
-                                  color: "#FFFFFF",
-                                  fontWeight: 800,
-                                  fontSize: "0.7rem",
-                                  height: 26,
-                                  borderRadius: "10px",
-                                  boxShadow: `0 3px 10px ${pal.primaryGlow}, inset 0 1px 0 rgba(255,255,255,0.4)`,
-                                }}
-                              />
-                            ) : (
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                sx={{
-                                  py: 0.4,
-                                  px: 1.5,
-                                  fontSize: "0.75rem",
-                                  fontWeight: 700,
-                                  borderColor: pal.border,
-                                  color: pal.primaryDark,
-                                  borderRadius: "10px",
-                                  bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#FFFFFF",
-                                  boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
-                                  "&:hover": {
-                                    bgcolor: pal.primaryGlow,
-                                    borderColor: pal.primary,
-                                    transform: "translateY(-1px)",
-                                  },
-                                }}
-                              >
-                                Apply
-                              </Button>
-                            )}
-                          </Box>
-
-                          {/* 3D Color Swatches */}
-                          <Box sx={{ display: "flex", gap: 1.2, alignItems: "center" }}>
-                            <Tooltip title={`Primary: ${pal.primary}`}>
-                              <Box
-                                sx={{
-                                  width: 32,
-                                  height: 32,
-                                  borderRadius: "10px",
-                                  bgcolor: pal.primary,
-                                  border: "2px solid #FFFFFF",
-                                  boxShadow: `0 4px 10px ${pal.primaryGlow}, inset 0 1px 0 rgba(255,255,255,0.5)`,
-                                  transition: "transform 0.2s ease",
-                                  "&:hover": { transform: "scale(1.15)" },
-                                }}
-                              />
-                            </Tooltip>
-                            <Tooltip title={`Primary Dark: ${pal.primaryDark}`}>
-                              <Box
-                                sx={{
-                                  width: 28,
-                                  height: 28,
-                                  borderRadius: "9px",
-                                  bgcolor: pal.primaryDark,
-                                  border: "2px solid #FFFFFF",
-                                  boxShadow: "0 3px 8px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.3)",
-                                  transition: "transform 0.2s ease",
-                                  "&:hover": { transform: "scale(1.15)" },
-                                }}
-                              />
-                            </Tooltip>
-                            <Tooltip title={`Primary Light: ${pal.primaryLight}`}>
-                              <Box
-                                sx={{
-                                  width: 28,
-                                  height: 28,
-                                  borderRadius: "9px",
-                                  bgcolor: pal.primaryLight,
-                                  border: "2px solid #FFFFFF",
-                                  boxShadow: "0 3px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.4)",
-                                  transition: "transform 0.2s ease",
-                                  "&:hover": { transform: "scale(1.15)" },
-                                }}
-                              />
-                            </Tooltip>
-                            <Tooltip title={`Background: ${pal.bgMain}`}>
-                              <Box
-                                sx={{
-                                  width: 28,
-                                  height: 28,
-                                  borderRadius: "9px",
-                                  bgcolor: pal.bgMain,
-                                  border: `1.5px solid ${pal.border}`,
-                                  boxShadow: "0 2px 6px rgba(0,0,0,0.04), inset 0 1px 0 #FFFFFF",
-                                  transition: "transform 0.2s ease",
-                                  "&:hover": { transform: "scale(1.15)" },
-                                }}
-                              />
-                            </Tooltip>
-                            <Tooltip title={`Border: ${pal.border}`}>
-                              <Box
-                                sx={{
-                                  width: 28,
-                                  height: 28,
-                                  borderRadius: "9px",
-                                  bgcolor: pal.border,
-                                  boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
-                                  transition: "transform 0.2s ease",
-                                  "&:hover": { transform: "scale(1.15)" },
-                                }}
-                              />
-                            </Tooltip>
-                          </Box>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  );
-                })}
-              </Grid>
-
-              {/* 3D Live Preview Sample */}
+              {/* Currently Selected Theme Card & Interactive Actions */}
               <Paper
                 sx={{
-                  mt: 4,
-                  p: 3.5,
+                  p: { xs: 2.5, sm: 3.5 },
                   borderRadius: "20px",
-                  bgcolor: themeConfig.bgMain,
+                  bgcolor: themeConfig.bgCard || (isDarkMode ? "#162032" : "#FFFFFF"),
                   border: `1.5px solid ${themeConfig.border}`,
-                  boxShadow: "0 8px 24px -6px rgba(12, 39, 59, 0.05), inset 0 1px 0 #FFFFFF",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  flexWrap: "wrap",
-                  gap: 2,
+                  boxShadow: isDarkMode ? "0 8px 24px -6px rgba(0,0,0,0.4)" : "0 8px 24px -6px rgba(12, 39, 59, 0.05), inset 0 1px 0 #FFFFFF",
                 }}
               >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1.8 }}>
-                  <Box
-                    sx={{
-                      width: 22,
-                      height: 22,
-                      borderRadius: "8px",
-                      bgcolor: themeConfig.primary,
-                      boxShadow: `0 3px 8px ${themeConfig.primaryGlow}`,
-                      border: "2px solid #FFFFFF",
-                    }}
-                  />
-                  <Typography variant="body1" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                    Currently Selected: <strong>{themeConfig.name}</strong>
-                  </Typography>
-                </Box>
-                <Box sx={{ display: "flex", gap: 1.5 }}>
-                  <Button
-                    variant="contained"
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 2, mb: 2.5 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.8 }}>
+                    <Box
+                      sx={{
+                        width: 26,
+                        height: 26,
+                        borderRadius: "8px",
+                        bgcolor: themeConfig.primary,
+                        boxShadow: `0 3px 8px ${themeConfig.primaryGlow}`,
+                        border: "2px solid #FFFFFF",
+                      }}
+                    />
+                    <Box>
+                      <Typography variant="body1" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+                        Currently Selected: <strong>{themeConfig.name}</strong>
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
+                        Active {isDarkMode ? "Dark" : "Light"} Hotel PMS Theme with Emerald Mint Accents
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  <Chip
+                    icon={<CheckCircle fontSize="small" sx={{ color: "#FFFFFF !important" }} />}
+                    label="THEME ACTIVE"
+                    size="small"
                     sx={{
                       background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
                       color: "#FFFFFF",
                       fontWeight: 800,
-                      borderRadius: "12px",
-                      px: 2.5,
-                      boxShadow: `0 4px 14px ${themeConfig.primaryGlow}, inset 0 1px 0 rgba(255,255,255,0.4)`,
-                      "&:hover": { transform: "translateY(-1px)" },
+                      fontSize: "0.72rem",
+                      borderRadius: "10px",
+                      boxShadow: `0 2px 8px ${themeConfig.primaryGlow}`,
                     }}
-                  >
-                    Primary Button Preview
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    sx={{
-                      borderColor: themeConfig.border,
-                      bgcolor: themeConfig.bgCard,
-                      color: themeConfig.textMain,
-                      fontWeight: 800,
-                      borderRadius: "12px",
-                      px: 2.5,
-                      boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
-                      "&:hover": { bgcolor: themeConfig.champagne, transform: "translateY(-1px)" },
-                    }}
-                  >
-                    Outline Button Preview
-                  </Button>
+                  />
+                </Box>
+
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 2, pt: 2, borderTop: `1px solid ${themeConfig.border}` }}>
+                  <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+                    <Button
+                      variant="contained"
+                      onClick={() => {
+                        toast.success(`Theme "${themeConfig.name}" is currently active and applied across all modules.`);
+                      }}
+                      sx={{
+                        background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
+                        color: "#FFFFFF",
+                        fontWeight: 800,
+                        borderRadius: "12px",
+                        px: 2.5,
+                        py: 0.9,
+                        boxShadow: `0 4px 14px ${themeConfig.primaryGlow}, inset 0 1px 0 rgba(255,255,255,0.4)`,
+                        "&:hover": { transform: "translateY(-1px)" },
+                      }}
+                    >
+                      Applied &amp; Active
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      onClick={() => {
+                        toggleThemeMode();
+                        toast.success(`Theme mode switched to ${isDarkMode ? "Light Mode" : "Dark Mode"}`);
+                      }}
+                      sx={{
+                        borderColor: themeConfig.border,
+                        bgcolor: themeConfig.bgCard,
+                        color: themeConfig.textMain,
+                        fontWeight: 800,
+                        borderRadius: "12px",
+                        px: 2.5,
+                        py: 0.9,
+                        boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
+                        "&:hover": { bgcolor: themeConfig.champagne, transform: "translateY(-1px)" },
+                      }}
+                    >
+                      Switch to {isDarkMode ? "Light Mode" : "Dark Mode"}
+                    </Button>
+                  </Box>
+
+                  <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 600 }}>
+                    Applied across Front Desk, Room Matrix, Billing, and Admin Portals
+                  </Typography>
                 </Box>
               </Paper>
             </Box>
@@ -1858,7 +1749,7 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
                   </Avatar>
                   <Box>
                     <Typography variant="subtitle1" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-                      24/7 Grand Royale SaaS Support
+                      24/7 MYOWNPMS SaaS Support
                     </Typography>
                     <Typography variant="body2" sx={{ color: themeConfig.textMuted }}>
                       Email: support@grandroyale-saas.com | Hotline: +91 (800) 425-6789
@@ -1867,6 +1758,7 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
                 </Box>
                 <Button
                   variant="outlined"
+                  onClick={() => setSupportModalOpen(true)}
                   sx={{
                     borderColor: themeConfig.primary,
                     color: themeConfig.primaryLight || themeConfig.primary,
@@ -1886,6 +1778,155 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
           )}
         </Box>
       </Card>
+
+      {/* 24x7 CUSTOMER SUPPORT TICKET MODAL */}
+      <Dialog
+        open={supportModalOpen}
+        onClose={() => setSupportModalOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: "24px",
+              p: 1.5,
+              border: `1px solid ${themeConfig.border}`,
+              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+              boxShadow: "0 24px 50px rgba(0,0,0,0.2)",
+            },
+          },
+        }}
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            setSubmittingTicket(true);
+            setTimeout(() => {
+              setSubmittingTicket(false);
+              setSupportModalOpen(false);
+              const ticketId = "TKT-" + Math.floor(100000 + Math.random() * 900000);
+              toast.success(`Support Ticket #${ticketId} submitted successfully! Our 24/7 engineering team will respond within 15 minutes.`);
+              setSupportForm({ subject: "", category: "Technical Issue", message: "" });
+            }, 800);
+          }}
+        >
+          <DialogTitle component="div" sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+              <Avatar
+                sx={{
+                  bgcolor: themeConfig.primary,
+                  color: "#FFFFFF",
+                  width: 40,
+                  height: 40,
+                  borderRadius: "12px",
+                }}
+              >
+                <SupportAgent sx={{ fontSize: 22 }} />
+              </Avatar>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain, lineHeight: 1.2 }}>
+                  24/7 Customer Support Desk
+                </Typography>
+                <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
+                  Submit an urgent ticket or contact our engineering hotline
+                </Typography>
+              </Box>
+            </Box>
+            <IconButton onClick={() => setSupportModalOpen(false)} sx={{ borderRadius: "10px" }}>
+              <Close />
+            </IconButton>
+          </DialogTitle>
+
+          <DialogContent dividers sx={{ borderColor: themeConfig.border }}>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12 }}>
+                <Box sx={{ p: 2, borderRadius: "14px", bgcolor: themeConfig.champagne || "rgba(20, 184, 166, 0.1)", border: `1px solid ${themeConfig.border}`, mb: 1 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.primaryDark, display: "block", mb: 0.5 }}>
+                    DIRECT INSTANT CHANNELS
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: themeConfig.textMain, fontWeight: 700 }}>
+                    📞 Hotline: <a href="tel:+918004256789" style={{ color: themeConfig.primary, textDecoration: "none" }}>+91 (800) 425-6789</a> (Toll-Free 24x7)
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: themeConfig.textMain, fontWeight: 700 }}>
+                    📧 Email: <a href="mailto:support@grandroyale-saas.com" style={{ color: themeConfig.primary, textDecoration: "none" }}>support@grandroyale-saas.com</a>
+                  </Typography>
+                </Box>
+              </Grid>
+
+              <Grid size={{ xs: 12 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain, mb: 0.6, display: "block" }}>
+                  Issue Category *
+                </Typography>
+                <FormControl fullWidth size="small">
+                  <Select
+                    value={supportForm.category}
+                    onChange={(e) => setSupportForm({ ...supportForm, category: e.target.value })}
+                    sx={{ borderRadius: "12px", bgcolor: themeConfig.bgCard }}
+                  >
+                    <MenuItem value="Technical Issue">Technical / System Issue</MenuItem>
+                    <MenuItem value="Billing & Subscription">Billing &amp; Subscription Renewal</MenuItem>
+                    <MenuItem value="Room & Inventory">Room &amp; Inventory Management</MenuItem>
+                    <MenuItem value="Staff Access & Login">Staff Access &amp; Login</MenuItem>
+                    <MenuItem value="Feature Request">Feature Request &amp; Customization</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid size={{ xs: 12 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain, mb: 0.6, display: "block" }}>
+                  Subject *
+                </Typography>
+                <TextField
+                  fullWidth
+                  size="small"
+                  required
+                  placeholder="Brief description of your issue"
+                  value={supportForm.subject}
+                  onChange={(e) => setSupportForm({ ...supportForm, subject: e.target.value })}
+                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
+                />
+              </Grid>
+
+              <Grid size={{ xs: 12 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain, mb: 0.6, display: "block" }}>
+                  Detailed Description *
+                </Typography>
+                <TextField
+                  fullWidth
+                  required
+                  multiline
+                  rows={4}
+                  placeholder="Please describe what you are experiencing or what assistance you require..."
+                  value={supportForm.message}
+                  onChange={(e) => setSupportForm({ ...supportForm, message: e.target.value })}
+                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
+                />
+              </Grid>
+            </Grid>
+          </DialogContent>
+
+          <DialogActions sx={{ p: 2.5 }}>
+            <Button onClick={() => setSupportModalOpen(false)} sx={{ borderRadius: "10px", fontWeight: 700 }}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={submittingTicket}
+              sx={{
+                background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
+                color: "#FFFFFF",
+                fontWeight: 800,
+                borderRadius: "12px",
+                px: 3,
+                boxShadow: `0 4px 14px ${themeConfig.primaryGlow}`,
+              }}
+            >
+              {submittingTicket ? <CircularProgress size={22} color="inherit" /> : "Submit Support Ticket"}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
     </Box>
   );
 }

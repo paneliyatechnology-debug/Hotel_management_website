@@ -11,15 +11,20 @@
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
+    "@imgly/background-removal": "^1.7.0",
     "@mui/icons-material": "^9.4.0",
     "@mui/material": "^9.4.0",
+    "cropperjs": "^2.2.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "lucide-react": "^1.46.0",
     "next": "16.3.5",
     "qrcode.react": "^4.2.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-toastify": "^11.1.0",
-    "socket.io-client": "^4.8.3"
+    "socket.io-client": "^4.8.3",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",

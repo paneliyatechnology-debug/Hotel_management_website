@@ -115,7 +115,7 @@ export default function PaymentLedgerView({
   const [toast, setToast] = useState({ show: false, message: "", severity: "success" });
 
   const activeUpiId = hotelSettings?.upiId || "jatinkakadiya234-1@okicici";
-  const hotelName = user?.hotel?.name || "Grand Royale Luxury Resort";
+  const hotelName = user?.hotel?.name || "MYOWNPMS";
 
   const fetchPayments = async (isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -1295,25 +1295,43 @@ export default function PaymentLedgerView({
             </Box>
 
             {/* Actions */}
-            <DialogActions sx={{ p: 0, pt: 3, display: "flex", justifyContent: "space-between" }}>
-              <Button onClick={() => setReceiptModal({ open: false, payment: null })} sx={{ borderRadius: "10px" }}>
+            <DialogActions sx={{ p: 0, pt: 2.5, display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${themeConfig.border}`, mt: 2 }}>
+              <Button
+                onClick={() => setReceiptModal({ open: false, payment: null })}
+                sx={{
+                  borderRadius: "10px",
+                  fontWeight: 700,
+                  color: themeConfig.textMuted,
+                  px: 2,
+                  "&:hover": { bgcolor: "rgba(0,0,0,0.04)" },
+                }}
+              >
                 Close
               </Button>
-              <Box sx={{ display: "flex", gap: 1 }}>
+              <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "nowrap" }}>
                 <Button
                   variant="outlined"
-                  startIcon={<Download />}
+                  startIcon={<Download sx={{ fontSize: 18 }} />}
                   onClick={() => {
                     downloadPaymentReceiptPDF(receiptModal.payment, { ...hotelSettings, ...(user?.hotel || {}) });
                     showToast("Payment Receipt downloaded / opened!");
                   }}
-                  sx={{ borderRadius: "10px", borderColor: themeConfig.border, color: themeConfig.textMain, fontWeight: 700 }}
+                  sx={{
+                    borderRadius: "10px",
+                    borderColor: themeConfig.border,
+                    color: themeConfig.textMain,
+                    fontWeight: 700,
+                    fontSize: "0.82rem",
+                    whiteSpace: "nowrap",
+                    px: 1.8,
+                    "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne },
+                  }}
                 >
                   Download PDF
                 </Button>
                 <Button
                   variant="contained"
-                  startIcon={<Print />}
+                  startIcon={<Print sx={{ fontSize: 18 }} />}
                   onClick={() => {
                     downloadPaymentReceiptPDF(receiptModal.payment, { ...hotelSettings, ...(user?.hotel || {}) });
                   }}
@@ -1322,9 +1340,13 @@ export default function PaymentLedgerView({
                     background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
                     borderRadius: "10px",
                     fontWeight: 800,
+                    fontSize: "0.82rem",
+                    whiteSpace: "nowrap",
+                    px: 1.8,
+                    boxShadow: `0 4px 12px ${themeConfig.primaryGlow}`,
                   }}
                 >
-                  Print / Save PDF
+                  Print / Save
                 </Button>
               </Box>
             </DialogActions>

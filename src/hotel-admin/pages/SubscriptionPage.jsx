@@ -59,7 +59,7 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
   const sub = initialSub || hotel.subscription || {};
   const supportContact = hotel.supportContact || {
     phone: "+91 98765 43210",
-    email: "support@cloudhotelier.com",
+    email: "support@grandroyale-saas.com",
     whatsapp: "+919876543210",
   };
 
@@ -239,7 +239,7 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
           <Button
             variant="contained"
             className="btn-3d"
-            startIcon={<AutoAwesome />}
+            startIcon={<WorkspacePremium />}
             onClick={() => handleOpenUpgrade("Professional Tier")}
             sx={{
               background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,

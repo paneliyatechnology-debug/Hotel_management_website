@@ -292,6 +292,19 @@ export async function apiRequest(endpoint, options = {}) {
 
     if (
       response.status === 403 &&
+      (data.message?.includes("Access denied") || data.message?.includes("not authorized"))
+    ) {
+      if (typeof window !== "undefined") {
+        console.warn("🔒 [Auth Security] Role mismatch or unauthorized access. Resetting session...");
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("user");
+        window.dispatchEvent(new Event("auth-unauthorized"));
+      }
+    }
+
+    if (
+      response.status === 403 &&
       (data.errorCode === "STAFF_INACTIVE" ||
         data.errorCode === "HOTEL_DISABLED" ||
         data.errorCode === "HOTEL_SUSPENDED" ||

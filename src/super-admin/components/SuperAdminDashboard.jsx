@@ -82,6 +82,7 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
   const [actionMsg, setActionMsg] = useState("");
 
   const fetchDashboardMetrics = async () => {
+    if (!user || user.role !== "SUPER_ADMIN") return;
     try {
       setLoading(true);
       const res = await apiRequest(API_ENDPOINTS.SUPER_ADMIN.DASHBOARD);
@@ -89,27 +90,30 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
         setDashboardData(res.data);
       }
     } catch (err) {
-      console.error("Failed to load super admin dashboard metrics:", err);
+      console.warn("Failed to load super admin dashboard metrics:", err.message);
     } finally {
       setLoading(false);
     }
   };
 
   const fetchHotels = async () => {
+    if (!user || user.role !== "SUPER_ADMIN") return;
     try {
       const res = await apiRequest(API_ENDPOINTS.SUPER_ADMIN.HOTELS);
       if (res?.success) {
         setHotels(res.data || []);
       }
     } catch (err) {
-      console.error("Failed to load hotels:", err);
+      console.warn("Failed to load hotels:", err.message);
     }
   };
 
   useEffect(() => {
-    fetchDashboardMetrics();
-    fetchHotels();
-  }, []);
+    if (user?.role === "SUPER_ADMIN") {
+      fetchDashboardMetrics();
+      fetchHotels();
+    }
+  }, [user]);
 
   const handleOpenHotelDetails = async (hotel) => {
     setSelectedHotelModal({

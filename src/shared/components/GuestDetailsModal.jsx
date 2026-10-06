@@ -902,65 +902,43 @@ export default function GuestDetailsModal({
               </Button>
             )}
 
-            {/* Check-In WhatsApp Button */}
+            {/* Single Unified WhatsApp Action Button */}
             <Button
               size="small"
-              startIcon={<WhatsApp sx={{ color: "#25D366", fontSize: 18 }} />}
-              variant="outlined"
+              startIcon={<WhatsApp sx={{ color: "#FFFFFF", fontSize: 18 }} />}
+              variant="contained"
               onClick={() => {
-                sendCheckInWhatsApp({
-                  booking: activeBooking || { guestName: guest.name || guest.fullName, roomNumber: guest.roomAssigned },
-                  guest,
-                  hotel: guest?.hotel || {},
-                  onShowToast: (msg, sev) => toast.show(msg, sev),
-                });
-              }}
-              sx={{
-                borderRadius: "10px",
-                fontWeight: 800,
-                fontSize: "0.78rem",
-                textTransform: "none",
-                borderColor: "rgba(37, 211, 102, 0.5)",
-                color: isDarkMode ? "#25D366" : "#059669",
-                bgcolor: "rgba(37, 211, 102, 0.08)",
-                px: 1.6,
-                py: 0.65,
-                "&:hover": { bgcolor: "rgba(37, 211, 102, 0.16)", borderColor: "#25D366" },
-              }}
-            >
-              Send WhatsApp
-            </Button>
-
-            {/* Checkout Bill on WhatsApp Button */}
-            {activeBooking && (
-              <Button
-                size="small"
-                startIcon={<WhatsApp sx={{ color: "#FFFFFF", fontSize: 18 }} />}
-                variant="contained"
-                onClick={() => {
+                if (activeBooking) {
                   sendCheckoutBillWhatsApp({
                     booking: activeBooking,
                     guest,
                     hotel: guest?.hotel || {},
                     onShowToast: (msg, sev) => toast.show(msg, sev),
                   });
-                }}
-                sx={{
-                  borderRadius: "10px",
-                  fontWeight: 800,
-                  fontSize: "0.78rem",
-                  textTransform: "none",
-                  bgcolor: "#25D366",
-                  color: "#FFFFFF",
-                  boxShadow: "0 2px 8px rgba(37, 211, 102, 0.3)",
-                  px: 1.6,
-                  py: 0.65,
-                  "&:hover": { bgcolor: "#1EBE5D" },
-                }}
-              >
-                Send Bill on WhatsApp
-              </Button>
-            )}
+                } else {
+                  sendCheckInWhatsApp({
+                    booking: { guestName: guest.name || guest.fullName, roomNumber: guest.roomAssigned },
+                    guest,
+                    hotel: guest?.hotel || {},
+                    onShowToast: (msg, sev) => toast.show(msg, sev),
+                  });
+                }
+              }}
+              sx={{
+                borderRadius: "10px",
+                fontWeight: 800,
+                fontSize: "0.78rem",
+                textTransform: "none",
+                bgcolor: "#25D366",
+                color: "#FFFFFF",
+                boxShadow: "0 2px 8px rgba(37, 211, 102, 0.3)",
+                px: 1.8,
+                py: 0.65,
+                "&:hover": { bgcolor: "#1EBE5D" },
+              }}
+            >
+              Send on WhatsApp
+            </Button>
           </Box>
 
           <Button

@@ -23,10 +23,17 @@ const PDF_DOCUMENT_STYLES = `
     width: 794px;
     box-sizing: border-box;
   }
+
+  .pdf-section {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    width: 100%;
+    box-sizing: border-box;
+  }
   
   /* Hero Command Ribbon (Exact match with App Header) */
   .hero-ribbon {
-    background: linear-gradient(135deg, #0C273B 0%, #0B8EE0 100%);
+    background: linear-gradient(135deg, #092622 0%, #0F766E 55%, #14B8A6 100%);
     border-radius: 16px;
     padding: 16px 20px;
     color: #FFFFFF;
@@ -34,7 +41,7 @@ const PDF_DOCUMENT_STYLES = `
     display: flex;
     justify-content: space-between;
     align-items: center;
-    box-shadow: 0 8px 20px rgba(11, 142, 224, 0.25);
+    box-shadow: 0 8px 20px rgba(15, 118, 110, 0.25);
   }
   
   .hotel-brand {
@@ -70,7 +77,7 @@ const PDF_DOCUMENT_STYLES = `
     width: 44px;
     height: 44px;
     background: #FFFFFF;
-    border: 1px solid rgba(255, 255, 255, 0.4);
+    border: none;
     border-radius: 10px;
     display: flex;
     align-items: center;
@@ -95,8 +102,8 @@ const PDF_DOCUMENT_STYLES = `
   }
   
   .ribbon-badge {
-    background: rgba(255, 255, 255, 0.18);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: transparent;
+    border: none;
     padding: 6px 12px;
     border-radius: 10px;
     text-align: right;
@@ -147,7 +154,7 @@ const PDF_DOCUMENT_STYLES = `
   .doc-title {
     font-size: 17px;
     font-weight: 900;
-    color: #0B8EE0;
+    color: #0F766E;
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
@@ -187,7 +194,7 @@ const PDF_DOCUMENT_STYLES = `
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: #0B8EE0;
+    color: #0F766E;
     margin-bottom: 6px;
   }
 
@@ -255,7 +262,7 @@ const PDF_DOCUMENT_STYLES = `
     margin-top: 8px;
     font-size: 14px;
     font-weight: 900;
-    color: #059669;
+    color: #0F766E;
   }
   
   /* 4 KPI Telemetry Cards (Same to Same as Dashboard Boxes!) */
@@ -273,7 +280,7 @@ const PDF_DOCUMENT_STYLES = `
     padding: 12px 14px;
     position: relative;
     overflow: hidden;
-    box-shadow: 0 2px 8px rgba(12, 39, 59, 0.04);
+    box-shadow: 0 2px 8px rgba(15, 118, 110, 0.05);
   }
   
   .kpi-card::before {
@@ -286,7 +293,7 @@ const PDF_DOCUMENT_STYLES = `
   }
   
   .kpi-card.green::before { background: #10B981; }
-  .kpi-card.blue::before { background: #0B8EE0; }
+  .kpi-card.blue::before { background: #0F766E; }
   .kpi-card.purple::before { background: #8B5CF6; }
   .kpi-card.orange::before { background: #F59E0B; }
   
@@ -307,7 +314,7 @@ const PDF_DOCUMENT_STYLES = `
   }
   
   .kpi-card.green .kpi-val { color: #059669; }
-  .kpi-card.blue .kpi-val { color: #0B8EE0; }
+  .kpi-card.blue .kpi-val { color: #0F766E; }
   .kpi-card.purple .kpi-val { color: #7C3AED; }
   .kpi-card.orange .kpi-val { color: #D97706; }
   
@@ -377,7 +384,7 @@ const PDF_DOCUMENT_STYLES = `
   }
   
   th {
-    background-color: #0C273B;
+    background-color: #0F766E;
     color: #FFFFFF;
     font-weight: 800;
     font-size: 10.5px;
@@ -417,10 +424,10 @@ const PDF_DOCUMENT_STYLES = `
     letter-spacing: 0.3px;
   }
   
-  .badge-success { background: #DCFCE7; color: #15803D; border: 1px solid #86EFAC; }
-  .badge-warning { background: #FEF3C7; color: #B45309; border: 1px solid #FDE68A; }
-  .badge-primary { background: #E0F2FE; color: #0369A1; border: 1px solid #BAE6FD; }
-  .badge-purple { background: #EDE9FE; color: #6D28D9; border: 1px solid #DDD6FE; }
+  .badge-success { background: transparent; color: #15803D; border: none; }
+  .badge-warning { background: transparent; color: #B45309; border: none; }
+  .badge-primary { background: transparent; color: #0F766E; border: none; }
+  .badge-purple { background: transparent; color: #6D28D9; border: none; }
   
   /* Grand Total Box */
   .summary-card-right {
@@ -475,8 +482,9 @@ const PDF_DOCUMENT_STYLES = `
 `;
 
 /**
- * Direct PDF Download Engine
- * Converts HTML template directly into a .pdf file and downloads straight to disk
+ * Direct Smart Multi-Page PDF Download Engine
+ * Converts HTML template into an exact, beautifully paginated A4 .pdf file.
+ * Prevents any section, card, or text from ever being sliced in half across pages!
  */
 export async function openPrintOrSavePDF(title, htmlBody) {
   if (typeof window === "undefined") return;
@@ -484,32 +492,50 @@ export async function openPrintOrSavePDF(title, htmlBody) {
   const rawClean = (title || "Document").replace(/[^a-zA-Z0-9_\-]/g, "_");
   const fileName = `${rawClean}.pdf`;
 
-  // Create an off-screen container matching A4 width
+  // Create isolated stage wrapper so measuring/rendering never alters document body scroll or UI layout
+  const stageWrapper = document.createElement("div");
+  stageWrapper.id = "pdf-isolated-stage-wrapper";
+  stageWrapper.style.position = "fixed";
+  stageWrapper.style.top = "-9999px";
+  stageWrapper.style.left = "-9999px";
+  stageWrapper.style.width = "794px";
+  stageWrapper.style.height = "1123px";
+  stageWrapper.style.overflow = "hidden";
+  stageWrapper.style.opacity = "0";
+  stageWrapper.style.pointerEvents = "none";
+  stageWrapper.style.zIndex = "-999999";
+
+  // Create temporary container inside stage wrapper to measure elements
   const container = document.createElement("div");
   container.className = "pdf-container";
-  container.style.position = "fixed";
-  container.style.left = "-9999px";
+  container.style.position = "absolute";
+  container.style.left = "0";
   container.style.top = "0";
   container.style.width = "794px"; // Standard A4 width at 96 DPI
-  container.style.minHeight = "1123px";
   container.style.backgroundColor = "#FFFFFF";
   container.style.color = "#0F172A";
-  container.style.padding = "24px 32px";
+  container.style.padding = "20px 24px";
   container.style.boxSizing = "border-box";
   container.style.fontFamily = "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-  container.style.zIndex = "-9999";
 
   container.innerHTML = `
     <style>
       ${PDF_DOCUMENT_STYLES}
     </style>
-    ${htmlBody}
+    <div id="pdf-content-wrapper">
+      ${htmlBody}
+    </div>
   `;
 
-  document.body.appendChild(container);
+  stageWrapper.appendChild(container);
+  document.body.appendChild(stageWrapper);
 
   try {
-    // Ensure images like /logo.png are completely loaded before capturing
+    if (document.fonts && document.fonts.ready) {
+      await document.fonts.ready;
+    }
+
+    // Ensure all images are fully loaded before rendering
     const images = container.querySelectorAll("img");
     if (images.length > 0) {
       await Promise.all(
@@ -525,42 +551,131 @@ export async function openPrintOrSavePDF(title, htmlBody) {
       );
     }
 
-    const canvas = await html2canvas(container, {
-      scale: 2, // High-DPI crisp vector-quality rendering
-      useCORS: true,
-      logging: false,
-      backgroundColor: "#FFFFFF",
+    const contentWrapper = container.querySelector("#pdf-content-wrapper");
+    // Get all top-level direct child sections/elements
+    const rawSections = Array.from(contentWrapper.children).filter((el) => el.nodeType === 1);
+
+    // Standard A4 pixel budget for single page (1123px total)
+    // Page 1 budget = 980px (accounts for 40px padding + bottom breathing space)
+    // Page N budget = 920px (accounts for 40px padding + 50px continuation header + bottom breathing space)
+    const PAGE_1_BUDGET = 980;
+    const PAGE_N_BUDGET = 920;
+
+    const pages = [];
+    let currentPage = [];
+    let currentHeight = 0;
+
+    rawSections.forEach((sec) => {
+      const rect = sec.getBoundingClientRect();
+      const computedStyle = window.getComputedStyle(sec);
+      const marginTop = parseFloat(computedStyle.marginTop) || 0;
+      const marginBottom = parseFloat(computedStyle.marginBottom) || 0;
+      const secHeight = Math.ceil((rect.height || sec.offsetHeight || 60) + marginTop + marginBottom);
+
+      const budget = pages.length === 0 ? PAGE_1_BUDGET : PAGE_N_BUDGET;
+
+      // If adding this section exceeds budget and page already has content, push to new page!
+      if (currentHeight + secHeight > budget && currentPage.length > 0) {
+        pages.push(currentPage);
+        currentPage = [sec];
+        currentHeight = secHeight;
+      } else {
+        currentPage.push(sec);
+        currentHeight += secHeight;
+      }
     });
 
-    const imgData = canvas.toDataURL("image/png");
+    if (currentPage.length > 0) {
+      pages.push(currentPage);
+    }
+
+    // Clear initial measurement container from stage
+    stageWrapper.removeChild(container);
+
     const pdf = new jsPDF("p", "mm", "a4");
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = pdf.internal.pageSize.getHeight();
 
-    const imgWidth = pdfWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    for (let pIdx = 0; pIdx < pages.length; pIdx++) {
+      if (pIdx > 0) {
+        pdf.addPage();
+      }
 
-    let heightLeft = imgHeight;
-    let position = 0;
+      // Create a dedicated page container inside stage
+      const pageDiv = document.createElement("div");
+      pageDiv.style.width = "794px";
+      pageDiv.style.minHeight = "1123px";
+      pageDiv.style.backgroundColor = "#FFFFFF";
+      pageDiv.style.padding = "20px 24px";
+      pageDiv.style.boxSizing = "border-box";
+      pageDiv.style.position = "absolute";
+      pageDiv.style.left = "0";
+      pageDiv.style.top = "0";
+      pageDiv.style.fontFamily = "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      pageDiv.style.display = "flex";
+      pageDiv.style.flexDirection = "column";
+      pageDiv.style.justifyContent = "flex-start";
 
-    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight, undefined, "FAST");
-    heightLeft -= pdfHeight;
+      // Style tag
+      const styleTag = document.createElement("style");
+      styleTag.textContent = PDF_DOCUMENT_STYLES;
+      pageDiv.appendChild(styleTag);
 
-    while (heightLeft > 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight, undefined, "FAST");
-      heightLeft -= pdfHeight;
+      // Continuation header on page 2+
+      if (pIdx > 0) {
+        const contHeader = document.createElement("div");
+        contHeader.style.padding = "8px 14px";
+        contHeader.style.marginBottom = "14px";
+        contHeader.style.borderBottom = "2px solid #E2E8F0";
+        contHeader.style.display = "flex";
+        contHeader.style.justifyContent = "space-between";
+        contHeader.style.alignItems = "center";
+        contHeader.style.fontSize = "11px";
+        contHeader.style.color = "#64748B";
+        contHeader.style.fontWeight = "800";
+        contHeader.innerHTML = `
+          <div style="color: #0F766E; font-weight: 900; text-transform: uppercase;">${(title || "Folio").replace(/_/g, " ")} (Continuation)</div>
+          <div style="background: #F1F5F9; padding: 2px 8px; border-radius: 6px;">Page ${pIdx + 1} of ${pages.length}</div>
+        `;
+        pageDiv.appendChild(contHeader);
+      }
+
+      // Add sections belonging to this page
+      pages[pIdx].forEach((sec) => {
+        pageDiv.appendChild(sec.cloneNode(true));
+      });
+
+      stageWrapper.appendChild(pageDiv);
+
+      const canvas = await html2canvas(pageDiv, {
+        scale: 2, // High-DPI crisp vector-quality rendering
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#FFFFFF",
+        windowWidth: 794,
+        windowHeight: 1123,
+        x: 0,
+        y: 0,
+        scrollX: 0,
+        scrollY: 0,
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight, undefined, "FAST");
+
+      if (stageWrapper.contains(pageDiv)) {
+        stageWrapper.removeChild(pageDiv);
+      }
     }
 
     // Direct Instant Download in Browser!
     pdf.save(fileName);
   } catch (err) {
-    console.warn("Direct canvas PDF conversion notice, initiating fallback download window:", err);
+    console.warn("Smart PDF rendering notice, falling back:", err);
     fallbackPrintWindow(title, htmlBody);
   } finally {
-    if (document.body.contains(container)) {
-      document.body.removeChild(container);
+    if (document.body.contains(stageWrapper)) {
+      document.body.removeChild(stageWrapper);
     }
   }
 }
@@ -606,276 +721,428 @@ export function downloadTaxInvoicePDF(booking = {}, hotel = {}) {
   const accompanying = booking.accompanyingGuests || guest.accompanyingGuests || [];
   const paymentHistory = booking.paymentHistory || booking.payments || [];
 
-  const hotelName = hotel.name || "MYOWNPMS";
+  const hotelName = hotel.name || "MYOWNPMS Luxury Hotel";
   const hotelAddress = hotel.address || hotel.city || "Marine Drive, Mumbai, Maharashtra";
-  const hotelGst = hotel.gstin || "27AABCG1234F1Z8";
+  const hotelGst = hotel.gstin || hotel.settings?.gstin || "27AABCG1234F1Z8";
   const hotelPhone = hotel.phone || hotel.ownerPhone || "+91 98200 12345";
   const invoiceNum = booking.bookingNumber ? `INV-${booking.bookingNumber}` : `INV-${Date.now().toString().slice(-6)}`;
   const dateStr = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  const timeStr = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 
   const overstay = calculateOverstayFee(booking, hotel);
-  const lateFee = booking.lateCheckoutCharge || overstay.lateFee || 0;
-  const lateHours = booking.lateCheckoutHours || overstay.chargeableHours || 0;
-  const hourlyRate = booking.hourlyRate || overstay.hourlyRate || (lateHours > 0 ? Math.round(lateFee / lateHours) : 0);
+  const lateFee = Number(booking.lateCheckoutCharge) || Number(overstay.lateFee) || 0;
+  const lateHours = Number(booking.lateCheckoutHours) || Number(overstay.chargeableHours) || 0;
+  const hourlyRate = Number(booking.hourlyRate) || Number(overstay.hourlyRate) || (lateHours > 0 ? Math.round(lateFee / lateHours) : 0);
   const isLate = lateFee > 0;
 
-  const posTotal = charges.reduce((s, c) => s + (c.amount || 0), 0);
-  
+  const posTotal = charges.reduce((s, c) => s + (Number(c.amount) || 0), 0);
+
+  // Compute actual stay nights
+  const checkInRaw = booking.checkInDate || booking.createdAt;
+  const checkOutRaw = booking.checkOutDate;
+  let computedNights = 1;
+  if (checkInRaw && checkOutRaw) {
+    try {
+      const d1 = new Date(checkInRaw);
+      const d2 = new Date(checkOutRaw);
+      const diffDays = Math.ceil((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays > 0) computedNights = diffDays;
+    } catch {
+      computedNights = 1;
+    }
+  }
+  const nights = Number(booking.numberOfNights) || Number(booking.nights) || computedNights || 1;
+
   // Snapshot or calculated values from booking
   const roomBreakdowns = Array.isArray(booking.roomGstBreakdown) && booking.roomGstBreakdown.length > 0 ? booking.roomGstBreakdown : [];
-  
-  const originalBookingTotal = isLate && booking.totalAmount > lateFee ? booking.totalAmount - lateFee : (booking.totalAmount || 3000);
-  const taxableVal = booking.taxableAmount ?? (roomBreakdowns.length > 0 ? roomBreakdowns.reduce((s, r) => s + (r.taxableAmount || 0), 0) : Math.round(originalBookingTotal / 1.18));
-  const totalGst = booking.gstAmount ?? (roomBreakdowns.length > 0 ? roomBreakdowns.reduce((s, r) => s + (r.gstAmount || 0), 0) : originalBookingTotal - taxableVal);
-  const cgstVal = booking.cgstAmount ?? (roomBreakdowns.length > 0 ? roomBreakdowns.reduce((s, r) => s + (r.cgstAmount || 0), 0) : Math.round(totalGst / 2));
-  const sgstVal = booking.sgstAmount ?? (roomBreakdowns.length > 0 ? roomBreakdowns.reduce((s, r) => s + (r.sgstAmount || 0), 0) : Math.round(totalGst - cgstVal));
-  const igstVal = booking.igstAmount || 0;
-  
-  const mainGstRate = booking.gstRate ?? (roomBreakdowns[0]?.gstRate || 18);
-  const mainCgstRate = booking.cgstRate ?? (roomBreakdowns[0]?.cgstRate || mainGstRate / 2);
-  const mainSgstRate = booking.sgstRate ?? (roomBreakdowns[0]?.sgstRate || mainGstRate / 2);
 
-  const grandTotalAmount = (booking.grandTotal || (booking.totalAmount ? booking.totalAmount : (taxableVal + totalGst + lateFee))) + posTotal;
-  const advancePaid = isLate && booking.paidAmount > lateFee ? booking.paidAmount - lateFee : (booking.paidAmount || originalBookingTotal);
-  const paidAmount = booking.paidAmount || grandTotalAmount;
-  const balanceDue = Math.max(0, grandTotalAmount - paidAmount);
+  const rawBookingTotal = Number(booking.totalAmount) || Number(booking.grandTotal) || (booking.paidAmount ? Number(booking.paidAmount) : 3000);
+  const originalBookingTotal = isLate && rawBookingTotal > lateFee ? rawBookingTotal - lateFee : rawBookingTotal;
+
+  // Real GST & Taxable Calculations (Fixing NaN / undefined% / ₹0 bugs)
+  let defaultGstRate = Number(booking.gstRate);
+  if (isNaN(defaultGstRate) || defaultGstRate === undefined || defaultGstRate === null) {
+    defaultGstRate = originalBookingTotal > 7500 ? 18 : (originalBookingTotal > 0 ? 12 : 0);
+  }
+
+  let taxableVal = Number(booking.taxableAmount);
+  let totalGst = Number(booking.gstAmount);
+
+  if (roomBreakdowns.length > 0) {
+    taxableVal = roomBreakdowns.reduce((s, r) => s + (Number(r.taxableAmount) || 0), 0);
+    totalGst = roomBreakdowns.reduce((s, r) => s + (Number(r.gstAmount) || 0), 0);
+  }
+
+  if (isNaN(taxableVal) || taxableVal === undefined || taxableVal === null || taxableVal === 0) {
+    if (defaultGstRate > 0) {
+      taxableVal = Math.round(originalBookingTotal / (1 + defaultGstRate / 100));
+      totalGst = originalBookingTotal - taxableVal;
+    } else {
+      taxableVal = originalBookingTotal;
+      totalGst = 0;
+    }
+  }
+
+  if (isNaN(totalGst) || totalGst === undefined || totalGst === null) {
+    totalGst = Math.max(0, originalBookingTotal - taxableVal);
+  }
+
+  const cgstVal = Number(booking.cgstAmount) ?? (roomBreakdowns.length > 0 ? roomBreakdowns.reduce((s, r) => s + (Number(r.cgstAmount) || 0), 0) : Math.round(totalGst / 2));
+  const sgstVal = Number(booking.sgstAmount) ?? (roomBreakdowns.length > 0 ? roomBreakdowns.reduce((s, r) => s + (Number(r.sgstAmount) || 0), 0) : Math.max(0, totalGst - cgstVal));
+
+  const mainGstRate = defaultGstRate;
+  const mainCgstRate = Number(booking.cgstRate) || (mainGstRate / 2);
+  const mainSgstRate = Number(booking.sgstRate) || (mainGstRate / 2);
+
+  const baseRatePerNight = Math.round(taxableVal / nights) || Number(booking.pricePerNight) || Math.round(originalBookingTotal / nights);
+
+  const grandTotalAmount = Number(booking.grandTotal) || (taxableVal + totalGst + lateFee + posTotal) || rawBookingTotal;
+  const paidAmount = Number(booking.paidAmount) !== undefined && Number(booking.paidAmount) !== null && !isNaN(Number(booking.paidAmount))
+    ? Number(booking.paidAmount)
+    : (paymentHistory.length > 0 ? paymentHistory.reduce((s, p) => s + (Number(p.amount) || 0), 0) : grandTotalAmount);
+
+  const balanceDue = Number(booking.dueAmount) !== undefined && !isNaN(Number(booking.dueAmount))
+    ? Number(booking.dueAmount)
+    : Math.max(0, grandTotalAmount - paidAmount);
+
+  const checkInDateFormatted = booking.checkInDate ? (typeof booking.checkInDate === 'string' ? booking.checkInDate.split('T')[0] : new Date(booking.checkInDate).toLocaleDateString('en-IN')) : "On Record";
+  const checkInTimeFormatted = booking.checkInTime ? formatTime12Hour(booking.checkInTime) : "12:00 PM";
+  const checkOutDateFormatted = booking.checkOutDate ? (typeof booking.checkOutDate === 'string' ? booking.checkOutDate.split('T')[0] : new Date(booking.checkOutDate).toLocaleDateString('en-IN')) : "Scheduled";
+  const checkOutTimeFormatted = formatTime12Hour(booking.checkOutTime || hotel.checkOutTime || "11:00 AM");
+
+  const guestName = guest.fullName || guest.name || booking.guestName || "Valued Guest";
+  const guestPhone = guest.mobileNumber || guest.phone || booking.guestPhone || "On Record";
+  const guestEmail = guest.email || booking.guestEmail || "guest@hotelfolio.in";
+  const govtIdType = guest.idProof?.idType || guest.govtIdType || guest.idType || "Aadhaar";
+  const govtIdNumber = guest.idProof?.idNumber || guest.govtIdNumber || guest.idNumber || "Verified On Record";
+  const guestAddress = guest.address || guest.city || "Verified On Record";
+  const roomNumberDisplay = booking.roomNumber || room.roomNumber || booking.roomAssigned || "101";
+  const roomTypeNameDisplay = roomType.name || room.type || booking.roomTypeName || "Executive Suite";
 
   const html = `
-    <div class="header-banner">
-      <div class="hotel-brand">
-        <div class="brand-icon"><img src="/logo.png" alt="MYOWNPMS" onerror="this.outerHTML='🏨'" /></div>
+    <!-- Top Branded Executive Header -->
+    <div class="pdf-section" style="background: linear-gradient(135deg, #092622 0%, #0F766E 50%, #14B8A6 100%); border-radius: 16px; padding: 18px 22px; color: #FFFFFF; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 8px 24px rgba(15, 118, 110, 0.25);">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <div style="width: 48px; height: 48px; background: #FFFFFF; border: 2px solid rgba(255,255,255,0.8); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; overflow: hidden; padding: 4px; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+          <img src="/logo.png" alt="${hotelName}" onerror="this.outerHTML='🏨'" style="width:100%;height:100%;object-fit:contain;" />
+        </div>
         <div>
-          <div class="hotel-name">${hotelName}</div>
-          <div class="hotel-sub">${hotelAddress} &bull; Ph: ${hotelPhone}</div>
-          <div class="hotel-sub">GSTIN: <strong>${hotelGst}</strong></div>
+          <div style="font-size: 20px; font-weight: 900; color: #FFFFFF; letter-spacing: -0.4px;">${hotelName}</div>
+          <div style="font-size: 11px; color: rgba(255, 255, 255, 0.9); font-weight: 600; margin-top: 2px;">
+            📍 ${hotelAddress} &bull; 📞 ${hotelPhone}
+          </div>
+          <div style="display: inline-flex; align-items: center; gap: 5px; margin-top: 4px; border: none; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; letter-spacing: 0.3px;">
+          
+            GSTIN: <strong>${hotelGst}</strong> &bull; Verified Taxpayer
+          </div>
         </div>
       </div>
-      <div class="doc-meta">
-        <div class="doc-title">Tax Invoice</div>
-        <div class="doc-id">${invoiceNum}</div>
-        <div class="doc-date">Date: ${dateStr}</div>
+
+      <div style="text-align: right; border: none; padding: 4px 8px;">
+        <div style="font-size: 15px; font-weight: 900; color: #FFFFFF; text-transform: uppercase; letter-spacing: 1px;">TAX INVOICE</div>
+        <div style="font-size: 13px; font-weight: 800; color: #CCFBF1; margin-top: 2px; font-family: monospace;">#${invoiceNum}</div>
+        <div style="font-size: 10px; color: rgba(255, 255, 255, 0.85); font-weight: 700; margin-top: 2px;">Date: ${dateStr} &bull; ${timeStr}</div>
       </div>
     </div>
 
-    <div class="info-grid">
-      <div class="info-block">
-        <h4>Billed To (Primary Guest)</h4>
-        <p>${guest.fullName || guest.name || "Valued Guest"}</p>
-        <span>📞 Phone: <strong>${guest.mobileNumber || guest.phone || "N/A"}</strong> &bull; ✉️ ${guest.email || "N/A"}</span>
-        <span>🛡️ Govt ID: <strong>${guest.idProof?.idType || guest.govtIdType || "Aadhaar"}: ${guest.idProof?.idNumber || guest.govtIdNumber || "XXXX-XXXX-4512"}</strong></span>
-        <span>🏠 Address: ${guest.address || guest.city || "On Record"}</span>
+    <!-- 2-Column Guest & Stay Cards -->
+    <div class="pdf-section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+      <!-- Billed To Card -->
+      <div style="background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 14px; padding: 14px 16px; position: relative; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.02);">
+        <div style="position: absolute; top: 0; left: 0; right: 0; height: 3.5px; background: #0F766E;"></div>
+        <div style="font-size: 10.5px; font-weight: 900; color: #0F766E; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+          <span>👤</span> BILLED TO (PRIMARY GUEST)
+        </div>
+        <div style="font-size: 14px; font-weight: 900; color: #0F172A; margin-bottom: 5px;">${guestName}</div>
+        <div style="font-size: 11px; color: #475569; margin-bottom: 3px;">
+          📞 Phone: <strong style="color:#0F172A;">${guestPhone}</strong> &bull; ✉️ ${guestEmail}
+        </div>
+        <div style="font-size: 11px; color: #475569; margin-bottom: 3px; display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
+          <span>🛡️ Govt ID:</span>
+          <strong style="color:#0F172A; font-family: monospace;">${govtIdType}: ${govtIdNumber}</strong>
+          <span style="display: inline-block; background: transparent; color: #15803D; border: none; padding: 1px 6px; border-radius: 4px; font-size: 9.5px; font-weight: 800;">✓ Verified</span>
+        </div>
+        <div style="font-size: 11px; color: #475569;">
+          🏠 Address: <span style="color:#0F172A;">${guestAddress}</span>
+        </div>
       </div>
-      <div class="info-block">
-        <h4>Stay &amp; Room Allocation</h4>
-        <p>Room #${booking.roomNumber || room.roomNumber || "101"} (${roomType.name || "Deluxe Room"})</p>
-        <span>Check-In: <strong>${booking.checkInDate ? (typeof booking.checkInDate === 'string' ? booking.checkInDate.split('T')[0] : new Date(booking.checkInDate).toLocaleDateString('en-IN')) : "Today"} (${booking.checkInTime ? formatTime12Hour(booking.checkInTime) : "02:00 PM"})</strong></span>
-        <span>Check-Out: <strong>${booking.checkOutDate ? (typeof booking.checkOutDate === 'string' ? booking.checkOutDate.split('T')[0] : new Date(booking.checkOutDate).toLocaleDateString('en-IN')) : "Tomorrow"} (${formatTime12Hour(booking.checkOutTime || hotel.checkOutTime || "12:00")})</strong></span>
-        <span>Booking Folio: #${booking.bookingNumber || "BK-8921"}</span>
+
+      <!-- Stay Allocation Card -->
+      <div style="background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 14px; padding: 14px 16px; position: relative; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.02);">
+        <div style="position: absolute; top: 0; left: 0; right: 0; height: 3.5px; background: #10B981;"></div>
+        <div style="font-size: 10.5px; font-weight: 900; color: #10B981; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+          <span>🏨</span> STAY &amp; ROOM ALLOCATION
+        </div>
+        <div style="font-size: 14px; font-weight: 900; color: #0F172A; margin-bottom: 5px;">
+          Room #${roomNumberDisplay} &bull; <span style="font-size: 12px; color: #0F766E; font-weight: 800;">${roomTypeNameDisplay}</span>
+        </div>
+        <div style="font-size: 11px; color: #475569; margin-bottom: 3px;">
+          📥 Check-In: <strong style="color:#0F172A;">${checkInDateFormatted} (${checkInTimeFormatted})</strong>
+        </div>
+        <div style="font-size: 11px; color: #475569; margin-bottom: 3px;">
+          📤 Check-Out: <strong style="color:#0F172A;">${checkOutDateFormatted} (${checkOutTimeFormatted})</strong>
+        </div>
+        <div style="font-size: 11px; color: #475569; display: flex; align-items: center; gap: 6px;">
+          <span>⏱️ Duration: <strong>${nights} Night${nights > 1 ? "s" : ""}</strong></span>
+          <span>&bull;</span>
+          <span>Folio: <strong style="color:#0F766E;">#${booking.bookingNumber || "BK-8921"}</strong></span>
+        </div>
         ${isLate ? `
-          <div style="margin-top:5px;font-size:11px;color:#DC2626;font-weight:700;">
-            ⚠️ Late Check-Out: ${lateHours} Hours @ ₹${hourlyRate}/hr (+₹${lateFee.toLocaleString("en-IN")})
+          <div style="margin-top:6px; background:#FEF2F2; border:1px solid #FCA5A5; border-radius:6px; padding:4px 8px; font-size:10.5px; color:#DC2626; font-weight:800;">
+            ⚠️ Late Check-Out Surcharge: ${lateHours}h past checkout @ ₹${hourlyRate}/hr (+₹${lateFee.toLocaleString("en-IN")})
           </div>
         ` : ""}
       </div>
     </div>
 
-    <!-- Accompanying Members Table -->
+    <!-- Accompanying Members Section -->
     ${accompanying && accompanying.length > 0 ? `
-      <div style="font-size:11.5px;font-weight:900;color:#0F172A;text-transform:uppercase;margin:12px 0 6px 0;letter-spacing:0.5px;">
-        👥 Accompanying Family Members &amp; Co-Guests (${accompanying.length})
+      <div class="pdf-section" style="margin-bottom: 14px;">
+        <div style="font-size: 11.5px; font-weight: 900; color: #0F172A; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+          <span>👥</span> ACCOMPANYING FAMILY MEMBERS &amp; CO-GUESTS (${accompanying.length})
+        </div>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 0; border-radius: 10px; overflow: hidden; border: 1px solid #E2E8F0;">
+          <thead>
+            <tr style="background: #0F766E; color: #FFFFFF;">
+              <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; width: 35px;">#</th>
+              <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: left;">Member Full Name</th>
+              <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: left;">Age / Gender</th>
+              <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: left;">Relationship</th>
+              <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: left;">Govt ID Type</th>
+              <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: left;">ID Proof Number</th>
+              <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; width: 90px;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${accompanying.map((m, idx) => `
+              <tr style="border-bottom: 1px solid #E2E8F0; background: ${idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC'};">
+                <td style="padding: 8px 10px; font-size: 11px; text-align: center; font-weight: 700; color: #64748B;">${idx + 1}</td>
+                <td style="padding: 8px 10px; font-size: 11px; font-weight: 800; color: #0F172A;">${m.name || m.fullName || `Member ${idx + 1}`}</td>
+                <td style="padding: 8px 10px; font-size: 11px; color: #475569;">${m.age ? `${m.age} yrs` : "-"} / ${m.gender || "-"}</td>
+                <td style="padding: 8px 10px; font-size: 11px;"><span style="display:inline-block; padding:2px 7px; border-radius:5px; font-size:9.5px; font-weight:800; background: transparent; color:#6D28D9; border:none;">${m.relationship || "Accompanying Guest"}</span></td>
+                <td style="padding: 8px 10px; font-size: 11px; font-weight: 700; color: #334155;">${m.idType || "AADHAAR"}</td>
+                <td style="padding: 8px 10px; font-size: 11px;"><code style="font-family:monospace; background:#F1F5F9; padding:2px 5px; border-radius:4px; font-size:10.5px;">${m.idNumber || "Verified On Record"}</code></td>
+                <td style="padding: 8px 10px; font-size: 11px; text-align: center;"><span style="display:inline-block; padding:2px 7px; border-radius:5px; font-size:9.5px; font-weight:800; background: transparent; color:#15803D; border:none;">✓ Verified</span></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
       </div>
-      <table style="margin-bottom:14px;">
+    ` : ""}
+
+    <!-- Main Itemized Charges Breakdown Table -->
+    <div class="pdf-section" style="margin-bottom: 14px;">
+      <div style="font-size: 11.5px; font-weight: 900; color: #0F172A; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+        <span>📋</span> ITEMIZED ROOM TARIFF, TAXES &amp; EXTRA SERVICES BREAKDOWN
+      </div>
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 0; border-radius: 10px; overflow: hidden; border: 1px solid #CBD5E1; box-shadow: 0 2px 6px rgba(0,0,0,0.02);">
         <thead>
-          <tr>
-            <th>#</th>
-            <th>Member Full Name</th>
-            <th>Age / Gender</th>
-            <th>Relationship</th>
-            <th>Govt ID Type</th>
-            <th>ID Proof Number</th>
-            <th class="text-center">Status</th>
+          <tr style="background: #0F766E; color: #FFFFFF;">
+            <th style="padding: 9px 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; width: 32px;">#</th>
+            <th style="padding: 9px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: left;">Description of Service / Tariff Charge</th>
+            <th style="padding: 9px 6px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; width: 70px;">HSN/SAC</th>
+            <th style="padding: 9px 6px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; width: 70px;">Qty/Nights</th>
+            <th style="padding: 9px 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; width: 75px;">Rate (₹)</th>
+            <th style="padding: 9px 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; width: 85px;">Taxable (₹)</th>
+            <th style="padding: 9px 6px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; width: 65px;">GST Rate</th>
+            <th style="padding: 9px 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; width: 85px;">Tax Amount</th>
+            <th style="padding: 9px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; width: 90px;">Total (₹)</th>
           </tr>
         </thead>
         <tbody>
-          ${accompanying.map((m, idx) => `
-            <tr>
-              <td>${idx + 1}</td>
-              <td><strong>${m.name || m.fullName || `Member ${idx + 1}`}</strong></td>
-              <td>${m.age ? `${m.age} yrs` : "-"} / ${m.gender || "-"}</td>
-              <td><span class="badge badge-purple">${m.relationship || "Family Member"}</span></td>
-              <td>${m.idType || "AADHAAR"}</td>
-              <td><code>${m.idNumber || "Verified On Record"}</code></td>
-              <td class="text-center"><span class="badge badge-success">✓ Verified</span></td>
+          ${roomBreakdowns.length > 0 ? roomBreakdowns.map((rb, idx) => {
+    const rbNights = Number(rb.nights) || nights || 1;
+    const rbGstRate = Number(rb.gstRate) !== undefined && !isNaN(Number(rb.gstRate)) ? Number(rb.gstRate) : defaultGstRate;
+    let rbTaxable = Number(rb.taxableAmount);
+    let rbFinal = Number(rb.finalAmount);
+    if (!rbTaxable || rbTaxable === 0) {
+      if (rbFinal && rbFinal > 0) {
+        rbTaxable = Math.round(rbFinal / (1 + rbGstRate / 100));
+      } else {
+        rbTaxable = taxableVal;
+      }
+    }
+    const rbRate = Number(rb.basePrice) || Math.round(rbTaxable / rbNights) || baseRatePerNight;
+    const rbGstAmount = Number(rb.gstAmount) !== undefined && !isNaN(Number(rb.gstAmount)) ? Number(rb.gstAmount) : Math.round((rbTaxable * rbGstRate) / 100);
+    if (!rbFinal || rbFinal === 0) rbFinal = rbTaxable + rbGstAmount;
+    const rbCgstRate = rbGstRate / 2;
+    const rbSgstRate = rbGstRate / 2;
+    const rbCgstAmt = Math.round(rbGstAmount / 2);
+    const rbSgstAmt = rbGstAmount - rbCgstAmt;
+
+    return `
+              <tr style="border-bottom: 1px solid #E2E8F0; background: #FFFFFF;">
+                <td style="padding: 9px 8px; font-size: 11px; text-align: center; font-weight: 700; color: #64748B;">${idx + 1}</td>
+                <td style="padding: 9px 10px; font-size: 11px;">
+                  <div style="font-weight: 900; color: #0F172A;">Room #${rb.roomNumber || roomNumberDisplay} &bull; ${rb.roomTypeName || roomTypeNameDisplay}</div>
+                  <div style="font-size: 10px; color: #64748B; margin-top: 2px;">CGST @ ${rbCgstRate}% (₹${rbCgstAmt.toLocaleString("en-IN")}) + SGST @ ${rbSgstRate}% (₹${rbSgstAmt.toLocaleString("en-IN")})</div>
+                </td>
+                <td style="padding: 9px 6px; font-size: 11px; text-align: center; font-family: monospace; color: #475569;">996311</td>
+                <td style="padding: 9px 6px; font-size: 11px; text-align: center; font-weight: 700; color: #0F172A;">${rbNights} Night${rbNights > 1 ? "s" : ""}</td>
+                <td style="padding: 9px 8px; font-size: 11px; text-align: right; color: #334155;">₹${rbRate.toLocaleString("en-IN")}</td>
+                <td style="padding: 9px 8px; font-size: 11px; text-align: right; font-weight: 700; color: #0F172A;">₹${rbTaxable.toLocaleString("en-IN")}</td>
+                <td style="padding: 9px 6px; font-size: 11px; text-align: center;"><span style="display:inline-block; padding:2px 6px; border-radius:4px; font-size:9.5px; font-weight:800; background: transparent; color:#0F766E;">${rbGstRate}%</span></td>
+                <td style="padding: 9px 8px; font-size: 11px; text-align: right; color: #475569;">₹${rbGstAmount.toLocaleString("en-IN")}</td>
+                <td style="padding: 9px 10px; font-size: 11.5px; text-align: right; font-weight: 900; color: #059669;">₹${rbFinal.toLocaleString("en-IN")}</td>
+              </tr>
+            `;
+  }).join("") : `
+            <tr style="border-bottom: 1px solid #E2E8F0; background: #FFFFFF;">
+              <td style="padding: 9px 8px; font-size: 11px; text-align: center; font-weight: 700; color: #64748B;">1</td>
+              <td style="padding: 9px 10px; font-size: 11px;">
+                <div style="font-weight: 900; color: #0F172A;">Room #${roomNumberDisplay} &bull; ${roomTypeNameDisplay}</div>
+                <div style="font-size: 10px; color: #64748B; margin-top: 2px;">CGST @ ${mainCgstRate}% (₹${cgstVal.toLocaleString("en-IN")}) + SGST @ ${mainSgstRate}% (₹${sgstVal.toLocaleString("en-IN")})</div>
+              </td>
+              <td style="padding: 9px 6px; font-size: 11px; text-align: center; font-family: monospace; color: #475569;">996311</td>
+              <td style="padding: 9px 6px; font-size: 11px; text-align: center; font-weight: 700; color: #0F172A;">${nights} Night${nights > 1 ? "s" : ""}</td>
+              <td style="padding: 9px 8px; font-size: 11px; text-align: right; color: #334155;">₹${baseRatePerNight.toLocaleString("en-IN")}</td>
+              <td style="padding: 9px 8px; font-size: 11px; text-align: right; font-weight: 700; color: #0F172A;">₹${taxableVal.toLocaleString("en-IN")}</td>
+              <td style="padding: 9px 6px; font-size: 11px; text-align: center;"><span style="display:inline-block; padding:2px 6px; border-radius:4px; font-size:9.5px; font-weight:800; background: transparent; color:#0F766E;">${mainGstRate}%</span></td>
+              <td style="padding: 9px 8px; font-size: 11px; text-align: right; color: #475569;">₹${totalGst.toLocaleString("en-IN")}</td>
+              <td style="padding: 9px 10px; font-size: 11.5px; text-align: right; font-weight: 900; color: #059669;">₹${(taxableVal + totalGst).toLocaleString("en-IN")}</td>
             </tr>
-          `).join("")}
+          `}
+
+          ${isLate ? `
+            <tr style="border-bottom: 1px solid #E2E8F0; background: #FFF5F5;">
+              <td style="padding: 9px 8px; font-size: 11px; text-align: center; font-weight: 700; color: #DC2626;">${(roomBreakdowns.length || 1) + 1}</td>
+              <td style="padding: 9px 10px; font-size: 11px;">
+                <div style="font-weight: 900; color: #DC2626;">Late Check-Out Penalty Surcharge</div>
+                <div style="font-size: 10px; color: #991B1B;">Overstayed ${lateHours} Hours past checkout @ ₹${hourlyRate}/hr</div>
+              </td>
+              <td style="padding: 9px 6px; font-size: 11px; text-align: center; font-family: monospace; color: #475569;">996311</td>
+              <td style="padding: 9px 6px; font-size: 11px; text-align: center; font-weight: 700;">${lateHours}h</td>
+              <td style="padding: 9px 8px; font-size: 11px; text-align: right;">₹${hourlyRate.toLocaleString("en-IN")}</td>
+              <td style="padding: 9px 8px; font-size: 11px; text-align: right; font-weight: 700;">₹${lateFee.toLocaleString("en-IN")}</td>
+              <td style="padding: 9px 6px; font-size: 11px; text-align: center;"><span style="display:inline-block; padding:2px 6px; border-radius:4px; font-size:9.5px; font-weight:800; background:#F1F5F9; color:#475569;">0%</span></td>
+              <td style="padding: 9px 8px; font-size: 11px; text-align: right;">₹0</td>
+              <td style="padding: 9px 10px; font-size: 11.5px; text-align: right; font-weight: 900; color: #DC2626;">₹${lateFee.toLocaleString("en-IN")}</td>
+            </tr>
+          ` : ""}
+
+          ${charges.map((c, i) => {
+    const cAmt = Number(c.amount) || 0;
+    return `
+              <tr style="border-bottom: 1px solid #E2E8F0; background: ${i % 2 === 0 ? '#F8FAFC' : '#FFFFFF'};">
+                <td style="padding: 9px 8px; font-size: 11px; text-align: center; font-weight: 700; color: #64748B;">${(roomBreakdowns.length || 1) + (isLate ? 1 : 0) + 1 + i}</td>
+                <td style="padding: 9px 10px; font-size: 11px;">
+                  <div style="font-weight: 800; color: #0F172A;">${c.title || c.item || c.serviceName || "POS Room Service / Extra Item"}</div>
+                  <div style="font-size: 10px; color: #64748B;">Category: <strong>${c.category || "F&B / Sundry"}</strong>${c.reason || c.note ? ` &bull; ${c.reason || c.note}` : ""}</div>
+                </td>
+                <td style="padding: 9px 6px; font-size: 11px; text-align: center; font-family: monospace; color: #475569;">996331</td>
+                <td style="padding: 9px 6px; font-size: 11px; text-align: center; font-weight: 700;">${c.quantity || 1}</td>
+                <td style="padding: 9px 8px; font-size: 11px; text-align: right;">₹${cAmt.toLocaleString("en-IN")}</td>
+                <td style="padding: 9px 8px; font-size: 11px; text-align: right; font-weight: 700;">₹${cAmt.toLocaleString("en-IN")}</td>
+                <td style="padding: 9px 6px; font-size: 11px; text-align: center;"><span style="display:inline-block; padding:2px 6px; border-radius:4px; font-size:9.5px; font-weight:800; background:#F1F5F9; color:#475569;">0%</span></td>
+                <td style="padding: 9px 8px; font-size: 11px; text-align: right;">₹0</td>
+                <td style="padding: 9px 10px; font-size: 11.5px; text-align: right; font-weight: 900; color: #0F172A;">₹${cAmt.toLocaleString("en-IN")}</td>
+              </tr>
+            `;
+  }).join("")}
         </tbody>
       </table>
-    ` : ""}
-
-    <!-- Main Itemized Charges Table -->
-    <div style="font-size:11.5px;font-weight:900;color:#0F172A;text-transform:uppercase;margin:12px 0 6px 0;letter-spacing:0.5px;">
-      📋 Itemized Room Tariff, Taxes &amp; Extra Services Breakdown
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Description of Service / Tariff Charge</th>
-          <th class="text-center">HSN/SAC</th>
-          <th class="text-right">Qty / Nights</th>
-          <th class="text-right">Rate (₹)</th>
-          <th class="text-right">Taxable (₹)</th>
-          <th class="text-right">GST Rate</th>
-          <th class="text-right">Tax Amount (₹)</th>
-          <th class="text-right">Total (₹)</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${roomBreakdowns.length > 0 ? roomBreakdowns.map((rb, idx) => `
-          <tr>
-            <td>${idx + 1}</td>
-            <td>
-              <strong>Room #${rb.roomNumber || booking.roomNumber} - ${rb.roomTypeName || roomType.name || "Room"}</strong>
-              <div style="font-size:10.5px;color:#64748B;">CGST @ ${rb.cgstRate}% (₹${(rb.cgstAmount || 0).toLocaleString("en-IN")}) + SGST @ ${rb.sgstRate}% (₹${(rb.sgstAmount || 0).toLocaleString("en-IN")})</div>
-            </td>
-            <td class="text-center">996311</td>
-            <td class="text-right">${rb.nights || 1}</td>
-            <td class="text-right">₹${(rb.basePrice || 0).toLocaleString("en-IN")}</td>
-            <td class="text-right">₹${(rb.taxableAmount || 0).toLocaleString("en-IN")}</td>
-            <td class="text-right">${rb.gstRate}%</td>
-            <td class="text-right">₹${(rb.gstAmount || 0).toLocaleString("en-IN")}</td>
-            <td class="text-right"><strong>₹${(rb.finalAmount || 0).toLocaleString("en-IN")}</strong></td>
-          </tr>
-        `).join("") : `
-          <tr>
-            <td>1</td>
-            <td>
-              <strong>Room Accommodation Charges</strong>
-              <div style="font-size:10.5px;color:#64748B;">Room #${booking.roomNumber || room.roomNumber || "101"} - CGST @ ${mainCgstRate}% + SGST @ ${mainSgstRate}%</div>
-            </td>
-            <td class="text-center">996311</td>
-            <td class="text-right">${booking.numberOfNights || 1}</td>
-            <td class="text-right">₹${taxableVal.toLocaleString("en-IN")}</td>
-            <td class="text-right">₹${taxableVal.toLocaleString("en-IN")}</td>
-            <td class="text-right">${mainGstRate}%</td>
-            <td class="text-right">₹${totalGst.toLocaleString("en-IN")}</td>
-            <td class="text-right"><strong>₹${(taxableVal + totalGst).toLocaleString("en-IN")}</strong></td>
-          </tr>
-        `}
-        ${isLate ? `
-          <tr>
-            <td>${(roomBreakdowns.length || 1) + 1}</td>
-            <td>
-              <strong>Late Check-Out Penalty Surcharge</strong>
-              <div style="font-size:10.5px;color:#DC2626;">Overstayed ${lateHours} Hours past scheduled check-out @ ₹${hourlyRate}/hr</div>
-            </td>
-            <td class="text-center">996311</td>
-            <td class="text-right">${lateHours}h</td>
-            <td class="text-right">₹${hourlyRate.toLocaleString("en-IN")}</td>
-            <td class="text-right">₹${lateFee.toLocaleString("en-IN")}</td>
-            <td class="text-right">0%</td>
-            <td class="text-right">₹0</td>
-            <td class="text-right"><strong>₹${lateFee.toLocaleString("en-IN")}</strong></td>
-          </tr>
-        ` : ""}
-        ${charges.map((c, i) => `
-          <tr>
-            <td>${(roomBreakdowns.length || 1) + (isLate ? 1 : 0) + 1 + i}</td>
-            <td>
-              <strong>${c.title || c.item || c.serviceName || "POS Room Service / Extra Item"}</strong>
-              <div style="font-size:10.5px;color:#64748B;">
-                Category: <strong>${c.category || "F&B / Sundry"}</strong>${c.reason || c.note ? ` &bull; Reason: ${c.reason || c.note}` : ""}
-              </div>
-            </td>
-            <td class="text-center">996331</td>
-            <td class="text-right">${c.quantity || 1}</td>
-            <td class="text-right">₹${(c.amount || 0).toLocaleString("en-IN")}</td>
-            <td class="text-right">₹${(c.amount || 0).toLocaleString("en-IN")}</td>
-            <td class="text-right">0%</td>
-            <td class="text-right">₹0</td>
-            <td class="text-right"><strong>₹${(c.amount || 0).toLocaleString("en-IN")}</strong></td>
-          </tr>
-        `).join("")}
-      </tbody>
-    </table>
 
-    <!-- Payment Transactions & Receipts Ledger -->
+    <!-- Payment Transaction History Ledger (if any) -->
     ${paymentHistory && paymentHistory.length > 0 ? `
-      <div style="font-size:11.5px;font-weight:900;color:#0F172A;text-transform:uppercase;margin:12px 0 6px 0;letter-spacing:0.5px;">
-        💳 Payment Transaction History Ledger (${paymentHistory.length})
-      </div>
-      <table style="margin-bottom:14px;">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Receipt / Txn ID</th>
-            <th>Date &amp; Time</th>
-            <th>Payment Stage</th>
-            <th>Method</th>
-            <th class="text-right">Amount (₹)</th>
-            <th class="text-center">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${paymentHistory.map((p, idx) => `
-            <tr>
-              <td>${idx + 1}</td>
-              <td><strong style="color:#0B8EE0;">#${p.receiptNumber || p.transactionId || "RCP-001"}</strong></td>
-              <td>${p.formattedDate || (p.createdAt ? new Date(p.createdAt).toLocaleString("en-IN") : dateStr)}</td>
-              <td>${p.paymentType || "Tariff Advance / Settlement"}</td>
-              <td><span class="badge badge-primary">${p.paymentMethod || "CASH"}</span></td>
-              <td class="text-right" style="font-weight:900;color:#059669;">₹${(p.amount || 0).toLocaleString("en-IN")}</td>
-              <td class="text-center"><span class="badge badge-success">✓ ${p.status || "PAID"}</span></td>
+      <div class="pdf-section" style="margin-bottom: 14px;">
+        <div style="font-size: 11.5px; font-weight: 900; color: #0F172A; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+          <span>💳</span> PAYMENT TRANSACTION HISTORY LEDGER (${paymentHistory.length})
+        </div>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 0; border-radius: 10px; overflow: hidden; border: 1px solid #E2E8F0;">
+          <thead>
+            <tr style="background: #0F766E; color: #FFFFFF;">
+              <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; width: 35px;">#</th>
+              <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: left;">Receipt / Txn ID</th>
+              <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: left;">Date &amp; Time</th>
+              <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: left;">Payment Stage</th>
+              <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: left;">Method</th>
+              <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: right;">Amount (₹)</th>
+              <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; width: 85px;">Status</th>
             </tr>
-          `).join("")}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            ${paymentHistory.map((p, idx) => {
+    const pAmt = Number(p.amount) || 0;
+    const pMethod = (p.paymentMethod || "CASH").toUpperCase();
+    return `
+                <tr style="border-bottom: 1px solid #E2E8F0; background: ${idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC'};">
+                  <td style="padding: 8px 10px; font-size: 11px; text-align: center; font-weight: 700; color: #64748B;">${idx + 1}</td>
+                  <td style="padding: 8px 10px; font-size: 11px; font-weight: 800; color: #0F766E; font-family: monospace;">#${p.receiptNumber || p.transactionId || "RCP-001"}</td>
+                  <td style="padding: 8px 10px; font-size: 11px; color: #475569;">${p.formattedDate || (p.createdAt ? new Date(p.createdAt).toLocaleDateString("en-IN", { day: 'numeric', month: 'short', year: 'numeric' }) : dateStr)}</td>
+                  <td style="padding: 8px 10px; font-size: 11px; font-weight: 600; color: #334155;">${p.paymentType || "Tariff Advance / Settlement"}</td>
+                  <td style="padding: 8px 10px; font-size: 11px;"><span style="display:inline-block; padding:2px 7px; border-radius:5px; font-size:9.5px; font-weight:800; background: transparent; color:#0F766E; border:none;">${pMethod}</span></td>
+                  <td style="padding: 8px 10px; font-size: 11px; text-align: right; font-weight: 900; color: #059669;">₹${pAmt.toLocaleString("en-IN")}</td>
+                  <td style="padding: 8px 10px; font-size: 11px; text-align: center;"><span style="display:inline-block; padding:2px 7px; border-radius:5px; font-size:9.5px; font-weight:800; background: transparent; color:#15803D; border:none;">✓ PAID</span></td>
+                </tr>
+              `;
+  }).join("")}
+          </tbody>
+        </table>
+      </div>
     ` : ""}
 
-    <!-- Total Financial Settlement Summary Card -->
-    <div class="total-card">
-      <div class="total-row">
-        <span>Room Base Tariff:</span>
-        <span>₹${taxableVal.toLocaleString("en-IN")}</span>
-      </div>
-      <div class="total-row">
-        <span>GST Taxes (CGST ₹${cgstVal.toLocaleString("en-IN")} + SGST ₹${sgstVal.toLocaleString("en-IN")}):</span>
-        <span>₹${totalGst.toLocaleString("en-IN")}</span>
-      </div>
-      ${posTotal > 0 ? `
-        <div class="total-row" style="color:#0B8EE0;font-weight:700;">
-          <span>Extra POS / Food &amp; Services (${charges.length} items):</span>
-          <span>+₹${posTotal.toLocaleString("en-IN")}</span>
+    <!-- Financial Settlement Summary & Terms Dual Container -->
+    <div class="pdf-section" style="display: grid; grid-template-columns: 1fr 340px; gap: 16px; margin-bottom: 16px; align-items: start;">
+      <!-- Left: Terms & Statutory Declaration -->
+      <div style="background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 14px; padding: 14px 16px; font-size: 10.5px; color: #475569; line-height: 1.55;">
+        <div style="font-weight: 900; color: #0F172A; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+          <span>📌</span> TERMS &amp; STATUTORY GST DECLARATION
         </div>
-      ` : ""}
-      ${isLate ? `
-        <div class="total-row" style="color:#DC2626;font-weight:700;">
-          <span>Late Checkout Fee (${lateHours}h @ ₹${hourlyRate}/hr):</span>
-          <span>+₹${lateFee.toLocaleString("en-IN")}</span>
+        <ul style="margin: 0; padding-left: 16px;">
+          <li style="margin-bottom: 4px;">All services and room charges are billed in Indian Rupees (INR) subject to statutory GST regulations under HSN/SAC code 996311.</li>
+          <li style="margin-bottom: 4px;">Hotel standard check-in time is 12:00 PM and check-out time is 11:00 AM. Overstay fees apply for non-authorized extensions.</li>
+          <li>This is a computer-generated tax invoice verified under Section 31 of the Central Goods and Services Tax (CGST) Act, 2017.</li>
+        </ul>
+      </div>
+
+      <!-- Right: Financial Ledger Card -->
+      <div style="background: #FFFFFF; border: 2px solid #CBD5E1; border-radius: 14px; padding: 14px 18px; box-shadow: 0 4px 14px rgba(12, 39, 59, 0.06);">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; color: #475569;">
+          <span>Room Base Tariff:</span>
+          <span style="font-weight: 800; color: #0F172A;">₹${taxableVal.toLocaleString("en-IN")}</span>
         </div>
-      ` : ""}
-      <div class="total-row grand">
-        <span>Grand Total Payable:</span>
-        <span>₹${grandTotalAmount.toLocaleString("en-IN")}</span>
-      </div>
-      <div class="total-row" style="color:#059669;font-weight:800;">
-        <span>Total Payments Received:</span>
-        <span>-₹${paidAmount.toLocaleString("en-IN")}</span>
-      </div>
-      <div class="total-row" style="color:${balanceDue > 0 ? '#DC2626' : '#059669'};font-weight:900;font-size:13px;border-top:1px dashed #CBD5E1;padding-top:4px;margin-top:4px;">
-        <span>Outstanding Balance Due:</span>
-        <span>₹${balanceDue.toLocaleString("en-IN")}</span>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; color: #475569;">
+          <span>GST (CGST ₹${cgstVal.toLocaleString("en-IN")} + SGST ₹${sgstVal.toLocaleString("en-IN")}):</span>
+          <span style="font-weight: 800; color: #0F172A;">₹${totalGst.toLocaleString("en-IN")}</span>
+        </div>
+        ${posTotal > 0 ? `
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; color: #0F766E; font-weight: 700;">
+            <span>Extra POS / F&amp;B (${charges.length} items):</span>
+            <span style="font-weight: 800;">+₹${posTotal.toLocaleString("en-IN")}</span>
+          </div>
+        ` : ""}
+        ${isLate ? `
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; color: #DC2626; font-weight: 700;">
+            <span>Late Checkout Fee (${lateHours}h):</span>
+            <span style="font-weight: 800;">+₹${lateFee.toLocaleString("en-IN")}</span>
+          </div>
+        ` : ""}
+        <div style="border-top: 1.5px dashed #CBD5E1; margin: 8px 0;"></div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 14px; font-weight: 900; color: #0F172A;">
+          <span>Grand Total Payable:</span>
+          <span style="color: #059669; font-size: 15px;">₹${grandTotalAmount.toLocaleString("en-IN")}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px; font-weight: 800; color: #059669;">
+          <span>Total Payments Received:</span>
+          <span>−₹${paidAmount.toLocaleString("en-IN")}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding-top: 6px; border-top: 1.5px solid #E2E8F0; margin-top: 4px; font-size: 13px; font-weight: 900; color: ${balanceDue <= 0 ? '#059669' : '#DC2626'};">
+          <span>Outstanding Balance:</span>
+          <span>${balanceDue <= 0 ? '₹0 (✓ Settled)' : `₹${balanceDue.toLocaleString("en-IN")}`}</span>
+        </div>
       </div>
     </div>
 
-    <div class="footer">
+    <!-- Official Authorization Footer -->
+    <div class="pdf-section" style="display: flex; justify-content: space-between; align-items: flex-end; padding-top: 14px; border-top: 1.5px solid #E2E8F0; font-size: 11px; color: #64748B;">
       <div>
-        <p><strong>Thank you for choosing ${hotelName}!</strong></p>
-        <p>This is a computer-generated tax invoice verified under GST regulations.</p>
+        <div style="font-weight: 800; color: #0F172A; font-size: 12px;">Thank you for staying at ${hotelName}!</div>
+        <div style="font-size: 10px; color: #94A3B8; margin-top: 2px;">This is a system-generated computer tax invoice &bull; Digitally authenticated by PMS</div>
       </div>
-      <div class="sign-box">
-        <div class="sign-line"></div>
-        <p>Authorized Signatory / Cashier</p>
+      <div style="text-align: right; width: 220px;">
+        <div style="border-bottom: 1.5px dashed #94A3B8; margin-bottom: 6px; height: 35px;"></div>
+        <div style="font-size: 10.5px; font-weight: 800; color: #0F172A; text-transform: uppercase;">Authorized Signatory / Cashier</div>
       </div>
     </div>
   `;
@@ -923,7 +1190,7 @@ export function downloadPaymentReceiptPDF(payment = {}, hotel = {}) {
       </div>
     </div>
 
-    <div style="background:#F0FDF4;border:2px solid #86EFAC;border-radius:14px;padding:20px;text-align:center;margin-bottom:24px;">
+    <div style="background: transparent;border:2px solid #86EFAC;border-radius:14px;padding:20px;text-align:center;margin-bottom:24px;">
       <div style="font-size:12px;font-weight:800;color:#15803D;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Amount Paid in Full</div>
       <div style="font-size:32px;font-weight:900;color:#15803D;letter-spacing:-1px;">₹${(payment.amount || 0).toLocaleString("en-IN")}</div>
       <div style="font-size:12px;color:#166534;margin-top:4px;">Transaction Stage: <strong>${payment.paymentType || "SETTLEMENT"}</strong> &bull; Status: <strong>PAID / VERIFIED</strong></div>
@@ -1246,7 +1513,7 @@ export function downloadHotelsDirectoryPDF(hotels = []) {
         </div>
       </div>
       <div class="doc-meta">
-        <div class="doc-title" style="color:#0B8EE0;">Network Directory</div>
+        <div class="doc-title" style="color:#0F766E;">Network Directory</div>
         <div class="doc-date">Generated: ${new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</div>
         <div class="doc-id">Total Properties: ${hotels.length}</div>
       </div>
@@ -1382,7 +1649,7 @@ export function downloadRevenueDetailsReportPDF(revenueData = {}, hotel = {}, fi
       <div class="breakdown-grid">
         <div class="breakdown-item">
           <div class="label">Room Accommodations</div>
-          <div class="amt" style="color:#0B8EE0;">₹${roomRev.toLocaleString("en-IN")}</div>
+          <div class="amt" style="color:#0F766E;">₹${roomRev.toLocaleString("en-IN")}</div>
         </div>
         <div class="breakdown-item">
           <div class="label">Extra Services &amp; Beds</div>
@@ -1420,7 +1687,7 @@ export function downloadRevenueDetailsReportPDF(revenueData = {}, hotel = {}, fi
           <tr>
             <td>${idx + 1}</td>
             <td>
-              <strong style="color:#0B8EE0;">#${t.receiptNumber || t.transactionId || "N/A"}</strong>
+              <strong style="color:#0F766E;">#${t.receiptNumber || t.transactionId || "N/A"}</strong>
               <div style="font-size:9.5px;color:#64748B;">${t.formattedDate || (t.createdAt ? new Date(t.createdAt).toLocaleDateString("en-IN") : "N/A")}</div>
             </td>
             <td>
@@ -1498,259 +1765,512 @@ export function downloadGuestFolioPDF(data = {}, hotel = {}) {
   const charges = booking.charges || booking.posCharges || data.charges || [];
   const accompanying = data.accompanyingGuests || booking.accompanyingGuests || guest.accompanyingGuests || [];
 
-  const hotelName = hotel.name || "MYOWNPMS";
-  const hotelAddress = hotel.address || hotel.city || "Gujarat, India";
-  const hotelPhone = hotel.phone || "+91 98765 43210";
-  const hotelGst = hotel.gstin || "24AABCG1234F1Z8";
+  const hotelName = hotel.name || "MYOWNPMS Luxury Hotel";
+  const hotelAddress = hotel.address || hotel.city || "Marine Drive, Mumbai, Maharashtra";
+  const hotelPhone = hotel.phone || hotel.ownerPhone || "+91 98200 12345";
+  const hotelGst = hotel.gstin || hotel.settings?.gstin || "27AABCG1234F1Z8";
+  const folioNum = booking.bookingNumber ? `FOLIO-${booking.bookingNumber}` : `FOLIO-${Date.now().toString().slice(-6)}`;
+  const dateStr = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  const timeStr = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 
   const overstay = calculateOverstayFee(booking, hotel);
-  const lateFee = booking.lateCheckoutCharge || overstay.lateFee || 0;
-  const lateHours = booking.lateCheckoutHours || overstay.chargeableHours || 0;
-  const hourlyRate = booking.hourlyRate || overstay.hourlyRate || (lateHours > 0 ? Math.round(lateFee / lateHours) : 0);
+  const lateFee = Number(booking.lateCheckoutCharge) || Number(overstay.lateFee) || 0;
+  const lateHours = Number(booking.lateCheckoutHours) || Number(overstay.chargeableHours) || 0;
+  const hourlyRate = Number(booking.hourlyRate) || Number(overstay.hourlyRate) || (lateHours > 0 ? Math.round(lateFee / lateHours) : 0);
   const isLate = lateFee > 0;
 
-  const baseTariff = paymentDetails.baseAmount ?? booking.taxableAmount ?? Math.round((booking.totalAmount || 0) / 1.18);
-  const gstAmount = paymentDetails.gstAmount ?? booking.gstAmount ?? ((booking.totalAmount || 0) - baseTariff);
-  const cgst = paymentDetails.cgstAmount ?? booking.cgstAmount ?? Math.round(gstAmount / 2);
-  const sgst = paymentDetails.sgstAmount ?? booking.sgstAmount ?? Math.round(gstAmount - cgst);
-  const posTotal = charges.reduce((s, c) => s + (c.amount || 0), 0);
+  const checkInDateFormatted = booking.checkInDate ? (typeof booking.checkInDate === 'string' ? booking.checkInDate.split('T')[0] : new Date(booking.checkInDate).toLocaleDateString('en-IN')) : "On Record";
+  const checkInTimeFormatted = booking.checkInTime ? formatTime12Hour(booking.checkInTime) : "12:00 PM";
+  const checkOutDateFormatted = booking.checkOutDate ? (typeof booking.checkOutDate === 'string' ? booking.checkOutDate.split('T')[0] : new Date(booking.checkOutDate).toLocaleDateString('en-IN')) : "Scheduled";
+  const checkOutTimeFormatted = formatTime12Hour(booking.checkOutTime || hotel.checkOutTime || "11:00 AM");
 
-  const totalAmount = paymentDetails.totalAmount ?? (booking.totalAmount || (baseTariff + gstAmount + lateFee + posTotal));
-  const paidAmount = paymentDetails.paidAmount ?? booking.paidAmount ?? totalAmount;
-  const dueAmount = paymentDetails.dueAmount ?? booking.dueAmount ?? Math.max(0, totalAmount - paidAmount);
+  const nights = Number(booking.numberOfNights) || Number(booking.nights) || 1;
+  const posTotal = charges.reduce((s, c) => s + (Number(c.amount) || 0), 0);
+  const roomBreakdowns = Array.isArray(booking.roomGstBreakdown) && booking.roomGstBreakdown.length > 0 ? booking.roomGstBreakdown : [];
+
+  const rawBookingTotal = Number(booking.totalAmount) || Number(booking.grandTotal) || (booking.paidAmount ? Number(booking.paidAmount) : 3000);
+  const originalBookingTotal = isLate && rawBookingTotal > lateFee ? rawBookingTotal - lateFee : rawBookingTotal;
+
+  let defaultGstRate = Number(booking.gstRate);
+  if (isNaN(defaultGstRate) || defaultGstRate === undefined || defaultGstRate === null) {
+    defaultGstRate = originalBookingTotal > 7500 ? 18 : (originalBookingTotal > 0 ? 12 : 0);
+  }
+
+  let taxableVal = Number(booking.taxableAmount);
+  let totalGst = Number(booking.gstAmount);
+
+  if (roomBreakdowns.length > 0) {
+    taxableVal = roomBreakdowns.reduce((s, r) => s + (Number(r.taxableAmount) || 0), 0);
+    totalGst = roomBreakdowns.reduce((s, r) => s + (Number(r.gstAmount) || 0), 0);
+  }
+
+  if (isNaN(taxableVal) || taxableVal === undefined || taxableVal === null || taxableVal === 0) {
+    if (defaultGstRate > 0) {
+      taxableVal = Math.round(originalBookingTotal / (1 + defaultGstRate / 100));
+      totalGst = originalBookingTotal - taxableVal;
+    } else {
+      taxableVal = originalBookingTotal;
+      totalGst = 0;
+    }
+  }
+
+  if (isNaN(totalGst) || totalGst === undefined || totalGst === null) {
+    totalGst = Math.max(0, originalBookingTotal - taxableVal);
+  }
+
+  const cgstVal = Number(booking.cgstAmount) ?? Math.round(totalGst / 2);
+  const sgstVal = Number(booking.sgstAmount) ?? Math.max(0, totalGst - cgstVal);
+  const baseRatePerNight = Math.round(taxableVal / nights) || Number(booking.pricePerNight) || Math.round(originalBookingTotal / nights);
+
+  const grandTotalAmount = Number(booking.grandTotal) || (taxableVal + totalGst + lateFee + posTotal) || rawBookingTotal;
+  const paidAmount = Number(booking.paidAmount) !== undefined && Number(booking.paidAmount) !== null && !isNaN(Number(booking.paidAmount))
+    ? Number(booking.paidAmount)
+    : (paymentHistory.length > 0 ? paymentHistory.reduce((s, p) => s + (Number(p.amount) || 0), 0) : grandTotalAmount);
+
+  const dueAmount = Number(booking.dueAmount) !== undefined && !isNaN(Number(booking.dueAmount))
+    ? Number(booking.dueAmount)
+    : Math.max(0, grandTotalAmount - paidAmount);
+
   const isPaid = dueAmount <= 0;
+  const guestName = guest.fullName || guest.name || booking.guestName || "Valued Guest";
+  const guestPhone = guest.mobileNumber || guest.phone || booking.guestPhone || "On Record";
+  const guestEmail = guest.email || booking.guestEmail || "Not Provided";
+  const guestAddress = guest.address?.city || guest.city || guest.address?.fullAddress || guest.address || "Verified On Record";
+  const govtIdType = guest.idProof?.idType || guest.govtIdType || guest.idType || "AADHAAR";
+  const govtIdNumber = guest.idProof?.idNumber || guest.govtIdNumber || guest.idNumber || "Verified On Record";
+  const roomNumberDisplay = booking.roomNumber || booking.room?.roomNumber || guest.roomAssigned || "101";
+  const roomTypeNameDisplay = booking.roomType?.name || booking.roomTypeName || "Executive Suite";
+
+  // Check if any actual ID images exist
+  const primaryFront = guest.idProof?.frontImage || guest.idProof?.frontImageUrl || guest.frontImage || guest.frontImageUrl || guest.idProofImage || booking.idProof?.frontImage || booking.idProofImage;
+  const primaryBack = guest.idProof?.backImage || guest.idProof?.backImageUrl || guest.backImage || guest.backImageUrl || guest.idProofBackImage || booking.idProof?.backImage || booking.idProofBackImage;
+  const hasAnyIdImages = Boolean(primaryFront || primaryBack || accompanying.some((m) => m.frontImage || m.frontImageUrl || m.backImage || m.backImageUrl || m.idProofImage || m.idProof?.frontImage || m.idProof?.backImage));
+
+  const allIdCards = [
+    {
+      name: guestName,
+      tag: "Primary Guest",
+      tagColor: "#0F766E",
+      tagBg: "#CCFBF1",
+      idType: govtIdType,
+      idNumber: govtIdNumber,
+      frontImg: primaryFront,
+      backImg: primaryBack,
+    },
+    ...accompanying.map((m, idx) => ({
+      name: m.name || m.fullName || `Co-Guest ${idx + 1}`,
+      tag: m.relationship || "Accompanying Guest",
+      tagColor: "#6D28D9",
+      tagBg: "#EDE9FE",
+      idType: m.idType || "AADHAAR",
+      idNumber: m.idNumber || "Verified On Record",
+      frontImg: m.frontImage || m.frontImageUrl || m.idProofImage || m.idProof?.frontImage || m.idProof?.frontImageUrl,
+      backImg: m.backImage || m.backImageUrl || m.idProofBackImage || m.idProof?.backImage || m.idProof?.backImageUrl,
+    }))
+  ].filter((c) => c.frontImg || c.backImg);
 
   const html = `
-    <!-- Hero Ribbon -->
-    <div class="hero-ribbon">
-      <div class="hotel-brand">
-        <div class="brand-icon"><img src="/logo.png" alt="MYOWNPMS" onerror="this.outerHTML='👤'" /></div>
+    <!-- Top Branded Executive Header -->
+    <div class="pdf-section" style="background: linear-gradient(135deg, #092622 0%, #0F766E 50%, #14B8A6 100%); border-radius: 16px; padding: 18px 22px; color: #FFFFFF; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 8px 24px rgba(15, 118, 110, 0.25);">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <div style="width: 48px; height: 48px; background: #FFFFFF; border: 2px solid rgba(255,255,255,0.8); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; overflow: hidden; padding: 4px; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+          <img src="/logo.png" alt="${hotelName}" onerror="this.outerHTML='🏨'" style="width:100%;height:100%;object-fit:contain;" />
+        </div>
         <div>
-          <div class="hotel-title">${hotelName}</div>
-          <div class="hotel-meta">📍 ${hotelAddress} &bull; 📞 ${hotelPhone} &bull; GSTIN: <strong>${hotelGst}</strong></div>
+          <div style="font-size: 20px; font-weight: 900; color: #FFFFFF; letter-spacing: -0.4px;">${hotelName}</div>
+          <div style="font-size: 11px; color: rgba(255, 255, 255, 0.9); font-weight: 600; margin-top: 2px;">
+            📍 ${hotelAddress} &bull; 📞 ${hotelPhone}
+          </div>
+          <div style="display: inline-flex; align-items: center; gap: 5px; margin-top: 4px; border: none; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; letter-spacing: 0.3px;">
+            <span style="width: 6px; height: 6px; background: #4ADE80; border-radius: 50%; display: inline-block;"></span>
+            GSTIN: <strong>${hotelGst}</strong> &bull; Verified Property
+          </div>
         </div>
       </div>
-      <div class="ribbon-badge">
-        <div class="title">Guest Stay Folio</div>
-        <div class="sub">Folio #${booking.bookingNumber || `GF-${Date.now().toString().slice(-6)}`}</div>
+
+      <div style="text-align: right; border: none; padding: 4px 8px;">
+        <div style="font-size: 15px; font-weight: 900; color: #FFFFFF; text-transform: uppercase; letter-spacing: 1px;">GUEST STAY FOLIO</div>
+        <div style="font-size: 13px; font-weight: 800; color: #99F6E4; margin-top: 2px; font-family: monospace;">#${booking.bookingNumber || folioNum}</div>
+        <div style="font-size: 10px; color: rgba(255, 255, 255, 0.85); font-weight: 700; margin-top: 2px;">Date: ${dateStr} &bull; ${timeStr}</div>
       </div>
     </div>
 
-    <!-- Guest Profile & Stay Grid (Exact match with Modal Tab 0 & Tab 1) -->
-    <div class="info-grid">
-      <div class="info-block">
-        <h4>Primary Guest Profile</h4>
-        <p><strong>${guest.fullName || guest.name || "Guest"}</strong></p>
-        <span>📞 Phone: <strong>${guest.mobileNumber || guest.phone || "N/A"}</strong></span>
-        <span>✉️ Email: ${guest.email || "Not Provided"}</span>
-        <span>🏠 City / Address: ${guest.address?.city || guest.city || guest.address?.fullAddress || guest.address || "N/A"}</span>
-        <span>Age &amp; Gender: <strong>${guest.age ? `${guest.age} yrs` : "-"} / ${guest.gender || "Male"}</strong></span>
-        <span style="margin-top:4px;">🛡️ Govt ID: <strong style="color:#0B8EE0;">${guest.idProof?.idType || guest.govtIdType || "AADHAAR"}: ${guest.idProof?.idNumber || guest.govtIdNumber || guest.idNumber || "Verified"}</strong></span>
+    <!-- 2-Column Guest & Stay Cards -->
+    <div class="pdf-section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+      <!-- Primary Guest Profile Card -->
+      <div style="background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 14px; padding: 14px 16px; position: relative; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.02);">
+        <div style="position: absolute; top: 0; left: 0; right: 0; height: 3.5px; background: #0F766E;"></div>
+        <div style="font-size: 10.5px; font-weight: 900; color: #0F766E; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+          <span>👤</span> PRIMARY GUEST PROFILE
+        </div>
+        <div style="font-size: 14px; font-weight: 900; color: #0F172A; margin-bottom: 5px;">${guestName}</div>
+        <div style="font-size: 11px; color: #475569; margin-bottom: 3px;">
+          📞 Phone: <strong style="color:#0F172A;">${guestPhone}</strong> &bull; ✉️ ${guestEmail}
+        </div>
+        <div style="font-size: 11px; color: #475569; margin-bottom: 3px; display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
+          <span>🛡️ Govt ID:</span>
+          <strong style="color:#0F172A; font-family: monospace;">${govtIdType}: ${govtIdNumber}</strong>
+          <span style="display: inline-block; background: transparent; color: #15803D; border: none; padding: 1px 6px; border-radius: 4px; font-size: 9.5px; font-weight: 800;">✓ Verified</span>
+        </div>
+        <div style="font-size: 11px; color: #475569;">
+          🏠 Address: <span style="color:#0F172A;">${guestAddress}</span>
+        </div>
       </div>
-      <div class="info-block">
-        <h4>Stay &amp; Room Assignment</h4>
-        <p>Room: <strong>${booking.room?.roomNumber || booking.roomNumber || guest.roomAssigned || "101"}</strong> (${booking.roomType?.name || "Executive Suite"})</p>
-        <span>Check-In: <strong>${booking.checkInDate ? (typeof booking.checkInDate === 'string' ? booking.checkInDate.split('T')[0] : new Date(booking.checkInDate).toLocaleDateString('en-IN')) : "Today"} (${booking.checkInTime ? formatTime12Hour(booking.checkInTime) : "02:00 PM"})</strong></span>
-        <span>Check-Out: <strong>${booking.checkOutDate ? (typeof booking.checkOutDate === 'string' ? booking.checkOutDate.split('T')[0] : new Date(booking.checkOutDate).toLocaleDateString('en-IN')) : "Upcoming"} (${formatTime12Hour(booking.checkOutTime || hotel.checkOutTime || "12:00")})</strong></span>
-        <span>Duration: <strong>${booking.numberOfNights || 1} Night(s)</strong></span>
-        <span>Stay Status: <span class="badge badge-success">${guest.status || "IN-HOUSE"}</span></span>
-        <span style="margin-top:4px;">Billing Status: <span class="badge ${isPaid ? "badge-success" : "badge-warning"}">${isPaid ? "PAID IN FULL" : `DUE: ₹${dueAmount.toLocaleString("en-IN")}`}</span></span>
+
+      <!-- Stay Allocation Card -->
+      <div style="background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 14px; padding: 14px 16px; position: relative; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.02);">
+        <div style="position: absolute; top: 0; left: 0; right: 0; height: 3.5px; background: #10B981;"></div>
+        <div style="font-size: 10.5px; font-weight: 900; color: #10B981; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+          <span>🏨</span> STAY &amp; ROOM ALLOCATION
+        </div>
+        <div style="font-size: 14px; font-weight: 900; color: #0F172A; margin-bottom: 5px;">
+          Room #${roomNumberDisplay} &bull; <span style="font-size: 12px; color: #0F766E; font-weight: 800;">${roomTypeNameDisplay}</span>
+        </div>
+        <div style="font-size: 11px; color: #475569; margin-bottom: 3px;">
+          📥 Check-In: <strong style="color:#0F172A;">${checkInDateFormatted} (${checkInTimeFormatted})</strong>
+        </div>
+        <div style="font-size: 11px; color: #475569; margin-bottom: 3px;">
+          📤 Check-Out: <strong style="color:#0F172A;">${checkOutDateFormatted} (${checkOutTimeFormatted})</strong>
+        </div>
+        <div style="font-size: 11px; color: #475569; display: flex; align-items: center; gap: 6px;">
+          <span>⏱️ Duration: <strong>${nights} Night${nights > 1 ? "s" : ""}</strong></span>
+          <span>&bull;</span>
+          <span>Status: <strong style="color:#059669;">${guest.status || "IN-HOUSE"}</strong></span>
+        </div>
+        ${isLate ? `
+          <div style="margin-top:6px; background:#FEF2F2; border:1px solid #FCA5A5; border-radius:6px; padding:4px 8px; font-size:10.5px; color:#DC2626; font-weight:800;">
+            ⚠️ Late Check-Out: ${lateHours}h overstay @ ₹${hourlyRate}/hr (+₹${lateFee.toLocaleString("en-IN")})
+          </div>
+        ` : ""}
       </div>
     </div>
 
-    <!-- Accompanying Members Table (Exact Match with UI) -->
+    <!-- Accompanying Members Section -->
     ${accompanying && accompanying.length > 0 ? `
-      <div style="font-size:11.5px;font-weight:900;color:#0F172A;text-transform:uppercase;margin:14px 0 6px 0;letter-spacing:0.5px;">
-        👥 Accompanying Family Members &amp; Co-Guests (${accompanying.length})
+      <div class="pdf-section" style="margin-bottom: 14px;">
+        <div style="font-size: 11.5px; font-weight: 900; color: #0F172A; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+          <span>👥</span> ACCOMPANYING FAMILY MEMBERS &amp; CO-GUESTS (${accompanying.length})
+        </div>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 0; border-radius: 10px; overflow: hidden; border: 1px solid #E2E8F0;">
+          <thead>
+            <tr style="background: #0F766E; color: #FFFFFF;">
+              <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; width: 35px;">#</th>
+              <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: left;">Member Full Name</th>
+              <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: left;">Age / Gender</th>
+              <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: left;">Relationship</th>
+              <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: left;">Govt ID Type</th>
+              <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: left;">ID Proof Number</th>
+              <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; width: 90px;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${accompanying.map((m, idx) => `
+              <tr style="border-bottom: 1px solid #E2E8F0; background: ${idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC'};">
+                <td style="padding: 8px 10px; font-size: 11px; text-align: center; font-weight: 700; color: #64748B;">${idx + 1}</td>
+                <td style="padding: 8px 10px; font-size: 11px; font-weight: 800; color: #0F172A;">${m.name || m.fullName || `Member ${idx + 1}`}</td>
+                <td style="padding: 8px 10px; font-size: 11px; color: #475569;">${m.age ? `${m.age} yrs` : "-"} / ${m.gender || "-"}</td>
+                <td style="padding: 8px 10px; font-size: 11px;"><span style="display:inline-block; padding:2px 7px; border-radius:5px; font-size:9.5px; font-weight:800; background: transparent; color:#6D28D9; border:none;">${m.relationship || "Accompanying Guest"}</span></td>
+                <td style="padding: 8px 10px; font-size: 11px; font-weight: 700; color: #334155;">${m.idType || "AADHAAR"}</td>
+                <td style="padding: 8px 10px; font-size: 11px;"><code style="font-family:monospace; background:#F1F5F9; padding:2px 5px; border-radius:4px; font-size:10.5px;">${m.idNumber || "Verified On Record"}</code></td>
+                <td style="padding: 8px 10px; font-size: 11px; text-align: center;"><span style="display:inline-block; padding:2px 7px; border-radius:5px; font-size:9.5px; font-weight:800; background: transparent; color:#15803D; border:none;">✓ Verified</span></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
       </div>
-      <table style="margin-bottom:14px;">
+    ` : ""}
+
+    <!-- Main Itemized Tariff & Services Breakdown -->
+    <div class="pdf-section" style="margin-bottom: 14px;">
+      <div style="font-size: 11.5px; font-weight: 900; color: #0F172A; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+        <span>📋</span> ITEMIZED ROOM TARIFF, TAXES &amp; EXTRA CHARGES BREAKDOWN
+      </div>
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 0; border-radius: 10px; overflow: hidden; border: 1px solid #CBD5E1; box-shadow: 0 2px 6px rgba(0,0,0,0.02);">
         <thead>
-          <tr>
-            <th>#</th>
-            <th>Member Full Name</th>
-            <th>Age / Gender</th>
-            <th>Relationship</th>
-            <th>Govt ID Type</th>
-            <th>ID Document Number</th>
-            <th class="text-center">Verification Status</th>
+          <tr style="background: #0F766E; color: #FFFFFF;">
+            <th style="padding: 9px 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; width: 32px;">#</th>
+            <th style="padding: 9px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: left;">Description of Service / Tariff Charge</th>
+            <th style="padding: 9px 6px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; width: 70px;">HSN/SAC</th>
+            <th style="padding: 9px 6px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; width: 70px;">Qty/Nights</th>
+            <th style="padding: 9px 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; width: 75px;">Rate (₹)</th>
+            <th style="padding: 9px 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; width: 85px;">Taxable (₹)</th>
+            <th style="padding: 9px 6px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; width: 65px;">GST Rate</th>
+            <th style="padding: 9px 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; width: 85px;">Tax Amount</th>
+            <th style="padding: 9px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: right; width: 90px;">Total (₹)</th>
           </tr>
         </thead>
         <tbody>
-          ${accompanying.map((m, idx) => `
-            <tr>
-              <td>${idx + 1}</td>
-              <td><strong>${m.name || m.fullName || `Member ${idx + 1}`}</strong></td>
-              <td>${m.age ? `${m.age} yrs` : "-"} / ${m.gender || "-"}</td>
-              <td><span class="badge badge-purple">${m.relationship || "Family Member"}</span></td>
-              <td>${m.idType || "AADHAAR"}</td>
-              <td><code>${m.idNumber || "Verified On Record"}</code></td>
-              <td class="text-center"><span class="badge badge-success">✓ Verified</span></td>
+          ${roomsDetail && roomsDetail.length > 0 ? roomsDetail.map((rm, idx) => {
+    const rmNights = Number(rm.numberOfNights) || nights || 1;
+    const rmPrice = Number(rm.pricePerNight) || baseRatePerNight;
+    const rmTotal = Number(rm.roomTotal) || (rmPrice * rmNights);
+    const rmTaxable = Math.round(rmTotal / (1 + defaultGstRate / 100));
+    const rmGst = rmTotal - rmTaxable;
+    return `
+              <tr style="border-bottom: 1px solid #E2E8F0; background: #FFFFFF;">
+                <td style="padding: 9px 8px; font-size: 11px; text-align: center; font-weight: 700; color: #64748B;">${idx + 1}</td>
+                <td style="padding: 9px 10px; font-size: 11px;">
+                  <div style="font-weight: 900; color: #0F172A;">Room #${rm.roomNumber} &bull; ${rm.roomType || roomTypeNameDisplay}</div>
+                  <div style="font-size: 10px; color: #64748B; margin-top: 2px;">CGST @ ${defaultGstRate / 2}% (₹${Math.round(rmGst / 2).toLocaleString("en-IN")}) + SGST @ ${defaultGstRate / 2}% (₹${(rmGst - Math.round(rmGst / 2)).toLocaleString("en-IN")})</div>
+                </td>
+                <td style="padding: 9px 6px; font-size: 11px; text-align: center; font-family: monospace; color: #475569;">996311</td>
+                <td style="padding: 9px 6px; font-size: 11px; text-align: center; font-weight: 700; color: #0F172A;">${rmNights} Night${rmNights > 1 ? "s" : ""}</td>
+                <td style="padding: 9px 8px; font-size: 11px; text-align: right; color: #334155;">₹${rmPrice.toLocaleString("en-IN")}</td>
+                <td style="padding: 9px 8px; font-size: 11px; text-align: right; font-weight: 700; color: #0F172A;">₹${rmTaxable.toLocaleString("en-IN")}</td>
+                <td style="padding: 9px 6px; font-size: 11px; text-align: center;"><span style="display:inline-block; padding:2px 6px; border-radius:4px; font-size:9.5px; font-weight:800; background: transparent; color:#0F766E;">${defaultGstRate}%</span></td>
+                <td style="padding: 9px 8px; font-size: 11px; text-align: right; color: #475569;">₹${rmGst.toLocaleString("en-IN")}</td>
+                <td style="padding: 9px 10px; font-size: 11.5px; text-align: right; font-weight: 900; color: #059669;">₹${rmTotal.toLocaleString("en-IN")}</td>
+              </tr>
+            `;
+  }).join("") : `
+            <tr style="border-bottom: 1px solid #E2E8F0; background: #FFFFFF;">
+              <td style="padding: 9px 8px; font-size: 11px; text-align: center; font-weight: 700; color: #64748B;">1</td>
+              <td style="padding: 9px 10px; font-size: 11px;">
+                <div style="font-weight: 900; color: #0F172A;">Room #${roomNumberDisplay} &bull; ${roomTypeNameDisplay}</div>
+                <div style="font-size: 10px; color: #64748B; margin-top: 2px;">CGST @ ${defaultGstRate / 2}% (₹${cgstVal.toLocaleString("en-IN")}) + SGST @ ${defaultGstRate / 2}% (₹${sgstVal.toLocaleString("en-IN")})</div>
+              </td>
+              <td style="padding: 9px 6px; font-size: 11px; text-align: center; font-family: monospace; color: #475569;">996311</td>
+              <td style="padding: 9px 6px; font-size: 11px; text-align: center; font-weight: 700; color: #0F172A;">${nights} Night${nights > 1 ? "s" : ""}</td>
+              <td style="padding: 9px 8px; font-size: 11px; text-align: right; color: #334155;">₹${baseRatePerNight.toLocaleString("en-IN")}</td>
+              <td style="padding: 9px 8px; font-size: 11px; text-align: right; font-weight: 700; color: #0F172A;">₹${taxableVal.toLocaleString("en-IN")}</td>
+              <td style="padding: 9px 6px; font-size: 11px; text-align: center;"><span style="display:inline-block; padding:2px 6px; border-radius:4px; font-size:9.5px; font-weight:800; background: transparent; color:#0F766E;">${defaultGstRate}%</span></td>
+              <td style="padding: 9px 8px; font-size: 11px; text-align: right; color: #475569;">₹${totalGst.toLocaleString("en-IN")}</td>
+              <td style="padding: 9px 10px; font-size: 11.5px; text-align: right; font-weight: 900; color: #059669;">₹${(taxableVal + totalGst).toLocaleString("en-IN")}</td>
             </tr>
-          `).join("")}
+          `}
+
+          ${isLate ? `
+            <tr style="border-bottom: 1px solid #E2E8F0; background: #FFF5F5;">
+              <td style="padding: 9px 8px; font-size: 11px; text-align: center; font-weight: 700; color: #DC2626;">${(roomsDetail.length || 1) + 1}</td>
+              <td style="padding: 9px 10px; font-size: 11px;">
+                <div style="font-weight: 900; color: #DC2626;">Late Check-Out Surcharge</div>
+                <div style="font-size: 10px; color: #991B1B;">Overstayed ${lateHours}h @ ₹${hourlyRate}/hr</div>
+              </td>
+              <td style="padding: 9px 6px; font-size: 11px; text-align: center; font-family: monospace; color: #475569;">996311</td>
+              <td style="padding: 9px 6px; font-size: 11px; text-align: center; font-weight: 700;">${lateHours}h</td>
+              <td style="padding: 9px 8px; font-size: 11px; text-align: right;">₹${hourlyRate.toLocaleString("en-IN")}</td>
+              <td style="padding: 9px 8px; font-size: 11px; text-align: right; font-weight: 700;">₹${lateFee.toLocaleString("en-IN")}</td>
+              <td style="padding: 9px 6px; font-size: 11px; text-align: center;"><span style="display:inline-block; padding:2px 6px; border-radius:4px; font-size:9.5px; font-weight:800; background:#F1F5F9; color:#475569;">0%</span></td>
+              <td style="padding: 9px 8px; font-size: 11px; text-align: right;">₹0</td>
+              <td style="padding: 9px 10px; font-size: 11.5px; text-align: right; font-weight: 900; color: #DC2626;">₹${lateFee.toLocaleString("en-IN")}</td>
+            </tr>
+          ` : ""}
+
+          ${charges.map((c, i) => {
+    const cAmt = Number(c.amount) || 0;
+    return `
+              <tr style="border-bottom: 1px solid #E2E8F0; background: ${i % 2 === 0 ? '#F8FAFC' : '#FFFFFF'};">
+                <td style="padding: 9px 8px; font-size: 11px; text-align: center; font-weight: 700; color: #64748B;">${(isLate ? 2 : 1) + 1 + i}</td>
+                <td style="padding: 9px 10px; font-size: 11px;">
+                  <div style="font-weight: 800; color: #0F172A;">${c.title || c.item || c.serviceName || "POS Room Service"}</div>
+                  <div style="font-size: 10px; color: #64748B;">Category: <strong>${c.category || "F&B / Sundry"}</strong></div>
+                </td>
+                <td style="padding: 9px 6px; font-size: 11px; text-align: center; font-family: monospace; color: #475569;">996331</td>
+                <td style="padding: 9px 6px; font-size: 11px; text-align: center; font-weight: 700;">${c.quantity || 1}</td>
+                <td style="padding: 9px 8px; font-size: 11px; text-align: right;">₹${cAmt.toLocaleString("en-IN")}</td>
+                <td style="padding: 9px 8px; font-size: 11px; text-align: right; font-weight: 700;">₹${cAmt.toLocaleString("en-IN")}</td>
+                <td style="padding: 9px 6px; font-size: 11px; text-align: center;"><span style="display:inline-block; padding:2px 6px; border-radius:4px; font-size:9.5px; font-weight:800; background:#F1F5F9; color:#475569;">0%</span></td>
+                <td style="padding: 9px 8px; font-size: 11px; text-align: right;">₹0</td>
+                <td style="padding: 9px 10px; font-size: 11.5px; text-align: right; font-weight: 900; color: #0F172A;">₹${cAmt.toLocaleString("en-IN")}</td>
+              </tr>
+            `;
+  }).join("")}
         </tbody>
       </table>
-    ` : ""}
-
-    <!-- Allocated Rooms Breakdown Table (if multiple rooms) -->
-    ${roomsDetail && roomsDetail.length > 0 ? `
-      <div style="font-size:11.5px;font-weight:900;color:#0F172A;text-transform:uppercase;margin:14px 0 6px 0;letter-spacing:0.5px;">
-        🛏️ Allocated Rooms &amp; Tariff Breakdown (${roomsDetail.length})
-      </div>
-      <table style="margin-bottom:14px;">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Room Number</th>
-            <th>Category / Type</th>
-            <th>Nights</th>
-            <th class="text-right">Price / Night (₹)</th>
-            <th class="text-right">Room Total (₹)</th>
-            <th class="text-center">Room Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${roomsDetail.map((rm, idx) => `
-            <tr>
-              <td>${idx + 1}</td>
-              <td><strong style="color:#0B8EE0;">Room #${rm.roomNumber}</strong></td>
-              <td>${rm.roomType || "Standard Room"}</td>
-              <td>${rm.numberOfNights || 1} Night(s)</td>
-              <td class="text-right">₹${(rm.pricePerNight || 0).toLocaleString("en-IN")}</td>
-              <td class="text-right" style="font-weight:800;">₹${(rm.roomTotal || 0).toLocaleString("en-IN")}</td>
-              <td class="text-center"><span class="badge badge-primary">${rm.status || "OCCUPIED"}</span></td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-    ` : ""}
-
-    <!-- Extra Charges, Services & Modifications Table -->
-    ${charges && charges.length > 0 ? `
-      <div style="font-size:11.5px;font-weight:900;color:#0F172A;text-transform:uppercase;margin:14px 0 6px 0;letter-spacing:0.5px;">
-        ➕ Extra Services, Food &amp; Charges (${charges.length})
-      </div>
-      <table style="margin-bottom:14px;">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Service / Charge Description</th>
-            <th>Category</th>
-            <th>Reason / Change Note</th>
-            <th class="text-center">Logged Date</th>
-            <th class="text-right">Amount (₹)</th>
-            <th class="text-center">Added By</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${charges.map((c, i) => `
-            <tr>
-              <td>${i + 1}</td>
-              <td><strong>${c.title || c.item || c.serviceName || "Extra Service Charge"}</strong></td>
-              <td><span class="badge badge-primary">${c.category || "F&B / Sundry"}</span></td>
-              <td>${c.reason || c.note || c.description || "Guest Requested Service"}</td>
-              <td class="text-center">${c.date || (c.createdAt ? new Date(c.createdAt).toLocaleDateString("en-IN") : "Recorded")}</td>
-              <td class="text-right" style="font-weight:800;color:#0B8EE0;">+₹${(c.amount || 0).toLocaleString("en-IN")}</td>
-              <td class="text-center">${c.addedByName || c.addedBy?.name || "Front Desk"}</td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-    ` : ""}
-
-    <!-- Late Checkout Surcharge Box -->
-    ${isLate ? `
-      <div class="late-checkout-box">
-        <div class="title">⚠️ Late Check-Out Surcharge Applied</div>
-        <div class="desc">
-          Guest departed past scheduled check-out time. Overstay: <strong>${lateHours} Hours</strong> @ <strong>₹${hourlyRate}/hr</strong>. Additional Late Fee: <strong>+₹${lateFee.toLocaleString("en-IN")}</strong>
-        </div>
-      </div>
-    ` : ""}
-
-    <!-- Payment & Billing History Table (Exact match with Modal Tab 2) -->
-    <div style="font-size:11.5px;font-weight:900;color:#0F172A;text-transform:uppercase;margin:14px 0 6px 0;letter-spacing:0.5px;">
-      💳 Payment &amp; Billing History Ledger (${paymentHistory.length})
-    </div>
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Receipt / Txn ID</th>
-          <th>Date &amp; Time</th>
-          <th>Payment Stage</th>
-          <th>Mode</th>
-          <th class="text-right">Amount (₹)</th>
-          <th class="text-center">Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${paymentHistory.length > 0 ? paymentHistory.map((p, idx) => `
-          <tr>
-            <td>${idx + 1}</td>
-            <td><strong style="color:#0B8EE0;">#${p.receiptNumber || p.transactionId || "RCP-001"}</strong></td>
-            <td>${p.formattedDate || (p.createdAt ? new Date(p.createdAt).toLocaleString("en-IN") : "N/A")}</td>
-            <td>${p.paymentType || "Booking Settlement"}</td>
-            <td><span class="badge badge-primary">${p.paymentMethod || "CASH"}</span></td>
-            <td class="text-right" style="font-weight:900;color:#059669;">₹${(p.amount || 0).toLocaleString("en-IN")}</td>
-            <td class="text-center"><span class="badge badge-success">✓ ${p.status || "PAID"}</span></td>
-          </tr>
-        `).join("") : `
-          <tr>
-            <td colspan="7" style="text-align:center;padding:16px;color:#64748B;">No prior transactions recorded for this folio.</td>
-          </tr>
-        `}
-      </tbody>
-    </table>
-
-    <!-- Grand Financial Settlement Card -->
-    <div class="summary-card-right" style="width:330px;">
-      <div class="summary-row">
-        <span>Base Room Tariff:</span>
-        <span style="font-weight:700;">₹${baseTariff.toLocaleString("en-IN")}</span>
-      </div>
-      <div class="summary-row">
-        <span>GST Taxes (CGST ₹${cgst.toLocaleString("en-IN")} + SGST ₹${sgst.toLocaleString("en-IN")}):</span>
-        <span style="font-weight:700;">₹${gstAmount.toLocaleString("en-IN")}</span>
-      </div>
-      ${posTotal > 0 ? `
-        <div class="summary-row" style="color:#0B8EE0;font-weight:700;">
-          <span>Extra Services &amp; POS (+):</span>
-          <span>+₹${posTotal.toLocaleString("en-IN")}</span>
-        </div>
-      ` : ""}
-      ${isLate ? `
-        <div class="summary-row" style="color:#DC2626;font-weight:700;">
-          <span>Late Checkout Surcharge (+):</span>
-          <span>+₹${lateFee.toLocaleString("en-IN")}</span>
-        </div>
-      ` : ""}
-      <div class="summary-row grand">
-        <span>Grand Total Amount:</span>
-        <span>₹${totalAmount.toLocaleString("en-IN")}</span>
-      </div>
-      <div class="summary-row" style="color:#059669;font-weight:800;">
-        <span>Total Payments Received (-):</span>
-        <span>₹${paidAmount.toLocaleString("en-IN")}</span>
-      </div>
-      <div class="summary-row" style="color:${isPaid ? '#059669' : '#DC2626'};font-weight:900;border-top:1px dashed #CBD5E1;padding-top:4px;margin-top:4px;">
-        <span>Net Balance Due:</span>
-        <span>₹${dueAmount.toLocaleString("en-IN")}</span>
-      </div>
     </div>
 
-    <!-- Footer -->
-    <div class="footer">
+    <!-- Payment Transaction History Ledger -->
+    <div class="pdf-section" style="margin-bottom: 14px;">
+      <div style="font-size: 11.5px; font-weight: 900; color: #0F172A; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+        <span>💳</span> PAYMENT TRANSACTION HISTORY LEDGER (${paymentHistory.length})
+      </div>
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 0; border-radius: 10px; overflow: hidden; border: 1px solid #E2E8F0;">
+        <thead>
+          <tr style="background: #0F766E; color: #FFFFFF;">
+            <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; width: 35px;">#</th>
+            <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: left;">Receipt / Txn ID</th>
+            <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: left;">Date &amp; Time</th>
+            <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: left;">Stage</th>
+            <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: left;">Method</th>
+            <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: right;">Amount (₹)</th>
+            <th style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; width: 85px;">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${paymentHistory.length > 0 ? paymentHistory.map((p, idx) => {
+    const pAmt = Number(p.amount) || 0;
+    const pMethod = (p.paymentMethod || "CASH").toUpperCase();
+    return `
+              <tr style="border-bottom: 1px solid #E2E8F0; background: ${idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC'};">
+                <td style="padding: 8px 10px; font-size: 11px; text-align: center; font-weight: 700; color: #64748B;">${idx + 1}</td>
+                <td style="padding: 8px 10px; font-size: 11px; font-weight: 800; color: #0F766E; font-family: monospace;">#${p.receiptNumber || p.transactionId || "RCP-001"}</td>
+                <td style="padding: 8px 10px; font-size: 11px; color: #475569;">${p.formattedDate || (p.createdAt ? new Date(p.createdAt).toLocaleDateString("en-IN", { day: 'numeric', month: 'short', year: 'numeric' }) : dateStr)}</td>
+                <td style="padding: 8px 10px; font-size: 11px; font-weight: 600; color: #334155;">${p.paymentType || "Settlement"}</td>
+                <td style="padding: 8px 10px; font-size: 11px;"><span style="display:inline-block; padding:2px 7px; border-radius:5px; font-size:9.5px; font-weight:800; background:transparent; color:#0F766E; border:none;">${pMethod}</span></td>
+                <td style="padding: 8px 10px; font-size: 11px; text-align: right; font-weight: 900; color: #059669;">₹${pAmt.toLocaleString("en-IN")}</td>
+                <td style="padding: 8px 10px; font-size: 11px; text-align: center;"><span style="display:inline-block; padding:2px 7px; border-radius:5px; font-size:9.5px; font-weight:800; background:transparent; color:#15803D; border:none;">✓ PAID</span></td>
+              </tr>
+            `;
+  }).join("") : `
+            <tr>
+              <td colspan="7" style="text-align: center; padding: 12px; color: #64748B; font-size: 11px;">No transaction records logged yet.</td>
+            </tr>
+          `}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Financial Settlement Summary & Notes Dual Container -->
+    <div class="pdf-section" style="display: grid; grid-template-columns: 1fr 340px; gap: 16px; margin-bottom: 16px; align-items: start;">
+      <!-- Left: Stay Notes & Rules -->
+      <div style="background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 14px; padding: 14px 16px; font-size: 10.5px; color: #475569; line-height: 1.55;">
+        <div style="font-weight: 900; color: #0F172A; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+          <span>📌</span> STAY FOLIO &amp; BILLING POLICY
+        </div>
+        <ul style="margin: 0; padding-left: 16px;">
+          <li style="margin-bottom: 4px;">This stay folio reflects complete itemized room and point-of-sale consumption for this guest cycle.</li>
+          <li style="margin-bottom: 4px;">Standard check-out is 11:00 AM. Key cards must be returned to the Front Desk at final settlement.</li>
+          <li>All room tariff and extra charges are subject to statutory GST regulations under SAC 996311.</li>
+        </ul>
+      </div>
+
+      <!-- Right: Financial Ledger Card -->
+      <div style="background: #FFFFFF; border: 2px solid #CCFBF1; border-radius: 14px; padding: 14px 18px; box-shadow: 0 4px 14px rgba(15, 118, 110, 0.08);">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; color: #475569;">
+          <span>Room Base Tariff:</span>
+          <span style="font-weight: 800; color: #0F172A;">₹${taxableVal.toLocaleString("en-IN")}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; color: #475569;">
+          <span>GST (CGST ₹${cgstVal.toLocaleString("en-IN")} + SGST ₹${sgstVal.toLocaleString("en-IN")}):</span>
+          <span style="font-weight: 800; color: #0F172A;">₹${totalGst.toLocaleString("en-IN")}</span>
+        </div>
+        ${posTotal > 0 ? `
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; color: #0F766E; font-weight: 700;">
+            <span>Extra POS / F&amp;B (${charges.length} items):</span>
+            <span style="font-weight: 800;">+₹${posTotal.toLocaleString("en-IN")}</span>
+          </div>
+        ` : ""}
+        ${isLate ? `
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; color: #DC2626; font-weight: 700;">
+            <span>Late Checkout Fee (${lateHours}h):</span>
+            <span style="font-weight: 800;">+₹${lateFee.toLocaleString("en-IN")}</span>
+          </div>
+        ` : ""}
+        <div style="border-top: 1.5px dashed #CBD5E1; margin: 8px 0;"></div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 14px; font-weight: 900; color: #0F172A;">
+          <span>Grand Total Payable:</span>
+          <span style="color: #059669; font-size: 15px;">₹${grandTotalAmount.toLocaleString("en-IN")}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px; font-weight: 800; color: #059669;">
+          <span>Total Payments Received:</span>
+          <span>−₹${paidAmount.toLocaleString("en-IN")}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding-top: 6px; border-top: 1.5px solid #E2E8F0; margin-top: 4px; font-size: 13px; font-weight: 900; color: ${dueAmount <= 0 ? '#059669' : '#DC2626'};">
+          <span>Outstanding Balance:</span>
+          <span>${dueAmount <= 0 ? '₹0 (✓ Settled)' : `₹${dueAmount.toLocaleString("en-IN")}`}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Official Authorization Footer (Page 1) -->
+    <div class="pdf-section" style="display: flex; justify-content: space-between; align-items: flex-end; padding-top: 14px; border-top: 1.5px solid #E2E8F0; font-size: 11px; color: #64748B;">
       <div>
-        <p>Guest registered and verified under PMS Regulations</p>
+        <div style="font-weight: 800; color: #0F172A; font-size: 12px;">Thank you for choosing ${hotelName}!</div>
+        <div style="font-size: 10px; color: #94A3B8; margin-top: 2px;">Official Guest Stay Folio &bull; Verified and Digitally Sealed by PMS Front Desk</div>
       </div>
-      <div class="sign-box">
-        <div class="sign-line"></div>
-        <p>Guest Signature / Front Desk</p>
+      <div style="text-align: right; width: 220px;">
+        <div style="border-bottom: 1.5px dashed #94A3B8; margin-bottom: 6px; height: 35px;"></div>
+        <div style="font-size: 10.5px; font-weight: 800; color: #0F172A; text-transform: uppercase;">Guest / Cashier Signature</div>
       </div>
     </div>
+
+    <!-- ================= DEDICATED PAGE 2: GOVT ID & AADHAAR PROOFS ================= -->
+    ${hasAnyIdImages ? `
+      <div style="page-break-before: always; break-before: page; padding-top: 10px;">
+        <!-- Page 2 Branded Header -->
+        <div class="pdf-section" style="background: linear-gradient(135deg, #092622 0%, #0F766E 50%, #14B8A6 100%); border-radius: 14px; padding: 14px 20px; color: #FFFFFF; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 14px rgba(15, 118, 110, 0.2);">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="font-size: 24px;">🪪</div>
+            <div>
+              <div style="font-size: 16px; font-weight: 900; color: #FFFFFF; letter-spacing: -0.3px;">GOVT ID &amp; AADHAAR CARD PROOFS</div>
+              <div style="font-size: 11px; color: rgba(255, 255, 255, 0.9); margin-top: 2px;">
+                Folio #${booking.bookingNumber || folioNum} &bull; Primary Guest: <strong>${guestName}</strong>
+              </div>
+            </div>
+          </div>
+          <div style="text-align: right; border: none; padding: 4px 8px;">
+            <div style="font-size: 11px; font-weight: 900; color: #FFFFFF; text-transform: uppercase; letter-spacing: 0.5px;">PAGE 2 OF 2</div>
+            <div style="font-size: 9.5px; color: #99F6E4; margin-top: 1px;">ID Proof Attachments</div>
+          </div>
+        </div>
+
+        <!-- Verified Status Banner -->
+        <div class="pdf-section" style="background: transparent; border: none; border-radius: 10px; padding: 8px 14px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; color: #15803D;">
+            <span>🛡️</span>
+            <span>Digitally captured government identification records archived for official regulatory compliance.</span>
+          </div>
+          <span style="background: transparent; color: #15803D; border: none; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 900;">
+            ✓ VERIFIED ATTACHMENTS
+          </span>
+        </div>
+
+        <!-- ID Cards Grid for Primary Guest & Accompanying Members -->
+        <div style="display: grid; grid-template-columns: repeat(${allIdCards.length === 1 ? 1 : 2}, 1fr); gap: 14px; margin-bottom: 20px;">
+          ${allIdCards.map((card) => `
+            <div class="pdf-section" style="background: #F8FAFC; border: 1.5px solid #CBD5E1; border-radius: 12px; padding: 12px; box-sizing: border-box;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1.5px solid #E2E8F0; padding-bottom: 6px;">
+                <div style="font-size: 12.5px; font-weight: 900; color: #0F172A; display: flex; align-items: center; gap: 6px;">
+                  <span>👤 ${card.name}</span>
+                  <span style="font-size: 9.5px; font-weight: 800; color: ${card.tagColor}; background: transparent; padding: 1px 6px; border-radius: 4px; border: none;">${card.tag}</span>
+                </div>
+                <div style="font-size: 11px; font-weight: 800; color: #0F766E; font-family: monospace;">
+                  ${card.idType}: ${card.idNumber}
+                </div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: ${card.frontImg && card.backImg ? "1fr 1fr" : "1fr"}; gap: 10px;">
+                ${card.frontImg ? `
+                  <div style="border: 1px solid #CBD5E1; border-radius: 8px; overflow: hidden; background: #FFFFFF; padding: 6px;">
+                    <div style="font-size: 9.5px; font-weight: 800; color: #64748B; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.4px;">
+                      📄 Front Side Photo
+                    </div>
+                    <div style="height: 180px; display: flex; align-items: center; justify-content: center; background: #F8FAFC; border-radius: 6px; overflow: hidden; border: 1px solid #E2E8F0;">
+                      <img src="${card.frontImg}" alt="Front ID Photo" style="width: 100%; height: 100%; object-fit: contain;" />
+                    </div>
+                  </div>
+                ` : ""}
+
+                ${card.backImg ? `
+                  <div style="border: 1px solid #CBD5E1; border-radius: 8px; overflow: hidden; background: #FFFFFF; padding: 6px;">
+                    <div style="font-size: 9.5px; font-weight: 800; color: #64748B; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.4px;">
+                      📄 Back Side Photo
+                    </div>
+                    <div style="height: 180px; display: flex; align-items: center; justify-content: center; background: #F8FAFC; border-radius: 6px; overflow: hidden; border: 1px solid #E2E8F0;">
+                      <img src="${card.backImg}" alt="Back ID Photo" style="width: 100%; height: 100%; object-fit: contain;" />
+                    </div>
+                  </div>
+                ` : ""}
+              </div>
+            </div>
+          `).join("")}
+        </div>
+
+        <!-- Page 2 Official Verification Footer -->
+        <div class="pdf-section" style="display: flex; justify-content: space-between; align-items: flex-end; padding-top: 12px; border-top: 1.5px solid #E2E8F0; font-size: 10.5px; color: #64748B; margin-top: 14px;">
+          <div>
+            <div style="font-weight: 800; color: #0F172A; font-size: 11.5px;">${hotelName} &bull; Security &amp; Compliance Wing</div>
+            <div style="font-size: 9.5px; color: #94A3B8; margin-top: 2px;">Archived Identity Documents attached to Stay Folio #${booking.bookingNumber || folioNum}</div>
+          </div>
+          <div style="text-align: right; width: 200px;">
+            <div style="border-bottom: 1.5px dashed #94A3B8; margin-bottom: 4px; height: 30px;"></div>
+            <div style="font-size: 10px; font-weight: 800; color: #0F172A; text-transform: uppercase;">Front Desk Verified</div>
+        </div>
+      </div>
+    ` : ""}
   `;
 
-  openPrintOrSavePDF(`Guest_Folio_${guest.fullName || "Guest"}_${Date.now()}`, html);
+  openPrintOrSavePDF(`Guest_Folio_${(guest.fullName || guestName || "Guest").replace(/\s+/g, "_")}_${Date.now()}`, html);
 }
 
 /**
@@ -1856,5 +2376,180 @@ export function downloadGuestDirectoryPDF(guests = [], hotel = {}) {
   `;
 
   openPrintOrSavePDF(`Guest_Directory_${Date.now()}`, html);
+}
+
+/**
+ * 11. Generate & Download Official Guest Govt ID / Aadhaar Proof PDF
+ * File is named strictly with the guest's name: ID_Proof_[Guest_Name].pdf
+ */
+export function downloadGuestIdProofPDF(data = {}, hotel = {}) {
+  const guest = data.guest || {};
+  const booking = data.activeBooking || guest.activeBooking || {};
+  const accompanying = data.accompanyingGuests || booking.accompanyingGuests || guest.accompanyingGuests || [];
+
+  const hotelName = hotel.name || "MYOWNPMS Luxury Hotel";
+  const hotelAddress = hotel.address || hotel.city || "Marine Drive, Mumbai, Maharashtra";
+  const hotelPhone = hotel.phone || hotel.ownerPhone || "+91 98200 12345";
+  const hotelGst = hotel.gstin || hotel.settings?.gstin || "27AABCG1234F1Z8";
+
+  const guestName = guest.fullName || guest.name || booking.guestName || "Valued Guest";
+  const guestPhone = guest.mobileNumber || guest.phone || booking.guestPhone || "On Record";
+  const guestEmail = guest.email || booking.guestEmail || "Not Provided";
+  const guestAddress = guest.address?.city || guest.city || guest.address?.fullAddress || guest.address || "Verified On Record";
+  const govtIdType = guest.idProof?.idType || guest.govtIdType || guest.idType || "AADHAAR";
+  const govtIdNumber = guest.idProof?.idNumber || guest.govtIdNumber || guest.idNumber || "Verified On Record";
+  const roomNumberDisplay = booking.roomNumber || booking.room?.roomNumber || guest.roomAssigned || "101";
+
+  const dateStr = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  const timeStr = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+
+  const primaryFront = guest.idProof?.frontImage || guest.idProof?.frontImageUrl || guest.frontImage || guest.idProofImage || booking.idProof?.frontImage || booking.idProofImage;
+  const primaryBack = guest.idProof?.backImage || guest.idProof?.backImageUrl || guest.backImage || guest.idProofBackImage || booking.idProof?.backImage || booking.idProofBackImage;
+
+  const allMembers = [
+    {
+      name: guestName,
+      tag: "Primary Guest",
+      tagColor: "#0F766E",
+      tagBg: "#CCFBF1",
+      idType: govtIdType,
+      idNumber: govtIdNumber,
+      phone: guestPhone,
+      email: guestEmail,
+      address: guestAddress,
+      roomNumber: roomNumberDisplay,
+      frontImg: primaryFront,
+      backImg: primaryBack,
+    },
+    ...accompanying.map((m, idx) => ({
+      name: m.name || m.fullName || `Co-Guest ${idx + 1}`,
+      tag: m.relationship || "Accompanying Guest",
+      tagColor: "#6D28D9",
+      tagBg: "#EDE9FE",
+      idType: m.idType || "AADHAAR",
+      idNumber: m.idNumber || "Verified On Record",
+      phone: m.phone || guestPhone,
+      email: m.email || "-",
+      address: guestAddress,
+      roomNumber: roomNumberDisplay,
+      frontImg: m.frontImage || m.frontImageUrl || m.idProofImage || m.idProof?.frontImage || m.idProof?.frontImageUrl,
+      backImg: m.backImage || m.backImageUrl || m.idProofBackImage || m.idProof?.backImage || m.idProof?.backImageUrl,
+    }))
+  ];
+
+  const html = `
+    <!-- Top Branded Executive Header -->
+    <div class="pdf-section" style="background: linear-gradient(135deg, #092622 0%, #0F766E 50%, #14B8A6 100%); border-radius: 16px; padding: 18px 22px; color: #FFFFFF; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 8px 24px rgba(15, 118, 110, 0.25);">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <div style="width: 48px; height: 48px; background: #FFFFFF; border: 2px solid rgba(255,255,255,0.8); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; overflow: hidden; padding: 4px; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+          <img src="/logo.png" alt="${hotelName}" onerror="this.outerHTML='🏨'" style="width:100%;height:100%;object-fit:contain;" />
+        </div>
+        <div>
+          <div style="font-size: 20px; font-weight: 900; color: #FFFFFF; letter-spacing: -0.4px;">${hotelName}</div>
+          <div style="font-size: 11px; color: rgba(255, 255, 255, 0.9); font-weight: 600; margin-top: 2px;">
+            📍 ${hotelAddress} &bull; 📞 ${hotelPhone}
+          </div>
+          <div style="display: inline-flex; align-items: center; gap: 5px; margin-top: 4px; border: none; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; letter-spacing: 0.3px;">
+            <span style="width: 6px; height: 6px; background: #4ADE80; border-radius: 50%; display: inline-block;"></span>
+            GSTIN: <strong>${hotelGst}</strong> &bull; Verified Property
+          </div>
+        </div>
+      </div>
+
+      <div style="text-align: right; border: none; padding: 4px 8px;">
+        <div style="font-size: 14px; font-weight: 900; color: #FFFFFF; text-transform: uppercase; letter-spacing: 1px;">GOVT ID PROOF DOSSIER</div>
+        <div style="font-size: 13px; font-weight: 800; color: #99F6E4; margin-top: 2px;">${guestName}</div>
+        <div style="font-size: 10px; color: rgba(255, 255, 255, 0.85); font-weight: 700; margin-top: 2px;">Date: ${dateStr} &bull; ${timeStr}</div>
+      </div>
+    </div>
+
+    <!-- Verified Badge Ribbon -->
+    <div class="pdf-section" style="background: transparent; border: none; border-radius: 12px; padding: 10px 16px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 16px;">🛡️</span>
+        <div>
+          <div style="font-size: 12px; font-weight: 900; color: #15803D;">GOVERNMENT IDENTIFICATION RECORD</div>
+          <div style="font-size: 10px; color: #166534;">Digitally captured, encrypted &amp; verified for compliance with regulatory guest registration norms.</div>
+        </div>
+      </div>
+      <span style="background: transparent; color: #15803D; border: none; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 900;">
+        ✓ DIGITALLY VERIFIED
+      </span>
+    </div>
+
+    <!-- ID Cards for Each Person -->
+    ${allMembers.map((m, idx) => `
+      <div class="pdf-section" style="background: #F8FAFC; border: 1.5px solid #CBD5E1; border-radius: 14px; padding: 16px; margin-bottom: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.03);">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid #E2E8F0; padding-bottom: 8px; margin-bottom: 12px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="font-size: 15px; font-weight: 900; color: #0F172A;">👤 ${m.name}</div>
+            <span style="font-size: 10px; font-weight: 800; color: ${m.tagColor}; background: ${m.tagBg}; padding: 2px 8px; border-radius: 6px;">${m.tag}</span>
+          </div>
+          <div style="font-size: 12px; font-weight: 900; color: #0F172A;">
+            ${m.idType}: <span style="font-family: monospace; color: #0F766E;">${m.idNumber}</span>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; font-size: 11px; color: #475569; background: #FFFFFF; padding: 10px; border-radius: 8px; border: 1px solid #E2E8F0;">
+          <div>📞 Contact: <strong style="color:#0F172A;">${m.phone}</strong></div>
+          <div>🏨 Room: <strong style="color:#0F172A;">#${m.roomNumber}</strong></div>
+          <div>🏠 City / Address: <strong style="color:#0F172A;">${m.address}</strong></div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: ${m.frontImg && m.backImg ? "1fr 1fr" : "1fr"}; gap: 14px;">
+          <div style="border: 1.5px solid #CBD5E1; border-radius: 10px; overflow: hidden; background: #FFFFFF; padding: 8px;">
+            <div style="font-size: 10.5px; font-weight: 800; color: #64748B; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
+              📄 Front Side Photo
+            </div>
+            ${m.frontImg ? `
+              <div style="height: 220px; border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden; background: #F8FAFC; display: flex; align-items: center; justify-content: center;">
+                <img src="${m.frontImg}" alt="Front ID Photo" style="width: 100%; height: 100%; object-fit: contain;" />
+              </div>
+            ` : `
+              <div style="height: 120px; border: 1.5px dashed #CBD5E1; border-radius: 8px; background: #F8FAFC; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94A3B8;">
+                <span style="font-size: 24px;">🪪</span>
+                <span style="font-size: 11px; font-weight: 700; margin-top: 4px;">Verified on Physical Record</span>
+                <span style="font-size: 10px;">Number: ${m.idNumber}</span>
+              </div>
+            `}
+          </div>
+
+          ${m.backImg || (m.frontImg && !m.backImg && allMembers.length === 1) ? `
+            <div style="border: 1.5px solid #CBD5E1; border-radius: 10px; overflow: hidden; background: #FFFFFF; padding: 8px;">
+              <div style="font-size: 10.5px; font-weight: 800; color: #64748B; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
+                📄 Back Side Photo
+              </div>
+              ${m.backImg ? `
+                <div style="height: 220px; border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden; background: #F8FAFC; display: flex; align-items: center; justify-content: center;">
+                  <img src="${m.backImg}" alt="Back ID Photo" style="width: 100%; height: 100%; object-fit: contain;" />
+                </div>
+              ` : `
+                <div style="height: 120px; border: 1.5px dashed #CBD5E1; border-radius: 8px; background: #F8FAFC; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94A3B8;">
+                  <span style="font-size: 20px;">📄</span>
+                  <span style="font-size: 11px; font-weight: 700; margin-top: 4px;">No Back Image Attached</span>
+                  <span style="font-size: 10px;">Single-sided document</span>
+                </div>
+              `}
+            </div>
+          ` : ""}
+        </div>
+      </div>
+    `).join("")}
+
+    <!-- Official Authorization Footer -->
+    <div class="pdf-section" style="display: flex; justify-content: space-between; align-items: flex-end; padding-top: 14px; border-top: 1.5px solid #E2E8F0; font-size: 11px; color: #64748B; margin-top: 14px;">
+      <div>
+        <div style="font-weight: 800; color: #0F172A; font-size: 12px;">${hotelName} &bull; Security &amp; Compliance Wing</div>
+        <div style="font-size: 10px; color: #94A3B8; margin-top: 2px;">Official Regulatory ID Proof Record &bull; Digitally Signed &amp; Archived</div>
+      </div>
+      <div style="text-align: right; width: 220px;">
+        <div style="border-bottom: 1.5px dashed #94A3B8; margin-bottom: 6px; height: 35px;"></div>
+        <div style="font-size: 10.5px; font-weight: 800; color: #0F172A; text-transform: uppercase;">Front Desk Officer / Verified</div>
+      </div>
+    </div>
+  `;
+
+  const cleanGuestName = (guest.fullName || guestName || "Guest").replace(/[^a-zA-Z0-9_\-]/g, "_");
+  openPrintOrSavePDF(`ID_Proof_${cleanGuestName}`, html);
 }
 

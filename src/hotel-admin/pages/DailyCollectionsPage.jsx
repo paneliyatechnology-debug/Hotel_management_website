@@ -245,35 +245,65 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
   };
 
   return (
-    <Box sx={{ px: { xs: 2, sm: 3, md: 3.5 }, py: { xs: 2, sm: 3 }, display: "flex", flexDirection: "column", gap: 3 }}>
+    <Box sx={{ px: { xs: 1.5, sm: 3, md: 3.5 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 }, display: "flex", flexDirection: "column", gap: 3 }}>
       {/* Header */}
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: { xs: "flex-start", sm: "center" }, flexDirection: { xs: "column", sm: "row" }, gap: 2 }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: { xs: "stretch", sm: "center" }, flexDirection: { xs: "column", sm: "row" }, gap: 2 }}>
         <div>
-          <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5 }}>
+          <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5, fontSize: { xs: "1.3rem", sm: "1.6rem" } }}>
             Daily Collections &amp; Cash Drawer
           </Typography>
-          <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontSize: "0.85rem" }}>
+          <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontSize: { xs: "0.78rem", sm: "0.85rem" } }}>
             Real-time collection ledger &amp; shift handover reconciliation
           </Typography>
         </div>
 
-        <Box sx={{ display: "flex", gap: 1.2, flexWrap: "wrap", alignItems: "center" }}>
-          <Button
-            variant="outlined"
-            startIcon={<Refresh />}
-            onClick={fetchDailyData}
-            sx={{
-              borderRadius: "12px",
-              borderColor: themeConfig.border,
-              bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#FFFFFF",
-              color: themeConfig.textMain,
-              fontWeight: 700,
-              fontSize: "0.82rem",
-              textTransform: "none",
-            }}
-          >
-            Refresh
-          </Button>
+        <Box sx={{ display: "flex", gap: 1.2, flexWrap: "wrap", alignItems: "center", width: { xs: "100%", sm: "auto" }, flexDirection: { xs: "column", sm: "row" } }}>
+          <Box sx={{ display: "flex", gap: 1, width: { xs: "100%", sm: "auto" } }}>
+            <Button
+              variant="outlined"
+              startIcon={<Refresh />}
+              onClick={fetchDailyData}
+              sx={{
+                flex: 1,
+                width: { xs: "50%", sm: "auto" },
+                borderRadius: "12px",
+                borderColor: themeConfig.border,
+                bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#FFFFFF",
+                color: themeConfig.textMain,
+                fontWeight: 700,
+                fontSize: { xs: "0.75rem", sm: "0.82rem" },
+                textTransform: "none",
+                whiteSpace: "nowrap",
+                justifyContent: "center",
+              }}
+            >
+              Refresh
+            </Button>
+
+            <Button
+              variant="outlined"
+              startIcon={<Download />}
+              onClick={() => {
+                downloadDailyLedgerPDF(data?.payments || [], telemetry, hotelSettings || user?.hotel || {});
+                showToast("Treasury Statement PDF generated successfully!", "success");
+              }}
+              sx={{
+                flex: 1,
+                width: { xs: "50%", sm: "auto" },
+                borderRadius: "12px",
+                borderColor: themeConfig.border,
+                bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#FFFFFF",
+                color: themeConfig.textMain,
+                fontWeight: 700,
+                fontSize: { xs: "0.75rem", sm: "0.82rem" },
+                textTransform: "none",
+                whiteSpace: "nowrap",
+                justifyContent: "center",
+              }}
+            >
+              Export PDF
+            </Button>
+          </Box>
 
           <Button
             variant="contained"
@@ -281,6 +311,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
             disabled={Number(telemetry.unsettledTotal || 0) <= 0}
             onClick={() => setHandoverModalOpen(true)}
             sx={{
+              width: { xs: "100%", sm: "auto" },
               borderRadius: "12px",
               py: 0.9,
               px: 2,
@@ -289,8 +320,10 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
                 : "linear-gradient(135deg, #10B981 0%, #059669 100%) !important",
               color: "#FFFFFF !important",
               fontWeight: 800,
-              fontSize: "0.82rem",
+              fontSize: { xs: "0.75rem", sm: "0.82rem" },
               textTransform: "none",
+              whiteSpace: "nowrap",
+              justifyContent: "center",
               boxShadow: telemetry.cashInDrawer > 0
                 ? "0 4px 14px rgba(245, 158, 11, 0.35)"
                 : "0 4px 14px rgba(16, 185, 129, 0.35)",
@@ -315,26 +348,6 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
             {telemetry.cashInDrawer > 0
               ? `Settle Cash Handover (₹${formatRupee(telemetry.cashInDrawer)})`
               : "Settle Shift Handover (₹0 Balanced)"}
-          </Button>
-
-          <Button
-            variant="outlined"
-            startIcon={<Download />}
-            onClick={() => {
-              downloadDailyLedgerPDF(data?.payments || [], telemetry, hotelSettings || user?.hotel || {});
-              showToast("Treasury Statement PDF generated successfully!", "success");
-            }}
-            sx={{
-              borderRadius: "12px",
-              borderColor: themeConfig.border,
-              bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#FFFFFF",
-              color: themeConfig.textMain,
-              fontWeight: 700,
-              fontSize: "0.82rem",
-              textTransform: "none",
-            }}
-          >
-            Export PDF
           </Button>
         </Box>
       </Box>
@@ -388,7 +401,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
               }}
             />
           </Box>
-          <Typography variant="h4" sx={{ fontWeight: 900, color: telemetry.cashInDrawer > 0 ? (isDarkMode ? "#FBBF24" : "#D97706") : themeConfig.textMain, letterSpacing: -0.5, my: 0.5 }}>
+          <Typography variant="h4" sx={{ fontWeight: 900, color: telemetry.cashInDrawer > 0 ? (isDarkMode ? "#FBBF24" : "#D97706") : themeConfig.textMain, letterSpacing: -0.5, my: 0.5, fontSize: { xs: "1.4rem", sm: "1.8rem" } }}>
             ₹{formatRupee(telemetry.cashInDrawer)}
           </Typography>
           <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem" }}>
@@ -431,7 +444,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
               }}
             />
           </Box>
-          <Typography variant="h4" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5, my: 0.5 }}>
+          <Typography variant="h4" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5, my: 0.5, fontSize: { xs: "1.4rem", sm: "1.8rem" } }}>
             ₹{formatRupee(telemetry.todayGross)}
           </Typography>
           <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem" }}>
@@ -474,7 +487,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
               }}
             />
           </Box>
-          <Typography variant="h4" sx={{ fontWeight: 900, color: isDarkMode ? "#A78BFA" : "#7C3AED", letterSpacing: -0.5, my: 0.5 }}>
+          <Typography variant="h4" sx={{ fontWeight: 900, color: isDarkMode ? "#A78BFA" : "#7C3AED", letterSpacing: -0.5, my: 0.5, fontSize: { xs: "1.4rem", sm: "1.8rem" } }}>
             ₹{formatRupee((Number(telemetry.todayUpi) || 0) + (Number(telemetry.todayCard) || 0) + (Number(telemetry.todayBank) || 0))}
           </Typography>
           <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem" }}>
@@ -517,7 +530,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
               }}
             />
           </Box>
-          <Typography variant="h4" sx={{ fontWeight: 900, color: "#10B981", letterSpacing: -0.5, my: 0.5 }}>
+          <Typography variant="h4" sx={{ fontWeight: 900, color: "#10B981", letterSpacing: -0.5, my: 0.5, fontSize: { xs: "1.4rem", sm: "1.8rem" } }}>
             ₹{formatRupee(telemetry.totalVaultSettled)}
           </Typography>
           <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem" }}>
@@ -542,8 +555,8 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
             p: { xs: 2, sm: 2.2 },
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: { xs: "wrap", md: "nowrap" },
+            alignItems: { xs: "stretch", md: "center" },
+            flexDirection: { xs: "column", md: "row" },
             gap: 2,
             borderBottom: `1px solid ${themeConfig.border}`,
             bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
@@ -594,18 +607,20 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
               display: "flex",
               alignItems: "center",
               gap: 1.2,
-              flexWrap: { xs: "wrap", sm: "nowrap" },
+              flexWrap: "wrap",
+              flexDirection: { xs: "column", sm: "row" },
               width: { xs: "100%", md: "auto" },
               justifyContent: { xs: "stretch", sm: "flex-end" },
             }}
           >
-            <form onSubmit={handleSearchSubmit} style={{ display: "flex", flexGrow: 1 }}>
+            <form onSubmit={handleSearchSubmit} style={{ display: "flex", width: "100%", flexGrow: 1 }}>
               <TextField
                 size="small"
                 placeholder="Search receipt #, guest, room #..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 sx={{
+                  width: "100%",
                   minWidth: { xs: "100%", sm: 220, md: 260 },
                   "& .MuiOutlinedInput-root": {
                     borderRadius: "12px",
@@ -625,47 +640,51 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
               />
             </form>
 
-            <TextField
-              select
-              size="small"
-              value={methodFilter}
-              onChange={(e) => handleMethodChange(e.target.value)}
-              sx={{
-                minWidth: { xs: "100%", sm: 120 },
-                "& .MuiOutlinedInput-root": {
-                  borderRadius: "12px",
-                  bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#FFFFFF",
-                  fontWeight: 700,
-                  fontSize: "0.82rem",
-                },
-              }}
-            >
-              <MenuItem value="ALL">All Modes</MenuItem>
-              <MenuItem value="CASH">💵 Cash</MenuItem>
-              <MenuItem value="UPI">📱 UPI QR</MenuItem>
-              <MenuItem value="CARD">💳 Card POS</MenuItem>
-              <MenuItem value="BANK_TRANSFER">🏦 Bank NEFT</MenuItem>
-            </TextField>
+            <Box sx={{ display: "flex", gap: 1, width: { xs: "100%", sm: "auto" } }}>
+              <TextField
+                select
+                size="small"
+                value={methodFilter}
+                onChange={(e) => handleMethodChange(e.target.value)}
+                sx={{
+                  flex: 1,
+                  width: { xs: "50%", sm: 130 },
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: "12px",
+                    bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#FFFFFF",
+                    fontWeight: 700,
+                    fontSize: "0.82rem",
+                  },
+                }}
+              >
+                <MenuItem value="ALL">All Modes</MenuItem>
+                <MenuItem value="CASH">💵 Cash</MenuItem>
+                <MenuItem value="UPI">📱 UPI QR</MenuItem>
+                <MenuItem value="CARD">💳 Card POS</MenuItem>
+                <MenuItem value="BANK_TRANSFER">🏦 Bank NEFT</MenuItem>
+              </TextField>
 
-            <TextField
-              select
-              size="small"
-              value={settlementFilter}
-              onChange={(e) => setSettlementFilter(e.target.value)}
-              sx={{
-                minWidth: { xs: "100%", sm: 155 },
-                "& .MuiOutlinedInput-root": {
-                  borderRadius: "12px",
-                  bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#FFFFFF",
-                  fontWeight: 700,
-                  fontSize: "0.82rem",
-                },
-              }}
-            >
-              <MenuItem value="ALL">All Settlements</MenuItem>
-              <MenuItem value="UNSETTLED">🟡 At Counter (Unsettled)</MenuItem>
-              <MenuItem value="SETTLED">🟢 In Vault (Settled)</MenuItem>
-            </TextField>
+              <TextField
+                select
+                size="small"
+                value={settlementFilter}
+                onChange={(e) => setSettlementFilter(e.target.value)}
+                sx={{
+                  flex: 1,
+                  width: { xs: "50%", sm: 160 },
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: "12px",
+                    bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#FFFFFF",
+                    fontWeight: 700,
+                    fontSize: "0.82rem",
+                  },
+                }}
+              >
+                <MenuItem value="ALL">All Settlements</MenuItem>
+                <MenuItem value="UNSETTLED">🟡 At Counter (Unsettled)</MenuItem>
+                <MenuItem value="SETTLED">🟢 In Vault (Settled)</MenuItem>
+              </TextField>
+            </Box>
           </Box>
         </Box>
 
@@ -871,9 +890,17 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
               sx={{
                 borderTop: `1px solid ${themeConfig.border}`,
                 bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                "& .MuiTablePagination-toolbar": {
+                  flexWrap: "wrap",
+                  px: { xs: 1, sm: 2 },
+                  justifyContent: { xs: "center", sm: "flex-end" },
+                  gap: 1,
+                },
                 "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": {
                   fontWeight: 700,
                   color: themeConfig.textMuted,
+                  fontSize: { xs: "0.75rem", sm: "0.875rem" },
+                  m: 0,
                 },
               }}
             />
@@ -995,9 +1022,17 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
             sx={{
               borderTop: `1px solid ${themeConfig.border}`,
               bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+              "& .MuiTablePagination-toolbar": {
+                flexWrap: "wrap",
+                px: { xs: 1, sm: 2 },
+                justifyContent: { xs: "center", sm: "flex-end" },
+                gap: 1,
+              },
               "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": {
                 fontWeight: 700,
                 color: themeConfig.textMuted,
+                fontSize: { xs: "0.75rem", sm: "0.875rem" },
+                m: 0,
               },
             }}
           />
@@ -1045,8 +1080,8 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
             />
           </Box>
         </DialogContent>
-        <DialogActions sx={{ p: 2, gap: 1 }}>
-          <Button onClick={() => setHandoverModalOpen(false)} disabled={settling} sx={{ borderRadius: "10px" }}>
+        <DialogActions sx={{ p: 2, gap: 1, flexDirection: { xs: "column-reverse", sm: "row" } }}>
+          <Button onClick={() => setHandoverModalOpen(false)} disabled={settling} sx={{ width: { xs: "100%", sm: "auto" }, borderRadius: "10px" }}>
             Cancel
           </Button>
           <Button
@@ -1055,6 +1090,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
             disabled={settling}
             className="btn-3d"
             sx={{
+              width: { xs: "100%", sm: "auto" },
               background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
               borderRadius: "10px",
               fontWeight: 800,
@@ -1126,20 +1162,22 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
               </Table>
             </TableContainer>
 
-            <DialogActions sx={{ p: 0, pt: 2.5, display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${themeConfig.border}`, mt: 2 }}>
+            <DialogActions sx={{ p: 0, pt: 2.5, display: "flex", justifyContent: "space-between", alignItems: "stretch", flexDirection: { xs: "column-reverse", sm: "row" }, borderTop: `1px solid ${themeConfig.border}`, mt: 2, gap: 1.5 }}>
               <Button
                 onClick={() => setVoucherModal({ open: false, record: null })}
                 sx={{
+                  width: { xs: "100%", sm: "auto" },
                   borderRadius: "10px",
                   fontWeight: 700,
                   color: themeConfig.textMuted,
                   px: 2,
+                  justifyContent: "center",
                   "&:hover": { bgcolor: "rgba(0,0,0,0.04)" },
                 }}
               >
                 Close
               </Button>
-              <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "nowrap" }}>
+              <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexDirection: { xs: "column", sm: "row" }, width: { xs: "100%", sm: "auto" } }}>
                 <Button
                   variant="outlined"
                   startIcon={<Download sx={{ fontSize: 18 }} />}
@@ -1148,6 +1186,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
                     showToast("Handover slip PDF downloaded!", "success");
                   }}
                   sx={{
+                    width: { xs: "100%", sm: "auto" },
                     borderRadius: "10px",
                     borderColor: themeConfig.border,
                     color: themeConfig.textMain,
@@ -1155,6 +1194,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
                     fontSize: "0.82rem",
                     whiteSpace: "nowrap",
                     px: 1.8,
+                    justifyContent: "center",
                     "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne },
                   }}
                 >
@@ -1168,12 +1208,14 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
                   }}
                   className="btn-3d"
                   sx={{
+                    width: { xs: "100%", sm: "auto" },
                     background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
                     borderRadius: "10px",
                     fontWeight: 800,
                     fontSize: "0.82rem",
                     whiteSpace: "nowrap",
                     px: 1.8,
+                    justifyContent: "center",
                     boxShadow: `0 4px 12px ${themeConfig.primaryGlow}`,
                   }}
                 >

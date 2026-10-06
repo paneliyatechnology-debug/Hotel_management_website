@@ -1810,6 +1810,7 @@ export default function AvailableRoomsPage({
                                   borderRadius: "8px",
                                   fontWeight: 900,
                                   fontSize: "0.72rem",
+                                  whiteSpace: "nowrap",
                                   textTransform: "none",
                                   background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
                                   color: "#FFFFFF",
@@ -1833,6 +1834,7 @@ export default function AvailableRoomsPage({
                                 fontWeight: 800,
                                 fontSize: "0.72rem",
                                 textTransform: "none",
+                                whiteSpace: "nowrap",
                                 borderColor: themeConfig.border,
                                 color: themeConfig.textMain,
                                 "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne },
@@ -2637,7 +2639,7 @@ export default function AvailableRoomsPage({
           elevation={12}
           sx={{
             position: "fixed",
-            bottom: { xs: 16, sm: 24 },
+            bottom: { xs: 72, sm: 24 },
             left: "50%",
             transform: "translateX(-50%)",
             width: "calc(100% - 32px)",
@@ -2720,7 +2722,9 @@ export default function AvailableRoomsPage({
                 sx={{
                   borderRadius: "12px",
                   fontWeight: 900,
-                  fontSize: "0.85rem",
+                  fontSize: { xs: "0.78rem", sm: "0.85rem" },
+                  whiteSpace: "nowrap",
+                  flexGrow: { xs: 1, sm: 0 },
                   textTransform: "none",
                   background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
                   color: "#FFFFFF",

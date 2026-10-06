@@ -31,6 +31,7 @@ import {
   Person,
   Phone,
   Email,
+  Badge,
   BadgeOutlined,
   CalendarMonth,
   MeetingRoom,
@@ -53,7 +54,8 @@ import {
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import StatusChip from "@/shared/components/StatusChip";
-import { downloadGuestFolioPDF, downloadTaxInvoicePDF } from "@/shared/utils/pdfGenerator";
+import { downloadGuestFolioPDF } from "@/shared/utils/pdfGenerator";
+import { downloadAllGuestIdImages, downloadSingleImage, sanitizeFilename } from "@/shared/utils/idProofDownloader";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
 import { toast } from "@/shared/utils/toast";
 
@@ -189,7 +191,7 @@ export default function GuestDetailsModal({
         <DialogTitle
           component="div"
           sx={{
-            p: 3,
+            p: { xs: 2, sm: 3 },
             bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(238, 245, 240, 0.7)",
             borderBottom: `1px solid ${themeConfig.border}`,
             display: "flex",
@@ -286,7 +288,7 @@ export default function GuestDetailsModal({
         </Box>
 
         {/* Content Area */}
-        <DialogContent sx={{ p: 3 }}>
+        <DialogContent sx={{ p: { xs: 1.5, sm: 3 } }}>
           {loading ? (
             <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", py: 8, gap: 2 }}>
               <CircularProgress sx={{ color: themeConfig.primary }} />
@@ -422,9 +424,32 @@ export default function GuestDetailsModal({
                                   bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
                                 }}
                               >
-                                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "block", mb: 1 }}>
-                                  📄 Front ID Photo
-                                </Typography>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                                  <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                                    📄 Front ID Photo
+                                  </Typography>
+                                  {frontIdPhoto && (
+                                    <Chip
+                                      icon={<FileDownload sx={{ fontSize: "14px !important" }} />}
+                                      label="Download"
+                                      size="small"
+                                      clickable
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const cleanName = sanitizeFilename(guest.fullName || guest.name || "Guest");
+                                        downloadSingleImage(frontIdPhoto, `${cleanName}_Front_ID`);
+                                      }}
+                                      sx={{
+                                        height: 20,
+                                        fontSize: "0.68rem",
+                                        fontWeight: 800,
+                                        bgcolor: "rgba(11, 142, 224, 0.1)",
+                                        color: "#0B8EE0",
+                                        "&:hover": { bgcolor: "rgba(11, 142, 224, 0.2)" },
+                                      }}
+                                    />
+                                  )}
+                                </Box>
                                 {frontIdPhoto ? (
                                   <Box
                                     component="img"
@@ -461,9 +486,32 @@ export default function GuestDetailsModal({
                                   bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
                                 }}
                               >
-                                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "block", mb: 1 }}>
-                                  📄 Back ID Photo (Optional)
-                                </Typography>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                                  <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                                    📄 Back ID Photo (Optional)
+                                  </Typography>
+                                  {backIdPhoto && (
+                                    <Chip
+                                      icon={<FileDownload sx={{ fontSize: "14px !important" }} />}
+                                      label="Download"
+                                      size="small"
+                                      clickable
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const cleanName = sanitizeFilename(guest.fullName || guest.name || "Guest");
+                                        downloadSingleImage(backIdPhoto, `${cleanName}_Back_ID`);
+                                      }}
+                                      sx={{
+                                        height: 20,
+                                        fontSize: "0.68rem",
+                                        fontWeight: 800,
+                                        bgcolor: "rgba(11, 142, 224, 0.1)",
+                                        color: "#0B8EE0",
+                                        "&:hover": { bgcolor: "rgba(11, 142, 224, 0.2)" },
+                                      }}
+                                    />
+                                  )}
+                                </Box>
                                 {backIdPhoto ? (
                                   <Box
                                     component="img"
@@ -502,8 +550,8 @@ export default function GuestDetailsModal({
                         <Group sx={{ fontSize: 18, color: themeConfig.primary }} />
                         Accompanying Members ({accompanyingGuests.length})
                       </Typography>
-                      <TableContainer sx={{ borderRadius: "10px", border: `1px solid ${themeConfig.border}` }}>
-                        <Table size="small">
+                      <TableContainer sx={{ borderRadius: "10px", border: `1px solid ${themeConfig.border}`, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                        <Table size="small" sx={{ minWidth: 480 }}>
                           <TableHead sx={{ bgcolor: themeConfig.champagne }}>
                             <TableRow>
                               <TableCell sx={{ fontWeight: 800 }}>#</TableCell>
@@ -514,34 +562,56 @@ export default function GuestDetailsModal({
                           </TableHead>
                           <TableBody>
                             {accompanyingGuests.map((m, i) => {
+                              const mName = m.name || m.fullName || `Member_${i + 1}`;
+                              const cleanMName = sanitizeFilename(mName);
                               const mFront = m.frontImage || m.frontImageUrl || m.idProofImage || m.idProof?.frontImage || m.idProof?.frontImageUrl;
                               const mBack = m.backImage || m.backImageUrl || m.idProofBackImage || m.idProof?.backImage || m.idProof?.backImageUrl;
                               return (
                                 <TableRow key={m.id || i}>
                                   <TableCell sx={{ fontWeight: 700 }}>{i + 1}</TableCell>
-                                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>{m.name || `Member ${i + 1}`}</TableCell>
+                                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>{mName}</TableCell>
                                   <TableCell>
                                     {mFront ? (
-                                      <Chip
-                                        label="View ID"
-                                        size="small"
-                                        clickable
-                                        onClick={() => setPreviewImage(mFront)}
-                                        sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", color: "#10B981", fontWeight: 800 }}
-                                      />
+                                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
+                                        <Chip
+                                          label="View"
+                                          size="small"
+                                          clickable
+                                          onClick={() => setPreviewImage(mFront)}
+                                          sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", color: "#10B981", fontWeight: 800, height: 22, fontSize: "0.68rem" }}
+                                        />
+                                        <Chip
+                                          icon={<FileDownload sx={{ fontSize: "13px !important" }} />}
+                                          label="Download"
+                                          size="small"
+                                          clickable
+                                          onClick={() => downloadSingleImage(mFront, `${cleanMName}_Front_ID`)}
+                                          sx={{ bgcolor: "rgba(11, 142, 224, 0.12)", color: "#0B8EE0", fontWeight: 800, height: 22, fontSize: "0.68rem" }}
+                                        />
+                                      </Box>
                                     ) : (
                                       <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>Pending</Typography>
                                     )}
                                   </TableCell>
                                   <TableCell>
                                     {mBack ? (
-                                      <Chip
-                                        label="View ID"
-                                        size="small"
-                                        clickable
-                                        onClick={() => setPreviewImage(mBack)}
-                                        sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", color: "#10B981", fontWeight: 800 }}
-                                      />
+                                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
+                                        <Chip
+                                          label="View"
+                                          size="small"
+                                          clickable
+                                          onClick={() => setPreviewImage(mBack)}
+                                          sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", color: "#10B981", fontWeight: 800, height: 22, fontSize: "0.68rem" }}
+                                        />
+                                        <Chip
+                                          icon={<FileDownload sx={{ fontSize: "13px !important" }} />}
+                                          label="Download"
+                                          size="small"
+                                          clickable
+                                          onClick={() => downloadSingleImage(mBack, `${cleanMName}_Back_ID`)}
+                                          sx={{ bgcolor: "rgba(11, 142, 224, 0.12)", color: "#0B8EE0", fontWeight: 800, height: 22, fontSize: "0.68rem" }}
+                                        />
+                                      </Box>
                                     ) : (
                                       <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>None</Typography>
                                     )}
@@ -702,8 +772,8 @@ export default function GuestDetailsModal({
                     </Typography>
 
                     {paymentHistory.length > 0 ? (
-                      <TableContainer sx={{ borderRadius: "12px", border: `1px solid ${themeConfig.border}` }}>
-                        <Table size="small">
+                      <TableContainer sx={{ borderRadius: "12px", border: `1px solid ${themeConfig.border}`, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                        <Table size="small" sx={{ minWidth: 650 }}>
                           <TableHead sx={{ bgcolor: themeConfig.champagne }}>
                             <TableRow>
                               <TableCell sx={{ fontWeight: 800 }}>Date</TableCell>
@@ -821,18 +891,18 @@ export default function GuestDetailsModal({
 
         <DialogActions
           sx={{
-            p: 2,
-            px: 2.5,
+            p: { xs: 1.5, sm: 2 },
+            px: { xs: 1.5, sm: 2.5 },
             bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#F8FAFC",
             borderTop: `1px solid ${themeConfig.border}`,
             display: "flex",
-            alignItems: "center",
+            alignItems: "stretch",
             justifyContent: "space-between",
-            flexWrap: "wrap",
+            flexDirection: { xs: "column", sm: "row" },
             gap: 1.5,
           }}
         >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, flexWrap: "wrap" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, flexWrap: "wrap", flexDirection: { xs: "column", sm: "row" }, width: { xs: "100%", sm: "auto" } }}>
             <Button
               size="small"
               startIcon={<FileDownload sx={{ fontSize: 18 }} />}
@@ -853,6 +923,7 @@ export default function GuestDetailsModal({
                 );
               }}
               sx={{
+                width: { xs: "100%", sm: "auto" },
                 borderRadius: "10px",
                 fontWeight: 800,
                 fontSize: "0.78rem",
@@ -860,47 +931,45 @@ export default function GuestDetailsModal({
                 borderColor: themeConfig.border,
                 color: themeConfig.textMain,
                 px: 1.6,
-                py: 0.65,
+                py: 0.75,
+                justifyContent: "center",
                 "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne },
               }}
             >
               Guest Folio PDF
             </Button>
 
-            {activeBooking && (
-              <Button
-                size="small"
-                startIcon={<Receipt sx={{ fontSize: 18 }} />}
-                variant="outlined"
-                onClick={() => {
-                  downloadTaxInvoicePDF(
-                    {
-                      ...activeBooking,
-                      guest,
-                      paidAmount: paymentDetails?.paidAmount ?? activeBooking.paidAmount,
-                      paymentHistory,
-                      accompanyingGuests,
-                      charges: activeBooking?.charges || activeBooking?.posCharges || [],
-                    },
-                    guest?.hotel || {}
-                  );
-                }}
-                sx={{
-                  borderRadius: "10px",
-                  fontWeight: 800,
-                  fontSize: "0.78rem",
-                  textTransform: "none",
-                  borderColor: "#10B981",
-                  color: "#059669",
-                  bgcolor: "rgba(16, 185, 129, 0.05)",
-                  px: 1.6,
-                  py: 0.65,
-                  "&:hover": { bgcolor: "rgba(16, 185, 129, 0.12)", borderColor: "#059669" },
-                }}
-              >
-                Tax Invoice PDF
-              </Button>
-            )}
+            <Button
+              size="small"
+              startIcon={<FileDownload sx={{ fontSize: 18 }} />}
+              variant="outlined"
+              onClick={() => {
+                downloadAllGuestIdImages(
+                  {
+                    guest,
+                    activeBooking,
+                    accompanyingGuests,
+                  },
+                  (msg, sev) => toast.show(msg, sev)
+                );
+              }}
+              sx={{
+                width: { xs: "100%", sm: "auto" },
+                borderRadius: "10px",
+                fontWeight: 800,
+                fontSize: "0.78rem",
+                textTransform: "none",
+                borderColor: themeConfig.primary || "#0F766E",
+                color: themeConfig.primary || "#0F766E",
+                bgcolor: "rgba(15, 118, 110, 0.06)",
+                px: 1.6,
+                py: 0.75,
+                justifyContent: "center",
+                "&:hover": { bgcolor: "rgba(15, 118, 110, 0.12)", borderColor: themeConfig.primary || "#0F766E" },
+              }}
+            >
+              Download ID Proofs (.ZIP)
+            </Button>
 
             {/* Single Unified WhatsApp Action Button */}
             <Button
@@ -925,6 +994,7 @@ export default function GuestDetailsModal({
                 }
               }}
               sx={{
+                width: { xs: "100%", sm: "auto" },
                 borderRadius: "10px",
                 fontWeight: 800,
                 fontSize: "0.78rem",
@@ -933,7 +1003,8 @@ export default function GuestDetailsModal({
                 color: "#FFFFFF",
                 boxShadow: "0 2px 8px rgba(37, 211, 102, 0.3)",
                 px: 1.8,
-                py: 0.65,
+                py: 0.75,
+                justifyContent: "center",
                 "&:hover": { bgcolor: "#1EBE5D" },
               }}
             >
@@ -946,6 +1017,8 @@ export default function GuestDetailsModal({
             variant="contained"
             size="small"
             sx={{
+              display: { xs: "none", sm: "inline-flex" },
+              width: { xs: "100%", sm: "auto" },
               borderRadius: "10px",
               fontWeight: 800,
               fontSize: "0.8rem",
@@ -953,7 +1026,8 @@ export default function GuestDetailsModal({
               background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
               color: "#FFFFFF",
               px: 2.5,
-              py: 0.65,
+              py: 0.75,
+              justifyContent: "center",
               boxShadow: `0 3px 10px ${themeConfig.primaryGlow}`,
             }}
           >

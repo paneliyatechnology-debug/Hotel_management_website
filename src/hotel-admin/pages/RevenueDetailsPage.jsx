@@ -135,7 +135,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
   };
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: { xs: 10, sm: 4 } }}>
       {/* Top Header Card */}
       <Paper
         elevation={0}
@@ -147,19 +147,21 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
           boxShadow: isDarkMode ? "0 4px 20px rgba(0,0,0,0.4)" : "0 4px 20px rgba(0,0,0,0.04)",
         }}
       >
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2, mb: 2.5 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+        <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, justifyContent: "space-between", alignItems: { xs: "stretch", sm: "center" }, gap: 2, mb: 2.5 }}>
+          <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, alignItems: { xs: "stretch", sm: "center" }, gap: 1.5 }}>
             {onBackToDashboard && (
               <Button
                 variant="outlined"
                 startIcon={<ArrowBack />}
                 onClick={onBackToDashboard}
                 sx={{
+                  width: { xs: "100%", sm: "auto" },
                   borderRadius: "12px",
                   fontWeight: 800,
-                  fontSize: "0.85rem",
+                  fontSize: "0.82rem",
                   px: 2,
-                  py: 1,
+                  py: 0.9,
+                  justifyContent: "center",
                   borderColor: themeConfig.border,
                   color: themeConfig.textMain,
                   bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
@@ -175,16 +177,16 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
               </Button>
             )}
             <Box>
-              <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: "-0.5px" }}>
-                Detailed Revenue & Financial Ledger
+              <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: "-0.5px", fontSize: { xs: "1.2rem", sm: "1.5rem" } }}>
+                Detailed Revenue &amp; Financial Ledger
               </Typography>
-              <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "flex", alignItems: "center", gap: 0.5, mt: 0.2 }}>
-                Period: <span style={{ color: themeConfig.primary, fontWeight: 800 }}>{dateRangeLabel}</span> &bull; Real-time verified booking & payment transactions
+              <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block", mt: 0.5, fontSize: { xs: "0.75rem", sm: "0.8rem" } }}>
+                Period: <span style={{ color: themeConfig.primary, fontWeight: 800 }}>{dateRangeLabel}</span> &bull; Real-time verified booking &amp; payment transactions
               </Typography>
             </Box>
           </Box>
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+          <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, alignItems: "center", gap: 1.2, width: { xs: "100%", sm: "auto" } }}>
             <Button
               variant="contained"
               startIcon={<Download />}
@@ -196,11 +198,14 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                 );
               }}
               sx={{
+                width: { xs: "100%", sm: "auto" },
                 borderRadius: "12px",
                 fontWeight: 800,
-                fontSize: "0.85rem",
+                fontSize: "0.82rem",
                 px: 2.2,
-                py: 1.1,
+                py: 0.9,
+                justifyContent: "center",
+                whiteSpace: "nowrap",
                 bgcolor: "#10B981",
                 color: "#FFFFFF",
                 boxShadow: "0 4px 12px rgba(16, 185, 129, 0.25)",
@@ -215,11 +220,14 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
               startIcon={<Refresh />}
               onClick={fetchRevenueDetails}
               sx={{
+                width: { xs: "100%", sm: "auto" },
                 borderRadius: "12px",
                 fontWeight: 800,
-                fontSize: "0.85rem",
+                fontSize: "0.82rem",
                 px: 2,
-                py: 1.1,
+                py: 0.9,
+                justifyContent: "center",
+                whiteSpace: "nowrap",
                 bgcolor: themeConfig.primary,
                 boxShadow: `0 4px 12px ${themeConfig.primaryGlow}`,
                 "&:hover": { bgcolor: themeConfig.primaryDark },
@@ -231,7 +239,23 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
         </Box>
 
         {/* Date Filter Preset Buttons */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", pt: 1, borderTop: `1px solid ${themeConfig.border}` }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1,
+            flexWrap: "nowrap",
+            overflowX: "auto",
+            WebkitOverflowScrolling: "touch",
+            py: 1,
+            borderTop: `1px solid ${themeConfig.border}`,
+            width: "100%",
+            maxWidth: "100%",
+            "&::-webkit-scrollbar": { display: "none" },
+            msOverflowStyle: "none",
+            scrollbarWidth: "none",
+          }}
+        >
           {[
             { id: "TODAY", label: "Today" },
             { id: "THIS_WEEK", label: "This Week" },
@@ -252,10 +276,12 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                 }}
                 sx={{
                   fontWeight: 800,
-                  fontSize: "0.82rem",
-                  px: 1.2,
-                  py: 2.1,
+                  fontSize: "0.8rem",
+                  px: 1.4,
+                  height: 36,
                   borderRadius: "10px",
+                  flexShrink: 0,
+                  whiteSpace: "nowrap",
                   bgcolor: isActive ? themeConfig.primary : (isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9"),
                   color: isActive ? "#FFFFFF" : themeConfig.textMain,
                   border: `1.5px solid ${isActive ? themeConfig.primary : themeConfig.border}`,
@@ -314,7 +340,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                 <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.5px" }}>
                   TOTAL REVENUE ({dateRangeLabel})
                 </Typography>
-                <Typography variant="h3" sx={{ fontWeight: 900, color: "#10B981", mt: 0.5, letterSpacing: "-1px" }}>
+                <Typography variant="h3" sx={{ fontWeight: 900, color: "#10B981", mt: 0.5, letterSpacing: "-1px", fontSize: { xs: "1.5rem", sm: "2.2rem" } }}>
                   ₹{totalRev.toLocaleString()}
                 </Typography>
               </Box>
@@ -355,7 +381,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                 <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.5px" }}>
                   TOTAL TRANSACTIONS
                 </Typography>
-                <Typography variant="h3" sx={{ fontWeight: 900, color: themeConfig.textMain, mt: 0.5, letterSpacing: "-1px" }}>
+                <Typography variant="h3" sx={{ fontWeight: 900, color: themeConfig.textMain, mt: 0.5, letterSpacing: "-1px", fontSize: { xs: "1.5rem", sm: "2.2rem" } }}>
                   {totalTxnCount}
                 </Typography>
               </Box>
@@ -396,7 +422,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                 <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.5px" }}>
                   AVERAGE TICKET / TRANSACTION SIZE
                 </Typography>
-                <Typography variant="h3" sx={{ fontWeight: 900, color: themeConfig.primary, mt: 0.5, letterSpacing: "-1px" }}>
+                <Typography variant="h3" sx={{ fontWeight: 900, color: themeConfig.primary, mt: 0.5, letterSpacing: "-1px", fontSize: { xs: "1.5rem", sm: "2.2rem" } }}>
                   ₹{avgTicket.toLocaleString()}
                 </Typography>
               </Box>
@@ -640,7 +666,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
           </Typography>
 
           {/* Search and Filters Bar */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", flexDirection: { xs: "column", sm: "row" }, width: { xs: "100%", sm: "auto" } }}>
             <TextField
               size="small"
               placeholder="Search Guest, TXN, Room..."
@@ -671,48 +697,52 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
               }}
             />
 
-            <TextField
-              select
-              size="small"
-              label="Payment Method"
-              value={paymentMethod}
-              onChange={(e) => {
-                setPaymentMethod(e.target.value);
-                setPage(0);
-              }}
-              sx={{
-                width: { xs: "100%", sm: 160 },
-                "& .MuiOutlinedInput-root": { borderRadius: "12px" },
-              }}
-            >
-              <MenuItem value="ALL">All Methods</MenuItem>
-              <MenuItem value="UPI">UPI</MenuItem>
-              <MenuItem value="CASH">Cash</MenuItem>
-              <MenuItem value="CARD">Card</MenuItem>
-              <MenuItem value="ONLINE">Online Gateway</MenuItem>
-              <MenuItem value="BANK_TRANSFER">Bank Transfer</MenuItem>
-            </TextField>
+            <Box sx={{ display: "flex", gap: 1, width: { xs: "100%", sm: "auto" } }}>
+              <TextField
+                select
+                size="small"
+                label="Payment Method"
+                value={paymentMethod}
+                onChange={(e) => {
+                  setPaymentMethod(e.target.value);
+                  setPage(0);
+                }}
+                sx={{
+                  flex: 1,
+                  width: { xs: "50%", sm: 160 },
+                  "& .MuiOutlinedInput-root": { borderRadius: "12px" },
+                }}
+              >
+                <MenuItem value="ALL">All Methods</MenuItem>
+                <MenuItem value="UPI">UPI</MenuItem>
+                <MenuItem value="CASH">Cash</MenuItem>
+                <MenuItem value="CARD">Card</MenuItem>
+                <MenuItem value="ONLINE">Online Gateway</MenuItem>
+                <MenuItem value="BANK_TRANSFER">Bank Transfer</MenuItem>
+              </TextField>
 
-            <TextField
-              select
-              size="small"
-              label="Status"
-              value={paymentStatus}
-              onChange={(e) => {
-                setPaymentStatus(e.target.value);
-                setPage(0);
-              }}
-              sx={{
-                width: { xs: "100%", sm: 140 },
-                "& .MuiOutlinedInput-root": { borderRadius: "12px" },
-              }}
-            >
-              <MenuItem value="ALL">All Status</MenuItem>
-              <MenuItem value="PAID">Paid</MenuItem>
-              <MenuItem value="PARTIALLY_PAID">Partial</MenuItem>
-              <MenuItem value="FAILED">Failed</MenuItem>
-              <MenuItem value="REFUNDED">Refunded</MenuItem>
-            </TextField>
+              <TextField
+                select
+                size="small"
+                label="Status"
+                value={paymentStatus}
+                onChange={(e) => {
+                  setPaymentStatus(e.target.value);
+                  setPage(0);
+                }}
+                sx={{
+                  flex: 1,
+                  width: { xs: "50%", sm: 140 },
+                  "& .MuiOutlinedInput-root": { borderRadius: "12px" },
+                }}
+              >
+                <MenuItem value="ALL">All Status</MenuItem>
+                <MenuItem value="PAID">Paid</MenuItem>
+                <MenuItem value="PARTIALLY_PAID">Partial</MenuItem>
+                <MenuItem value="FAILED">Failed</MenuItem>
+                <MenuItem value="REFUNDED">Refunded</MenuItem>
+              </TextField>
+            </Box>
           </Box>
         </Box>
 
@@ -726,22 +756,22 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
           </Box>
         ) : transactions.length > 0 ? (
           <>
-            <TableContainer sx={{ borderRadius: "14px", border: `1px solid ${themeConfig.border}`, overflowX: "auto" }}>
-              <Table size="small">
+            <TableContainer sx={{ borderRadius: "14px", border: `1px solid ${themeConfig.border}`, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+              <Table size="small" sx={{ minWidth: 950 }}>
                 <TableHead sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F8FAFC" }}>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.5 }}>Date</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Transaction ID</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Guest</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Booking ID</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Room</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Description</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Method</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Amount</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Tax</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Total</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Status</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, textAlign: "center" }}>Action</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.5, whiteSpace: "nowrap" }}>Date</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Transaction ID</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Guest</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Booking ID</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Room</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Description</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Method</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Amount</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Tax</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Total</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Status</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, textAlign: "center", whiteSpace: "nowrap" }}>Action</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -854,7 +884,22 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                 setPage(0);
               }}
               rowsPerPageOptions={[5, 10, 20, 50]}
-              sx={{ borderTop: `1px solid ${themeConfig.border}`, mt: 1 }}
+              sx={{
+                borderTop: `1px solid ${themeConfig.border}`,
+                mt: 1,
+                "& .MuiTablePagination-toolbar": {
+                  flexWrap: "wrap",
+                  px: { xs: 1, sm: 2 },
+                  justifyContent: { xs: "center", sm: "flex-end" },
+                  gap: 1,
+                },
+                "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": {
+                  fontWeight: 700,
+                  color: themeConfig.textMuted,
+                  fontSize: { xs: "0.75rem", sm: "0.875rem" },
+                  m: 0,
+                },
+              }}
             />
           </>
         ) : (
@@ -935,16 +980,18 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
               </Box>
             </Box>
           </DialogContent>
-          <DialogActions sx={{ p: 2, display: "flex", justifyContent: "space-between" }}>
+          <DialogActions sx={{ p: 2, display: "flex", justifyContent: "space-between", alignItems: "stretch", flexDirection: { xs: "column-reverse", sm: "row" }, gap: 1.5 }}>
             <Button
               startIcon={<Download />}
               onClick={() => downloadPaymentReceiptPDF(selectedTxn, hotelSettings?.hotel || {})}
               variant="outlined"
               sx={{
+                width: { xs: "100%", sm: "auto" },
                 borderRadius: "10px",
                 fontWeight: 800,
                 borderColor: themeConfig.border,
                 color: themeConfig.textMain,
+                justifyContent: "center",
                 "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
               }}
             >
@@ -953,7 +1000,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
             <Button
               onClick={() => setSelectedTxn(null)}
               variant="contained"
-              sx={{ borderRadius: "10px", fontWeight: 800, bgcolor: themeConfig.primary }}
+              sx={{ width: { xs: "100%", sm: "auto" }, borderRadius: "10px", fontWeight: 800, bgcolor: themeConfig.primary, justifyContent: "center" }}
             >
               Close
             </Button>

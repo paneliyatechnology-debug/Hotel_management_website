@@ -30,13 +30,21 @@ import { downloadTaxInvoicePDF, downloadGuestFolioPDF } from "@/shared/utils/pdf
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
 import { calculateOverstayFee, formatTime12Hour } from "@/shared/utils/timeUtils";
 import SettingsView from "@/shared/components/SettingsView";
-import ReceptionistOverviewPage from "../pages/ReceptionistOverviewPage";
-import AvailableRoomsPage from "../pages/AvailableRoomsPage";
-import InHouseFoliosPage from "../pages/InHouseFoliosPage";
-import CheckInWizardPage from "../pages/CheckInWizardPage";
-import MoreOperationsPage from "../pages/MoreOperationsPage";
-
+import dynamic from "next/dynamic";
+import { CircularProgress } from "@mui/material";
 import { useSocket } from "@/shared/context/SocketContext";
+
+const ComponentSpinner = () => (
+  <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 8 }}>
+    <CircularProgress size={36} />
+  </Box>
+);
+
+const ReceptionistOverviewPage = dynamic(() => import("../pages/ReceptionistOverviewPage"), { loading: () => <ComponentSpinner /> });
+const AvailableRoomsPage = dynamic(() => import("../pages/AvailableRoomsPage"), { loading: () => <ComponentSpinner /> });
+const InHouseFoliosPage = dynamic(() => import("../pages/InHouseFoliosPage"), { loading: () => <ComponentSpinner /> });
+const CheckInWizardPage = dynamic(() => import("../pages/CheckInWizardPage"), { loading: () => <ComponentSpinner /> });
+const MoreOperationsPage = dynamic(() => import("../pages/MoreOperationsPage"), { loading: () => <ComponentSpinner /> });
 
 export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange, onLogout }) {
   const { themeConfig } = useAppTheme();
@@ -54,6 +62,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
   const [initialSelectedCategory, setInitialSelectedCategory] = useState(null);
   const [checkInSuccessModal, setCheckInSuccessModal] = useState({ open: false, booking: null, guest: null });
+  const [fetchedTabs, setFetchedTabs] = useState({});
 
   // Helper for current local date in YYYY-MM-DD
   const getTodayLocalDate = () => {
@@ -133,33 +142,48 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
   const [posChargeDialog, setPosChargeDialog] = useState({ open: false, booking: null, serviceType: "ROOM_SERVICE", amount: 650, description: "Breakfast & Sparkling Water" });
   const [invoiceModal, setInvoiceModal] = useState({ open: false, booking: null });
 
-  const fetchFrontDeskData = async (isSilent = false) => {
-    if (!isSilent) setLoading(true);
+  // On-Demand Tab-Specific Data Loading
+  const loadTabData = async (tabIndex, forceRefresh = false) => {
+    if (!forceRefresh && fetchedTabs[tabIndex]) return;
+    setLoading(true);
     try {
-      const [dashRes, roomsRes, bookRes, guestRes, roomTypesRes] = await Promise.allSettled([
-        apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD),
-        apiRequest(API_ENDPOINTS.RECEPTIONIST.AVAILABLE_ROOMS),
-        apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS),
-        apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS),
-        apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES),
-      ]);
+      const endpointsToFetch = [];
 
-      if (dashRes.status === "fulfilled" && dashRes.value?.data) {
-        setDashboardData(dashRes.value.data);
+      // Route 0: OVERVIEW & DASHBOARD
+      if (tabIndex === 0) {
+        endpointsToFetch.push(
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD).then((res) => res?.data && setDashboardData(res.data)),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.AVAILABLE_ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || [])),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || []))
+        );
       }
-      if (roomsRes.status === "fulfilled" && (roomsRes.value?.data || Array.isArray(roomsRes.value))) {
-        const roomList = roomsRes.value.data || roomsRes.value || [];
-        setRooms(roomList);
+      // Route 1: AVAILABLE ROOMS & CATEGORIES
+      else if (tabIndex === 1) {
+        endpointsToFetch.push(
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.AVAILABLE_ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || []))
+        );
       }
-      if (roomTypesRes.status === "fulfilled" && (roomTypesRes.value?.data || Array.isArray(roomTypesRes.value))) {
-        setRoomTypes(roomTypesRes.value.data || roomTypesRes.value || []);
+      // Route 2: IN-HOUSE FOLIOS & GUEST DIRECTORY
+      else if (tabIndex === 2) {
+        endpointsToFetch.push(
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || [])),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || [])),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.AVAILABLE_ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || []))
+        );
       }
-      if (bookRes.status === "fulfilled" && (bookRes.value?.data || Array.isArray(bookRes.value))) {
-        setBookings(bookRes.value.data || bookRes.value || []);
+      // Route 3: MORE OPERATIONS
+      else if (tabIndex === 3) {
+        endpointsToFetch.push(
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD).then((res) => res?.data && setDashboardData(res.data))
+        );
       }
-      if (guestRes.status === "fulfilled" && (guestRes.value?.data || Array.isArray(guestRes.value))) {
-        setGuests(guestRes.value.data || guestRes.value || []);
-      }
+
+      await Promise.allSettled(endpointsToFetch);
+      setFetchedTabs((prev) => ({ ...prev, [tabIndex]: true }));
     } catch (err) {
       console.error("Front desk error:", err);
     } finally {
@@ -168,8 +192,12 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
   };
 
   useEffect(() => {
-    fetchFrontDeskData();
-  }, []);
+    loadTabData(activeNav);
+  }, [activeNav]);
+
+  const fetchFrontDeskData = async (isSilent = false) => {
+    await loadTabData(activeNav, true);
+  };
 
   // Real-Time Socket Auto-Sync across all operational mutations
   useSocket(

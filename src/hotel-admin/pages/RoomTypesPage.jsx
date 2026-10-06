@@ -470,7 +470,7 @@ export default function RoomTypesPage({
   const paginatedRooms = filteredRooms.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   return (
-    <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 } }}>
+    <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
       {/* ========================================================================= */}
       {/* 3D MASTER COMMAND RIBBON                                                  */}
       {/* ========================================================================= */}
@@ -500,7 +500,7 @@ export default function RoomTypesPage({
 
         <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 2, position: "relative", zIndex: 1 }}>
           <Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.8 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.8, flexWrap: "wrap" }}>
               <Avatar
                 sx={{
                   bgcolor: "rgba(255,255,255,0.18)",
@@ -539,15 +539,15 @@ export default function RoomTypesPage({
                 />
               )}
             </Box>
-            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -0.8, color: "#FFFFFF", lineHeight: 1.2 }}>
+            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -0.8, color: "#FFFFFF", lineHeight: 1.2, fontSize: { xs: "1.5rem", sm: "2.1rem" } }}>
               Room Category & Amenities Management
             </Typography>
-            <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.85)", mt: 0.5, maxWidth: "680px" }}>
+            <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.85)", mt: 0.5, maxWidth: "680px", fontSize: { xs: "0.8rem", sm: "0.875rem" } }}>
               Configure category-wise rooms, assign rich amenities (WiFi, AC, TV, Mini-bar, Jacuzzi), manage floor allocations, and customize tariffs.
             </Typography>
           </Box>
 
-          <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "center" }}>
+          <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 1.5, width: { xs: "100%", sm: "auto" } }}>
             <Button
               variant="contained"
               startIcon={<Add />}
@@ -561,6 +561,7 @@ export default function RoomTypesPage({
                 px: 2.6,
                 py: 1.2,
                 fontSize: "0.88rem",
+                width: { xs: "100%", sm: "auto" },
                 boxShadow: "0 8px 20px rgba(0,0,0,0.18), inset 0 1px 0 #FFFFFF",
                 border: "1px solid rgba(255,255,255,0.8)",
                 "&:hover": {
@@ -602,6 +603,7 @@ export default function RoomTypesPage({
                 px: 2.6,
                 py: 1.2,
                 fontSize: "0.88rem",
+                width: { xs: "100%", sm: "auto" },
                 boxShadow: "0 8px 20px rgba(0,0,0,0.18), inset 0 1px 0 #FFFFFF",
                 border: "1px solid rgba(255,255,255,0.8)",
                 "&:hover": {
@@ -622,7 +624,7 @@ export default function RoomTypesPage({
             <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.75)", fontWeight: 700 }}>
               TOTAL ROOMS
             </Typography>
-            <Typography variant="h5" sx={{ fontWeight: 900, color: "#FFFFFF" }}>
+            <Typography variant="h5" sx={{ fontWeight: 900, color: "#FFFFFF", fontSize: { xs: "1.3rem", sm: "1.5rem" } }}>
               {totalRoomsCount}
             </Typography>
           </Grid>
@@ -631,7 +633,7 @@ export default function RoomTypesPage({
             <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.75)", fontWeight: 700 }}>
               AVAILABLE
             </Typography>
-            <Typography variant="h5" sx={{ fontWeight: 900, color: "#4ADE80" }}>
+            <Typography variant="h5" sx={{ fontWeight: 900, color: "#4ADE80", fontSize: { xs: "1.3rem", sm: "1.5rem" } }}>
               {availableRoomsCount}
             </Typography>
           </Grid>
@@ -640,7 +642,7 @@ export default function RoomTypesPage({
             <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.75)", fontWeight: 700 }}>
               OCCUPIED / RESERVED
             </Typography>
-            <Typography variant="h5" sx={{ fontWeight: 900, color: "#FDE047" }}>
+            <Typography variant="h5" sx={{ fontWeight: 900, color: "#FDE047", fontSize: { xs: "1.3rem", sm: "1.5rem" } }}>
               {occupiedRoomsCount}
             </Typography>
           </Grid>
@@ -649,7 +651,7 @@ export default function RoomTypesPage({
             <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.75)", fontWeight: 700 }}>
               CLEANING / MAINT
             </Typography>
-            <Typography variant="h5" sx={{ fontWeight: 900, color: "#F87171" }}>
+            <Typography variant="h5" sx={{ fontWeight: 900, color: "#F87171", fontSize: { xs: "1.3rem", sm: "1.5rem" } }}>
               {maintenanceRoomsCount}
             </Typography>
           </Grid>
@@ -658,7 +660,7 @@ export default function RoomTypesPage({
             <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.75)", fontWeight: 700 }}>
               ROOM CATEGORIES
             </Typography>
-            <Typography variant="h5" sx={{ fontWeight: 900, color: "#FFFFFF" }}>
+            <Typography variant="h5" sx={{ fontWeight: 900, color: "#FFFFFF", fontSize: { xs: "1.3rem", sm: "1.5rem" } }}>
               {roomTypes.length}
             </Typography>
           </Grid>
@@ -677,26 +679,39 @@ export default function RoomTypesPage({
           bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
           border: `1px solid ${themeConfig.border}`,
           boxShadow: isDarkMode ? "0 6px 18px rgba(0,0,0,0.3)" : "0 6px 18px rgba(12, 39, 59, 0.05)",
-          display: "inline-flex",
+          display: "flex",
+          width: "100%",
+          maxWidth: "100%",
+          overflowX: "auto",
+          WebkitOverflowScrolling: "touch",
+          "&::-webkit-scrollbar": { display: "none" },
+          msOverflowStyle: "none",
+          scrollbarWidth: "none",
         }}
       >
         <Tabs
           value={activeTab}
           onChange={(e, v) => setActiveTab(v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
           sx={{
             minHeight: "auto",
+            width: "100%",
             "& .MuiTabs-indicator": { display: "none" },
           }}
         >
           <Tab
-            label={`🏷️ Category-Wise Rooms (${roomTypes.length} Categories)`}
+            label={`🏷️ Category-Wise Rooms (${roomTypes.length})`}
             sx={{
               fontWeight: 800,
               fontSize: "0.85rem",
               borderRadius: "12px",
               py: 1,
-              px: 2.5,
+              px: { xs: 1.5, sm: 2.5 },
               minHeight: "auto",
+              whiteSpace: "nowrap",
+              flexShrink: 0,
               color: activeTab === 0 ? "#FFFFFF" : themeConfig.textMuted,
               bgcolor: activeTab === 0 ? themeConfig.primary : "transparent",
               boxShadow: activeTab === 0 ? `0 4px 12px ${themeConfig.primaryGlow}` : "none",
@@ -704,14 +719,16 @@ export default function RoomTypesPage({
             }}
           />
           <Tab
-            label={`🏨 All Rooms Inventory Table (${rooms.length})`}
+            label={`🏨 Inventory Table (${rooms.length})`}
             sx={{
               fontWeight: 800,
               fontSize: "0.85rem",
               borderRadius: "12px",
               py: 1,
-              px: 2.5,
+              px: { xs: 1.5, sm: 2.5 },
               minHeight: "auto",
+              whiteSpace: "nowrap",
+              flexShrink: 0,
               color: activeTab === 1 ? "#FFFFFF" : themeConfig.textMuted,
               bgcolor: activeTab === 1 ? themeConfig.primary : "transparent",
               boxShadow: activeTab === 1 ? `0 4px 12px ${themeConfig.primaryGlow}` : "none",
@@ -719,14 +736,16 @@ export default function RoomTypesPage({
             }}
           />
           <Tab
-            label={`⚙️ Categories & Amenities Master (${roomTypes.length})`}
+            label={`⚙️ Categories Master (${roomTypes.length})`}
             sx={{
               fontWeight: 800,
               fontSize: "0.85rem",
               borderRadius: "12px",
               py: 1,
-              px: 2.5,
+              px: { xs: 1.5, sm: 2.5 },
               minHeight: "auto",
+              whiteSpace: "nowrap",
+              flexShrink: 0,
               color: activeTab === 2 ? "#FFFFFF" : themeConfig.textMuted,
               bgcolor: activeTab === 2 ? themeConfig.primary : "transparent",
               boxShadow: activeTab === 2 ? `0 4px 12px ${themeConfig.primaryGlow}` : "none",
@@ -889,7 +908,7 @@ export default function RoomTypesPage({
                       </Box>
 
                       {/* Action buttons for this category */}
-                      <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1, width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "flex-start", sm: "flex-end" } }}>
                         <Button
                           variant="contained"
                           size="small"
@@ -903,6 +922,8 @@ export default function RoomTypesPage({
                             px: 2,
                             py: 0.8,
                             fontSize: "0.8rem",
+                            whiteSpace: "nowrap",
+                            flexGrow: { xs: 1, sm: 0 },
                             boxShadow: `0 4px 12px ${themeConfig.primaryGlow}`,
                           }}
                         >
@@ -1291,8 +1312,22 @@ export default function RoomTypesPage({
             />
 
             {/* Category Filter */}
-            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
-              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, mr: 0.5 }}>
+            <Box
+              sx={{
+                display: "flex",
+                gap: 1,
+                flexWrap: "nowrap",
+                alignItems: "center",
+                overflowX: "auto",
+                WebkitOverflowScrolling: "touch",
+                width: "100%",
+                py: 0.5,
+                "&::-webkit-scrollbar": { display: "none" },
+                msOverflowStyle: "none",
+                scrollbarWidth: "none",
+              }}
+            >
+              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, mr: 0.5, whiteSpace: "nowrap", flexShrink: 0 }}>
                 CATEGORY:
               </Typography>
               <Chip
@@ -1307,6 +1342,8 @@ export default function RoomTypesPage({
                   fontWeight: 800,
                   borderRadius: "8px",
                   fontSize: "0.75rem",
+                  flexShrink: 0,
+                  whiteSpace: "nowrap",
                   bgcolor: categoryFilter === "ALL" ? themeConfig.primary : themeConfig.champagne,
                   color: categoryFilter === "ALL" ? "#FFFFFF" : themeConfig.primaryDark,
                 }}
@@ -1327,6 +1364,8 @@ export default function RoomTypesPage({
                       fontWeight: 800,
                       borderRadius: "8px",
                       fontSize: "0.75rem",
+                      flexShrink: 0,
+                      whiteSpace: "nowrap",
                       bgcolor: isSelected ? themeConfig.primary : themeConfig.champagne,
                       color: isSelected ? "#FFFFFF" : themeConfig.primaryDark,
                     }}
@@ -1336,8 +1375,22 @@ export default function RoomTypesPage({
             </Box>
 
             {/* Floor Filters */}
-            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
-              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, mr: 0.5 }}>
+            <Box
+              sx={{
+                display: "flex",
+                gap: 1,
+                flexWrap: "nowrap",
+                alignItems: "center",
+                overflowX: "auto",
+                WebkitOverflowScrolling: "touch",
+                width: "100%",
+                py: 0.5,
+                "&::-webkit-scrollbar": { display: "none" },
+                msOverflowStyle: "none",
+                scrollbarWidth: "none",
+              }}
+            >
+              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, mr: 0.5, whiteSpace: "nowrap", flexShrink: 0 }}>
                 FLOOR:
               </Typography>
               {["ALL", ...availableFloors].map((fl) => {
@@ -1356,6 +1409,8 @@ export default function RoomTypesPage({
                       fontWeight: 800,
                       borderRadius: "8px",
                       fontSize: "0.75rem",
+                      flexShrink: 0,
+                      whiteSpace: "nowrap",
                       bgcolor: isSelected ? themeConfig.primaryDark : themeConfig.champagne,
                       color: isSelected ? "#FFFFFF" : themeConfig.primaryDark,
                     }}
@@ -1365,8 +1420,22 @@ export default function RoomTypesPage({
             </Box>
 
             {/* Status Filter */}
-            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
-              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, mr: 0.5 }}>
+            <Box
+              sx={{
+                display: "flex",
+                gap: 1,
+                flexWrap: "nowrap",
+                alignItems: "center",
+                overflowX: "auto",
+                WebkitOverflowScrolling: "touch",
+                width: "100%",
+                py: 0.5,
+                "&::-webkit-scrollbar": { display: "none" },
+                msOverflowStyle: "none",
+                scrollbarWidth: "none",
+              }}
+            >
+              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, mr: 0.5, whiteSpace: "nowrap", flexShrink: 0 }}>
                 STATUS:
               </Typography>
               {["ALL", "AVAILABLE", "OCCUPIED", "CLEANING", "MAINTENANCE"].map((st) => {
@@ -1385,6 +1454,8 @@ export default function RoomTypesPage({
                       fontWeight: 800,
                       borderRadius: "8px",
                       fontSize: "0.72rem",
+                      flexShrink: 0,
+                      whiteSpace: "nowrap",
                       bgcolor: isSelected ? themeConfig.primaryDark : themeConfig.champagne,
                       color: isSelected ? "#FFFFFF" : themeConfig.primaryDark,
                     }}
@@ -1411,12 +1482,12 @@ export default function RoomTypesPage({
             <Table stickyHeader sx={{ minWidth: 950 }}>
               <TableHead>
                 <TableRow sx={{ bgcolor: themeConfig.champagne }}>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.6 }}>Room & Floor</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Room Category</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Capacity & Tariff</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Room Amenities</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Status</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMain }}>Actions</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.6, whiteSpace: "nowrap" }}>Room & Floor</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Room Category</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Capacity & Tariff</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Room Amenities</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Status</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -1624,6 +1695,18 @@ export default function RoomTypesPage({
                   borderTop: `1px solid ${themeConfig.border}`,
                   bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
                   borderRadius: "0 0 20px 20px",
+                  "& .MuiTablePagination-toolbar": {
+                    flexWrap: "wrap",
+                    px: { xs: 1, sm: 2 },
+                    justifyContent: { xs: "center", sm: "flex-end" },
+                    gap: 1,
+                  },
+                  "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": {
+                    fontWeight: 700,
+                    color: themeConfig.textMuted,
+                    fontSize: { xs: "0.75rem", sm: "0.875rem" },
+                    m: 0,
+                  },
                 }}
               />
             )}
@@ -1771,7 +1854,7 @@ export default function RoomTypesPage({
 
                         <Divider sx={{ my: 1.5, borderColor: themeConfig.border }} />
 
-                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
                           <Button
                             size="small"
                             variant="outlined"
@@ -1802,6 +1885,8 @@ export default function RoomTypesPage({
                               borderRadius: "10px",
                               fontSize: "0.75rem",
                               fontWeight: 800,
+                              whiteSpace: "nowrap",
+                              flexGrow: { xs: 1, sm: 0 },
                             }}
                           >
                             Edit Category
@@ -1811,11 +1896,14 @@ export default function RoomTypesPage({
                             size="small"
                             variant="outlined"
                             color="error"
+                            startIcon={<Delete />}
                             onClick={() => onDeleteRoomType && onDeleteRoomType(rt)}
                             sx={{
                               borderRadius: "10px",
                               fontSize: "0.75rem",
                               fontWeight: 800,
+                              whiteSpace: "nowrap",
+                              flexGrow: { xs: 1, sm: 0 },
                               borderColor: "rgba(220, 38, 38, 0.3)",
                               color: themeConfig.danger,
                               "&:hover": { borderColor: themeConfig.danger, bgcolor: "rgba(220, 38, 38, 0.08)" },
@@ -2208,7 +2296,7 @@ export default function RoomTypesPage({
             </Grid>
           </DialogContent>
 
-          <DialogActions sx={{ p: 2.5, bgcolor: themeConfig.bgMain }}>
+          <DialogActions sx={{ p: 2.5, bgcolor: themeConfig.bgMain, flexDirection: { xs: "column-reverse", sm: "row" }, gap: 1, "& .MuiButton-root": { width: { xs: "100%", sm: "auto" } } }}>
             <Button onClick={() => setRoomModal({ ...roomModal, open: false })} sx={{ borderRadius: "10px", fontWeight: 700 }}>
               Cancel
             </Button>
@@ -2423,7 +2511,7 @@ export default function RoomTypesPage({
             </Grid>
           </DialogContent>
 
-          <DialogActions sx={{ p: 2, gap: 1 }}>
+          <DialogActions sx={{ p: 2, gap: 1, flexDirection: { xs: "column-reverse", sm: "row" }, "& .MuiButton-root": { width: { xs: "100%", sm: "auto" } } }}>
             <Button onClick={() => setTypeModal({ ...typeModal, open: false })} sx={{ borderRadius: "10px", fontWeight: 700 }}>
               Cancel
             </Button>

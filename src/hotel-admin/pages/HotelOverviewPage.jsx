@@ -422,15 +422,15 @@ export default function HotelOverviewPage({
   }
 
   return (
-    <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 } }}>
+    <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
       {/* ========================================================================= */}
       {/* 1. HERO COMMAND RIBBON with LIVE CLOCK & SAAS TELEMETRY                   */}
       {/* ========================================================================= */}
       <Box
         sx={{
           mb: 3,
-          p: { xs: 2.5, md: 3 },
-          borderRadius: "24px",
+          p: { xs: 2, sm: 2.5, md: 3 },
+          borderRadius: { xs: "18px", sm: "24px" },
           background: `linear-gradient(135deg, ${themeConfig.primaryDark || "#0C273B"} 0%, ${themeConfig.primary || "#0B8EE0"} 100%)`,
           color: "#FFFFFF",
           boxShadow: `0 16px 36px -10px ${themeConfig.primaryGlow || "rgba(11, 142, 224, 0.4)"}, inset 0 1px 1px rgba(255,255,255,0.4)`,
@@ -450,16 +450,16 @@ export default function HotelOverviewPage({
           }}
         />
 
-        <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 2, position: "relative", zIndex: 1 }}>
+        <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, justifyContent: "space-between", alignItems: { xs: "stretch", sm: "center" }, gap: 2, position: "relative", zIndex: 1 }}>
           <Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.8 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.8, flexWrap: "wrap" }}>
               <Avatar
                 sx={{
                   bgcolor: "rgba(255,255,255,0.2)",
                   color: "#FFFFFF",
-                  width: 36,
-                  height: 36,
-                  borderRadius: "10px",
+                  width: 32,
+                  height: 32,
+                  borderRadius: "8px",
                 }}
               >
                 <HotelIcon fontSize="small" />
@@ -468,10 +468,10 @@ export default function HotelOverviewPage({
                 variant="caption"
                 sx={{
                   fontWeight: 800,
-                  letterSpacing: 1.2,
+                  letterSpacing: 1,
                   textTransform: "uppercase",
                   color: "rgba(255,255,255,0.9)",
-                  fontSize: "0.72rem",
+                  fontSize: { xs: "0.65rem", sm: "0.72rem" },
                   display: "flex",
                   alignItems: "center",
                   gap: 0.6,
@@ -482,16 +482,18 @@ export default function HotelOverviewPage({
               </Typography>
             </Box>
 
-            <Typography variant="h4" sx={{ fontWeight: 900, color: "#FFFFFF", letterSpacing: -0.5, fontSize: { xs: "1.4rem", sm: "1.8rem" } }}>
+            <Typography variant="h4" sx={{ fontWeight: 900, color: "#FFFFFF", letterSpacing: -0.5, fontSize: { xs: "1.25rem", sm: "1.8rem" } }}>
               {user?.hotel?.name || "MYOWNPMS"}
             </Typography>
-            <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.8)", mt: 0.5, fontSize: "0.85rem", display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.8)", mt: 0.5, fontSize: { xs: "0.78rem", sm: "0.85rem" }, flexWrap: "wrap", display: "flex", alignItems: "center", gap: 0.6 }}>
               <LocationOn sx={{ fontSize: 15 }} />
-              {user?.hotel?.city ? `${user.hotel.city} • ` : ""}Total Inventory: <strong>{rooms.length} Rooms</strong> &bull; Occupancy: <strong>{occupancyRate}</strong>
+              <span>{user?.hotel?.city ? `${user.hotel.city} • ` : ""}</span>
+              <span>Total Inventory: <strong>{rooms.length} Rooms</strong></span>
+              <span>&bull; Occupancy: <strong>{occupancyRate}</strong></span>
             </Typography>
           </Box>
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "space-between", sm: "flex-end" } }}>
             {/* Live Clock Badge */}
             <Box
               sx={{
@@ -518,13 +520,16 @@ export default function HotelOverviewPage({
               onClick={onRefresh}
               className="btn-3d"
               sx={{
+                width: { xs: "100%", sm: "auto" },
+                justifyContent: "center",
+                whiteSpace: "nowrap",
                 borderRadius: "14px",
                 bgcolor: isDarkMode ? "rgba(255,255,255,0.12)" : "#FFFFFF",
                 color: isDarkMode ? "#FFFFFF" : (themeConfig.primaryDark || "#0C273B"),
                 fontWeight: 800,
-                fontSize: "0.82rem",
-                px: 2.5,
-                py: 1.1,
+                fontSize: { xs: "0.78rem", sm: "0.82rem" },
+                px: { xs: 2, sm: 2.5 },
+                py: 1,
                 border: isDarkMode ? `1px solid ${themeConfig.border}` : "none",
                 boxShadow: "0 6px 16px rgba(0,0,0,0.15)",
                 "&:hover": {
@@ -543,12 +548,12 @@ export default function HotelOverviewPage({
       {/* 4. FINANCIAL & REVENUE TELEMETRY (4 STAT CARDS - PHOTO 2 DESIGN)          */}
       {/* ========================================================================= */}
       <Box sx={{ mb: 3.5 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+        <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, alignItems: { xs: "flex-start", sm: "center" }, justifyContent: "space-between", gap: 1.5, mb: 2, flexWrap: "wrap" }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
             <Avatar sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", color: "#10B981", width: 32, height: 32, borderRadius: "8px" }}>
               <CurrencyRupee sx={{ fontSize: 18 }} />
             </Avatar>
-            <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "1.05rem" }}>
+            <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: { xs: "0.95rem", sm: "1.05rem" } }}>
               Financial &amp; Revenue Telemetry
             </Typography>
           </Box>
@@ -562,6 +567,7 @@ export default function HotelOverviewPage({
               bgcolor: "rgba(16, 185, 129, 0.12)",
               color: "#059669",
               border: "1px solid rgba(16, 185, 129, 0.3)",
+              maxWidth: "100%",
             }}
           />
         </Box>
@@ -640,12 +646,12 @@ export default function HotelOverviewPage({
       {/* 4.5 📊 EXECUTIVE VISUAL ANALYTICS & INTELLIGENCE SUITE                    */}
       {/* ========================================================================= */}
       <Box sx={{ mb: 3.5 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+        <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, alignItems: { xs: "flex-start", sm: "center" }, justifyContent: "space-between", gap: 1.5, mb: 2, flexWrap: "wrap" }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
             <Avatar sx={{ bgcolor: "rgba(67, 97, 238, 0.12)", color: themeConfig.primary, width: 32, height: 32, borderRadius: "8px" }}>
               <TrendingUp sx={{ fontSize: 18 }} />
             </Avatar>
-            <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "1.05rem" }}>
+            <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: { xs: "0.95rem", sm: "1.05rem" } }}>
               Visual Revenue &amp; Occupancy Analytics
             </Typography>
           </Box>
@@ -653,7 +659,7 @@ export default function HotelOverviewPage({
             icon={<TrendingUp sx={{ fontSize: "14px !important", color: themeConfig.primary }} />}
             label="Live Realtime Telemetry"
             size="small"
-            sx={{ fontWeight: 800, fontSize: "0.7rem", borderRadius: "8px", bgcolor: themeConfig.champagne, color: themeConfig.primaryDark }}
+            sx={{ fontWeight: 800, fontSize: "0.7rem", borderRadius: "8px", bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, maxWidth: "100%" }}
           />
         </Box>
 
@@ -704,24 +710,24 @@ export default function HotelOverviewPage({
       >
         <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
           {/* Filter Bar with Floor & Status Dropdowns */}
-          <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", mb: 2.5, gap: 2 }}>
-            <div>
-              <Typography variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain, letterSpacing: -0.3, display: "flex", alignItems: "center", gap: 1 }}>
-                <HotelIcon sx={{ color: themeConfig.primary, fontSize: 24 }} />
+          <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, justifyContent: "space-between", alignItems: { xs: "stretch", sm: "center" }, mb: 2.5, gap: 2 }}>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.3, display: "flex", alignItems: "center", gap: 1, fontSize: { xs: "1rem", sm: "1.15rem", md: "1.25rem" } }}>
+                <HotelIcon sx={{ color: themeConfig.primary, fontSize: { xs: 20, sm: 24 } }} />
                 Live Room &amp; Occupancy Monitor
               </Typography>
-              <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontSize: "0.82rem" }}>
+              <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontSize: { xs: "0.75rem", sm: "0.82rem" }, mt: 0.3 }}>
                 Real-time room occupancy, in-house guest details, tariffs, and payment dues
               </Typography>
-            </div>
+            </Box>
 
-            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, alignItems: "center" }}>
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, alignItems: "center", width: { xs: "100%", sm: "auto" } }}>
               <TextField
                 size="small"
                 placeholder="Search room #, guest..."
                 value={roomSearch}
                 onChange={(e) => setRoomSearch(e.target.value)}
-                sx={{ minWidth: { xs: "100%", sm: 200 }, "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
+                sx={{ width: "100%", minWidth: { xs: "100%", sm: 200 }, "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
                 slotProps={{
                   input: {
                     startAdornment: (
@@ -733,48 +739,52 @@ export default function HotelOverviewPage({
                 }}
               />
 
-              {/* Floor Dropdown */}
-              <TextField
-                select
-                size="small"
-                value={selectedFloor}
-                onChange={(e) => setSelectedFloor(e.target.value)}
-                sx={{ minWidth: 125, "& .MuiOutlinedInput-root": { borderRadius: "12px", fontWeight: 700 } }}
-              >
-                <MenuItem value="ALL">All Floors</MenuItem>
-                {Array.from(new Set(rooms.map((r) => r.floor || 1)))
-                  .sort((a, b) => a - b)
-                  .map((fl) => (
-                    <MenuItem key={fl} value={String(fl)}>
-                      Floor {fl}
-                    </MenuItem>
-                  ))}
-              </TextField>
+              <Box sx={{ display: "flex", gap: 1.5, width: { xs: "100%", sm: "auto" }, flexWrap: { xs: "nowrap", sm: "wrap" } }}>
+                {/* Floor Dropdown */}
+                <TextField
+                  select
+                  size="small"
+                  value={selectedFloor}
+                  onChange={(e) => setSelectedFloor(e.target.value)}
+                  sx={{ flex: 1, minWidth: { xs: 0, sm: 125 }, "& .MuiOutlinedInput-root": { borderRadius: "12px", fontWeight: 700 } }}
+                >
+                  <MenuItem value="ALL">All Floors</MenuItem>
+                  {Array.from(new Set(rooms.map((r) => r.floor || 1)))
+                    .sort((a, b) => a - b)
+                    .map((fl) => (
+                      <MenuItem key={fl} value={String(fl)}>
+                        Floor {fl}
+                      </MenuItem>
+                    ))}
+                </TextField>
 
-              {/* Status Dropdown */}
-              <TextField
-                select
-                size="small"
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                sx={{ minWidth: 155, "& .MuiOutlinedInput-root": { borderRadius: "12px", fontWeight: 700 } }}
-              >
-                <MenuItem value="ALL">All Status ({rooms.length})</MenuItem>
-                <MenuItem value="AVAILABLE">🟢 Available ({totalAvailable})</MenuItem>
-                <MenuItem value="OCCUPIED">🔵 Occupied ({totalOccupied})</MenuItem>
-                <MenuItem value="RESERVED">🟡 Reserved ({totalReserved})</MenuItem>
-                <MenuItem value="CLEANING">🟣 Cleaning ({totalCleaning})</MenuItem>
-                <MenuItem value="MAINTENANCE">🔴 Maintenance ({totalMaintenance})</MenuItem>
-              </TextField>
+                {/* Status Dropdown */}
+                <TextField
+                  select
+                  size="small"
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  sx={{ flex: 1, minWidth: { xs: 0, sm: 155 }, "& .MuiOutlinedInput-root": { borderRadius: "12px", fontWeight: 700 } }}
+                >
+                  <MenuItem value="ALL">All Status ({rooms.length})</MenuItem>
+                  <MenuItem value="AVAILABLE">🟢 Available ({totalAvailable})</MenuItem>
+                  <MenuItem value="OCCUPIED">🔵 Occupied ({totalOccupied})</MenuItem>
+                  <MenuItem value="RESERVED">🟡 Reserved ({totalReserved})</MenuItem>
+                  <MenuItem value="CLEANING">🟣 Cleaning ({totalCleaning})</MenuItem>
+                  <MenuItem value="MAINTENANCE">🔴 Maintenance ({totalMaintenance})</MenuItem>
+                </TextField>
+              </Box>
 
               {/* View Mode Switcher Toggle: Box Cards vs Table */}
               <ButtonGroup
                 size="small"
                 sx={{
+                  width: { xs: "100%", sm: "auto" },
                   borderRadius: "12px",
                   bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
                   p: 0.3,
                   border: `1px solid ${themeConfig.border}`,
+                  display: "flex",
                 }}
               >
                 <Button
@@ -782,10 +792,12 @@ export default function HotelOverviewPage({
                   variant={roomViewMode === "box" ? "contained" : "text"}
                   startIcon={<ViewModule fontSize="small" />}
                   sx={{
+                    flex: 1,
                     fontWeight: 800,
                     fontSize: "0.75rem",
                     borderRadius: "10px !important",
                     textTransform: "none",
+                    whiteSpace: "nowrap",
                     boxShadow: roomViewMode === "box" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
                     bgcolor: roomViewMode === "box" ? themeConfig.primary : "transparent",
                     color: roomViewMode === "box" ? "#FFFFFF" : themeConfig.textMuted,
@@ -798,10 +810,12 @@ export default function HotelOverviewPage({
                   variant={roomViewMode === "table" ? "contained" : "text"}
                   startIcon={<TableRows fontSize="small" />}
                   sx={{
+                    flex: 1,
                     fontWeight: 800,
                     fontSize: "0.75rem",
                     borderRadius: "10px !important",
                     textTransform: "none",
+                    whiteSpace: "nowrap",
                     boxShadow: roomViewMode === "table" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
                     bgcolor: roomViewMode === "table" ? themeConfig.primary : "transparent",
                     color: roomViewMode === "table" ? "#FFFFFF" : themeConfig.textMuted,
@@ -1388,19 +1402,19 @@ export default function HotelOverviewPage({
         }}
       >
         <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2.5 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-              <Avatar sx={{ bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, width: 32, height: 32, borderRadius: "8px" }}>
-                <People sx={{ fontSize: 18 }} />
+          <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, justifyContent: "space-between", alignItems: { xs: "flex-start", sm: "center" }, gap: 1.5, mb: 2.5 }}>
+            <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.2 }}>
+              <Avatar sx={{ bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, width: { xs: 26, sm: 32 }, height: { xs: 26, sm: 32 }, borderRadius: "8px", mt: 0.2 }}>
+                <People sx={{ fontSize: { xs: 15, sm: 18 } }} />
               </Avatar>
-              <div>
-                <Typography variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "1.05rem" }}>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: { xs: "0.82rem", sm: "0.98rem", md: "1.05rem" }, letterSpacing: -0.2, lineHeight: 1.25 }}>
                   Active In-House Guests &amp; Direct WhatsApp Folio
                 </Typography>
-                <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
+                <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: { xs: "0.7rem", sm: "0.8rem" }, display: "block", mt: 0.3, lineHeight: 1.25 }}>
                   Live billing balances, stay timelines, and 1-click WhatsApp tax invoice
                 </Typography>
-              </div>
+              </Box>
             </Box>
 
             <Button
@@ -1408,8 +1422,11 @@ export default function HotelOverviewPage({
               endIcon={<ArrowForward fontSize="small" />}
               onClick={() => onTabChange && onTabChange(2)}
               sx={{
+                width: { xs: "100%", sm: "auto" },
+                alignSelf: { xs: "stretch", sm: "center" },
+                whiteSpace: "nowrap",
                 fontWeight: 800,
-                fontSize: "0.8rem",
+                fontSize: { xs: "0.75rem", sm: "0.8rem" },
                 borderRadius: "10px",
                 color: themeConfig.primaryDark,
                 "&:hover": { bgcolor: themeConfig.champagne },

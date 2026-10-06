@@ -416,7 +416,7 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
                 setSearchQuery(e.target.value);
                 setPage(0);
               }}
-              sx={{ minWidth: 260, "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
+              sx={{ width: { xs: "100%", sm: 260 }, "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
               slotProps={{
                 input: {
                   startAdornment: (
@@ -436,7 +436,7 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
                 setStatusFilter(e.target.value);
                 setPage(0);
               }}
-              sx={{ minWidth: 160, "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
+              sx={{ width: { xs: "100%", sm: 160 }, "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
             >
               <MenuItem value="ALL">All Statuses</MenuItem>
               <MenuItem value="ACTIVE">Active</MenuItem>
@@ -615,15 +615,17 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
             {/* Modal Header */}
             <Box
               sx={{
-                p: 3,
+                p: { xs: 2, sm: 3 },
                 background: "linear-gradient(135deg, #3B0764 0%, #7E22CE 100%)",
                 color: "#FFFFFF",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 1.5,
               }}
             >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
                 <Avatar
                   sx={{
                     width: 52,
@@ -655,7 +657,7 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
             </Box>
 
             {/* Modal Body */}
-            <Box sx={{ p: 3 }}>
+            <Box sx={{ p: { xs: 1.5, sm: 3 } }}>
               {selectedHotelModal.loading ? (
                 <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
                   <CircularProgress sx={{ color: "#7E22CE" }} />
@@ -734,11 +736,11 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
                   {/* Information Cards Grid */}
                   <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2.5 }}>
                     {/* Hotel & Owner Profile */}
-                    <Card elevation={0} sx={{ p: 2.5, borderRadius: "18px", border: `1px solid ${themeConfig.border}` }}>
+                    <Card elevation={0} sx={{ p: { xs: 1.5, sm: 2.5 }, borderRadius: "18px", border: `1px solid ${themeConfig.border}` }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 1.5, display: "flex", alignItems: "center", gap: 0.8 }}>
                         <HotelIcon fontSize="small" sx={{ color: "#7E22CE" }} /> Property &amp; Owner Profile
                       </Typography>
-                      <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5, fontSize: "0.85rem" }}>
+                      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.5, fontSize: "0.85rem" }}>
                         <Box>
                           <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>Owner Name:</Typography>
                           <Typography variant="body2" sx={{ fontWeight: 800 }}>{selectedHotelModal.hotel.ownerName || "N/A"}</Typography>
@@ -747,11 +749,11 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
                           <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>Owner Phone:</Typography>
                           <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedHotelModal.hotel.ownerPhone || selectedHotelModal.hotel.phone || "N/A"}</Typography>
                         </Box>
-                        <Box sx={{ gridColumn: "span 2" }}>
+                        <Box sx={{ gridColumn: { xs: "span 1", sm: "span 2" } }}>
                           <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>Email Address:</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedHotelModal.hotel.ownerEmail || selectedHotelModal.hotel.email || "N/A"}</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 700, wordBreak: "break-word" }}>{selectedHotelModal.hotel.ownerEmail || selectedHotelModal.hotel.email || "N/A"}</Typography>
                         </Box>
-                        <Box sx={{ gridColumn: "span 2" }}>
+                        <Box sx={{ gridColumn: { xs: "span 1", sm: "span 2" } }}>
                           <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>Physical Address:</Typography>
                           <Typography variant="body2" sx={{ fontWeight: 600 }}>{selectedHotelModal.hotel.address || "N/A"}, {selectedHotelModal.hotel.city || ""}, {selectedHotelModal.hotel.state || ""}</Typography>
                         </Box>
@@ -759,11 +761,11 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
                     </Card>
 
                     {/* Subscription & Account Status */}
-                    <Card elevation={0} sx={{ p: 2.5, borderRadius: "18px", border: `1px solid ${themeConfig.border}` }}>
+                    <Card elevation={0} sx={{ p: { xs: 1.5, sm: 2.5 }, borderRadius: "18px", border: `1px solid ${themeConfig.border}` }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 1.5, display: "flex", alignItems: "center", gap: 0.8 }}>
                         <Stars fontSize="small" sx={{ color: "#D97706" }} /> Subscription &amp; Governance
                       </Typography>
-                      <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5, fontSize: "0.85rem" }}>
+                      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.5, fontSize: "0.85rem" }}>
                         <Box>
                           <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>Hotel Status:</Typography>
                           <Box sx={{ mt: 0.3 }}><StatusChip status={selectedHotelModal.hotel.status || "ACTIVE"} size="small" /></Box>

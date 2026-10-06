@@ -1145,8 +1145,8 @@ export default function CheckInWizardPage({
         }}
       >
         {/* Wizard Header Banner */}
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2, mb: 1 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: { xs: "flex-start", sm: "center" }, flexDirection: { xs: "column", sm: "row" }, gap: 1.5, mb: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5, flexWrap: "nowrap" }}>
             {onBackToRooms && (
               <Button
                 variant="outlined"
@@ -1158,6 +1158,9 @@ export default function CheckInWizardPage({
                   fontSize: "0.82rem",
                   borderColor: themeConfig.border,
                   color: themeConfig.textMain,
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                  height: "fit-content",
                   "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
                 }}
               >
@@ -1165,7 +1168,7 @@ export default function CheckInWizardPage({
               </Button>
             )}
             <div>
-              <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 0.2, letterSpacing: -0.5 }}>
+              <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 0.2, letterSpacing: -0.5, fontSize: { xs: "1.15rem", sm: "1.45rem" }, lineHeight: 1.25 }}>
                 Express Check-In & Guest Allocation
               </Typography>
               <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
@@ -1192,7 +1195,7 @@ export default function CheckInWizardPage({
         {/* ========================================================================= */}
         {/* LUXURY STEP-BY-STEP CONNECTED HORIZONTAL STEPPER (EQUAL SEGMENTS & TRACK) */}
         {/* ========================================================================= */}
-        <Box sx={{ mb: 4, mt: 1.5, px: { xs: 0.5, sm: 2 } }}>
+        <Box sx={{ mb: 2, mt: 0.5, px: { xs: 0.5, sm: 2 }, overflowX: "auto", pb: 1, "&::-webkit-scrollbar": { height: 4 } }}>
           <Box
             sx={{
               display: "flex",
@@ -1200,6 +1203,7 @@ export default function CheckInWizardPage({
               justifyContent: "space-between",
               position: "relative",
               width: "100%",
+              minWidth: { xs: 480, sm: "auto" },
             }}
           >
             {/* Background Base Track Line */}
@@ -1336,20 +1340,20 @@ export default function CheckInWizardPage({
         {/* STEP 1 (Index 0): PRIMARY GUEST PROFILE & ID VERIFICATION                 */}
         {/* ========================================================================= */}
         {activeStep === 0 && (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
             {/* GUEST #1 (PRIMARY GUEST BOX) */}
             <Paper
               className="card-3d"
               sx={{
-                p: 3,
-                borderRadius: "20px",
+                p: { xs: 1.5, sm: 2 },
+                borderRadius: "16px",
                 bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
                 border: `1.5px solid ${themeConfig.border}`,
                 boxShadow: isDarkMode ? "none" : "0 6px 20px rgba(0,0,0,0.03)",
               }}
             >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 2.5 }}>
-                <Avatar sx={{ bgcolor: themeConfig.primary, color: "#FFFFFF", width: 38, height: 38, fontWeight: 900 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 1.5 }}>
+                <Avatar sx={{ bgcolor: themeConfig.primary, color: "#FFFFFF", width: 34, height: 34, fontWeight: 900 }}>
                   1
                 </Avatar>
                 <div>
@@ -1362,7 +1366,7 @@ export default function CheckInWizardPage({
                 </div>
               </Box>
 
-              <Grid container spacing={2}>
+              <Grid container spacing={1.5}>
                 {/* Full Name */}
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
@@ -1401,7 +1405,11 @@ export default function CheckInWizardPage({
                         ),
                       },
                     }}
-                    helperText="📱 WhatsApp Number for check-in confirmation & bill (Auto-lookup on 10 digits)"
+                    helperText={
+                      <Typography component="span" variant="caption" sx={{ fontSize: "0.68rem", color: themeConfig.textMuted }}>
+                        📱 Auto-lookup on 10 digits
+                      </Typography>
+                    }
                   />
                 </Grid>
 
@@ -1463,22 +1471,22 @@ export default function CheckInWizardPage({
               <Box
                 id="main-guest-id-section"
                 sx={{
-                  mt: 3,
-                  pt: 2.5,
-                  p: stepError && !checkInData.frontImage ? 2 : 0,
-                  borderRadius: "16px",
+                  mt: 2,
+                  pt: 1.5,
+                  p: stepError && !checkInData.frontImage ? 1.5 : 0,
+                  borderRadius: "14px",
                   borderTop: stepError && !checkInData.frontImage ? "none" : `1px solid ${themeConfig.border}`,
                   border: stepError && !checkInData.frontImage ? "2px solid #EF4444" : undefined,
                   bgcolor: stepError && !checkInData.frontImage ? "rgba(239, 68, 68, 0.04)" : "transparent",
                   transition: "all 0.3s ease",
                 }}
               >
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.primaryDark, mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.primaryDark, mb: 1, display: "flex", alignItems: "center", gap: 1 }}>
                   <Shield sx={{ fontSize: 18, color: themeConfig.primary }} />
                   Government ID Proof & KYC Verification
                 </Typography>
 
-                <Grid container spacing={2}>
+                <Grid container spacing={1.5}>
                   <Grid size={{ xs: 12, sm: 5 }}>
                     <TextField
                       select
@@ -1531,18 +1539,18 @@ export default function CheckInWizardPage({
                 </Grid>
 
                 {/* DEDICATED FRONT & BACK AADHAAR CARD UPLOAD BOXES FOR GUEST #1 */}
-                <Box sx={{ mt: 2.5, pt: 2, borderTop: `1px dashed ${themeConfig.border}` }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                <Box sx={{ mt: 1.5, pt: 1.5, borderTop: `1px dashed ${themeConfig.border}` }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 1, display: "flex", alignItems: "center", gap: 1 }}>
                     <CloudUpload sx={{ fontSize: 18, color: themeConfig.primary }} />
                     Primary Guest — ID Card Upload (Front & Back Photo)
                   </Typography>
 
-                  <Grid container spacing={2}>
+                  <Grid container spacing={1.5}>
                     {/* Front Aadhaar Upload Box */}
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <Box
                         sx={{
-                          p: 2,
+                          p: 1.5,
                           borderRadius: "14px",
                           border: `1.5px dashed ${checkInData.frontImage ? "#10B981" : themeConfig.border}`,
                           bgcolor: checkInData.frontImage ? "rgba(16, 185, 129, 0.04)" : "#F8FAFC",
@@ -1725,7 +1733,7 @@ export default function CheckInWizardPage({
               </Box>
 
               {/* Dynamic Capacity Badges */}
-              <Box sx={{ display: "flex", gap: 1, mt: 2, flexWrap: "wrap", alignItems: "center" }}>
+              <Box sx={{ display: "flex", gap: 1, mt: 2, flexWrap: { xs: "nowrap", sm: "wrap" }, overflowX: "auto", alignItems: "center", pb: 0.5, "&::-webkit-scrollbar": { height: 4 } }}>
                 <Chip
                   size="small"
                   label={`Total Room Capacity: ${totalRoomCapacity > 0 ? totalRoomCapacity : "Unset"} Guests`}
@@ -1760,7 +1768,7 @@ export default function CheckInWizardPage({
               </Box>
 
               {/* Allocated Room(s) Badge & Switch Room Dropdown */}
-              <Box sx={{ mt: 2, pt: 1.5, borderTop: `1px dashed ${themeConfig.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1.5 }}>
+              <Box sx={{ mt: 2, pt: 1.5, borderTop: `1px dashed ${themeConfig.border}`, display: "flex", flexDirection: { xs: "column", sm: "row" }, alignItems: { xs: "stretch", sm: "center" }, justifyContent: "space-between", gap: 1.5 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
                   <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted }}>
                     ALLOCATED ROOM(S):
@@ -2378,13 +2386,13 @@ export default function CheckInWizardPage({
               </Box>
 
               {/* Billing Breakdown Table */}
-              <TableContainer sx={{ mb: 3, borderRadius: "14px", border: `1px solid ${themeConfig.border}` }}>
-                <Table size="small">
+              <TableContainer sx={{ mb: 3, borderRadius: "14px", border: `1px solid ${themeConfig.border}`, overflowX: "auto" }}>
+                <Table size="small" sx={{ minWidth: 550 }}>
                   <TableHead sx={{ bgcolor: themeConfig.champagne }}>
                     <TableRow>
-                      <TableCell sx={{ fontWeight: 800 }}>Description</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 800 }}>Details</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 800 }}>Amount (₹)</TableCell>
+                      <TableCell sx={{ fontWeight: 800, whiteSpace: "nowrap" }}>Description</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 800, whiteSpace: "nowrap" }}>Details</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 800, whiteSpace: "nowrap" }}>Amount (₹)</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>

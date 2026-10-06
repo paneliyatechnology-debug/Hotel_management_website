@@ -431,10 +431,10 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
   const timingValidation = validateHotelTimings(checkInTime, checkOutTime);
 
   return (
-    <Box sx={{ p: { xs: 2, sm: 3, md: 4 }, bgcolor: themeConfig.bgMain, minHeight: "100%" }}>
+    <Box sx={{ p: { xs: 2, sm: 3, md: 4 }, pb: { xs: 10, sm: 4 }, bgcolor: themeConfig.bgMain, minHeight: "100%" }}>
       {/* 3D Page Header */}
       <Box sx={{ mb: 3.5 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 0.8 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 0.8, flexWrap: "wrap" }}>
           <Avatar
             sx={{
               background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
@@ -448,10 +448,10 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
             <Settings sx={{ color: "#FFFFFF", fontSize: 26 }} />
           </Avatar>
           <Box>
-            <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: "-0.02em" }}>
+            <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: "-0.02em", fontSize: { xs: "1.3rem", sm: "1.5rem" } }}>
               Settings &amp; Preferences
             </Typography>
-            <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontWeight: 500 }}>
+            <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontWeight: 500, fontSize: { xs: "0.8rem", sm: "0.875rem" } }}>
               {isSuperAdmin
                 ? "Manage SaaS governance themes, master profile, security credentials, system behavior & support desk"
                 : "Manage themes, hotel check-in/out timings, personal profile, system behavior & support desk"}
@@ -505,8 +505,9 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
                 fontWeight: 800,
                 fontSize: "0.88rem",
                 py: 1.2,
-                px: 2.2,
+                px: { xs: 1.5, sm: 2.2 },
                 minHeight: 44,
+                whiteSpace: "nowrap",
                 borderRadius: "14px",
                 color: themeConfig.textMuted,
                 transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
@@ -532,7 +533,7 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
           </Tabs>
         </Box>
 
-        <Box sx={{ p: { xs: 2.5, sm: 3.5, md: 4 }, maxWidth: 1000, mx: "auto", width: "100%" }}>
+        <Box sx={{ p: { xs: 2, sm: 3.5, md: 4 }, maxWidth: 1000, mx: "auto", width: "100%" }}>
           {/* ========================================================================= */}
           {/* TAB: THEME & APPEARANCE */}
           {/* ========================================================================= */}
@@ -569,7 +570,7 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
                         },
                       }}
                     >
-                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
+                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5, flexWrap: "wrap", gap: 1 }}>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                           <Avatar
                             sx={{
@@ -635,7 +636,7 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
                         },
                       }}
                     >
-                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
+                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5, flexWrap: "wrap", gap: 1 }}>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                           <Avatar
                             sx={{
@@ -732,7 +733,7 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
                 </Box>
 
                 <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 2, pt: 2, borderTop: `1px solid ${themeConfig.border}` }}>
-                  <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+                  <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", width: { xs: "100%", sm: "auto" }, flexDirection: { xs: "column", sm: "row" } }}>
                     <Button
                       variant="contained"
                       onClick={() => {
@@ -745,6 +746,7 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
                         borderRadius: "12px",
                         px: 2.5,
                         py: 0.9,
+                        width: { xs: "100%", sm: "auto" },
                         boxShadow: `0 4px 14px ${themeConfig.primaryGlow}, inset 0 1px 0 rgba(255,255,255,0.4)`,
                         "&:hover": { transform: "translateY(-1px)" },
                       }}
@@ -765,6 +767,7 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
                         borderRadius: "12px",
                         px: 2.5,
                         py: 0.9,
+                        width: { xs: "100%", sm: "auto" },
                         boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
                         "&:hover": { bgcolor: themeConfig.champagne, transform: "translateY(-1px)" },
                       }}
@@ -1257,7 +1260,7 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
               </Paper>
 
               {/* Action Save Button */}
-              <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+              <Box sx={{ display: "flex", justifyContent: { xs: "stretch", sm: "flex-end" }, width: "100%" }}>
                 <Button
                   type="submit"
                   variant="contained"
@@ -1268,6 +1271,7 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
                     color: "#FFFFFF",
                     px: 4,
                     py: 1.3,
+                    width: { xs: "100%", sm: "auto" },
                     fontWeight: 800,
                     borderRadius: "14px",
                     boxShadow: `0 4px 14px ${themeConfig.primaryGlow}, inset 0 1px 0 rgba(255,255,255,0.4)`,
@@ -1533,7 +1537,7 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
                 </Grid>
               </Box>
 
-              <Box sx={{ mt: 4, display: "flex", justifyContent: "flex-end" }}>
+              <Box sx={{ mt: 4, display: "flex", justifyContent: { xs: "stretch", sm: "flex-end" }, width: "100%" }}>
                 <Button
                   type="submit"
                   variant="contained"
@@ -1542,6 +1546,7 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
                     color: "#FFFFFF",
                     px: 4.5,
                     py: 1.3,
+                    width: { xs: "100%", sm: "auto" },
                     fontWeight: 800,
                     borderRadius: "14px",
                     boxShadow: `0 4px 14px ${themeConfig.primaryGlow}, inset 0 1px 0 rgba(255,255,255,0.4)`,
@@ -1765,6 +1770,7 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
                     fontWeight: 800,
                     px: 3,
                     py: 1,
+                    width: { xs: "100%", sm: "auto" },
                     borderRadius: "12px",
                     bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
                     boxShadow: isDarkMode ? "none" : "0 2px 8px rgba(0,0,0,0.03)",
@@ -1905,7 +1911,7 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
             </Grid>
           </DialogContent>
 
-          <DialogActions sx={{ p: 2.5 }}>
+          <DialogActions sx={{ p: 2.5, flexDirection: { xs: "column-reverse", sm: "row" }, gap: 1, "& .MuiButton-root": { width: { xs: "100%", sm: "auto" } } }}>
             <Button onClick={() => setSupportModalOpen(false)} sx={{ borderRadius: "10px", fontWeight: 700 }}>
               Cancel
             </Button>

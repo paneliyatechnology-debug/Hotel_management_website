@@ -1,6 +1,7 @@
 import "./globals.css";
 import { themeConfig } from "@/config/theme";
 import FloatingTabBar from "@/components/FloatingTabBar";
+import ReactQueryProvider from "@/shared/providers/ReactQueryProvider";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://myownpms.com";
 
@@ -144,8 +145,10 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body className="min-h-screen pb-14 md:pb-0 font-sans antialiased" style={{ backgroundColor: themeConfig.bgMain, color: themeConfig.textMain }}>
-        {children}
-        <FloatingTabBar />
+        <ReactQueryProvider>
+          {children}
+          <FloatingTabBar />
+        </ReactQueryProvider>
       </body>
     </html>
   );

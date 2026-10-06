@@ -462,9 +462,9 @@ export default function DashboardLayout({
             elevation={8}
             sx={{
               position: "fixed",
-              bottom: { xs: 8, sm: 12 },
-              left: { xs: 6, sm: 14 },
-              right: { xs: 6, sm: 14 },
+              bottom: { xs: 6, sm: 12 },
+              left: { xs: 4, sm: 12 },
+              right: { xs: 4, sm: 12 },
               zIndex: 1200,
               borderRadius: "18px",
               bgcolor: "rgba(255, 255, 255, 0.96)",
@@ -472,12 +472,13 @@ export default function DashboardLayout({
               WebkitBackdropFilter: "blur(20px)",
               border: `1.5px solid ${themeConfig.border}`,
               boxShadow: "0 14px 35px -6px rgba(12, 39, 59, 0.22), 0 4px 12px rgba(0,0,0,0.06), inset 0 1px 1px #FFFFFF",
-              px: 0.4,
-              py: 0.4,
+              px: 0.3,
+              py: 0.3,
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-around",
-              gap: 0.2,
+              justifyContent: "space-between",
+              gap: 0.1,
+              overflow: "hidden",
               transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
             }}
           >
@@ -492,6 +493,7 @@ export default function DashboardLayout({
                   .replace(" & Operations", "")
                   .replace(" & Settings", "")
                   .replace(" & Management", "")
+                  .replace("Subscription", "Plans")
                   .split("&")[0]
                   .split("/")[0]
                   .trim();
@@ -510,11 +512,12 @@ export default function DashboardLayout({
                     flexDirection: "column",
                     alignItems: "center",
                     justifyContent: "center",
-                    py: 0.45,
-                    px: 0.2,
-                    borderRadius: "12px",
+                    py: 0.4,
+                    px: 0.1,
+                    borderRadius: "10px",
                     cursor: "pointer",
                     position: "relative",
+                    overflow: "hidden",
                     transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
                     background: isSelected
                       ? `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`
@@ -540,7 +543,7 @@ export default function DashboardLayout({
                       justifyContent: "center",
                       color: isSelected ? "#FFFFFF" : themeConfig.textMuted,
                       "& svg": {
-                        fontSize: 18,
+                        fontSize: { xs: 16, sm: 18 },
                       },
                     }}
                   >
@@ -548,15 +551,19 @@ export default function DashboardLayout({
                   </Box>
                   <Typography
                     variant="caption"
+                    noWrap
                     sx={{
-                      fontSize: "0.62rem",
+                      fontSize: { xs: "0.52rem", sm: "0.6rem" },
                       fontWeight: isSelected ? 800 : 700,
                       color: isSelected ? "#FFFFFF" : "inherit",
-                      mt: 0.2,
+                      mt: 0.1,
                       lineHeight: 1.1,
                       whiteSpace: "nowrap",
                       textAlign: "center",
-                      letterSpacing: "-0.015em",
+                      letterSpacing: "-0.02em",
+                      maxWidth: "100%",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
                     }}
                   >
                     {displayLabel}
@@ -567,12 +574,12 @@ export default function DashboardLayout({
                       sx={{
                         position: "absolute",
                         top: 2,
-                        right: "20%",
-                        width: 6,
-                        height: 6,
+                        right: "15%",
+                        width: 5,
+                        height: 5,
                         borderRadius: "50%",
                         bgcolor: themeConfig.danger,
-                        border: "1.5px solid #FFFFFF",
+                        border: "1px solid #FFFFFF",
                       }}
                     />
                   )}

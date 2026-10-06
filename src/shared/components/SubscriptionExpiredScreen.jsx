@@ -37,6 +37,7 @@ import {
   Hotel as HotelIcon,
   Apartment,
   CorporateFare,
+  WorkspacePremium,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { useSocket } from "@/shared/context/SocketContext";

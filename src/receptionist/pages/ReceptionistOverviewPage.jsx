@@ -25,6 +25,7 @@ import {
   Tooltip,
   TextField,
   Divider,
+  InputAdornment,
 } from "@mui/material";
 import { toast } from "@/shared/utils/toast";
 import {
@@ -426,7 +427,7 @@ export default function ReceptionistOverviewPage({
   }, [bookings]);
 
   return (
-    <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 } }}>
+    <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
       {/* ========================================================================= */}
       {/* SECTION 1: MASTER COMMAND HERO BANNER (Timings Ribbon & Quick Actions)     */}
       {/* ========================================================================= */}
@@ -456,7 +457,7 @@ export default function ReceptionistOverviewPage({
 
         <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 2, position: "relative", zIndex: 1 }}>
           <Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.8 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.8, flexWrap: "wrap" }}>
               <Avatar
                 sx={{
                   bgcolor: "rgba(255,255,255,0.18)",
@@ -483,15 +484,15 @@ export default function ReceptionistOverviewPage({
                 }}
               />
             </Box>
-            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -0.8, color: "#FFFFFF", lineHeight: 1.2 }}>
+            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -0.8, color: "#FFFFFF", lineHeight: 1.2, fontSize: { xs: "1.5rem", sm: "2.1rem" } }}>
               Front Desk & Room Inventory
             </Typography>
-            <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.85)", mt: 0.5, maxWidth: "600px" }}>
+            <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.85)", mt: 0.5, maxWidth: "600px", fontSize: { xs: "0.8rem", sm: "0.875rem" } }}>
               Live room inventory, category tracker, operational timings, and 1-click express check-in.
             </Typography>
           </Box>
 
-          <Box sx={{ display: "flex", gap: 1.2, flexWrap: "wrap", alignItems: "center" }}>
+          <Box sx={{ display: "flex", gap: 1.2, flexWrap: "wrap", alignItems: "center", width: { xs: "100%", sm: "auto" } }}>
             <Button
               variant="contained"
               startIcon={<Bolt />}
@@ -505,6 +506,8 @@ export default function ReceptionistOverviewPage({
                 px: 2.8,
                 py: 1.2,
                 fontSize: "0.88rem",
+                width: { xs: "100%", sm: "auto" },
+                whiteSpace: "nowrap",
                 boxShadow: "0 8px 20px rgba(0,0,0,0.18), inset 0 1px 0 #FFFFFF",
                 border: "1px solid rgba(255,255,255,0.8)",
                 "&:hover": {
@@ -545,25 +548,25 @@ export default function ReceptionistOverviewPage({
             alignItems: "center",
           }}
         >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, whiteSpace: "nowrap" }}>
             <AccessTime sx={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }} />
             <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.95)", fontWeight: 700 }}>
               Check-In Opens: <strong>{inTimeFormatted}</strong>
             </Typography>
           </Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, whiteSpace: "nowrap" }}>
             <Schedule sx={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }} />
             <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.95)", fontWeight: 700 }}>
               Check-Out Deadline: <strong>{outTimeFormatted}</strong>
             </Typography>
           </Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, whiteSpace: "nowrap" }}>
             <AccessTime sx={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }} />
             <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.95)", fontWeight: 700 }}>
               Current Time: <strong>{liveCurrentTimeFormatted}</strong>
             </Typography>
           </Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, whiteSpace: "nowrap" }}>
             <Security sx={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }} />
             <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.95)", fontWeight: 700 }}>
               Timezone: <strong>{timezoneStr}</strong>
@@ -672,10 +675,10 @@ export default function ReceptionistOverviewPage({
         <CardContent sx={{ p: { xs: 2.5, sm: 3.5 } }}>
           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3, flexWrap: "wrap", gap: 2 }}>
             <div>
-              <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5 }}>
+              <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5, fontSize: { xs: "1.15rem", sm: "1.45rem" }, lineHeight: 1.3 }}>
                 🏨 Room Categories & Live Inventory
               </Typography>
-              <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontSize: "0.85rem", mt: 0.3 }}>
+              <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontSize: { xs: "0.78rem", sm: "0.85rem" }, mt: 0.3 }}>
                 Live vacant/booked telemetry and room inventory status across all categories.
               </Typography>
             </div>
@@ -691,6 +694,8 @@ export default function ReceptionistOverviewPage({
                 borderColor: themeConfig.border,
                 bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
                 color: themeConfig.textMain,
+                width: { xs: "100%", sm: "auto" },
+                whiteSpace: "nowrap",
                 "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
               }}
             >
@@ -895,10 +900,10 @@ export default function ReceptionistOverviewPage({
                 <People sx={{ fontSize: 20 }} />
               </Avatar>
               <div>
-                <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "1.05rem" }}>
+                <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: { xs: "0.95rem", sm: "1.05rem" }, lineHeight: 1.3 }}>
                   Recent Front Desk Check-Ins & In-House Folios
                 </Typography>
-                <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
+                <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: { xs: "0.75rem", sm: "0.8rem" } }}>
                   Live guest registry, allocated room numbers & stay status
                 </Typography>
               </div>
@@ -913,6 +918,8 @@ export default function ReceptionistOverviewPage({
                 fontSize: "0.8rem",
                 borderRadius: "10px",
                 color: themeConfig.primaryDark,
+                width: { xs: "100%", sm: "auto" },
+                whiteSpace: "nowrap",
                 "&:hover": { bgcolor: themeConfig.champagne },
               }}
             >
@@ -932,11 +939,11 @@ export default function ReceptionistOverviewPage({
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: themeConfig.champagne }}>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.2 }}>Guest Name</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Assigned Room</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Contact</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Check-In Date</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Status</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.2, whiteSpace: "nowrap" }}>Guest Name</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Assigned Room</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Contact</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Check-In Date</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Status</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -1748,7 +1755,7 @@ export default function ReceptionistOverviewPage({
             <Button
               onClick={() => setTelemetryModal({ open: false, type: null })}
               variant="contained"
-              sx={{ borderRadius: "10px", fontWeight: 800, bgcolor: themeConfig.primary }}
+              sx={{ borderRadius: "10px", fontWeight: 800, bgcolor: themeConfig.primary, width: { xs: "100%", sm: "auto" } }}
             >
               Close
             </Button>

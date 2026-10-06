@@ -182,13 +182,13 @@ export default function GuestDirectoryPage({
   };
 
   return (
-    <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 } }}>
+    <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
       {/* 1. EXECUTIVE HERO COMMAND RIBBON */}
       <Box
         sx={{
           mb: 3.5,
-          p: { xs: 2.5, sm: 3 },
-          borderRadius: "24px",
+          p: { xs: 2, sm: 2.5, md: 3 },
+          borderRadius: { xs: "18px", sm: "24px" },
           background: `linear-gradient(135deg, ${themeConfig.primaryDark || "#0C273B"} 0%, ${themeConfig.primary || "#0B8EE0"} 100%)`,
           color: "#FFFFFF",
           boxShadow: `0 16px 36px -10px ${themeConfig.primaryGlow || "rgba(11, 142, 224, 0.4)"}, inset 0 1px 1px rgba(255,255,255,0.4)`,
@@ -196,73 +196,137 @@ export default function GuestDirectoryPage({
           overflow: "hidden",
         }}
       >
-        <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 2 }}>
+        <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, justifyContent: "space-between", alignItems: { xs: "stretch", sm: "center" }, gap: 2 }}>
           <Box>
             <Box sx={{ display: "inline-flex", alignItems: "center", gap: 1, px: 1.4, py: 0.5, borderRadius: "20px", bgcolor: "rgba(255,255,255,0.15)", mb: 1 }}>
               <Person sx={{ fontSize: 16 }} />
-              <Typography variant="caption" sx={{ fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase" }}>
+              <Typography variant="caption" sx={{ fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", fontSize: { xs: "0.65rem", sm: "0.72rem" } }}>
                 Executive Guest Registry &bull; Realtime PMS
               </Typography>
             </Box>
-            <Typography variant="h4" sx={{ fontWeight: 900, color: "#FFFFFF", letterSpacing: -0.5, fontSize: { xs: "1.4rem", sm: "1.8rem" } }}>
+            <Typography variant="h4" sx={{ fontWeight: 900, color: "#FFFFFF", letterSpacing: -0.5, fontSize: { xs: "1.25rem", sm: "1.8rem" } }}>
               Guest Master Directory
             </Typography>
-            <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.85)", mt: 0.5, fontSize: "0.85rem" }}>
+            <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.85)", mt: 0.5, fontSize: { xs: "0.78rem", sm: "0.85rem" } }}>
               Registered guest profiles, contact numbers, stay history, billing folios, and Govt ID compliance.
             </Typography>
           </Box>
 
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.2, alignItems: "center" }}>
-            <Button
-              startIcon={<Download />}
-              variant="contained"
-              onClick={() => downloadGuestDirectoryPDF(filteredGuests.length > 0 ? filteredGuests : guests, hotelSettings?.hotel || {})}
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, alignItems: { xs: "stretch", sm: "flex-end" }, width: { xs: "100%", sm: "auto" } }}>
+            <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 1, width: { xs: "100%", sm: "auto" } }}>
+              <Button
+                startIcon={<Download />}
+                variant="contained"
+                onClick={() => downloadGuestDirectoryPDF(filteredGuests.length > 0 ? filteredGuests : guests, hotelSettings?.hotel || {})}
+                sx={{
+                  width: { xs: "100%", sm: "auto" },
+                  bgcolor: "rgba(255,255,255,0.2)",
+                  color: "#FFFFFF",
+                  fontWeight: 800,
+                  fontSize: { xs: "0.75rem", sm: "0.8rem" },
+                  borderRadius: "12px",
+                  whiteSpace: "nowrap",
+                  justifyContent: "center",
+                  backdropFilter: "blur(8px)",
+                  border: "1px solid rgba(255,255,255,0.3)",
+                  py: 0.8,
+                  px: 2,
+                  "&:hover": { bgcolor: "rgba(255,255,255,0.35)" },
+                }}
+              >
+                Export Directory PDF
+              </Button>
+
+              <Button
+                startIcon={<Download />}
+                variant="contained"
+                onClick={() => downloadGovtIdReportPDF(filteredGuests.length > 0 ? filteredGuests : guests, hotelSettings?.hotel || {})}
+                sx={{
+                  width: { xs: "100%", sm: "auto" },
+                  bgcolor: "rgba(255,255,255,0.2)",
+                  color: "#FFFFFF",
+                  fontWeight: 800,
+                  fontSize: { xs: "0.75rem", sm: "0.8rem" },
+                  borderRadius: "12px",
+                  whiteSpace: "nowrap",
+                  justifyContent: "center",
+                  backdropFilter: "blur(8px)",
+                  border: "1px solid rgba(255,255,255,0.3)",
+                  py: 0.8,
+                  px: 2,
+                  "&:hover": { bgcolor: "rgba(255,255,255,0.35)" },
+                }}
+              >
+                Police Manifest PDF
+              </Button>
+            </Box>
+
+            <Box
               sx={{
-                bgcolor: "rgba(255,255,255,0.2)",
-                color: "#FFFFFF",
-                fontWeight: 800,
-                fontSize: "0.8rem",
-                borderRadius: "12px",
-                backdropFilter: "blur(8px)",
-                border: "1px solid rgba(255,255,255,0.3)",
-                "&:hover": { bgcolor: "rgba(255,255,255,0.35)" },
+                display: "flex",
+                gap: 0.8,
+                flexWrap: "nowrap",
+                alignItems: "center",
+                justifyContent: { xs: "flex-start", sm: "flex-end" },
+                overflowX: "auto",
+                width: "100%",
+                maxWidth: "100%",
+                py: 0.5,
+                "&::-webkit-scrollbar": { display: "none" },
+                msOverflowStyle: "none",
+                scrollbarWidth: "none",
               }}
             >
-              Export Directory PDF
-            </Button>
-
-            <Button
-              startIcon={<Download />}
-              variant="contained"
-              onClick={() => downloadGovtIdReportPDF(filteredGuests.length > 0 ? filteredGuests : guests, hotelSettings?.hotel || {})}
-              sx={{
-                bgcolor: "rgba(255,255,255,0.2)",
-                color: "#FFFFFF",
-                fontWeight: 800,
-                fontSize: "0.8rem",
-                borderRadius: "12px",
-                backdropFilter: "blur(8px)",
-                border: "1px solid rgba(255,255,255,0.3)",
-                "&:hover": { bgcolor: "rgba(255,255,255,0.35)" },
-              }}
-            >
-              Police Manifest PDF
-            </Button>
-
-            <Chip
-              label={`Total Guests: ${guests.length}`}
-              sx={{ bgcolor: "rgba(255,255,255,0.15)", color: "#FFFFFF", fontWeight: 800, borderRadius: "12px", px: 1 }}
-            />
-            <Chip
-              icon={<MeetingRoom sx={{ fontSize: "16px !important", color: "#10B981 !important" }} />}
-              label={`In-House: ${inHouseCount}`}
-              sx={{ bgcolor: "rgba(16, 185, 129, 0.2)", color: "#FFFFFF", fontWeight: 800, borderRadius: "12px", border: "1px solid rgba(16, 185, 129, 0.4)", px: 1 }}
-            />
-            <Chip
-              icon={<CheckCircle sx={{ fontSize: "16px !important", color: "#F59E0B !important" }} />}
-              label={`Departed: ${departedCount}`}
-              sx={{ bgcolor: "rgba(245, 158, 11, 0.2)", color: "#FFFFFF", fontWeight: 800, borderRadius: "12px", border: "1px solid rgba(245, 158, 11, 0.4)", px: 1 }}
-            />
+              <Chip
+                label={`Total: ${guests.length}`}
+                size="small"
+                sx={{
+                  bgcolor: "rgba(255,255,255,0.15)",
+                  color: "#FFFFFF",
+                  fontWeight: 800,
+                  borderRadius: "10px",
+                  px: 0.8,
+                  fontSize: "0.72rem",
+                  height: 26,
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                }}
+              />
+              <Chip
+                icon={<MeetingRoom sx={{ fontSize: "14px !important", color: "#10B981 !important" }} />}
+                label={`In-House: ${inHouseCount}`}
+                size="small"
+                sx={{
+                  bgcolor: "rgba(16, 185, 129, 0.2)",
+                  color: "#FFFFFF",
+                  fontWeight: 800,
+                  borderRadius: "10px",
+                  border: "1px solid rgba(16, 185, 129, 0.4)",
+                  px: 0.8,
+                  fontSize: "0.72rem",
+                  height: 26,
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                }}
+              />
+              <Chip
+                icon={<CheckCircle sx={{ fontSize: "14px !important", color: "#F59E0B !important" }} />}
+                label={`Departed: ${departedCount}`}
+                size="small"
+                sx={{
+                  bgcolor: "rgba(245, 158, 11, 0.2)",
+                  color: "#FFFFFF",
+                  fontWeight: 800,
+                  borderRadius: "10px",
+                  border: "1px solid rgba(245, 158, 11, 0.4)",
+                  px: 0.8,
+                  fontSize: "0.72rem",
+                  height: 26,
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                }}
+              />
+            </Box>
           </Box>
         </Box>
       </Box>
@@ -272,14 +336,14 @@ export default function GuestDirectoryPage({
         elevation={0}
         className="card-3d"
         sx={{
-          p: { xs: 2, sm: 2.5 },
+          p: { xs: 1.5, sm: 2.5 },
           mb: 3,
-          borderRadius: "20px",
+          borderRadius: { xs: "14px", sm: "20px" },
           border: `1px solid ${themeConfig.border}`,
           bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
         }}
       >
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, alignItems: "center", justifyContent: "space-between" }}>
+        <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 1.5, alignItems: { xs: "stretch", sm: "center" }, justifyContent: "space-between" }}>
           {/* Search Box */}
           <TextField
             size="small"
@@ -290,7 +354,8 @@ export default function GuestDirectoryPage({
               setPage(0);
             }}
             sx={{
-              flex: { xs: "1 1 100%", md: "1 1 380px" },
+              flex: 1,
+              width: "100%",
               "& .MuiOutlinedInput-root": { borderRadius: "14px" },
             }}
             slotProps={{
@@ -304,7 +369,7 @@ export default function GuestDirectoryPage({
             }}
           />
 
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, alignItems: "center" }}>
+          <Box sx={{ display: "flex", gap: 1.2, alignItems: "center", width: { xs: "100%", sm: "auto" }, flexWrap: "wrap", flexDirection: { xs: "column", sm: "row" } }}>
             {/* Status Filter Dropdown */}
             <TextField
               select
@@ -314,7 +379,7 @@ export default function GuestDirectoryPage({
                 setGuestFilter?.(e.target.value);
                 setPage(0);
               }}
-              sx={{ minWidth: 150, "& .MuiOutlinedInput-root": { borderRadius: "14px" } }}
+              sx={{ width: { xs: "100%", sm: 160 }, "& .MuiOutlinedInput-root": { borderRadius: "14px" } }}
             >
               <MenuItem value="ALL">All Statuses</MenuItem>
               <MenuItem value="IN-HOUSE">In-House Guests</MenuItem>
@@ -332,7 +397,7 @@ export default function GuestDirectoryPage({
                 setDateFilterType(e.target.value);
                 setPage(0);
               }}
-              sx={{ minWidth: 140, "& .MuiOutlinedInput-root": { borderRadius: "14px" } }}
+              sx={{ width: { xs: "100%", sm: 150 }, "& .MuiOutlinedInput-root": { borderRadius: "14px" } }}
             >
               <MenuItem value="ALL">All Dates</MenuItem>
               <MenuItem value="TODAY">Today's Guests</MenuItem>
@@ -340,22 +405,22 @@ export default function GuestDirectoryPage({
             </TextField>
 
             {dateFilterType === "CUSTOM" && (
-              <>
+              <Box sx={{ display: "flex", gap: 1, width: { xs: "100%", sm: "auto" } }}>
                 <TextField
                   type="date"
                   size="small"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  sx={{ width: 145, "& .MuiOutlinedInput-root": { borderRadius: "14px" } }}
+                  sx={{ flex: 1, width: { xs: "50%", sm: 145 }, "& .MuiOutlinedInput-root": { borderRadius: "14px" } }}
                 />
                 <TextField
                   type="date"
                   size="small"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  sx={{ width: 145, "& .MuiOutlinedInput-root": { borderRadius: "14px" } }}
+                  sx={{ flex: 1, width: { xs: "50%", sm: 145 }, "& .MuiOutlinedInput-root": { borderRadius: "14px" } }}
                 />
-              </>
+              </Box>
             )}
           </Box>
         </Box>
@@ -370,22 +435,24 @@ export default function GuestDirectoryPage({
           borderRadius: "20px",
           border: `1px solid ${themeConfig.border}`,
           bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-          overflow: "hidden",
+          overflowX: "auto",
+          WebkitOverflowScrolling: "touch",
+          maxWidth: "100%",
         }}
       >
         <Table sx={{ minWidth: 900 }}>
           <TableHead sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne }}>
             <TableRow>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8 }}>GUEST NAME</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8 }}>MOBILE</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8 }}>BOOKING ID</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8 }}>ROOM</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8 }}>CHECK-IN</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8 }}>CHECK-OUT</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8 }}>GUESTS</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8 }}>PAYMENT STATUS</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8 }}>BOOKING STATUS</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8 }}>ACTION</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8, whiteSpace: "nowrap" }}>GUEST NAME</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8, whiteSpace: "nowrap" }}>MOBILE</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8, whiteSpace: "nowrap" }}>BOOKING ID</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8, whiteSpace: "nowrap" }}>ROOM</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8, whiteSpace: "nowrap" }}>CHECK-IN</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8, whiteSpace: "nowrap" }}>CHECK-OUT</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8, whiteSpace: "nowrap" }}>GUESTS</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8, whiteSpace: "nowrap" }}>PAYMENT STATUS</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8, whiteSpace: "nowrap" }}>BOOKING STATUS</TableCell>
+              <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8, whiteSpace: "nowrap" }}>ACTION</TableCell>
             </TableRow>
           </TableHead>
 
@@ -653,6 +720,16 @@ export default function GuestDirectoryPage({
             }}
             sx={{
               borderTop: `1px solid ${themeConfig.border}`,
+              "& .MuiTablePagination-toolbar": {
+                flexWrap: "wrap",
+                px: { xs: 1, sm: 2 },
+                justifyContent: { xs: "center", sm: "flex-end" },
+                gap: 1,
+              },
+              "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": {
+                fontSize: { xs: "0.75rem", sm: "0.875rem" },
+                m: 0,
+              },
             }}
           />
         )}

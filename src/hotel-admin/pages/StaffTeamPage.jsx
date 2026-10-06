@@ -119,7 +119,7 @@ export default function StaffTeamPage({
   const paginatedStaff = filteredStaff.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   return (
-    <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 } }}>
+    <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
       {/* ========================================================================= */}
       {/* 3D MASTER COMMAND RIBBON (Hero 3D Aesthetics with Glow & Stats)          */}
       {/* ========================================================================= */}
@@ -148,7 +148,7 @@ export default function StaffTeamPage({
           }}
         />
 
-        <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 2, position: "relative", zIndex: 1 }}>
+        <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, justifyContent: "space-between", alignItems: { xs: "stretch", sm: "center" }, gap: 2, position: "relative", zIndex: 1 }}>
           <Box>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.8 }}>
               <Avatar
@@ -195,6 +195,7 @@ export default function StaffTeamPage({
             onClick={() => setStaffModal({ open: true, mode: "ADD", data: getInitialStaffForm ? getInitialStaffForm() : { name: "", email: "", phone: "", role: "RECEPTIONIST", shift: "Morning (07:00 - 15:00)", status: "ACTIVE" } })}
             className="btn-3d"
             sx={{
+              width: { xs: "100%", sm: "auto" },
               borderRadius: "14px",
               bgcolor: isDarkMode ? "rgba(255,255,255,0.12)" : "#FFFFFF",
               color: isDarkMode ? "#FFFFFF" : (themeConfig.primaryDark || "#0C273B"),
@@ -202,6 +203,8 @@ export default function StaffTeamPage({
               fontSize: "0.82rem",
               px: 2.5,
               py: 1.1,
+              justifyContent: "center",
+              whiteSpace: "nowrap",
               border: isDarkMode ? `1px solid ${themeConfig.border}` : "none",
               boxShadow: isDarkMode
                 ? "0 6px 16px rgba(0,0,0,0.3)"
@@ -232,7 +235,7 @@ export default function StaffTeamPage({
             ? "0 8px 24px -4px rgba(0, 0, 0, 0.4)"
             : "0 8px 24px -4px rgba(12, 39, 59, 0.04), inset 0 1px 0 #FFFFFF",
           display: "flex",
-          flexWrap: "wrap",
+          flexDirection: { xs: "column", sm: "row" },
           alignItems: "center",
           justifyContent: "space-between",
           gap: 2,
@@ -244,8 +247,8 @@ export default function StaffTeamPage({
           value={staffSearch}
           onChange={(e) => setStaffSearch(e.target.value)}
           sx={{
-            flex: 1,
-            minWidth: 260,
+            width: "100%",
+            minWidth: { xs: "100%", sm: 260 },
             "& .MuiOutlinedInput-root": {
               borderRadius: "12px",
               bgcolor: themeConfig.bgMain,
@@ -263,7 +266,22 @@ export default function StaffTeamPage({
           }}
         />
 
-        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+        <Box
+          sx={{
+            display: "flex",
+            gap: 1,
+            flexWrap: "nowrap",
+            alignItems: "center",
+            overflowX: "auto",
+            WebkitOverflowScrolling: "touch",
+            py: 0.5,
+            width: "100%",
+            maxWidth: "100%",
+            "&::-webkit-scrollbar": { display: "none" },
+            msOverflowStyle: "none",
+            scrollbarWidth: "none",
+          }}
+        >
           {[
             { id: "ALL", label: `All Staff (${staffList.length})` },
             { id: "RECEPTIONIST", label: `Receptionists (${totalReceptionists})` },
@@ -282,7 +300,10 @@ export default function StaffTeamPage({
                   fontWeight: 800,
                   borderRadius: "10px",
                   fontSize: "0.75rem",
-                  px: 1,
+                  px: 1.2,
+                  height: 32,
+                  flexShrink: 0,
+                  whiteSpace: "nowrap",
                   bgcolor: isSelected ? themeConfig.primary : themeConfig.champagne,
                   color: isSelected ? "#FFFFFF" : themeConfig.primaryDark,
                   border: `1px solid ${isSelected ? themeConfig.primary : themeConfig.border}`,
@@ -323,13 +344,13 @@ export default function StaffTeamPage({
         <Table stickyHeader sx={{ minWidth: 980 }}>
           <TableHead>
             <TableRow sx={{ bgcolor: themeConfig.champagne }}>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.6 }}>Staff Profile</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Role / Position</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Contact Phone</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Govt ID Proof</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Shift Schedule</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Status</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMain }}>Actions</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.6, whiteSpace: "nowrap" }}>Staff Profile</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Role / Position</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Contact Phone</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Govt ID Proof</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Shift Schedule</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Status</TableCell>
+              <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -547,6 +568,18 @@ export default function StaffTeamPage({
               borderTop: `1px solid ${themeConfig.border}`,
               bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
               borderRadius: "0 0 20px 20px",
+              "& .MuiTablePagination-toolbar": {
+                flexWrap: "wrap",
+                px: { xs: 1, sm: 2 },
+                justifyContent: { xs: "center", sm: "flex-end" },
+                gap: 1,
+              },
+              "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": {
+                fontWeight: 700,
+                color: themeConfig.textMuted,
+                fontSize: { xs: "0.75rem", sm: "0.875rem" },
+                m: 0,
+              },
             }}
           />
         )}
@@ -692,8 +725,8 @@ export default function StaffTeamPage({
             </Grid>
           </DialogContent>
 
-          <DialogActions sx={{ p: 2.5 }}>
-            <Button onClick={() => setStaffModal({ ...staffModal, open: false })} sx={{ borderRadius: "10px", fontWeight: 700 }}>
+          <DialogActions sx={{ p: 2.5, flexDirection: { xs: "column-reverse", sm: "row" }, gap: 1.5 }}>
+            <Button onClick={() => setStaffModal({ ...staffModal, open: false })} sx={{ width: { xs: "100%", sm: "auto" }, borderRadius: "10px", fontWeight: 700 }}>
               Cancel
             </Button>
             <Button
@@ -701,11 +734,13 @@ export default function StaffTeamPage({
               variant="contained"
               className="btn-3d"
               sx={{
+                width: { xs: "100%", sm: "auto" },
                 background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
                 color: "#FFFFFF",
                 fontWeight: 800,
                 borderRadius: "12px",
                 px: 3,
+                justifyContent: "center",
                 boxShadow: `0 4px 14px ${themeConfig.primaryGlow}`,
               }}
             >

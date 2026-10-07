@@ -604,10 +604,7 @@ export default function GuestDirectoryPage({
                             if (rawOut) {
                               const d = new Date(rawOut);
                               if (!isNaN(d.getTime())) {
-                                const y = d.getFullYear();
-                                const m = String(d.getMonth() + 1).padStart(2, "0");
-                                const day = String(d.getDate()).padStart(2, "0");
-                                return `${y}-${m}-${day}`;
+                                return d.toLocaleDateString("en-IN");
                               }
                             }
                             return gCheckOut;

@@ -450,10 +450,7 @@ export default function GuestDirectoryPage({
                               if (g.actualCheckOut) {
                                 const d = new Date(g.actualCheckOut);
                                 if (!isNaN(d.getTime())) {
-                                  const y = d.getFullYear();
-                                  const m = String(d.getMonth() + 1).padStart(2, "0");
-                                  const day = String(d.getDate()).padStart(2, "0");
-                                  return `${y}-${m}-${day}`;
+                                  return d.toLocaleDateString("en-IN");
                                 }
                               }
                               return g.checkOutDate || "Scheduled";

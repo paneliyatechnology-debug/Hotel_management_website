@@ -141,6 +141,8 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         endpointsToFetch.push(
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(res.data)),
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || [])),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || [])),
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
         );
       }

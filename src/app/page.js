@@ -191,6 +191,7 @@ export default function HomePage() {
                 <img
                   src="https://images.unsplash.com/photo-1590490360182-c33d57733427?w=1200&q=85"
                   alt="Luxury Hotel Room Preview"
+                  loading="lazy"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                 />
                 <div className="absolute inset-0 bg-[#072F2A]/30 group-hover:bg-[#072F2A]/20 transition-colors" />
@@ -279,6 +280,7 @@ export default function HomePage() {
             <img
               src="https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1920&q=85"
               alt="Luxury Hotel Exterior"
+              loading="lazy"
               className="w-full h-full object-cover object-center opacity-25"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-[#072F2A] via-[#072F2A]/90 to-transparent" />

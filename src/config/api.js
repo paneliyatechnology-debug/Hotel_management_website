@@ -116,6 +116,7 @@ export const API_ENDPOINTS = {
     DASHBOARD: `${API_BASE_URL}/api/v1/receptionist/dashboard`,
     AVAILABLE_ROOMS: `${API_BASE_URL}/api/v1/receptionist/rooms/available`,
     ROOM_TYPES: `${API_BASE_URL}/api/v1/receptionist/room-types`,
+    BOOKING_ROOM_OPTIONS: `${API_BASE_URL}/api/v1/receptionist/booking/room-options`,
     ROOMS: `${API_BASE_URL}/api/v1/receptionist/rooms`,
     CREATE_ROOM: `${API_BASE_URL}/api/v1/receptionist/rooms`,
     UPDATE_ROOM: (id) => `${API_BASE_URL}/api/v1/receptionist/rooms/${id}`,
@@ -149,12 +150,39 @@ export const API_ENDPOINTS = {
   }
 };
 
+const inFlightRequests = new Map();
+
 /**
- * Reusable helper for Authenticated API Requests with automatic resilient fallback
+ * Reusable helper for Authenticated API Requests with automatic resilient fallback & request deduplication
  */
 export async function apiRequest(endpoint, options = {}) {
-  const { method = "GET", body, headers = {}, token, ...rest } = options;
+  const method = (options.method || "GET").toUpperCase();
+  const authToken = options.token || (typeof window !== "undefined" ? localStorage.getItem("token") : null);
 
+  // In-flight GET request deduplication: Reuse identical pending GET requests to prevent duplicate network calls
+  if (method === "GET" && !options.skipDeduplication) {
+    const dedupeKey = `${authToken || "anon"}:${endpoint}`;
+    if (inFlightRequests.has(dedupeKey)) {
+      return inFlightRequests.get(dedupeKey);
+    }
+
+    const requestPromise = (async () => {
+      try {
+        return await executeApiRequest(endpoint, options);
+      } finally {
+        inFlightRequests.delete(dedupeKey);
+      }
+    })();
+
+    inFlightRequests.set(dedupeKey, requestPromise);
+    return requestPromise;
+  }
+
+  return executeApiRequest(endpoint, options);
+}
+
+async function executeApiRequest(endpoint, options = {}) {
+  const { method = "GET", body, headers = {}, token, ...rest } = options;
   const authToken = token || (typeof window !== "undefined" ? localStorage.getItem("token") : null);
 
   const reqHeaders = {

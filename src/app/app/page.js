@@ -43,19 +43,6 @@ function HotelWebAppContent() {
           }
         }
       }
-
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-      if (token) {
-        apiRequest(API_ENDPOINTS.AUTH.ME)
-          .then((res) => {
-            if (res?.data) {
-              setUser(res.data);
-              localStorage.setItem("user", JSON.stringify(res.data));
-              checkUserLockout(res.data);
-            }
-          })
-          .catch(() => {});
-      }
     }
   );
 

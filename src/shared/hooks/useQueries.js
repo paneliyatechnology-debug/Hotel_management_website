@@ -123,6 +123,24 @@ export function useReceptionistRooms(options = {}) {
   });
 }
 
+export function useBookingRoomOptions(params = {}, options = {}) {
+  return useQuery({
+    queryKey: ["receptionist", "booking-room-options", params],
+    queryFn: async () => {
+      const searchParams = new URLSearchParams();
+      if (params.checkInDate || params.checkIn) searchParams.append("checkInDate", params.checkInDate || params.checkIn);
+      if (params.checkOutDate || params.checkOut) searchParams.append("checkOutDate", params.checkOutDate || params.checkOut);
+      if (params.roomType) searchParams.append("roomType", params.roomType);
+      const queryStr = searchParams.toString();
+      const endpoint = `${API_ENDPOINTS.RECEPTIONIST.BOOKING_ROOM_OPTIONS}${queryStr ? "?" + queryStr : ""}`;
+      const res = await apiRequest(endpoint);
+      return res?.data || { roomTypes: [], availableRooms: [], rooms: [] };
+    },
+    staleTime: 20 * 1000,
+    ...options,
+  });
+}
+
 export function useReceptionistBookings(options = {}) {
   return useQuery({
     queryKey: ["receptionist", "bookings"],

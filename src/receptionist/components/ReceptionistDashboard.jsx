@@ -43,6 +43,7 @@ const ComponentSpinner = () => (
 const ReceptionistOverviewPage = dynamic(() => import("../pages/ReceptionistOverviewPage"), { loading: () => <ComponentSpinner /> });
 const AvailableRoomsPage = dynamic(() => import("../pages/AvailableRoomsPage"), { loading: () => <ComponentSpinner /> });
 const InHouseFoliosPage = dynamic(() => import("../pages/InHouseFoliosPage"), { loading: () => <ComponentSpinner /> });
+const GuestDirectoryPage = dynamic(() => import("../pages/GuestDirectoryPage"), { loading: () => <ComponentSpinner /> });
 const CheckInWizardPage = dynamic(() => import("../pages/CheckInWizardPage"), { loading: () => <ComponentSpinner /> });
 const MoreOperationsPage = dynamic(() => import("../pages/MoreOperationsPage"), { loading: () => <ComponentSpinner /> });
 
@@ -89,6 +90,9 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
     dob: "",
     nationality: "Indian",
     address: "",
+    city: "",
+    state: "",
+    country: "India",
     emergencyContact: "",
     govtIdType: "AADHAAR",
     govtIdNumber: "",
@@ -153,17 +157,28 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
       if (tabIndex === 0) {
         endpointsToFetch.push(
           apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD).then((res) => res?.data && setDashboardData(res.data)),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.AVAILABLE_ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || [])),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKING_ROOM_OPTIONS).then((res) => {
+            if (res?.data) {
+              const roomData = res.data.availableRooms || res.data.rooms;
+              const typeData = res.data.roomTypes;
+              if (roomData) setRooms(roomData);
+              if (typeData) setRoomTypes(typeData);
+            }
+          }),
           apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || []))
         );
       }
-      // Route 1: AVAILABLE ROOMS & CATEGORIES
+      // Route 1: AVAILABLE ROOMS & CATEGORIES (Receptionist Booking Page)
       else if (tabIndex === 1) {
         endpointsToFetch.push(
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.AVAILABLE_ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKING_ROOM_OPTIONS).then((res) => {
+            if (res?.data) {
+              const roomData = res.data.availableRooms || res.data.rooms;
+              const typeData = res.data.roomTypes;
+              if (roomData) setRooms(roomData);
+              if (typeData) setRoomTypes(typeData);
+            }
+          }),
           apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || []))
         );
       }
@@ -222,10 +237,18 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
   const handleFinalCheckIn = async () => {
     try {
       const resolvedRoomIds = (checkInData.roomIds && checkInData.roomIds.length > 0)
-        ? checkInData.roomIds
+        ? checkInData.roomIds.map(String)
         : checkInData.roomId
-          ? [checkInData.roomId]
-          : [];
+          ? [String(checkInData.roomId)]
+          : (checkInData.selectedRooms && checkInData.selectedRooms.length > 0)
+            ? checkInData.selectedRooms.map((r) => String(r._id || r.id || r))
+            : [];
+
+      const resolvedRoomNumbers = (checkInData.selectedRooms && checkInData.selectedRooms.length > 0)
+        ? checkInData.selectedRooms.map((r) => String(r.roomNumber)).join(", ")
+        : (checkInData.selectedRoomNumbers && checkInData.selectedRoomNumbers.length > 0)
+          ? checkInData.selectedRoomNumbers.join(", ")
+          : checkInData.roomNumber;
 
       const secDepAmt = checkInData.collectSecurityDeposit ? (Number(checkInData.securityDepositAmount) || 1000) : 0;
 
@@ -234,15 +257,20 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         fullName: checkInData.fullName || checkInData.guestName || "Walk-in Guest",
         mobileNumber: checkInData.mobile || checkInData.mobileNumber || checkInData.phone || "",
         email: checkInData.email || "",
+        gender: checkInData.gender || "Male",
+        nationality: checkInData.nationality || "Indian",
         address: checkInData.address || "",
+        city: checkInData.city || "",
+        state: checkInData.state || "",
+        country: checkInData.country || "India",
         govtIdType: checkInData.govtIdType || "AADHAAR",
         govtIdNumber: checkInData.govtIdNumber || "PENDING",
         frontImage: checkInData.frontImage || checkInData.idProofImage || "",
         backImage: checkInData.backImage || checkInData.idProofBackImage || "",
         reusePreviousId: checkInData.reusePreviousId !== false,
-        roomId: checkInData.roomId || resolvedRoomIds[0],
+        roomId: String(checkInData.roomId || resolvedRoomIds[0] || ""),
         roomIds: resolvedRoomIds,
-        roomNumber: checkInData.selectedRoomNumbers?.join(", ") || checkInData.roomNumber,
+        roomNumber: resolvedRoomNumbers,
         checkInDate: checkInData.checkInDate || getTodayLocalDate(),
         checkInTime: checkInData.isCustomCheckInTime ? checkInData.checkInTime : getCurrentLocalTime(),
         checkOutDate: checkInData.checkOutDate,
@@ -593,8 +621,15 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         />
       )}
 
-      {/* ROUTE 3: MORE OPERATIONS HUB (User Profile & Session) */}
+      {/* ROUTE 3: GUEST DIRECTORY & DOSSIER */}
       {activeNav === 3 && (
+        <GuestDirectoryPage
+          hotelSettings={hotelSettings}
+        />
+      )}
+
+      {/* ROUTE 4: MORE OPERATIONS HUB (User Profile & Session) */}
+      {activeNav === 4 && (
         <MoreOperationsPage
           user={{ ...user, hotel: { ...user?.hotel, settings: hotelSettings } }}
           hotelSettings={hotelSettings}

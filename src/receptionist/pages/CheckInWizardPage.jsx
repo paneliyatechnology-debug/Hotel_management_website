@@ -193,11 +193,15 @@ export default function CheckInWizardPage({
         const isActive = !["CANCELLED", "CHECKED_OUT", "NO_SHOW", "VOID", "REFUNDED"].includes(b.status);
         if (!isActive) return false;
 
-        const isThisRoom =
-          String(b.room?._id || b.room || "") === rId ||
-          String(b.roomNumber || "") === rNum ||
-          (Array.isArray(b.rooms) && b.rooms.some((id) => String(id?._id || id) === rId)) ||
-          (Array.isArray(b.roomNumbers) && b.roomNumbers.some((num) => String(num) === rNum));
+        const bRoomId = String(b.room?._id || b.room || "");
+        const bRtId = String(b.roomType?._id || b.roomType || "");
+        const rRtId = String(r.roomType?._id || r.roomType || "");
+
+        let isThisRoom = false;
+        if (bRoomId && rId && bRoomId === rId) isThisRoom = true;
+        else if (Array.isArray(b.rooms) && b.rooms.some((id) => String(id?._id || id) === rId)) isThisRoom = true;
+        else if (!bRoomId && String(b.roomNumber || "") === rNum && (!bRtId || !rRtId || bRtId === rRtId)) isThisRoom = true;
+        else if (!bRoomId && Array.isArray(b.roomNumbers) && b.roomNumbers.some((num) => String(num) === rNum && (!bRtId || !rRtId || bRtId === rRtId))) isThisRoom = true;
 
         if (!isThisRoom) return false;
 
@@ -522,11 +526,15 @@ export default function CheckInWizardPage({
     return (bookings || []).filter((b) => {
       const isActive = b.status !== "CANCELLED" && b.status !== "CHECKED_OUT" && b.status !== "NO_SHOW" && b.status !== "VOID" && b.status !== "REFUNDED";
       if (!isActive) return false;
-      const isThisRoom =
-        String(b.room?._id || b.room || "") === rId ||
-        String(b.roomNumber || "") === rNum ||
-        (Array.isArray(b.rooms) && b.rooms.some((id) => String(id?._id || id) === rId)) ||
-        (Array.isArray(b.roomNumbers) && b.roomNumbers.some((num) => String(num) === rNum));
+      const bRoomId = String(b.room?._id || b.room || "");
+      const bRtId = String(b.roomType?._id || b.roomType || "");
+      const rRtId = String(room.roomType?._id || room.roomType || "");
+
+      let isThisRoom = false;
+      if (bRoomId && rId && bRoomId === rId) isThisRoom = true;
+      else if (Array.isArray(b.rooms) && b.rooms.some((id) => String(id?._id || id) === rId)) isThisRoom = true;
+      else if (!bRoomId && String(b.roomNumber || "") === rNum && (!bRtId || !rRtId || bRtId === rRtId)) isThisRoom = true;
+      else if (!bRoomId && Array.isArray(b.roomNumbers) && b.roomNumbers.some((num) => String(num) === rNum && (!bRtId || !rRtId || bRtId === rRtId))) isThisRoom = true;
       return isThisRoom;
     });
   };
@@ -626,6 +634,21 @@ export default function CheckInWizardPage({
   const vipDiscountAmount = isVipGuest ? Math.round(baseTariffTotal * 0.10) : (checkInData.discountAmount || 0);
   const securityDepositAmount = checkInData.collectSecurityDeposit ? (Number(checkInData.securityDepositAmount) || 1000) : 0;
   const calculatedGrandTotal = Math.max(0, gstBookingResult.grandTotal - vipDiscountAmount) + securityDepositAmount;
+
+  // Auto-fill Advance Amount Paid with full Total including GST (Base + CGST 9% + SGST 9%)
+  useEffect(() => {
+    if (!checkInData.isPaidManuallyEdited) {
+      setCheckInData((prev) => {
+        if (prev.paid === calculatedGrandTotal && prev.total === calculatedGrandTotal) return prev;
+        return {
+          ...prev,
+          total: calculatedGrandTotal,
+          paid: calculatedGrandTotal,
+          due: 0,
+        };
+      });
+    }
+  }, [calculatedGrandTotal, checkInData.isPaidManuallyEdited]);
 
   // Aadhaar 12-Digit Format & Validation Helpers
   const formatAadhaarNumber = (val) => {
@@ -922,36 +945,38 @@ export default function CheckInWizardPage({
         fullName: guest.name || guest.fullName || prev.fullName,
         email: guest.email || prev.email,
         address: guest.address || prev.address,
+        city: guest.city || prev.city,
+        state: guest.state || prev.state,
+        nationality: guest.nationality || prev.nationality || "Indian",
+        gender: guest.gender || prev.gender || "Male",
         govtIdType: guest.govtIdType || guest.idType || guest.idProof?.idType || prev.govtIdType || "AADHAAR",
         govtIdNumber: idNum || prev.govtIdNumber,
+        gstin: guest.gstin || guest.gstNumber || guest.taxId || prev.gstin || "",
+        companyName: guest.companyName || prev.companyName || "",
         isRepeatGuest: true,
         totalVisits: Math.max(totalVisits, 2),
         hasVerifiedId: isIdVerified,
         discountAmount: disc,
-        total: netTot,
-        paid: netTot,
-        due: 0,
+        isPaidManuallyEdited: false,
       };
     });
   };
 
   // Add a specific room to the selection (for Quick Suggester)
   const handleAddAdditionalRoom = (roomIdToAdd) => {
-    if (selectedRoomIds.includes(roomIdToAdd)) return;
-    const newIds = [...selectedRoomIds, roomIdToAdd];
-    const newSelectedRooms = rooms.filter((r) => newIds.includes(r._id));
+    const strIdToAdd = String(roomIdToAdd);
+    if (selectedRoomIds.map(String).includes(strIdToAdd)) return;
+    const newIds = [...selectedRoomIds.map(String), strIdToAdd];
+    const newSelectedRooms = rooms.filter((r) => newIds.includes(String(r._id)));
     const newRoomNumbers = newSelectedRooms.map((r) => String(r.roomNumber));
     const primaryRoom = newSelectedRooms[0];
     const primaryCat = getRoomCategoryName(primaryRoom);
 
     const combinedRate = newSelectedRooms.reduce((sum, r) => sum + getRoomTariff(r), 0);
-    const baseTot = combinedRate * (checkInData.numberOfNights || 1);
-    const disc = isVipGuest ? Math.round(baseTot * 0.10) : (checkInData.discountAmount || 0);
-    const netTot = Math.max(0, baseTot - disc) + (checkInData.collectSecurityDeposit ? (Number(checkInData.securityDepositAmount) || 1000) : 0);
 
     setCheckInData((prev) => ({
       ...prev,
-      roomId: primaryRoom?._id || "",
+      roomId: primaryRoom ? String(primaryRoom._id) : "",
       roomNumber: newRoomNumbers.join(", "),
       roomIds: newIds,
       selectedRooms: newSelectedRooms,
@@ -959,33 +984,28 @@ export default function CheckInWizardPage({
       roomType: primaryCat,
       floor: primaryRoom?.floor || 1,
       rate: combinedRate,
-      discountAmount: disc,
-      total: netTot,
-      paid: netTot,
-      due: 0,
+      isPaidManuallyEdited: false,
     }));
   };
 
   // Remove a room from selection
   const handleRemoveSelectedRoom = (roomIdToRemove) => {
+    const strIdToRemove = String(roomIdToRemove);
     if (selectedRoomIds.length <= 1) {
       showErrorAlert("At least one room must remain allocated.", "warning");
       return;
     }
-    const newIds = selectedRoomIds.filter((id) => id !== roomIdToRemove);
-    const newSelectedRooms = rooms.filter((r) => newIds.includes(r._id));
+    const newIds = selectedRoomIds.map(String).filter((id) => id !== strIdToRemove);
+    const newSelectedRooms = rooms.filter((r) => newIds.includes(String(r._id)));
     const newRoomNumbers = newSelectedRooms.map((r) => String(r.roomNumber));
     const primaryRoom = newSelectedRooms[0];
     const primaryCat = getRoomCategoryName(primaryRoom);
 
     const combinedRate = newSelectedRooms.reduce((sum, r) => sum + getRoomTariff(r), 0);
-    const baseTot = combinedRate * (checkInData.numberOfNights || 1);
-    const disc = isVipGuest ? Math.round(baseTot * 0.10) : (checkInData.discountAmount || 0);
-    const netTot = Math.max(0, baseTot - disc) + (checkInData.collectSecurityDeposit ? (Number(checkInData.securityDepositAmount) || 1000) : 0);
 
     setCheckInData((prev) => ({
       ...prev,
-      roomId: primaryRoom?._id || "",
+      roomId: primaryRoom ? String(primaryRoom._id) : "",
       roomNumber: newRoomNumbers.join(", "),
       roomIds: newIds,
       selectedRooms: newSelectedRooms,
@@ -993,31 +1013,26 @@ export default function CheckInWizardPage({
       roomType: primaryCat,
       floor: primaryRoom?.floor || 1,
       rate: combinedRate,
-      discountAmount: disc,
-      total: netTot,
-      paid: netTot,
-      due: 0,
+      isPaidManuallyEdited: false,
     }));
   };
 
   // Multi-Room Dropdown Change Handler
   const handleDropdownRoomChange = (event) => {
-    const selectedIds = typeof event.target.value === "string" ? event.target.value.split(",") : event.target.value;
+    const rawVal = event.target.value;
+    const selectedIds = (typeof rawVal === "string" ? rawVal.split(",") : rawVal).map(String);
     if (selectedIds.length === 0) return;
 
-    const newSelectedRooms = rooms.filter((r) => selectedIds.includes(r._id));
+    const newSelectedRooms = rooms.filter((r) => selectedIds.includes(String(r._id)));
     const newRoomNumbers = newSelectedRooms.map((r) => String(r.roomNumber));
     const primaryRoom = newSelectedRooms[0];
     const primaryCat = getRoomCategoryName(primaryRoom);
 
     const combinedRate = newSelectedRooms.reduce((sum, r) => sum + getRoomTariff(r), 0);
-    const baseTot = combinedRate * (checkInData.numberOfNights || 1);
-    const disc = isVipGuest ? Math.round(baseTot * 0.10) : (checkInData.discountAmount || 0);
-    const netTot = Math.max(0, baseTot - disc) + (checkInData.collectSecurityDeposit ? (Number(checkInData.securityDepositAmount) || 1000) : 0);
 
     setCheckInData((prev) => ({
       ...prev,
-      roomId: primaryRoom?._id || "",
+      roomId: primaryRoom ? String(primaryRoom._id) : "",
       roomNumber: newRoomNumbers.join(", "),
       roomIds: selectedIds,
       selectedRooms: newSelectedRooms,
@@ -1025,10 +1040,7 @@ export default function CheckInWizardPage({
       roomType: primaryCat,
       floor: primaryRoom?.floor || 1,
       rate: combinedRate,
-      discountAmount: disc,
-      total: netTot,
-      paid: netTot,
-      due: 0,
+      isPaidManuallyEdited: false,
     }));
   };
 
@@ -1146,7 +1158,7 @@ export default function CheckInWizardPage({
       >
         {/* Wizard Header Banner */}
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: { xs: "flex-start", sm: "center" }, flexDirection: { xs: "column", sm: "row" }, gap: 1.5, mb: 1 }}>
-          <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5, flexWrap: "nowrap" }}>
+          <Box sx={{ display: "flex", alignItems: { xs: "flex-start", sm: "center" }, flexDirection: { xs: "column", sm: "row" }, gap: 1.5, width: "100%" }}>
             {onBackToRooms && (
               <Button
                 variant="outlined"
@@ -1167,14 +1179,14 @@ export default function CheckInWizardPage({
                 Back to Rooms
               </Button>
             )}
-            <div>
+            <Box sx={{ width: "100%" }}>
               <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 0.2, letterSpacing: -0.5, fontSize: { xs: "1.15rem", sm: "1.45rem" }, lineHeight: 1.25 }}>
                 Express Check-In & Guest Allocation
               </Typography>
-              <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
+              <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
                 Fill guest details, add accompanying members, configure stay duration, and complete allocation.
               </Typography>
-            </div>
+            </Box>
           </Box>
 
           {isVipGuest && (
@@ -1203,7 +1215,7 @@ export default function CheckInWizardPage({
               justifyContent: "space-between",
               position: "relative",
               width: "100%",
-              minWidth: { xs: 480, sm: "auto" },
+              minWidth: { xs: 580, sm: "auto" },
             }}
           >
             {/* Background Base Track Line */}
@@ -1455,16 +1467,41 @@ export default function CheckInWizardPage({
                 </Grid>
 
                 {/* Address */}
-                <Grid size={{ xs: 12 }}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     size="small"
-                    label="Residential Address / City"
-                    placeholder="e.g. 402, Crystal Heights, SG Highway, Ahmedabad"
+                    label="Residential Address"
+                    placeholder="e.g. 402, Crystal Heights, SG Highway"
                     value={checkInData.address || ""}
                     onChange={(e) => setCheckInData({ ...checkInData, address: e.target.value })}
                   />
                 </Grid>
+
+                {/* City */}
+                <Grid size={{ xs: 6, sm: 3 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="City"
+                    placeholder="e.g. Ahmedabad"
+                    value={checkInData.city || ""}
+                    onChange={(e) => setCheckInData({ ...checkInData, city: e.target.value })}
+                  />
+                </Grid>
+
+                {/* State */}
+                <Grid size={{ xs: 6, sm: 3 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="State"
+                    placeholder="e.g. Gujarat"
+                    value={checkInData.state || ""}
+                    onChange={(e) => setCheckInData({ ...checkInData, state: e.target.value })}
+                  />
+                </Grid>
+
               </Grid>
 
               {/* Main Guest ID Proof & Aadhaar Number */}
@@ -2419,7 +2456,7 @@ export default function CheckInWizardPage({
                           <Chip
                             label={`Base ₹${rb.taxableAmount.toLocaleString("en-IN")} + GST ${rb.gstRate}% (CGST ${rb.cgstRate}% + SGST ${rb.sgstRate}%)`}
                             size="small"
-                            sx={{ height: 20, fontSize: "0.68rem", fontWeight: 800 }}
+                            sx={{ height: "auto", py: 0.3, px: 0.5, fontSize: "0.68rem", fontWeight: 800, "& .MuiChip-label": { whiteSpace: "normal", wordBreak: "break-word" } }}
                           />
                         </TableCell>
                         <TableCell align="right" sx={{ fontWeight: 800, color: "#D97706" }}>
@@ -2495,15 +2532,10 @@ export default function CheckInWizardPage({
                     value={checkInData.rate ?? 3000}
                     onChange={(e) => {
                       const newRate = Number(e.target.value) || 0;
-                      const baseTot = newRate * (checkInData.numberOfNights || 1);
-                      const disc = isVipGuest ? Math.round(baseTot * 0.10) : (checkInData.discountAmount || 0);
-                      const netTot = Math.max(0, baseTot - disc) + (checkInData.collectSecurityDeposit ? (Number(checkInData.securityDepositAmount) || 1000) : 0);
                       setCheckInData({
                         ...checkInData,
                         rate: newRate,
-                        total: netTot,
-                        paid: netTot,
-                        due: 0,
+                        isPaidManuallyEdited: false,
                       });
                     }}
                   />
@@ -2519,13 +2551,10 @@ export default function CheckInWizardPage({
                     value={checkInData.discountAmount ?? 0}
                     onChange={(e) => {
                       const disc = Number(e.target.value) || 0;
-                      const netTot = Math.max(0, baseTariffTotal - disc) + (checkInData.collectSecurityDeposit ? (Number(checkInData.securityDepositAmount) || 1000) : 0);
                       setCheckInData({
                         ...checkInData,
                         discountAmount: disc,
-                        total: netTot,
-                        paid: netTot,
-                        due: 0,
+                        isPaidManuallyEdited: false,
                       });
                     }}
                   />
@@ -2548,25 +2577,7 @@ export default function CheckInWizardPage({
                   </TextField>
                 </Grid>
 
-                {/* Amount Paid Advance */}
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Advance Amount Paid (₹)"
-                    placeholder="e.g. 3000"
-                    value={checkInData.paid ?? calculatedGrandTotal}
-                    onChange={(e) => {
-                      const p = Number(e.target.value) || 0;
-                      setCheckInData({
-                        ...checkInData,
-                        paid: p,
-                        due: Math.max(0, calculatedGrandTotal - p),
-                      });
-                    }}
-                    helperText={`Balance Outstanding: ₹${Math.max(0, calculatedGrandTotal - (checkInData.paid ?? calculatedGrandTotal)).toLocaleString()}`}
-                  />
-                </Grid>
+
 
                 {/* Transaction Reference / Note */}
                 <Grid size={{ xs: 12, sm: 6 }}>
@@ -2577,6 +2588,56 @@ export default function CheckInWizardPage({
                     placeholder="e.g. UPI Ref #402918482"
                     value={checkInData.transactionId || ""}
                     onChange={(e) => setCheckInData({ ...checkInData, transactionId: e.target.value })}
+                  />
+                </Grid>
+
+                {/* Amount Paid Advance (Auto-Filled with Full Grand Total Including GST) */}
+                <Grid size={{ xs: 12 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Advance Amount Paid (₹) *"
+                    placeholder="e.g. 2360"
+                    value={checkInData.paid ?? calculatedGrandTotal}
+                    onChange={(e) => {
+                      const valStr = e.target.value;
+                      const p = valStr === "" ? 0 : Number(valStr) || 0;
+                      setCheckInData({
+                        ...checkInData,
+                        paid: p,
+                        isPaidManuallyEdited: true,
+                        due: Math.max(0, calculatedGrandTotal - p),
+                      });
+                    }}
+                    slotProps={{
+                      input: {
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <Button
+                              size="small"
+                              onClick={() => {
+                                setCheckInData((prev) => ({
+                                  ...prev,
+                                  paid: calculatedGrandTotal,
+                                  isPaidManuallyEdited: false,
+                                  due: 0,
+                                }));
+                              }}
+                              sx={{ fontSize: "0.72rem", fontWeight: 800, textTransform: "none", py: 0.3, px: 1.2, bgcolor: "rgba(16, 185, 129, 0.12)", color: themeConfig.primary, borderRadius: "8px", "&:hover": { bgcolor: "rgba(16, 185, 129, 0.22)" } }}
+                            >
+                              ⚡ Auto-fill 100% (₹{calculatedGrandTotal.toLocaleString("en-IN")})
+                            </Button>
+                          </InputAdornment>
+                        ),
+                      },
+                    }}
+                    helperText={
+                      <Typography component="span" variant="caption" sx={{ fontWeight: 800, color: Math.max(0, calculatedGrandTotal - (checkInData.paid ?? calculatedGrandTotal)) > 0 ? "#EF4444" : "#10B981", display: "inline-flex", alignItems: "center", gap: 0.5, mt: 0.5 }}>
+                        {Math.max(0, calculatedGrandTotal - (checkInData.paid ?? calculatedGrandTotal)) > 0
+                          ? `⚠️ Balance Outstanding: ₹${Math.max(0, calculatedGrandTotal - (checkInData.paid ?? calculatedGrandTotal)).toLocaleString("en-IN")}`
+                          : "✅ Paid in Full — 100% Advance Settlement Auto-Filled (Includes CGST 9% + SGST 9%)"}
+                      </Typography>
+                    }
                   />
                 </Grid>
               </Grid>
@@ -2598,7 +2659,7 @@ export default function CheckInWizardPage({
                 border: `1.5px solid ${themeConfig.border}`,
               }}
             >
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3, pb: 2, borderBottom: `2px solid ${themeConfig.primary}` }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: { xs: "flex-start", sm: "center" }, flexDirection: { xs: "column", sm: "row" }, gap: 1.5, mb: 3, pb: 2, borderBottom: `2px solid ${themeConfig.primary}` }}>
                 <div>
                   <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
                     Folio Pre-Checkin Summary & Registry Review
@@ -2648,8 +2709,8 @@ export default function CheckInWizardPage({
                   <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 1.5 }}>
                     Accompanying Members & Co-Guests ({checkInData.accompanyingGuests.length}):
                   </Typography>
-                  <TableContainer sx={{ borderRadius: "12px", border: `1px solid ${themeConfig.border}` }}>
-                    <Table size="small">
+                  <TableContainer sx={{ borderRadius: "12px", border: `1px solid ${themeConfig.border}`, overflowX: "auto" }}>
+                    <Table size="small" sx={{ minWidth: 480 }}>
                       <TableHead sx={{ bgcolor: themeConfig.champagne }}>
                         <TableRow>
                           <TableCell sx={{ fontWeight: 800 }}>#</TableCell>

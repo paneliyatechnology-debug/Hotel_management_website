@@ -759,10 +759,10 @@ export function downloadTaxInvoicePDF(booking = {}, hotel = {}) {
   const rawBookingTotal = Number(booking.totalAmount) || Number(booking.grandTotal) || (booking.paidAmount ? Number(booking.paidAmount) : 3000);
   const originalBookingTotal = isLate && rawBookingTotal > lateFee ? rawBookingTotal - lateFee : rawBookingTotal;
 
-  // Real GST & Taxable Calculations (Fixing NaN / undefined% / ₹0 bugs)
+  // Real GST & Taxable Calculations
   let defaultGstRate = Number(booking.gstRate);
-  if (isNaN(defaultGstRate) || defaultGstRate === undefined || defaultGstRate === null) {
-    defaultGstRate = originalBookingTotal > 7500 ? 18 : (originalBookingTotal > 0 ? 12 : 0);
+  if (isNaN(defaultGstRate) || defaultGstRate === undefined || defaultGstRate === null || defaultGstRate === 0) {
+    defaultGstRate = 18;
   }
 
   let taxableVal = Number(booking.taxableAmount);
@@ -774,21 +774,26 @@ export function downloadTaxInvoicePDF(booking = {}, hotel = {}) {
   }
 
   if (isNaN(taxableVal) || taxableVal === undefined || taxableVal === null || taxableVal === 0) {
-    if (defaultGstRate > 0) {
+    const basePerNight = Number(booking.rate) || Number(booking.pricePerNight) || Number(booking.basePrice) || Number(room.pricePerNight) || Number(roomType.basePrice);
+    if (basePerNight > 0) {
+      taxableVal = basePerNight * nights;
+    } else if (booking.taxInclusive) {
       taxableVal = Math.round(originalBookingTotal / (1 + defaultGstRate / 100));
-      totalGst = originalBookingTotal - taxableVal;
     } else {
       taxableVal = originalBookingTotal;
-      totalGst = 0;
     }
   }
 
-  if (isNaN(totalGst) || totalGst === undefined || totalGst === null) {
-    totalGst = Math.max(0, originalBookingTotal - taxableVal);
+  if (isNaN(totalGst) || totalGst === undefined || totalGst === null || totalGst === 0) {
+    if (booking.gstAmount !== undefined && booking.gstAmount !== null && Number(booking.gstAmount) > 0) {
+      totalGst = Number(booking.gstAmount);
+    } else {
+      totalGst = Math.round((taxableVal * defaultGstRate) / 100);
+    }
   }
 
-  const cgstVal = Number(booking.cgstAmount) ?? (roomBreakdowns.length > 0 ? roomBreakdowns.reduce((s, r) => s + (Number(r.cgstAmount) || 0), 0) : Math.round(totalGst / 2));
-  const sgstVal = Number(booking.sgstAmount) ?? (roomBreakdowns.length > 0 ? roomBreakdowns.reduce((s, r) => s + (Number(r.sgstAmount) || 0), 0) : Math.max(0, totalGst - cgstVal));
+  const cgstVal = Number(booking.cgstAmount) || (roomBreakdowns.length > 0 ? roomBreakdowns.reduce((s, r) => s + (Number(r.cgstAmount) || 0), 0) : Math.round(totalGst / 2));
+  const sgstVal = Number(booking.sgstAmount) || (roomBreakdowns.length > 0 ? roomBreakdowns.reduce((s, r) => s + (Number(r.sgstAmount) || 0), 0) : Math.max(0, totalGst - cgstVal));
 
   const mainGstRate = defaultGstRate;
   const mainCgstRate = Number(booking.cgstRate) || (mainGstRate / 2);
@@ -796,7 +801,7 @@ export function downloadTaxInvoicePDF(booking = {}, hotel = {}) {
 
   const baseRatePerNight = Math.round(taxableVal / nights) || Number(booking.pricePerNight) || Math.round(originalBookingTotal / nights);
 
-  const grandTotalAmount = Number(booking.grandTotal) || (taxableVal + totalGst + lateFee + posTotal) || rawBookingTotal;
+  const grandTotalAmount = Number(booking.grandTotal) || (taxableVal + totalGst + lateFee + posTotal);
   const paidAmount = Number(booking.paidAmount) !== undefined && Number(booking.paidAmount) !== null && !isNaN(Number(booking.paidAmount))
     ? Number(booking.paidAmount)
     : (paymentHistory.length > 0 ? paymentHistory.reduce((s, p) => s + (Number(p.amount) || 0), 0) : grandTotalAmount);
@@ -1159,6 +1164,23 @@ export function downloadPaymentReceiptPDF(payment = {}, hotel = {}) {
   const dateStr = payment.dateStr || new Date().toLocaleDateString("en-IN");
   const timeStr = payment.timeStr || new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 
+  const paidAmount = Number(payment.amount) || 0;
+  const booking = payment.booking || {};
+  const gstRate = Number(booking.gstRate) || Number(payment.gstRate) || 18;
+
+  let taxableVal = Number(payment.taxableAmount) || Number(booking.taxableAmount);
+  let gstVal = Number(payment.gstAmount) || Number(booking.gstAmount);
+
+  if (!taxableVal || isNaN(taxableVal)) {
+    taxableVal = Math.round(paidAmount / (1 + gstRate / 100));
+  }
+  if (!gstVal || isNaN(gstVal)) {
+    gstVal = Math.max(0, paidAmount - taxableVal);
+  }
+
+  const cgstVal = Number(payment.cgstAmount) || Number(booking.cgstAmount) || Math.round(gstVal / 2);
+  const sgstVal = Number(payment.sgstAmount) || Number(booking.sgstAmount) || Math.max(0, gstVal - cgstVal);
+
   const html = `
     <div class="header-banner">
       <div class="hotel-brand">
@@ -1190,10 +1212,31 @@ export function downloadPaymentReceiptPDF(payment = {}, hotel = {}) {
       </div>
     </div>
 
-    <div style="background: transparent;border:2px solid #86EFAC;border-radius:14px;padding:20px;text-align:center;margin-bottom:24px;">
-      <div style="font-size:12px;font-weight:800;color:#15803D;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Amount Paid in Full</div>
-      <div style="font-size:32px;font-weight:900;color:#15803D;letter-spacing:-1px;">₹${(payment.amount || 0).toLocaleString("en-IN")}</div>
-      <div style="font-size:12px;color:#166534;margin-top:4px;">Transaction Stage: <strong>${payment.paymentType || "SETTLEMENT"}</strong> &bull; Status: <strong>PAID / VERIFIED</strong></div>
+    <div style="background: transparent; border: 2px solid #86EFAC; border-radius: 14px; padding: 18px 20px; margin-bottom: 20px;">
+      <div style="text-align: center; margin-bottom: 12px;">
+        <div style="font-size: 11px; font-weight: 800; color: #15803D; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;">Amount Paid in Full</div>
+        <div style="font-size: 32px; font-weight: 900; color: #15803D; letter-spacing: -1px;">₹${paidAmount.toLocaleString("en-IN")}</div>
+        <div style="font-size: 11px; color: #166534; margin-top: 2px;">Stage: <strong>${payment.paymentType || "SETTLEMENT"}</strong> &bull; Status: <strong>PAID / VERIFIED</strong></div>
+      </div>
+
+      <div style="border-top: 1px dashed #86EFAC; padding-top: 10px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; font-size: 11px; text-align: center;">
+        <div style="background: #F0FDF4; padding: 6px; border-radius: 8px;">
+          <div style="color: #475569; font-size: 10px;">Taxable Base</div>
+          <div style="font-weight: 800; color: #0F172A; margin-top: 2px;">₹${taxableVal.toLocaleString("en-IN")}</div>
+        </div>
+        <div style="background: #F0FDF4; padding: 6px; border-radius: 8px;">
+          <div style="color: #475569; font-size: 10px;">CGST (${gstRate / 2}%)</div>
+          <div style="font-weight: 800; color: #0F172A; margin-top: 2px;">₹${cgstVal.toLocaleString("en-IN")}</div>
+        </div>
+        <div style="background: #F0FDF4; padding: 6px; border-radius: 8px;">
+          <div style="color: #475569; font-size: 10px;">SGST (${gstRate / 2}%)</div>
+          <div style="font-weight: 800; color: #0F172A; margin-top: 2px;">₹${sgstVal.toLocaleString("en-IN")}</div>
+        </div>
+        <div style="background: #F0FDF4; padding: 6px; border-radius: 8px;">
+          <div style="color: #15803D; font-size: 10px; font-weight: 800;">Total GST (${gstRate}%)</div>
+          <div style="font-weight: 900; color: #15803D; margin-top: 2px;">₹${gstVal.toLocaleString("en-IN")}</div>
+        </div>
+      </div>
     </div>
 
     <div class="footer">
@@ -1792,8 +1835,8 @@ export function downloadGuestFolioPDF(data = {}, hotel = {}) {
   const originalBookingTotal = isLate && rawBookingTotal > lateFee ? rawBookingTotal - lateFee : rawBookingTotal;
 
   let defaultGstRate = Number(booking.gstRate);
-  if (isNaN(defaultGstRate) || defaultGstRate === undefined || defaultGstRate === null) {
-    defaultGstRate = originalBookingTotal > 7500 ? 18 : (originalBookingTotal > 0 ? 12 : 0);
+  if (isNaN(defaultGstRate) || defaultGstRate === undefined || defaultGstRate === null || defaultGstRate === 0) {
+    defaultGstRate = 18;
   }
 
   let taxableVal = Number(booking.taxableAmount);
@@ -1805,24 +1848,29 @@ export function downloadGuestFolioPDF(data = {}, hotel = {}) {
   }
 
   if (isNaN(taxableVal) || taxableVal === undefined || taxableVal === null || taxableVal === 0) {
-    if (defaultGstRate > 0) {
+    const basePerNight = Number(booking.rate) || Number(booking.pricePerNight) || Number(booking.basePrice) || Number(booking.room?.pricePerNight) || Number(booking.roomType?.basePrice);
+    if (basePerNight > 0) {
+      taxableVal = basePerNight * nights;
+    } else if (booking.taxInclusive) {
       taxableVal = Math.round(originalBookingTotal / (1 + defaultGstRate / 100));
-      totalGst = originalBookingTotal - taxableVal;
     } else {
       taxableVal = originalBookingTotal;
-      totalGst = 0;
     }
   }
 
-  if (isNaN(totalGst) || totalGst === undefined || totalGst === null) {
-    totalGst = Math.max(0, originalBookingTotal - taxableVal);
+  if (isNaN(totalGst) || totalGst === undefined || totalGst === null || totalGst === 0) {
+    if (booking.gstAmount !== undefined && booking.gstAmount !== null && Number(booking.gstAmount) > 0) {
+      totalGst = Number(booking.gstAmount);
+    } else {
+      totalGst = Math.round((taxableVal * defaultGstRate) / 100);
+    }
   }
 
-  const cgstVal = Number(booking.cgstAmount) ?? Math.round(totalGst / 2);
-  const sgstVal = Number(booking.sgstAmount) ?? Math.max(0, totalGst - cgstVal);
+  const cgstVal = Number(booking.cgstAmount) || (roomBreakdowns.length > 0 ? roomBreakdowns.reduce((s, r) => s + (Number(r.cgstAmount) || 0), 0) : Math.round(totalGst / 2));
+  const sgstVal = Number(booking.sgstAmount) || (roomBreakdowns.length > 0 ? roomBreakdowns.reduce((s, r) => s + (Number(r.sgstAmount) || 0), 0) : Math.max(0, totalGst - cgstVal));
   const baseRatePerNight = Math.round(taxableVal / nights) || Number(booking.pricePerNight) || Math.round(originalBookingTotal / nights);
 
-  const grandTotalAmount = Number(booking.grandTotal) || (taxableVal + totalGst + lateFee + posTotal) || rawBookingTotal;
+  const grandTotalAmount = Number(booking.grandTotal) || (taxableVal + totalGst + lateFee + posTotal);
   const paidAmount = Number(booking.paidAmount) !== undefined && Number(booking.paidAmount) !== null && !isNaN(Number(booking.paidAmount))
     ? Number(booking.paidAmount)
     : (paymentHistory.length > 0 ? paymentHistory.reduce((s, p) => s + (Number(p.amount) || 0), 0) : grandTotalAmount);
@@ -2002,22 +2050,25 @@ export function downloadGuestFolioPDF(data = {}, hotel = {}) {
         <tbody>
           ${roomsDetail && roomsDetail.length > 0 ? roomsDetail.map((rm, idx) => {
     const rmNights = Number(rm.numberOfNights) || nights || 1;
-    const rmPrice = Number(rm.pricePerNight) || baseRatePerNight;
-    const rmTotal = Number(rm.roomTotal) || (rmPrice * rmNights);
-    const rmTaxable = Math.round(rmTotal / (1 + defaultGstRate / 100));
-    const rmGst = rmTotal - rmTaxable;
+    const rmGstRate = Number(rm.gstRate) || defaultGstRate;
+    const rmPrice = Number(rm.pricePerNight) || Number(rm.basePrice) || baseRatePerNight;
+    const rmTaxable = Number(rm.taxableAmount) || (rmPrice * rmNights);
+    const rmGst = Number(rm.gstAmount) !== undefined && !isNaN(Number(rm.gstAmount)) && Number(rm.gstAmount) > 0 ? Number(rm.gstAmount) : Math.round((rmTaxable * rmGstRate) / 100);
+    const rmTotal = Number(rm.roomTotal) || Number(rm.finalAmount) || (rmTaxable + rmGst);
+    const rmCgst = Math.round(rmGst / 2);
+    const rmSgst = rmGst - rmCgst;
     return `
               <tr style="border-bottom: 1px solid #E2E8F0; background: #FFFFFF;">
                 <td style="padding: 9px 8px; font-size: 11px; text-align: center; font-weight: 700; color: #64748B;">${idx + 1}</td>
                 <td style="padding: 9px 10px; font-size: 11px;">
                   <div style="font-weight: 900; color: #0F172A;">Room #${rm.roomNumber} &bull; ${rm.roomType || roomTypeNameDisplay}</div>
-                  <div style="font-size: 10px; color: #64748B; margin-top: 2px;">CGST @ ${defaultGstRate / 2}% (₹${Math.round(rmGst / 2).toLocaleString("en-IN")}) + SGST @ ${defaultGstRate / 2}% (₹${(rmGst - Math.round(rmGst / 2)).toLocaleString("en-IN")})</div>
+                  <div style="font-size: 10px; color: #64748B; margin-top: 2px;">CGST @ ${rmGstRate / 2}% (₹${rmCgst.toLocaleString("en-IN")}) + SGST @ ${rmGstRate / 2}% (₹${rmSgst.toLocaleString("en-IN")})</div>
                 </td>
                 <td style="padding: 9px 6px; font-size: 11px; text-align: center; font-family: monospace; color: #475569;">996311</td>
                 <td style="padding: 9px 6px; font-size: 11px; text-align: center; font-weight: 700; color: #0F172A;">${rmNights} Night${rmNights > 1 ? "s" : ""}</td>
                 <td style="padding: 9px 8px; font-size: 11px; text-align: right; color: #334155;">₹${rmPrice.toLocaleString("en-IN")}</td>
                 <td style="padding: 9px 8px; font-size: 11px; text-align: right; font-weight: 700; color: #0F172A;">₹${rmTaxable.toLocaleString("en-IN")}</td>
-                <td style="padding: 9px 6px; font-size: 11px; text-align: center;"><span style="display:inline-block; padding:2px 6px; border-radius:4px; font-size:9.5px; font-weight:800; background: transparent; color:#0F766E;">${defaultGstRate}%</span></td>
+                <td style="padding: 9px 6px; font-size: 11px; text-align: center;"><span style="display:inline-block; padding:2px 6px; border-radius:4px; font-size:9.5px; font-weight:800; background: transparent; color:#0F766E;">${rmGstRate}%</span></td>
                 <td style="padding: 9px 8px; font-size: 11px; text-align: right; color: #475569;">₹${rmGst.toLocaleString("en-IN")}</td>
                 <td style="padding: 9px 10px; font-size: 11.5px; text-align: right; font-weight: 900; color: #059669;">₹${rmTotal.toLocaleString("en-IN")}</td>
               </tr>

@@ -118,10 +118,17 @@ export default function AvailableRoomsPage({
       const isLive = b.status === "CHECKED_IN" || b.status === "OCCUPIED";
       if (!isLive) return false;
 
-      const matchPrimary = String(b.room?._id || b.room || "") === rId || String(b.roomNumber || "") === rNum;
-      const matchRoomsArr = Array.isArray(b.rooms) && b.rooms.some((id) => String(id?._id || id) === rId);
-      const matchRoomNums = Array.isArray(b.roomNumbers) && b.roomNumbers.some((num) => String(num) === rNum);
-      return matchPrimary || matchRoomsArr || matchRoomNums;
+      const bRoomId = String(b.room?._id || b.room || "");
+      const bRtId = String(b.roomType?._id || b.roomType || "");
+      const rRtId = String(room?.roomType?._id || room?.roomType || "");
+
+      if (bRoomId && rId && bRoomId === rId) return true;
+      if (Array.isArray(b.rooms) && b.rooms.some((id) => String(id?._id || id) === rId)) return true;
+
+      if (!bRoomId && String(b.roomNumber || "") === rNum && (!bRtId || !rRtId || bRtId === rRtId)) return true;
+      if (!bRoomId && Array.isArray(b.roomNumbers) && b.roomNumbers.some((num) => String(num) === rNum && (!bRtId || !rRtId || bRtId === rRtId))) return true;
+
+      return false;
     });
 
     if (activeBooking) {
@@ -483,10 +490,17 @@ export default function AvailableRoomsPage({
       const isLive = b.status === "CHECKED_IN" || b.status === "IN-HOUSE" || b.status === "OCCUPIED";
       if (!isLive) return false;
 
-      const matchPrimary = String(b.room?._id || b.room || "") === rId || String(b.roomNumber || "") === rNum;
-      const matchRoomsArr = Array.isArray(b.rooms) && b.rooms.some((id) => String(id?._id || id) === rId);
-      const matchRoomNums = Array.isArray(b.roomNumbers) && b.roomNumbers.some((num) => String(num) === rNum);
-      return matchPrimary || matchRoomsArr || matchRoomNums;
+      const bRoomId = String(b.room?._id || b.room || "");
+      const bRtId = String(b.roomType?._id || b.roomType || "");
+      const rRtId = String(room?.roomType?._id || room?.roomType || "");
+
+      if (bRoomId && rId && bRoomId === rId) return true;
+      if (Array.isArray(b.rooms) && b.rooms.some((id) => String(id?._id || id) === rId)) return true;
+
+      if (!bRoomId && String(b.roomNumber || "") === rNum && (!bRtId || !rRtId || bRtId === rRtId)) return true;
+      if (!bRoomId && Array.isArray(b.roomNumbers) && b.roomNumbers.some((num) => String(num) === rNum && (!bRtId || !rRtId || bRtId === rRtId))) return true;
+
+      return false;
     });
 
     let overstay = null;

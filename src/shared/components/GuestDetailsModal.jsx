@@ -145,11 +145,28 @@ export default function GuestDetailsModal({
   const roomsDetail = details?.roomsDetail || [];
   const paymentDetails = details?.paymentDetails || null;
   const paymentHistory = details?.paymentHistory || [];
-  const timeline = details?.timeline || [];
-  const accompanyingGuests = activeBooking?.accompanyingGuests || guest?.accompanyingGuests || [];
+  const accompanyingGuests = (
+    (activeBooking?.accompanyingGuests && activeBooking.accompanyingGuests.length > 0)
+      ? activeBooking.accompanyingGuests
+      : (activeBooking?.members && activeBooking.members.length > 0)
+        ? activeBooking.members
+        : (guest?.accompanyingGuests && guest.accompanyingGuests.length > 0)
+          ? guest.accompanyingGuests
+          : (guest?.members && guest.members.length > 0)
+            ? guest.members
+            : (guestData?.accompanyingGuests && guestData.accompanyingGuests.length > 0)
+              ? guestData.accompanyingGuests
+              : (guestData?.members && guestData.members.length > 0)
+                ? guestData.members
+                : (guestData?.booking?.accompanyingGuests && guestData.booking.accompanyingGuests.length > 0)
+                  ? guestData.booking.accompanyingGuests
+                  : (guestData?.booking?.members && guestData.booking.members.length > 0)
+                    ? guestData.booking.members
+                    : []
+  );
 
   const bookingStatus = activeBooking?.status || (guest.status === "IN-HOUSE" ? "CHECKED_IN" : guest.status || "REGISTERED");
-  
+
   const rawDue = paymentDetails?.dueAmount !== undefined ? paymentDetails.dueAmount : (activeBooking?.dueAmount !== undefined ? activeBooking.dueAmount : (guest?.dueAmount !== undefined ? guest.dueAmount : guest?.balanceAmount));
   const rawPaid = paymentDetails?.paidAmount !== undefined ? paymentDetails.paidAmount : (activeBooking?.paidAmount !== undefined ? activeBooking.paidAmount : (guest?.paidAmount !== undefined ? guest.paidAmount : guest?.advanceAmount || 0));
   const rawTotal = paymentDetails?.totalAmount !== undefined ? paymentDetails.totalAmount : (activeBooking?.totalAmount !== undefined ? activeBooking.totalAmount : (guest?.totalAmount || 0));
@@ -165,7 +182,7 @@ export default function GuestDetailsModal({
       guestPayStatus = "PENDING";
     }
   }
-
+  console.log(guest, "gest---------------")
   return (
     <>
       <Dialog
@@ -231,21 +248,20 @@ export default function GuestDetailsModal({
                       guestPayStatus === "PAID"
                         ? "rgba(16, 185, 129, 0.15)"
                         : guestPayStatus === "PARTIAL"
-                        ? "rgba(245, 158, 11, 0.15)"
-                        : "rgba(239, 68, 68, 0.15)",
+                          ? "rgba(245, 158, 11, 0.15)"
+                          : "rgba(239, 68, 68, 0.15)",
                     color:
                       guestPayStatus === "PAID"
                         ? "#10B981"
                         : guestPayStatus === "PARTIAL"
-                        ? "#F59E0B"
-                        : "#EF4444",
-                    border: `1px solid ${
-                      guestPayStatus === "PAID"
+                          ? "#F59E0B"
+                          : "#EF4444",
+                    border: `1px solid ${guestPayStatus === "PAID"
                         ? "rgba(16, 185, 129, 0.3)"
                         : guestPayStatus === "PARTIAL"
-                        ? "rgba(245, 158, 11, 0.3)"
-                        : "rgba(239, 68, 68, 0.3)"
-                    }`,
+                          ? "rgba(245, 158, 11, 0.3)"
+                          : "rgba(239, 68, 68, 0.3)"
+                      }`,
                   }}
                 />
               </Box>
@@ -347,10 +363,31 @@ export default function GuestDetailsModal({
                       </Grid>
 
                       <Grid size={{ xs: 12, sm: 4 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Address / City</Typography>
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Nationality</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                          {guest.nationality || "Indian"}
+                        </Typography>
+                      </Grid>
+
+                      <Grid size={{ xs: 12, sm: 4 }}>
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Residential Address</Typography>
                         <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 0.5 }}>
                           <LocationOn sx={{ fontSize: 14, color: themeConfig.primary }} />
-                          {guest.address?.city || guest.city || guest.address?.fullAddress || "N/A"}
+                          {guest.address || guest.address?.fullAddress || "N/A"}
+                        </Typography>
+                      </Grid>
+
+                      <Grid size={{ xs: 12, sm: 4 }}>
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>City</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                          {guest.city || guest.address?.city || "N/A"}
+                        </Typography>
+                      </Grid>
+
+                      <Grid size={{ xs: 12, sm: 4 }}>
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>State</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                          {guest.state || guest.address?.state || "N/A"}
                         </Typography>
                       </Grid>
                     </Grid>
@@ -681,9 +718,16 @@ export default function GuestDetailsModal({
                               }}
                             >
                               <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                                <Typography variant="subtitle1" sx={{ fontWeight: 900, color: themeConfig.primary }}>
-                                  Room #{rm.roomNumber}
-                                </Typography>
+                                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                  <Typography variant="subtitle1" sx={{ fontWeight: 900, color: themeConfig.primary }}>
+                                    Room #{rm.roomNumber}
+                                  </Typography>
+                                  <Chip
+                                    label={`Floor ${rm.floor !== undefined && rm.floor !== null ? rm.floor : (parseInt(rm.roomNumber, 10) >= 100 ? Math.floor(parseInt(rm.roomNumber, 10) / 100) : 1)}`}
+                                    size="small"
+                                    sx={{ bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, fontWeight: 800, fontSize: "0.7rem", height: 22 }}
+                                  />
+                                </Box>
                                 <Chip label={rm.status || "OCCUPIED"} size="small" sx={{ fontWeight: 800, fontSize: "0.7rem" }} />
                               </Box>
 
@@ -708,10 +752,17 @@ export default function GuestDetailsModal({
                         ))}
                       </Grid>
                     ) : (
-                      <Box sx={{ p: 2, textAlign: "center", bgcolor: "#F8FAFC", borderRadius: "10px" }}>
+                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
                         <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
                           Room Assigned: {guest.roomAssigned || guest.roomNumber || "Standard Room"}
                         </Typography>
+                        {(guest.floor || guest.roomNumber) && (
+                          <Chip
+                            label={`Floor ${guest.floor !== undefined && guest.floor !== null ? guest.floor : (parseInt(guest.roomNumber || guest.roomAssigned, 10) >= 100 ? Math.floor(parseInt(guest.roomNumber || guest.roomAssigned, 10) / 100) : 1)}`}
+                            size="small"
+                            sx={{ bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, fontWeight: 800, fontSize: "0.7rem", height: 22 }}
+                          />
+                        )}
                       </Box>
                     )}
                   </Paper>
@@ -914,7 +965,7 @@ export default function GuestDetailsModal({
                     activeBooking,
                     paymentDetails,
                     paymentHistory,
-                    timeline,
+                    timeline: details?.timeline || [],
                     roomsDetail,
                     accompanyingGuests,
                     charges: activeBooking?.charges || activeBooking?.posCharges || [],

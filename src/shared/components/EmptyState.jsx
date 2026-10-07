@@ -1,5 +1,6 @@
 "use client";
 
+import React, { isValidElement } from "react";
 import { Box, Typography, Button } from "@mui/material";
 import { InboxOutlined } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
@@ -49,7 +50,13 @@ export default function EmptyState({
             : `0 6px 16px -2px ${themeConfig.primaryGlow}, inset 0 1px 1px #FFFFFF`,
         }}
       >
-        <Icon sx={{ fontSize: 28 }} />
+        {isValidElement(Icon) ? (
+          Icon
+        ) : typeof Icon === "function" || typeof Icon === "object" ? (
+          <Icon sx={{ fontSize: 28 }} />
+        ) : (
+          <InboxOutlined sx={{ fontSize: 28 }} />
+        )}
       </Box>
 
       <Typography variant="subtitle1" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.5 }}>

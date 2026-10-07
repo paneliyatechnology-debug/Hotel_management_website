@@ -85,8 +85,7 @@ import { getAmenityIcon } from "@/shared/utils/amenityUtils";
 import { apiRequest, API_ENDPOINTS } from "@/config/api";
 
 const CHECKIN_STEPS = [
-  "Primary Guest",
-  "Accompanying Guests",
+  "Guest Profile & ID",
   "Stay Schedule",
   "Billing & Settlement",
   "Review & Check-In",
@@ -829,7 +828,7 @@ export default function CheckInWizardPage({
       ...prev,
       checkInDate: inDateVal,
       checkOutDate: outDateStr,
-      checkOutTime: "12:00",
+      checkOutTime: prev.checkOutTime || hotelSettings?.checkOutTime || "12:00",
       numberOfNights: n,
       discountAmount: disc,
       total: netTot,
@@ -865,7 +864,7 @@ export default function CheckInWizardPage({
       ...prev,
       numberOfNights: n,
       checkOutDate: outDateStr,
-      checkOutTime: "12:00",
+      checkOutTime: prev.checkOutTime || hotelSettings?.checkOutTime || "12:00",
       discountAmount: disc,
       total: netTot,
       paid: netTot,
@@ -891,7 +890,7 @@ export default function CheckInWizardPage({
     setCheckInData((prev) => ({
       ...prev,
       checkOutDate: outDateVal,
-      checkOutTime: "12:00",
+      checkOutTime: prev.checkOutTime || hotelSettings?.checkOutTime || "12:00",
       numberOfNights: n,
       discountAmount: disc,
       total: netTot,
@@ -1044,6 +1043,8 @@ export default function CheckInWizardPage({
     }));
   };
 
+
+
   // Step Validation Helpers & Error Alerts (Toast Notification System)
   const showErrorAlert = (msg, severity = "warning") => {
     setStepError(msg);
@@ -1053,7 +1054,7 @@ export default function CheckInWizardPage({
   const handleNext = () => {
     setStepError("");
 
-    // Step 1 (Index 0): Primary Guest Validation
+    // Step 1 (Index 0): Primary Guest & Member Photos Validation
     if (activeStep === 0) {
       if (!checkInData.fullName?.trim()) {
         showErrorAlert("⚠️ Name Required: Please enter the Primary Guest's Full Name.");
@@ -1064,48 +1065,19 @@ export default function CheckInWizardPage({
         return;
       }
 
-      // Mandatory ID Proof Upload Validation
+      // Mandatory ID Proof Upload Validation for Primary Guest
       if (!checkInData.frontImage) {
-        showErrorAlert("⚠️ ID Upload Required: Primary Guest ID photo (Front) is required before proceeding to Step 2.");
+        showErrorAlert("⚠️ ID Upload Required: Primary Guest ID photo (Front) is required before proceeding.");
         if (typeof document !== "undefined") {
           const el = document.getElementById("main-guest-id-section");
           if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
         }
         return;
       }
-
-      // Aadhaar 12-Digit Validation if Aadhaar is chosen
-      if (checkInData.govtIdType === "AADHAAR") {
-        const aadhaarValidation = validateAadhaar(checkInData.govtIdNumber);
-        if (!aadhaarValidation.isValid) {
-          showErrorAlert(`⚠️ Primary Guest Aadhaar Error: Please enter a valid 12-digit Aadhaar Number (${aadhaarValidation.message}).`);
-          return;
-        }
-      }
     }
 
-    // Step 2 (Index 1): Members / Accompanying Guests Validation
+    // Step 2 (Index 1): Stay & Room Allocation Validation
     if (activeStep === 1) {
-      if (totalRoomCapacity > 0 && totalPartySize > totalRoomCapacity) {
-        showErrorAlert(`⚠️ Guest count (${totalPartySize}) exceeds the maximum capacity of selected rooms (${totalRoomCapacity}). Please remove ${totalPartySize - totalRoomCapacity} member(s) or select additional rooms.`);
-        return;
-      }
-
-      // Validate each added member (Front ID Photo)
-      if (checkInData.accompanyingGuests && checkInData.accompanyingGuests.length > 0) {
-        for (let i = 0; i < checkInData.accompanyingGuests.length; i++) {
-          const m = checkInData.accompanyingGuests[i];
-          const mLabel = m.name?.trim() || `Member #${i + 1}`;
-          if (!m.frontImage) {
-            showErrorAlert(`⚠️ Front ID Required: Please upload Front ID photo for Member #${i + 1} (${mLabel}).`);
-            return;
-          }
-        }
-      }
-    }
-
-    // Step 3 (Index 2): Stay & Room Allocation Validation
-    if (activeStep === 2) {
       if (!checkInData.roomId && (!checkInData.roomIds || checkInData.roomIds.length === 0)) {
         showErrorAlert("⚠️ Room Required: Please assign at least one room before continuing.");
         return;
@@ -1124,8 +1096,8 @@ export default function CheckInWizardPage({
       }
     }
 
-    // Step 4 (Index 3): Billing & Settlement (100% Advance Payment Requirement)
-    if (activeStep === 3) {
+    // Step 3 (Index 2): Billing & Settlement (100% Advance Payment Requirement)
+    if (activeStep === 2) {
       const requiredAdvance = calculatedGrandTotal;
       const advancePaid = Number(checkInData.paid ?? calculatedGrandTotal);
       if (isNaN(advancePaid) || advancePaid < requiredAdvance) {
@@ -1244,14 +1216,13 @@ export default function CheckInWizardPage({
               />
             </Box>
 
-            {/* 5 Step Nodes (Equally Spaced with zIndex: 1) */}
+            {/* 4 Step Nodes (Equally Spaced with zIndex: 1) */}
             {CHECKIN_STEPS.map((label, index) => {
               const isCompleted = activeStep > index;
               const isCurrent = activeStep === index;
 
               const stepIcons = [
                 <Person key="p" sx={{ fontSize: 20 }} />,
-                <Group key="g" sx={{ fontSize: 20 }} />,
                 <AccessTime key="t" sx={{ fontSize: 20 }} />,
                 <CreditCard key="c" sx={{ fontSize: 20 }} />,
                 <VerifiedUser key="v" sx={{ fontSize: 20 }} />,
@@ -1349,42 +1320,42 @@ export default function CheckInWizardPage({
         </Box>
 
         {/* ========================================================================= */}
-        {/* STEP 1 (Index 0): PRIMARY GUEST PROFILE & ID VERIFICATION                 */}
+        {/* STEP 1 (Index 0): PRIMARY GUEST PROFILE, MEMBER PHOTOS & SIGNATURE        */}
         {/* ========================================================================= */}
         {activeStep === 0 && (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {/* GUEST #1 (PRIMARY GUEST BOX) */}
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+            {/* GUEST PROFILE CARD */}
             <Paper
               className="card-3d"
               sx={{
-                p: { xs: 1.5, sm: 2 },
+                p: { xs: 2, sm: 3 },
                 borderRadius: "16px",
                 bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
                 border: `1.5px solid ${themeConfig.border}`,
                 boxShadow: isDarkMode ? "none" : "0 6px 20px rgba(0,0,0,0.03)",
               }}
             >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 1.5 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 2 }}>
                 <Avatar sx={{ bgcolor: themeConfig.primary, color: "#FFFFFF", width: 34, height: 34, fontWeight: 900 }}>
                   1
                 </Avatar>
                 <div>
                   <Typography variant="subtitle1" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-                    Step 1 — Primary / Lead Guest Information
+                    Step 1 — Primary Guest & Check-In Details
                   </Typography>
                   <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                    Primary folio holder responsible for booking, check-in, and billing
+                    Primary guest information, room tariff rate, ID photos, accompanying member photos, and digital signature
                   </Typography>
                 </div>
               </Box>
 
-              <Grid container spacing={1.5}>
-                {/* Full Name */}
+              <Grid container spacing={2}>
+                {/* 1. Primary Guest Full Name */}
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     size="small"
-                    label="Primary Guest Full Name"
+                    label="Primary Guest Full Name *"
                     placeholder="e.g. Rahul Sharma"
                     value={checkInData.fullName || ""}
                     onChange={(e) => setCheckInData({ ...checkInData, fullName: e.target.value })}
@@ -1392,7 +1363,19 @@ export default function CheckInWizardPage({
                   />
                 </Grid>
 
-                {/* WhatsApp Mobile Number */}
+                {/* 2. Guest Name (Optional) */}
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Guest Name (Optional)"
+                    placeholder="e.g. Priya Sharma"
+                    value={checkInData.guestName || ""}
+                    onChange={(e) => setCheckInData({ ...checkInData, guestName: e.target.value })}
+                  />
+                </Grid>
+
+                {/* 3. WhatsApp Mobile Number */}
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
@@ -1425,7 +1408,7 @@ export default function CheckInWizardPage({
                   />
                 </Grid>
 
-                {/* Email Address */}
+                {/* 4. Email Address */}
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
@@ -1434,670 +1417,271 @@ export default function CheckInWizardPage({
                     placeholder="e.g. rahul.sharma@example.com"
                     value={checkInData.email || ""}
                     onChange={(e) => setCheckInData({ ...checkInData, email: e.target.value })}
-                    helperText="Booking confirmation & room details will be emailed here"
                   />
                 </Grid>
-
-                {/* Gender */}
-                <Grid size={{ xs: 6, sm: 3 }}>
-                  <TextField
-                    select
-                    fullWidth
-                    size="small"
-                    label="Gender"
-                    value={checkInData.gender || "Male"}
-                    onChange={(e) => setCheckInData({ ...checkInData, gender: e.target.value })}
-                  >
-                    <MenuItem value="Male">Male</MenuItem>
-                    <MenuItem value="Female">Female</MenuItem>
-                    <MenuItem value="Other">Other</MenuItem>
-                  </TextField>
-                </Grid>
-
-                {/* Nationality */}
-                <Grid size={{ xs: 6, sm: 3 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Nationality"
-                    placeholder="e.g. Indian"
-                    value={checkInData.nationality || "Indian"}
-                    onChange={(e) => setCheckInData({ ...checkInData, nationality: e.target.value })}
-                  />
-                </Grid>
-
-                {/* Address */}
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Residential Address"
-                    placeholder="e.g. 402, Crystal Heights, SG Highway"
-                    value={checkInData.address || ""}
-                    onChange={(e) => setCheckInData({ ...checkInData, address: e.target.value })}
-                  />
-                </Grid>
-
-                {/* City */}
-                <Grid size={{ xs: 6, sm: 3 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="City"
-                    placeholder="e.g. Ahmedabad"
-                    value={checkInData.city || ""}
-                    onChange={(e) => setCheckInData({ ...checkInData, city: e.target.value })}
-                  />
-                </Grid>
-
-                {/* State */}
-                <Grid size={{ xs: 6, sm: 3 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="State"
-                    placeholder="e.g. Gujarat"
-                    value={checkInData.state || ""}
-                    onChange={(e) => setCheckInData({ ...checkInData, state: e.target.value })}
-                  />
-                </Grid>
-
               </Grid>
 
-              {/* Main Guest ID Proof & Aadhaar Number */}
+              {/* MAIN GUEST FRONT & BACK ID PHOTO UPLOAD */}
               <Box
                 id="main-guest-id-section"
                 sx={{
-                  mt: 2,
-                  pt: 1.5,
+                  mt: 2.5,
+                  pt: 2,
                   p: stepError && !checkInData.frontImage ? 1.5 : 0,
                   borderRadius: "14px",
-                  borderTop: stepError && !checkInData.frontImage ? "none" : `1px solid ${themeConfig.border}`,
+                  borderTop: stepError && !checkInData.frontImage ? "none" : `1px dashed ${themeConfig.border}`,
                   border: stepError && !checkInData.frontImage ? "2px solid #EF4444" : undefined,
                   bgcolor: stepError && !checkInData.frontImage ? "rgba(239, 68, 68, 0.04)" : "transparent",
                   transition: "all 0.3s ease",
                 }}
               >
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.primaryDark, mb: 1, display: "flex", alignItems: "center", gap: 1 }}>
-                  <Shield sx={{ fontSize: 18, color: themeConfig.primary }} />
-                  Government ID Proof & KYC Verification
+                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                  <CloudUpload sx={{ fontSize: 18, color: themeConfig.primary }} />
+                  Primary Guest — ID Card Upload (Front & Back Photo)
                 </Typography>
 
                 <Grid container spacing={1.5}>
-                  <Grid size={{ xs: 12, sm: 5 }}>
-                    <TextField
-                      select
-                      fullWidth
-                      size="small"
-                      label="Govt ID Type"
-                      value={checkInData.govtIdType || "AADHAAR"}
-                      onChange={(e) => setCheckInData({ ...checkInData, govtIdType: e.target.value })}
-                    >
-                      {ID_PROOF_TYPES.map((t) => (
-                        <MenuItem key={t.value} value={t.value}>
-                          {t.label}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                  </Grid>
-
-                  <Grid size={{ xs: 12, sm: 7 }}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Govt ID Number / Document"
-                      placeholder={checkInData.govtIdType === "AADHAAR" ? "e.g. 1234 5678 9012" : "e.g. DL-0420110012345"}
-                      value={checkInData.govtIdNumber || ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        const formatted = checkInData.govtIdType === "AADHAAR" ? formatAadhaarNumber(val) : val;
-                        setCheckInData({ ...checkInData, govtIdNumber: formatted });
+                  {/* Front ID Upload Box */}
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <Box
+                      sx={{
+                        p: 1.5,
+                        borderRadius: "14px",
+                        border: `1.5px dashed ${checkInData.frontImage ? "#10B981" : themeConfig.border}`,
+                        bgcolor: checkInData.frontImage ? "rgba(16, 185, 129, 0.04)" : "#F8FAFC",
+                        textAlign: "center",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: 1.5,
                       }}
-                      helperText={
-                        checkInData.govtIdType === "AADHAAR" ? (
-                          <Typography
-                            component="span"
-                            variant="caption"
-                            sx={{
-                              fontWeight: 800,
-                              color: validateAadhaar(checkInData.govtIdNumber).isValid ? "#10B981" : "#F59E0B",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 0.5,
-                              mt: 0.3,
-                            }}
-                          >
-                            {validateAadhaar(checkInData.govtIdNumber).isValid ? "Valid 12-Digit Aadhaar Number" : validateAadhaar(checkInData.govtIdNumber).message}
-                          </Typography>
-                        ) : "Official document serial number"
-                      }
-                    />
-                  </Grid>
-                </Grid>
-
-                {/* DEDICATED FRONT & BACK AADHAAR CARD UPLOAD BOXES FOR GUEST #1 */}
-                <Box sx={{ mt: 1.5, pt: 1.5, borderTop: `1px dashed ${themeConfig.border}` }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 1, display: "flex", alignItems: "center", gap: 1 }}>
-                    <CloudUpload sx={{ fontSize: 18, color: themeConfig.primary }} />
-                    Primary Guest — ID Card Upload (Front & Back Photo)
-                  </Typography>
-
-                  <Grid container spacing={1.5}>
-                    {/* Front Aadhaar Upload Box */}
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <Box
-                        sx={{
-                          p: 1.5,
-                          borderRadius: "14px",
-                          border: `1.5px dashed ${checkInData.frontImage ? "#10B981" : themeConfig.border}`,
-                          bgcolor: checkInData.frontImage ? "rgba(16, 185, 129, 0.04)" : "#F8FAFC",
-                          textAlign: "center",
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          gap: 1.5,
-                        }}
-                      >
-                        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                          📄 Front ID / Aadhaar Photo *
-                        </Typography>
-
-                        {checkInData.frontImage ? (
-                          <Box sx={{ position: "relative", width: "100%", height: 140, borderRadius: "10px", overflow: "hidden", border: "1px solid #10B981" }}>
-                            <Box component="img" src={checkInData.frontImage} alt="Primary Guest Front ID" sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                            <IconButton
-                              size="small"
-                              onClick={() => setCheckInData((prev) => ({ ...prev, frontImage: "" }))}
-                              sx={{ position: "absolute", top: 6, right: 6, bgcolor: "rgba(239,68,68,0.9)", color: "#FFF", "&:hover": { bgcolor: "#DC2626" } }}
-                            >
-                              <Close sx={{ fontSize: 16 }} />
-                            </IconButton>
-                            <Chip label="Front Photo Uploaded" size="small" sx={{ position: "absolute", bottom: 6, left: 6, bgcolor: "#10B981", color: "#FFF", fontWeight: 800, fontSize: "0.68rem" }} />
-                          </Box>
-                        ) : (
-                          <Button
-                            variant="contained"
-                            component="label"
-                            startIcon={<CloudUpload />}
-                            size="small"
-                            sx={{ borderRadius: "10px", fontWeight: 800, bgcolor: themeConfig.primary }}
-                          >
-                            Upload Front ID
-                            <input type="file" hidden accept="image/*" onChange={(e) => handleMainGuestImageUpload(e, "front")} />
-                          </Button>
-                        )}
-                      </Box>
-                    </Grid>
-
-                    {/* Back Aadhaar Upload Box */}
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <Box
-                        sx={{
-                          p: 2,
-                          borderRadius: "14px",
-                          border: `1.5px dashed ${checkInData.backImage ? "#10B981" : themeConfig.border}`,
-                          bgcolor: checkInData.backImage ? "rgba(16, 185, 129, 0.04)" : "#F8FAFC",
-                          textAlign: "center",
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          gap: 1.5,
-                        }}
-                      >
-                        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                          📄 Back ID / Aadhaar Photo (Optional)
-                        </Typography>
-
-                        {checkInData.backImage ? (
-                          <Box sx={{ position: "relative", width: "100%", height: 140, borderRadius: "10px", overflow: "hidden", border: "1px solid #10B981" }}>
-                            <Box component="img" src={checkInData.backImage} alt="Primary Guest Back ID" sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                            <IconButton
-                              size="small"
-                              onClick={() => setCheckInData((prev) => ({ ...prev, backImage: "" }))}
-                              sx={{ position: "absolute", top: 6, right: 6, bgcolor: "rgba(239,68,68,0.9)", color: "#FFF", "&:hover": { bgcolor: "#DC2626" } }}
-                            >
-                              <Close sx={{ fontSize: 16 }} />
-                            </IconButton>
-                            <Chip label="Back Photo Uploaded" size="small" sx={{ position: "absolute", bottom: 6, left: 6, bgcolor: "#10B981", color: "#FFF", fontWeight: 800, fontSize: "0.68rem" }} />
-                          </Box>
-                        ) : (
-                          <Button
-                            variant="outlined"
-                            component="label"
-                            startIcon={<CloudUpload />}
-                            size="small"
-                            sx={{ borderRadius: "10px", fontWeight: 800, borderColor: themeConfig.border }}
-                          >
-                            Upload Back ID
-                            <input type="file" hidden accept="image/*" onChange={(e) => handleMainGuestImageUpload(e, "back")} />
-                          </Button>
-                        )}
-                      </Box>
-                    </Grid>
-                  </Grid>
-                </Box>
-              </Box>
-            </Paper>
-
-            {/* Next Step Informational Card */}
-            <Paper
-              sx={{
-                p: 2,
-                borderRadius: "16px",
-                bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F8FAFC",
-                border: `1px solid ${themeConfig.border}`,
-                display: "flex",
-                alignItems: "center",
-                gap: 1.5,
-              }}
-            >
-              <Avatar sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", color: "#10B981", width: 36, height: 36 }}>
-                <Group sx={{ fontSize: 20 }} />
-              </Avatar>
-              <div>
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                  Accompanying Family & Members (Step 2)
-                </Typography>
-                <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                  {totalRoomCapacity > 0
-                    ? `Selected room capacity supports up to ${maxAdditionalMembers} additional accompanying member(s). You can add and configure them in Step 2.`
-                    : "You can add accompanying members and family guests in the next step."}
-                </Typography>
-              </div>
-            </Paper>
-          </Box>
-        )}
-
-        {/* ========================================================================= */}
-        {/* STEP 2 (Index 1): MEMBERS / ACCOMPANYING GUESTS                           */}
-        {/* ========================================================================= */}
-        {activeStep === 1 && (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            {/* CAPACITY INFORMATION COMMAND CARD */}
-            <Paper
-              className="card-3d"
-              sx={{
-                p: 2.5,
-                borderRadius: "20px",
-                background: isDarkMode
-                  ? "linear-gradient(135deg, #064E3B 0%, #0E312C 100%)"
-                  : "linear-gradient(135deg, #ECFDF5 0%, #F0FDF4 100%)",
-                border: `1.5px solid ${isOverCapacity ? "#EF4444" : (themeConfig.primary || "#10B981")}`,
-                boxShadow: "0 8px 24px rgba(16, 185, 129, 0.12)",
-              }}
-            >
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                  <Avatar sx={{ bgcolor: isOverCapacity ? "#EF4444" : "#10B981", color: "#FFFFFF", width: 44, height: 44, boxShadow: "0 4px 12px rgba(16, 185, 129, 0.4)" }}>
-                    <Group sx={{ fontSize: 24 }} />
-                  </Avatar>
-                  <div>
-                    <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, lineHeight: 1.2 }}>
-                      Members / Accompanying Guests
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block" }}>
-                      {totalRoomCapacity > 0 ? (
-                        <>
-                          Total Room Capacity: <strong>{totalRoomCapacity} Guests</strong> &bull; Primary Guest: <strong>1</strong> &bull; Maximum Additional Members: <strong>{maxAdditionalMembers}</strong>
-                        </>
-                      ) : (
-                        "Add details for additional family members or guests staying in the selected room(s)."
-                      )}
-                    </Typography>
-                  </div>
-                </Box>
-
-                {/* + Add Member Action Button */}
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                  <Button
-                    variant="contained"
-                    startIcon={<Add />}
-                    onClick={handleAddMember}
-                    disabled={totalRoomCapacity > 0 && currentMembersCount >= maxAdditionalMembers}
-                    sx={{
-                      borderRadius: "12px",
-                      fontWeight: 900,
-                      px: 2.5,
-                      py: 0.9,
-                      bgcolor: currentMembersCount >= maxAdditionalMembers && totalRoomCapacity > 0 ? "#94A3B8" : "#10B981",
-                      "&:hover": { bgcolor: "#059669" },
-                      boxShadow: currentMembersCount >= maxAdditionalMembers && totalRoomCapacity > 0 ? "none" : "0 4px 14px rgba(16, 185, 129, 0.4)",
-                    }}
-                  >
-                    + Add Member
-                  </Button>
-                </Box>
-              </Box>
-
-              {/* Dynamic Capacity Badges */}
-              <Box sx={{ display: "flex", gap: 1, mt: 2, flexWrap: { xs: "nowrap", sm: "wrap" }, overflowX: "auto", alignItems: "center", pb: 0.5, "&::-webkit-scrollbar": { height: 4 } }}>
-                <Chip
-                  size="small"
-                  label={`Total Room Capacity: ${totalRoomCapacity > 0 ? totalRoomCapacity : "Unset"} Guests`}
-                  sx={{ bgcolor: "#ECFDF5", color: "#047857", fontWeight: 800, border: "1px solid #A7F3D0" }}
-                />
-                <Chip
-                  size="small"
-                  label="Primary Guest: 1"
-                  sx={{ bgcolor: "#EFF6FF", color: "#1D4ED8", fontWeight: 800, border: "1px solid #BFDBFE" }}
-                />
-                <Chip
-                  size="small"
-                  label={`Maximum Additional Members: ${maxAdditionalMembers}`}
-                  sx={{ bgcolor: "#F5F3FF", color: "#6D28D9", fontWeight: 800, border: "1px solid #DDD6FE" }}
-                />
-                <Chip
-                  size="small"
-                  label={`Current Members: ${currentMembersCount} / ${maxAdditionalMembers}`}
-                  sx={{
-                    bgcolor: currentMembersCount >= maxAdditionalMembers && totalRoomCapacity > 0 ? "#FEF3C7" : "#F1F5F9",
-                    color: currentMembersCount >= maxAdditionalMembers && totalRoomCapacity > 0 ? "#B45309" : "#475569",
-                    fontWeight: 800,
-                  }}
-                />
-                {totalRoomCapacity > 0 && currentMembersCount >= maxAdditionalMembers && (
-                  <Chip
-                    size="small"
-                    label="Maximum guest capacity reached."
-                    sx={{ bgcolor: "#FEF2F2", color: "#DC2626", fontWeight: 800, border: "1px solid #FCA5A5" }}
-                  />
-                )}
-              </Box>
-
-              {/* Allocated Room(s) Badge & Switch Room Dropdown */}
-              <Box sx={{ mt: 2, pt: 1.5, borderTop: `1px dashed ${themeConfig.border}`, display: "flex", flexDirection: { xs: "column", sm: "row" }, alignItems: { xs: "stretch", sm: "center" }, justifyContent: "space-between", gap: 1.5 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-                  <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted }}>
-                    ALLOCATED ROOM(S):
-                  </Typography>
-                  {selectedRoomsList.map((r) => {
-                    const cap = getRoomMaxCapacity(r);
-                    const catName = getRoomCategoryName(r);
-                    const isActive = String(r._id) === String(activeRoomId);
-                    return (
-                      <Chip
-                        key={String(r._id || r.roomNumber)}
-                        clickable
-                        onClick={() => {
-                          setCheckInData((prev) => ({
-                            ...prev,
-                            activeRoomId: String(r._id),
-                          }));
-                        }}
-                        icon={<MeetingRoom sx={{ fontSize: "16px !important", color: isActive ? "#FFFFFF !important" : "inherit" }} />}
-                        label={`Room #${r.roomNumber} (${catName}) • Capacity: ${cap} Guest(s)${isActive ? " (Active)" : ""}`}
-                        sx={{
-                          fontWeight: 800,
-                          fontSize: "0.78rem",
-                          bgcolor: isActive ? themeConfig.primary : (isDarkMode ? "rgba(255,255,255,0.08)" : "#F1F5F9"),
-                          color: isActive ? "#FFFFFF" : themeConfig.textMain,
-                          borderRadius: "10px",
-                          border: `1.5px solid ${isActive ? themeConfig.primary : themeConfig.border}`,
-                          boxShadow: isActive ? `0 2px 8px ${themeConfig.primaryGlow}` : "none",
-                          cursor: "pointer",
-                          transition: "all 0.2s ease",
-                        }}
-                      />
-                    );
-                  })}
-                </Box>
-
-                {selectedRoomsList.length > 0 && (
-                  <TextField
-                    select
-                    size="small"
-                    label="Switch Active Room"
-                    value={activeRoomId || String(selectedRoomsList[0]?._id || "")}
-                    onChange={(e) => {
-                      const selId = String(e.target.value);
-                      setCheckInData((prev) => ({
-                        ...prev,
-                        activeRoomId: selId,
-                      }));
-                    }}
-                    sx={{
-                      minWidth: 240,
-                      "& .MuiOutlinedInput-root": { borderRadius: "12px", bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#FFFFFF" },
-                    }}
-                  >
-                    {selectedRoomsList.map((r) => {
-                      const cap = getRoomMaxCapacity(r);
-                      const catName = getRoomCategoryName(r);
-                      const isAct = String(r._id) === String(activeRoomId);
-                      return (
-                        <MenuItem key={String(r._id || r.roomNumber)} value={String(r._id)}>
-                          {isAct ? "✓ " : ""}Room #{r.roomNumber} ({catName}) — Capacity: {cap}
-                        </MenuItem>
-                      );
-                    })}
-                  </TextField>
-                )}
-              </Box>
-
-              {/* Over-Capacity Warning Banner (Requirement for Room Changes) */}
-              {isOverCapacity && (
-                <Alert severity="error" icon={<Warning />} sx={{ borderRadius: "14px", fontWeight: 800, mt: 2 }}>
-                  Selected rooms have capacity for only {totalRoomCapacity} guests. Please remove {totalPartySize - totalRoomCapacity} members or select additional rooms.
-                </Alert>
-              )}
-            </Paper>
-
-            {/* MEMBER CARDS LIST */}
-            {checkInData.accompanyingGuests && checkInData.accompanyingGuests.length > 0 ? (
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
-                {checkInData.accompanyingGuests.map((member, index) => (
-                  <Paper
-                    key={member.id}
-                    className="card-3d"
-                    sx={{
-                      p: 3,
-                      borderRadius: "20px",
-                      bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-                      border: `1.5px solid ${themeConfig.border}`,
-                      boxShadow: isDarkMode ? "none" : "0 6px 20px rgba(0,0,0,0.03)",
-                    }}
-                  >
-                    {/* Member Card Header */}
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2.5 }}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                        <Avatar sx={{ bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, width: 36, height: 36, fontWeight: 900 }}>
-                          {index + 1}
-                        </Avatar>
-                        <div>
-                          <Typography variant="subtitle1" sx={{ fontWeight: 900, color: themeConfig.textMain, lineHeight: 1.2 }}>
-                            Member {index + 1}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                            Accompanying Guest Profile & ID Proof
-                          </Typography>
-                        </div>
-                      </Box>
-
-                      <Button
-                        variant="outlined"
-                        color="error"
-                        size="small"
-                        startIcon={<Delete />}
-                        onClick={() => handleRemoveMember(member.id)}
-                        sx={{
-                          borderRadius: "10px",
-                          fontWeight: 800,
-                          fontSize: "0.78rem",
-                          borderColor: "rgba(239, 68, 68, 0.4)",
-                          color: "#DC2626",
-                          "&:hover": { bgcolor: "rgba(239, 68, 68, 0.1)", borderColor: "#DC2626" },
-                        }}
-                      >
-                        Remove Member
-                      </Button>
-                    </Box>
-
-                    {/* Member Details Form Fields: Member Full Name (Optional) */}
-                    <Box sx={{ mb: 2.5 }}>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        label="Member Full Name (Optional)"
-                        placeholder="Enter member full name (optional)"
-                        value={member.name || ""}
-                        onChange={(e) => handleUpdateMember(member.id, "name", e.target.value)}
-                        helperText="Optional: Enter member full name manually (or auto-fill from ID)"
-                      />
-                    </Box>
-
-                    {/* FRONT & BACK ID PHOTO UPLOAD BOXES FOR MEMBER */}
-                    <Box sx={{ mt: 2, pt: 2, borderTop: `1px dashed ${themeConfig.border}` }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
-                        <CloudUpload sx={{ fontSize: 18, color: themeConfig.primary }} />
-                        ID Photo Upload
+                    >
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                        📄 Front ID / Aadhaar Photo *
                       </Typography>
 
-                      <Grid container spacing={2}>
-                        {/* Front ID Upload Box (Required) */}
-                        <Grid size={{ xs: 12, sm: 6 }}>
-                          <Box
-                            sx={{
-                              p: 2,
-                              borderRadius: "14px",
-                              border: `1.5px dashed ${member.frontImage ? "#10B981" : themeConfig.border}`,
-                              bgcolor: member.frontImage ? "rgba(16, 185, 129, 0.04)" : "#F8FAFC",
-                              textAlign: "center",
-                              display: "flex",
-                              flexDirection: "column",
-                              alignItems: "center",
-                              gap: 1.5,
-                            }}
+                      {checkInData.frontImage ? (
+                        <Box sx={{ position: "relative", width: "100%", height: 140, borderRadius: "10px", overflow: "hidden", border: "1px solid #10B981" }}>
+                          <Box component="img" src={checkInData.frontImage} alt="Primary Guest Front ID" sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          <IconButton
+                            size="small"
+                            onClick={() => setCheckInData((prev) => ({ ...prev, frontImage: "" }))}
+                            sx={{ position: "absolute", top: 6, right: 6, bgcolor: "rgba(239,68,68,0.9)", color: "#FFF", "&:hover": { bgcolor: "#DC2626" } }}
                           >
-                            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                              📄 Front ID Photo *
-                            </Typography>
-
-                            {member.frontImage ? (
-                              <Box sx={{ position: "relative", width: "100%", height: 140, borderRadius: "10px", overflow: "hidden", border: "1px solid #10B981" }}>
-                                <Box component="img" src={member.frontImage} alt={`Member ${index + 1} Front ID`} sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleUpdateMember(member.id, "frontImage", "")}
-                                  sx={{ position: "absolute", top: 6, right: 6, bgcolor: "rgba(239,68,68,0.9)", color: "#FFF", "&:hover": { bgcolor: "#DC2626" } }}
-                                >
-                                  <Close sx={{ fontSize: 16 }} />
-                                </IconButton>
-                                <Chip label="Front Photo Uploaded" size="small" sx={{ position: "absolute", bottom: 6, left: 6, bgcolor: "#10B981", color: "#FFF", fontWeight: 800, fontSize: "0.68rem" }} />
-                              </Box>
-                            ) : (
-                              <Button
-                                variant="contained"
-                                component="label"
-                                startIcon={<CloudUpload />}
-                                size="small"
-                                sx={{ borderRadius: "10px", fontWeight: 800, bgcolor: themeConfig.primary }}
-                              >
-                                Upload Front ID
-                                <input type="file" hidden accept="image/*" onChange={(e) => handleMemberImageUpload(e, member.id, "front")} />
-                              </Button>
-                            )}
-                          </Box>
-                        </Grid>
-
-                        {/* Back ID Upload Box (Optional) */}
-                        <Grid size={{ xs: 12, sm: 6 }}>
-                          <Box
-                            sx={{
-                              p: 2,
-                              borderRadius: "14px",
-                              border: `1.5px dashed ${member.backImage ? "#10B981" : themeConfig.border}`,
-                              bgcolor: member.backImage ? "rgba(16, 185, 129, 0.04)" : "#F8FAFC",
-                              textAlign: "center",
-                              display: "flex",
-                              flexDirection: "column",
-                              alignItems: "center",
-                              gap: 1.5,
-                            }}
-                          >
-                            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                              📄 Back ID Photo (Optional)
-                            </Typography>
-
-                            {member.backImage ? (
-                              <Box sx={{ position: "relative", width: "100%", height: 140, borderRadius: "10px", overflow: "hidden", border: "1px solid #10B981" }}>
-                                <Box component="img" src={member.backImage} alt={`Member ${index + 1} Back ID`} sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleUpdateMember(member.id, "backImage", "")}
-                                  sx={{ position: "absolute", top: 6, right: 6, bgcolor: "rgba(239,68,68,0.9)", color: "#FFF", "&:hover": { bgcolor: "#DC2626" } }}
-                                >
-                                  <Close sx={{ fontSize: 16 }} />
-                                </IconButton>
-                                <Chip label="Back Photo Uploaded" size="small" sx={{ position: "absolute", bottom: 6, left: 6, bgcolor: "#10B981", color: "#FFF", fontWeight: 800, fontSize: "0.68rem" }} />
-                              </Box>
-                            ) : (
-                              <Button
-                                variant="outlined"
-                                component="label"
-                                startIcon={<CloudUpload />}
-                                size="small"
-                                sx={{ borderRadius: "10px", fontWeight: 800, borderColor: themeConfig.border }}
-                              >
-                                Upload Back ID
-                                <input type="file" hidden accept="image/*" onChange={(e) => handleMemberImageUpload(e, member.id, "back")} />
-                              </Button>
-                            )}
-                          </Box>
-                        </Grid>
-                      </Grid>
+                            <Close sx={{ fontSize: 16 }} />
+                          </IconButton>
+                          <Chip label="Front Photo Uploaded" size="small" sx={{ position: "absolute", bottom: 6, left: 6, bgcolor: "#10B981", color: "#FFF", fontWeight: 800, fontSize: "0.68rem" }} />
+                        </Box>
+                      ) : (
+                        <Button
+                          variant="contained"
+                          component="label"
+                          startIcon={<CloudUpload />}
+                          size="small"
+                          sx={{ borderRadius: "10px", fontWeight: 800, bgcolor: themeConfig.primary }}
+                        >
+                          Upload Front ID
+                          <input type="file" hidden accept="image/*" onChange={(e) => handleMainGuestImageUpload(e, "front")} />
+                        </Button>
+                      )}
                     </Box>
-                  </Paper>
-                ))}
+                  </Grid>
+
+                  {/* Back ID Upload Box */}
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <Box
+                      sx={{
+                        p: 1.5,
+                        borderRadius: "14px",
+                        border: `1.5px dashed ${checkInData.backImage ? "#10B981" : themeConfig.border}`,
+                        bgcolor: checkInData.backImage ? "rgba(16, 185, 129, 0.04)" : "#F8FAFC",
+                        textAlign: "center",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: 1.5,
+                      }}
+                    >
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                        📄 Back ID / Aadhaar Photo (Optional)
+                      </Typography>
+
+                      {checkInData.backImage ? (
+                        <Box sx={{ position: "relative", width: "100%", height: 140, borderRadius: "10px", overflow: "hidden", border: "1px solid #10B981" }}>
+                          <Box component="img" src={checkInData.backImage} alt="Primary Guest Back ID" sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          <IconButton
+                            size="small"
+                            onClick={() => setCheckInData((prev) => ({ ...prev, backImage: "" }))}
+                            sx={{ position: "absolute", top: 6, right: 6, bgcolor: "rgba(239,68,68,0.9)", color: "#FFF", "&:hover": { bgcolor: "#DC2626" } }}
+                          >
+                            <Close sx={{ fontSize: 16 }} />
+                          </IconButton>
+                          <Chip label="Back Photo Uploaded" size="small" sx={{ position: "absolute", bottom: 6, left: 6, bgcolor: "#10B981", color: "#FFF", fontWeight: 800, fontSize: "0.68rem" }} />
+                        </Box>
+                      ) : (
+                        <Button
+                          variant="outlined"
+                          component="label"
+                          startIcon={<CloudUpload />}
+                          size="small"
+                          sx={{ borderRadius: "10px", fontWeight: 800, borderColor: themeConfig.border }}
+                        >
+                          Upload Back ID
+                          <input type="file" hidden accept="image/*" onChange={(e) => handleMainGuestImageUpload(e, "back")} />
+                        </Button>
+                      )}
+                    </Box>
+                  </Grid>
+                </Grid>
               </Box>
-            ) : (
-              /* Empty State Banner when 0 members added */
-              <Paper
-                sx={{
-                  p: 4,
-                  borderRadius: "20px",
-                  textAlign: "center",
-                  bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
-                  border: `1.5px dashed ${themeConfig.border}`,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 1.5,
-                }}
-              >
-                <Avatar sx={{ bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, width: 56, height: 56 }}>
-                  <Group sx={{ fontSize: 32 }} />
-                </Avatar>
-                <Typography variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                  No Accompanying Members Added
+
+              {/* ACCOMPANYING MEMBER PHOTOS SECTION */}
+              <Box sx={{ mt: 3, pt: 2.5, borderTop: `1.5px dashed ${themeConfig.border}` }}>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexWrap: "wrap", gap: 1 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                    <Avatar sx={{ bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, width: 34, height: 34, fontWeight: 900 }}>
+                      <Group sx={{ fontSize: 20 }} />
+                    </Avatar>
+                    <div>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+                        Accompanying Member Photos
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
+                        Upload ID photos for additional accompanying guests
+                      </Typography>
+                    </div>
+                  </Box>
+
+                  <Button
+                    variant="outlined"
+                    startIcon={<Add />}
+                    onClick={handleAddMember}
+                    size="small"
+                    sx={{
+                      borderRadius: "10px",
+                      fontWeight: 800,
+                      borderColor: themeConfig.primary,
+                      color: themeConfig.primaryDark,
+                      "&:hover": { bgcolor: themeConfig.champagne },
+                    }}
+                  >
+                    + Add Member Photo
+                  </Button>
+                </Box>
+
+                {checkInData.accompanyingGuests && checkInData.accompanyingGuests.length > 0 ? (
+                  <Grid container spacing={2}>
+                    {checkInData.accompanyingGuests.map((member, index) => (
+                      <Grid key={member.id || index} size={{ xs: 12, sm: 6 }}>
+                        <Paper
+                          sx={{
+                            p: 2,
+                            borderRadius: "14px",
+                            bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F8FAFC",
+                            border: `1px solid ${themeConfig.border}`,
+                          }}
+                        >
+                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                              Member #{index + 1} ID Photos
+                            </Typography>
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleRemoveMember(member.id)}
+                            >
+                              <Delete sx={{ fontSize: 18 }} />
+                            </IconButton>
+                          </Box>
+
+                          <Grid container spacing={1}>
+                            {/* Front Photo */}
+                            <Grid size={{ xs: 6 }}>
+                              {member.frontImage ? (
+                                <Box sx={{ position: "relative", width: "100%", height: 100, borderRadius: "8px", overflow: "hidden", border: "1px solid #10B981" }}>
+                                  <Box component="img" src={member.frontImage} alt={`Member ${index + 1} Front`} sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleUpdateMember(member.id, "frontImage", "")}
+                                    sx={{ position: "absolute", top: 4, right: 4, bgcolor: "rgba(239,68,68,0.9)", color: "#FFF", p: 0.3 }}
+                                  >
+                                    <Close sx={{ fontSize: 14 }} />
+                                  </IconButton>
+                                </Box>
+                              ) : (
+                                <Button
+                                  variant="contained"
+                                  component="label"
+                                  startIcon={<CloudUpload />}
+                                  size="small"
+                                  fullWidth
+                                  sx={{ borderRadius: "8px", fontWeight: 700, fontSize: "0.75rem", bgcolor: themeConfig.primary, py: 1 }}
+                                >
+                                  Front ID
+                                  <input type="file" hidden accept="image/*" onChange={(e) => handleMemberImageUpload(e, member.id, "front")} />
+                                </Button>
+                              )}
+                            </Grid>
+
+                            {/* Back Photo */}
+                            <Grid size={{ xs: 6 }}>
+                              {member.backImage ? (
+                                <Box sx={{ position: "relative", width: "100%", height: 100, borderRadius: "8px", overflow: "hidden", border: "1px solid #10B981" }}>
+                                  <Box component="img" src={member.backImage} alt={`Member ${index + 1} Back`} sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleUpdateMember(member.id, "backImage", "")}
+                                    sx={{ position: "absolute", top: 4, right: 4, bgcolor: "rgba(239,68,68,0.9)", color: "#FFF", p: 0.3 }}
+                                  >
+                                    <Close sx={{ fontSize: 14 }} />
+                                  </IconButton>
+                                </Box>
+                              ) : (
+                                <Button
+                                  variant="outlined"
+                                  component="label"
+                                  startIcon={<CloudUpload />}
+                                  size="small"
+                                  fullWidth
+                                  sx={{ borderRadius: "8px", fontWeight: 700, fontSize: "0.75rem", borderColor: themeConfig.border, py: 1 }}
+                                >
+                                  Back ID
+                                  <input type="file" hidden accept="image/*" onChange={(e) => handleMemberImageUpload(e, member.id, "back")} />
+                                </Button>
+                              )}
+                            </Grid>
+                          </Grid>
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                ) : (
+                  <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontStyle: "italic", textAlign: "center", py: 1 }}>
+                    No accompanying member photos added yet. Click "+ Add Member Photo" to upload photos for additional guests.
+                  </Typography>
+                )}
+              </Box>
+
+              {/* DIGITAL SIGNATURE PAD SECTION */}
+              <Box sx={{ mt: 3, pt: 2.5, borderTop: `1.5px dashed ${themeConfig.border}` }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                  <Draw sx={{ fontSize: 18, color: themeConfig.primary }} />
+                  Guest Digital Signature
                 </Typography>
-                <Typography variant="body2" sx={{ color: themeConfig.textMuted, maxWidth: 500 }}>
-                  If family members or co-guests are staying in the room, click <strong>"+ Add Member"</strong> above to register their details and ID proofs. If traveling solo, you can continue directly to the stay schedule.
-                </Typography>
-                <Button
-                  variant="outlined"
-                  startIcon={<Add />}
-                  onClick={handleAddMember}
-                  disabled={totalRoomCapacity > 0 && currentMembersCount >= maxAdditionalMembers}
-                  sx={{
-                    borderRadius: "12px",
-                    fontWeight: 800,
-                    mt: 1,
-                    borderColor: themeConfig.primary,
-                    color: themeConfig.primaryDark,
-                    "&:hover": { bgcolor: themeConfig.champagne },
-                  }}
-                >
-                  + Add Accompanying Member
-                </Button>
-              </Paper>
-            )}
+                <DigitalSignaturePad
+                  signature={checkInData.signature}
+                  onSave={(sig) => setCheckInData((prev) => ({ ...prev, signature: sig }))}
+                  onClear={() => setCheckInData((prev) => ({ ...prev, signature: "" }))}
+                />
+              </Box>
+            </Paper>
           </Box>
         )}
 
         {/* ========================================================================= */}
-        {/* STEP 3 (Index 2): STAY DURATION & TIMINGS SCHEDULE                        */}
+        {/* STEP 2 (Index 1): STAY DURATION & TIMINGS SCHEDULE                        */}
         {/* ========================================================================= */}
-        {activeStep === 2 && (
+        {activeStep === 1 && (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 3.5 }}>
             {/* Section 1: Stay Timings & Schedule */}
             <Paper
@@ -2119,7 +1703,7 @@ export default function CheckInWizardPage({
                       Stay Duration & Timings Schedule
                     </Typography>
                     <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                      Standard Check-Out is 12:00 PM (Noon)
+                      Check-Out Time: {formatTime12Hour(checkInData.checkOutTime || hotelSettings?.checkOutTime || "12:00")}
                     </Typography>
                   </div>
                 </Box>
@@ -2177,7 +1761,7 @@ export default function CheckInWizardPage({
 
               <Grid container spacing={2}>
                 {/* Check-In Date */}
-                <Grid size={{ xs: 12, sm: 3 }}>
+                <Grid size={{ xs: 12, sm: 2.5 }}>
                   <TextField
                     fullWidth
                     size="small"
@@ -2192,11 +1776,11 @@ export default function CheckInWizardPage({
                 </Grid>
 
                 {/* Check-In Time */}
-                <Grid size={{ xs: 12, sm: 3 }}>
+                <Grid size={{ xs: 12, sm: 2.5 }}>
                   <TextField
                     fullWidth
                     size="small"
-                    label={checkInData.isCustomCheckInTime ? "Check-In Time (Manual)" : "Check-In Time (Live Real-Time)"}
+                    label={checkInData.isCustomCheckInTime ? "Check-In Time (Manual)" : "Check-In Time (Live)"}
                     type="time"
                     value={checkInData.isCustomCheckInTime ? checkInData.checkInTime : liveTime}
                     onChange={(e) => setCheckInData({ ...checkInData, checkInTime: e.target.value, isCustomCheckInTime: true })}
@@ -2221,7 +1805,7 @@ export default function CheckInWizardPage({
                 </Grid>
 
                 {/* Number of Nights */}
-                <Grid size={{ xs: 6, sm: 3 }}>
+                <Grid size={{ xs: 6, sm: 2 }}>
                   <TextField
                     fullWidth
                     size="small"
@@ -2235,7 +1819,7 @@ export default function CheckInWizardPage({
                 </Grid>
 
                 {/* Check-Out Date */}
-                <Grid size={{ xs: 6, sm: 3 }}>
+                <Grid size={{ xs: 6, sm: 2.5 }}>
                   <TextField
                     fullWidth
                     size="small"
@@ -2245,7 +1829,20 @@ export default function CheckInWizardPage({
                     value={checkInData.checkOutDate || ""}
                     onChange={(e) => handleCheckOutDateChange(e.target.value)}
                     slotProps={{ inputLabel: { shrink: true } }}
-                    helperText={conflictingRooms.length > 0 ? "⚠️ Overlaps with booked stay" : "Fixed 12:00 PM Check-Out"}
+                    helperText={conflictingRooms.length > 0 ? "⚠️ Overlaps with booked stay" : `Out: ${formatTime12Hour(checkInData.checkOutTime || hotelSettings?.checkOutTime || "12:00")}`}
+                  />
+                </Grid>
+
+                {/* Check-Out Time */}
+                <Grid size={{ xs: 12, sm: 2.5 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Check-Out Time"
+                    type="time"
+                    value={checkInData.checkOutTime || hotelSettings?.checkOutTime || "12:00"}
+                    onChange={(e) => setCheckInData({ ...checkInData, checkOutTime: e.target.value })}
+                    slotProps={{ inputLabel: { shrink: true } }}
                   />
                 </Grid>
               </Grid>
@@ -2395,9 +1992,9 @@ export default function CheckInWizardPage({
         )}
 
         {/* ========================================================================= */}
-        {/* STEP 4 (Index 3): BILLING & PAYMENT SETTLEMENT                            */}
+        {/* STEP 3 (Index 2): BILLING & PAYMENT SETTLEMENT                            */}
         {/* ========================================================================= */}
-        {activeStep === 3 && (
+        {activeStep === 2 && (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 3.5 }}>
             <Paper
               className="card-3d"
@@ -2577,8 +2174,6 @@ export default function CheckInWizardPage({
                   </TextField>
                 </Grid>
 
-
-
                 {/* Transaction Reference / Note */}
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
@@ -2646,9 +2241,9 @@ export default function CheckInWizardPage({
         )}
 
         {/* ========================================================================= */}
-        {/* STEP 5 (Index 4): PREVIEW & FINAL CHECK-IN CONFIRMATION                   */}
+        {/* STEP 4 (Index 3): PREVIEW & FINAL CHECK-IN CONFIRMATION                   */}
         {/* ========================================================================= */}
-        {activeStep === 4 && (
+        {activeStep === 3 && (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 3.5 }}>
             <Paper
               className="card-3d"
@@ -2681,23 +2276,17 @@ export default function CheckInWizardPage({
                   Primary / Main Guest Folio Holder:
                 </Typography>
                 <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 4 }}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>Full Name:</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
                       {checkInData.fullName || "N/A"}
                     </Typography>
                   </Grid>
-                  <Grid size={{ xs: 12, sm: 4 }}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>WhatsApp Number:</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 0.5 }}>
                       <WhatsApp sx={{ color: "#25D366", fontSize: 16 }} />
                       {checkInData.mobile ? `+91 ${checkInData.mobile}` : "N/A"}
-                    </Typography>
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>ID Proof:</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.primary }}>
-                      {checkInData.govtIdType || "AADHAAR"}: {checkInData.govtIdNumber || "On Record"}
                     </Typography>
                   </Grid>
                 </Grid>
@@ -2707,14 +2296,13 @@ export default function CheckInWizardPage({
               {checkInData.accompanyingGuests && checkInData.accompanyingGuests.length > 0 && (
                 <Box sx={{ mb: 3 }}>
                   <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 1.5 }}>
-                    Accompanying Members & Co-Guests ({checkInData.accompanyingGuests.length}):
+                    Accompanying Member Photos ({checkInData.accompanyingGuests.length}):
                   </Typography>
                   <TableContainer sx={{ borderRadius: "12px", border: `1px solid ${themeConfig.border}`, overflowX: "auto" }}>
                     <Table size="small" sx={{ minWidth: 480 }}>
                       <TableHead sx={{ bgcolor: themeConfig.champagne }}>
                         <TableRow>
                           <TableCell sx={{ fontWeight: 800 }}>#</TableCell>
-                          <TableCell sx={{ fontWeight: 800 }}>Member Full Name</TableCell>
                           <TableCell sx={{ fontWeight: 800 }}>Front ID Photo</TableCell>
                           <TableCell sx={{ fontWeight: 800 }}>Back ID Photo</TableCell>
                         </TableRow>
@@ -2722,8 +2310,7 @@ export default function CheckInWizardPage({
                       <TableBody>
                         {checkInData.accompanyingGuests.map((m, i) => (
                           <TableRow key={m.id || i}>
-                            <TableCell sx={{ fontWeight: 700 }}>{i + 1}</TableCell>
-                            <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>{m.name || `Member ${i + 1}`}</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>Member #{i + 1}</TableCell>
                             <TableCell>
                               {m.frontImage ? (
                                 <Chip label="Uploaded" size="small" sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", color: "#10B981", fontWeight: 800, fontSize: "0.72rem" }} />
@@ -2757,7 +2344,7 @@ export default function CheckInWizardPage({
                       In: {checkInData.checkInDate} &bull; {checkInData.checkInTime || liveTime}
                     </Typography>
                     <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                      Out: {checkInData.checkOutDate} &bull; 12:00 PM (Noon)
+                      Out: {checkInData.checkOutDate} &bull; {formatTime12Hour(checkInData.checkOutTime || hotelSettings?.checkOutTime || "12:00")}
                     </Typography>
                     <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
                       Duration: {checkInData.numberOfNights || nights || 1} Night(s)
@@ -2822,7 +2409,7 @@ export default function CheckInWizardPage({
         <Box
           sx={{
             display: "flex",
-            justifyContent: "space-between",
+            justify: "space-between",
             alignItems: "center",
             flexDirection: { xs: "column-reverse", sm: "row" },
             gap: 2,
@@ -2848,14 +2435,12 @@ export default function CheckInWizardPage({
             }}
           >
             {activeStep === 1
-              ? "Back to Primary Guest"
+              ? "Back to Guest Profile & ID"
               : activeStep === 2
-                ? "Back to Members"
+                ? "Back to Stay Schedule"
                 : activeStep === 3
-                  ? "Back to Stay Schedule"
-                  : activeStep === 4
-                    ? "Back to Billing"
-                    : "Back"}
+                  ? "Back to Billing & Settlement"
+                  : "Back"}
           </Button>
 
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "stretch", sm: "flex-end" } }}>
@@ -2893,12 +2478,10 @@ export default function CheckInWizardPage({
                 }}
               >
                 {activeStep === 0
-                  ? "Continue to Members"
+                  ? "Continue to Stay Schedule"
                   : activeStep === 1
-                    ? "Continue to Stay Schedule"
-                    : activeStep === 2
-                      ? "Continue to Billing & Settlement"
-                      : "Continue to Review & Check-In"}
+                    ? "Continue to Billing & Settlement"
+                    : "Continue to Review & Check-In"}
               </Button>
             ) : (
               <Button

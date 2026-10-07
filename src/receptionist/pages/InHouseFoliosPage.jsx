@@ -650,7 +650,28 @@ export default function InHouseFoliosPage({
                       <TableCell sx={{ color: themeConfig.textMuted, fontSize: "0.78rem", whiteSpace: "nowrap" }}>
                         <div><strong>In:</strong> {b.checkInDate || "Today"} ({b.checkInTime ? formatTime12Hour(b.checkInTime) : checkInTimeFormatted})</div>
                         <div>
-                          <strong>Out:</strong> {b.checkOutDate || "Tomorrow"} ({formatTime12Hour(b.checkOutTime || hotelSettings?.checkOutTime || "12:00")})
+                          <strong>Out:</strong> {(() => {
+                            if (b.actualCheckOut) {
+                              const d = new Date(b.actualCheckOut);
+                              if (!isNaN(d.getTime())) {
+                                const y = d.getFullYear();
+                                const m = String(d.getMonth() + 1).padStart(2, "0");
+                                const day = String(d.getDate()).padStart(2, "0");
+                                return `${y}-${m}-${day}`;
+                              }
+                            }
+                            return b.checkOutDate || "Tomorrow";
+                          })()} ({(() => {
+                            if (b.actualCheckOut) {
+                              const d = new Date(b.actualCheckOut);
+                              if (!isNaN(d.getTime())) {
+                                const h = String(d.getHours()).padStart(2, "0");
+                                const m = String(d.getMinutes()).padStart(2, "0");
+                                return formatTime12Hour(`${h}:${m}`);
+                              }
+                            }
+                            return formatTime12Hour(b.checkOutTime || hotelSettings?.checkOutTime || "12:00");
+                          })()})
                           {overstay.isOverstay ? (
                             <Tooltip title={`Late Check-Out: Stayed +${overstay.overdueHours}h past check-out time. +₹${overstay.lateFee} (${overstay.extraDays} Extra Day Tariff) automatically applied.`}>
                               <Chip
@@ -1408,7 +1429,17 @@ export default function InHouseFoliosPage({
                         {(() => {
                           const rList = getBookingRoomNumbers(b);
                           return rList.length > 1 ? `Rooms: ${rList.join(", ")}` : `Room ${rList[0] || ""}`;
-                        })()} &bull; Check-in: {b.checkInDate} ({b.checkInTime ? formatTime12Hour(b.checkInTime) : checkInTimeFormatted}) &bull; Check-out: {b.checkOutDate} ({formatTime12Hour(b.checkOutTime || hotelSettings?.checkOutTime || "12:00")})
+                        })()} &bull; Check-in: {b.checkInDate} ({b.checkInTime ? formatTime12Hour(b.checkInTime) : checkInTimeFormatted}) &bull; Check-out: {b.checkOutDate} ({(() => {
+                          if (b.actualCheckOut) {
+                            const d = new Date(b.actualCheckOut);
+                            if (!isNaN(d.getTime())) {
+                              const h = String(d.getHours()).padStart(2, "0");
+                              const m = String(d.getMinutes()).padStart(2, "0");
+                              return formatTime12Hour(`${h}:${m}`);
+                            }
+                          }
+                          return formatTime12Hour(b.checkOutTime || hotelSettings?.checkOutTime || "12:00");
+                        })()})
                       </Typography>
                     </div>
                     <StatusChip status={b.status} size="small" />

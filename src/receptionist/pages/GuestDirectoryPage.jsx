@@ -37,6 +37,7 @@ import {
   Refresh,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
+import { formatTime12Hour } from "@/shared/utils/timeUtils";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
@@ -442,10 +443,31 @@ export default function GuestDirectoryPage({
 
                         <TableCell>
                           <Typography variant="body2" sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.82rem" }}>
-                            📥 {g.checkInDate || "N/A"}
+                            📥 {g.checkInDate || "N/A"} ({formatTime12Hour(g.checkInTime || "14:00")})
                           </Typography>
-                          <Typography variant="caption" sx={{ color: themeConfig.textSecondary, fontSize: "0.78rem" }}>
-                            📤 {g.checkOutDate || "Scheduled"}
+                          <Typography variant="caption" sx={{ color: themeConfig.textSecondary, fontSize: "0.78rem", display: "block" }}>
+                            📤 {(() => {
+                              if (g.actualCheckOut) {
+                                const d = new Date(g.actualCheckOut);
+                                if (!isNaN(d.getTime())) {
+                                  const y = d.getFullYear();
+                                  const m = String(d.getMonth() + 1).padStart(2, "0");
+                                  const day = String(d.getDate()).padStart(2, "0");
+                                  return `${y}-${m}-${day}`;
+                                }
+                              }
+                              return g.checkOutDate || "Scheduled";
+                            })()} ({(() => {
+                              if (g.actualCheckOut) {
+                                const d = new Date(g.actualCheckOut);
+                                if (!isNaN(d.getTime())) {
+                                  const h = String(d.getHours()).padStart(2, "0");
+                                  const m = String(d.getMinutes()).padStart(2, "0");
+                                  return formatTime12Hour(`${h}:${m}`);
+                                }
+                              }
+                              return formatTime12Hour(g.checkOutTime || "12:00");
+                            })()})
                           </Typography>
                         </TableCell>
 

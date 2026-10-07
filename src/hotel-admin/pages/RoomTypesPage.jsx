@@ -528,10 +528,10 @@ export default function RoomTypesPage({
               />
               {isTrial && (
                 <Chip
-                  label={`Free Trial: ${totalRoomsCount}/5 Rooms`}
+                  label={`Free Trial: Unlimited Rooms (${totalRoomsCount} Created)`}
                   size="small"
                   sx={{
-                    bgcolor: totalRoomsCount >= 5 ? "#EF4444" : "#F59E0B",
+                    bgcolor: "#10B981",
                     color: "#FFFFFF",
                     fontWeight: 900,
                     fontSize: "0.72rem",

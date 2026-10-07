@@ -390,13 +390,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       return;
     }
 
-    // 🔒 Free Trial 5-Room Limit Check
-    const sub = dashboardData?.subscription || user?.hotel?.subscription;
-    const isTrial = (sub?.plan || "TRIAL") === "TRIAL" || (sub?.status || "TRIAL") === "TRIAL";
-    if (isTrial && roomModal.mode === "ADD" && rooms.length >= 5) {
-      showToast("Free Trial Limit Reached! Free trial allows up to 5 rooms. Upgrade to Premium to create more rooms.", "error");
-      return;
-    }
+    // 🔓 Unlimited Rooms Allowed in Free Trial
 
     try {
       const payload = {

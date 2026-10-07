@@ -115,7 +115,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
       const day = String(d.getDate()).padStart(2, "0");
       return `${year}-${month}-${day}`;
     })(),
-    checkOutTime: "12:00",
+    checkOutTime: hotelSettings?.checkOutTime || "12:00",
     numberOfNights: 1,
     adults: 1,
     children: 0,
@@ -274,7 +274,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         checkInDate: checkInData.checkInDate || getTodayLocalDate(),
         checkInTime: checkInData.isCustomCheckInTime ? checkInData.checkInTime : getCurrentLocalTime(),
         checkOutDate: checkInData.checkOutDate,
-        checkOutTime: "12:00",
+        checkOutTime: checkInData.checkOutTime || hotelSettings?.checkOutTime || "12:00",
         adults: checkInData.adults || (1 + (checkInData.accompanyingGuests?.length || 0)),
         children: checkInData.children || 0,
         accompanyingGuests: checkInData.accompanyingGuests || [],
@@ -342,7 +342,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
           const day = String(d.getDate()).padStart(2, "0");
           return `${y}-${m}-${day}`;
         })(),
-        checkOutTime: "12:00",
+        checkOutTime: hotelSettings?.checkOutTime || "12:00",
         numberOfNights: 1,
         adults: 1,
         children: 0,
@@ -758,7 +758,28 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
                     Room {b.roomNumber || b.room?.roomNumber}
                   </Typography>
                   <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
-                    In: {b.checkInDate} &bull; Out: {b.checkOutDate} ({formatTime12Hour(b.checkOutTime || hotelSettings?.checkOutTime || "12:00")})
+                    In: {b.checkInDate} &bull; Out: {(() => {
+                      if (b.actualCheckOut) {
+                        const d = new Date(b.actualCheckOut);
+                        if (!isNaN(d.getTime())) {
+                          const y = d.getFullYear();
+                          const m = String(d.getMonth() + 1).padStart(2, "0");
+                          const day = String(d.getDate()).padStart(2, "0");
+                          return `${y}-${m}-${day}`;
+                        }
+                      }
+                      return b.checkOutDate;
+                    })()} ({(() => {
+                      if (b.actualCheckOut) {
+                        const d = new Date(b.actualCheckOut);
+                        if (!isNaN(d.getTime())) {
+                          const h = String(d.getHours()).padStart(2, "0");
+                          const m = String(d.getMinutes()).padStart(2, "0");
+                          return formatTime12Hour(`${h}:${m}`);
+                        }
+                      }
+                      return formatTime12Hour(b.checkOutTime || hotelSettings?.checkOutTime || "12:00");
+                    })()})
                   </Typography>
                 </Box>
               </Box>

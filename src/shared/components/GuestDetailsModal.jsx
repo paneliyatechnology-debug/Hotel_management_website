@@ -145,6 +145,7 @@ export default function GuestDetailsModal({
   const roomsDetail = details?.roomsDetail || [];
   const paymentDetails = details?.paymentDetails || null;
   const paymentHistory = details?.paymentHistory || [];
+  const timeline = details?.timeline || [];
   const accompanyingGuests = (
     (activeBooking?.accompanyingGuests && activeBooking.accompanyingGuests.length > 0)
       ? activeBooking.accompanyingGuests
@@ -676,16 +677,16 @@ export default function GuestDetailsModal({
 
                     <Grid container spacing={2}>
                       <Grid size={{ xs: 12, sm: 4 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Check-In Date</Typography>
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Check-In Date & Time</Typography>
                         <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                          {activeBooking?.checkInDate ? new Date(activeBooking.checkInDate).toLocaleDateString("en-IN") : guest.checkInDate || "N/A"}
+                          {activeBooking?.checkInDate ? new Date(activeBooking.checkInDate).toLocaleDateString("en-IN") : guest.checkInDate || "N/A"} ({formatTime12Hour(activeBooking?.checkInTime || guest.checkInTime || hotelSettings?.checkInTime || "14:00")})
                         </Typography>
                       </Grid>
 
                       <Grid size={{ xs: 12, sm: 4 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Check-Out Date</Typography>
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Check-Out Date & Time</Typography>
                         <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                          {activeBooking?.checkOutDate ? new Date(activeBooking.checkOutDate).toLocaleDateString("en-IN") : guest.checkOutDate || "N/A"}
+                          {activeBooking?.checkOutDate ? new Date(activeBooking.checkOutDate).toLocaleDateString("en-IN") : guest.checkOutDate || "N/A"} ({formatTime12Hour(activeBooking?.checkOutTime || guest.checkOutTime || hotelSettings?.checkOutTime || "12:00")})
                         </Typography>
                       </Grid>
 

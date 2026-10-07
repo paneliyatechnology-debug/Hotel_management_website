@@ -35,6 +35,7 @@ import {
   WhatsApp,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
+import { formatTime12Hour } from "@/shared/utils/timeUtils";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
@@ -587,15 +588,44 @@ export default function GuestDirectoryPage({
 
                       {/* 5. Check-In */}
                       <TableCell sx={{ py: 2 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: themeConfig.textMain }}>
-                          {gCheckIn}
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.82rem" }}>
+                          📥 {gCheckIn}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.75rem", display: "block" }}>
+                          {formatTime12Hour(guest.checkInTime || matchingBooking?.checkInTime || "14:00")}
                         </Typography>
                       </TableCell>
 
                       {/* 6. Check-Out */}
                       <TableCell sx={{ py: 2 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: themeConfig.textMuted }}>
-                          {gCheckOut}
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.82rem" }}>
+                          📤 {(() => {
+                            const rawOut = guest.actualCheckOut || matchingBooking?.actualCheckOut;
+                            if (rawOut) {
+                              const d = new Date(rawOut);
+                              if (!isNaN(d.getTime())) {
+                                const y = d.getFullYear();
+                                const m = String(d.getMonth() + 1).padStart(2, "0");
+                                const day = String(d.getDate()).padStart(2, "0");
+                                return `${y}-${m}-${day}`;
+                              }
+                            }
+                            return gCheckOut;
+                          })()}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.75rem", display: "block" }}>
+                          {(() => {
+                            const rawOut = guest.actualCheckOut || matchingBooking?.actualCheckOut;
+                            if (rawOut) {
+                              const d = new Date(rawOut);
+                              if (!isNaN(d.getTime())) {
+                                const h = String(d.getHours()).padStart(2, "0");
+                                const m = String(d.getMinutes()).padStart(2, "0");
+                                return formatTime12Hour(`${h}:${m}`);
+                              }
+                            }
+                            return formatTime12Hour(guest.checkOutTime || matchingBooking?.checkOutTime || "12:00");
+                          })()}
                         </Typography>
                       </TableCell>
 

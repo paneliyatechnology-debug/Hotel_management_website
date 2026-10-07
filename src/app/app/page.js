@@ -56,7 +56,7 @@ function HotelWebAppContent() {
       return ["overview", "daily-collections", "guests", "staff", "rooms", "subscriptions", "settings"];
     }
     if (effectiveRole === "RECEPTIONIST") {
-      return ["overview", "rooms", "folios", "settings"];
+      return ["dashboard", "rooms", "folios", "guests", "more"];
     }
     return [];
   };
@@ -80,9 +80,11 @@ function HotelWebAppContent() {
 
       const effectiveRole = activeRole || currentUser.role;
       if (effectiveRole === "RECEPTIONIST") {
-        if (cleanPath === "checkin" || cleanPath === "check-in" || cleanPath === "booking") return 1;
-        if (cleanPath === "id" || cleanPath === "kyc" || cleanPath === "compliance") return 2;
-        if (cleanPath === "pos" || cleanPath === "billing") return 3;
+        if (cleanPath === "dashboard" || cleanPath === "overview") return 0;
+        if (cleanPath === "rooms" || cleanPath === "checkin" || cleanPath === "check-in" || cleanPath === "booking") return 1;
+        if (cleanPath === "folios" || cleanPath === "in-house" || cleanPath === "inhouse") return 2;
+        if (cleanPath === "guests" || cleanPath === "guest-directory" || cleanPath === "directory") return 3;
+        if (cleanPath === "more" || cleanPath === "settings" || cleanPath === "operations") return 4;
       }
       if (effectiveRole === "HOTEL_ADMIN") {
         if (cleanPath === "collections" || cleanPath === "daily-collections" || cleanPath === "payments" || cleanPath === "billing") return 1;

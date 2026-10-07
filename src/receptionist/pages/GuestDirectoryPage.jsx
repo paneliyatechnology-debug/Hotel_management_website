@@ -114,12 +114,12 @@ export default function GuestDirectoryPage({
   }, [guests, page, rowsPerPage]);
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
+    <Box sx={{ p: { xs: 2.5, md: 3.5 }, display: "flex", flexDirection: "column", gap: 3.5, pb: 6 }}>
       {/* 1. Header Banner */}
       <Paper
         elevation={0}
         sx={{
-          p: 3,
+          p: { xs: 2.5, md: 3 },
           borderRadius: "20px",
           background: themeConfig.navBg || "linear-gradient(135deg, #092622 0%, #0F766E 50%, #14B8A6 100%)",
           color: "#FFFFFF",
@@ -176,14 +176,16 @@ export default function GuestDirectoryPage({
             startIcon={<Refresh />}
             onClick={fetchGuests}
             sx={{
-              borderColor: "rgba(255, 255, 255, 0.4)",
+              borderColor: "rgba(255, 255, 255, 0.5)",
               color: "#FFFFFF",
+              bgcolor: "rgba(255, 255, 255, 0.1)",
+              backdropFilter: "blur(4px)",
               fontWeight: 800,
               borderRadius: "12px",
               px: 2,
               py: 1,
               textTransform: "none",
-              "&:hover": { borderColor: "#FFFFFF", bgcolor: "rgba(255,255,255,0.1)" },
+              "&:hover": { borderColor: "#FFFFFF", bgcolor: "rgba(255, 255, 255, 0.25)" },
             }}
           >
             Refresh

@@ -10,6 +10,9 @@ const nextConfig = {
     '127.0.0.1',
     '0.0.0.0',
   ],
+  compiler: {
+    removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error"] } : false,
+  },
   async rewrites() {
     return [
       {

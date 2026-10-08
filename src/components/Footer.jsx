@@ -11,7 +11,7 @@ export default function Footer() {
           {/* Brand & Socials */}
           <div className="md:col-span-4 space-y-5">
             <Link href="/" className="flex items-center gap-3 group">
-              <img src="/logo.png" alt="MYOWNPMS Logo" className="h-10 w-10 object-contain rounded-lg transition-transform group-hover:scale-105" />
+              <img src="/logo.png" alt="MYOWNPMS Logo" loading="lazy" className="h-10 w-10 object-contain rounded-lg transition-transform group-hover:scale-105" />
               <div className="flex flex-col">
                 <span className="font-sans text-base sm:text-lg font-black tracking-wider text-white uppercase leading-none">
                   MYOWNPMS

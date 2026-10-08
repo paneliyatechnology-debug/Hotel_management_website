@@ -126,7 +126,6 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
   useSocket(
     ["PAYMENT_RECORDED", "HANDOVER_SETTLED", "DASHBOARD_SYNC", "BOOKING_CREATED", "GUEST_CHECKED_OUT"],
     (payload, eventName) => {
-      console.log(`⚡ [DailyCollectionsPage] Real-time sync triggered by ${eventName}`);
       fetchDailyData(page, rowsPerPage, searchQuery, methodFilter, handoverPage, handoverRowsPerPage);
     }
   );

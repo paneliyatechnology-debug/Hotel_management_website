@@ -225,12 +225,7 @@ async function executeApiRequest(endpoint, options = {}) {
     fullUrl = `${currentBase}/${endpoint.replace(/^\/+/, "")}`;
   }
 
-  console.log(`📡 [API Request] ${method} -> ${fullUrl}`, {
-    baseUrl: currentBase,
-    endpoint,
-    payload: body ? (typeof body === 'string' ? JSON.parse(body) : body) : null,
-    headers: reqHeaders,
-  });
+  // Removed verbose console.log for production clean console
 
   // Generate fallback candidates in case fetch fails
   const candidateUrls = [fullUrl];
@@ -271,9 +266,7 @@ async function executeApiRequest(endpoint, options = {}) {
 
   const data = await response.json().catch(() => ({}));
 
-  if (response.ok) {
-    console.log(`✅ [API Response ${response.status}] <- ${fullUrl}`, data);
-  } else {
+  if (!response.ok) {
     console.warn(`⚠️ [API Error ${response.status}] <- ${fullUrl}`, data);
   }
 

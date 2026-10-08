@@ -56,7 +56,6 @@ export async function uploadToCloudinaryServer(fileOrBase64, folder = 'hotel_gue
 
     const data = await response.json();
     if (response.ok && data?.url) {
-      console.log('✅ [Cloudinary] Live URL generated:', data.url);
       return data.url;
     } else {
       console.warn('⚠️ Cloudinary upload response warning:', data);

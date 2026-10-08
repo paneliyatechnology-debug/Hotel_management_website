@@ -5,8 +5,6 @@ import { Box } from "@mui/material";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { toast } from "@/shared/utils/toast";
-import ConfirmDialog from "@/shared/components/ConfirmDialog";
-import SettingsView from "@/shared/components/SettingsView";
 import dynamic from "next/dynamic";
 import { CircularProgress } from "@mui/material";
 import { useSocket } from "@/shared/context/SocketContext";
@@ -16,6 +14,9 @@ const ComponentSpinner = () => (
     <CircularProgress size={36} />
   </Box>
 );
+
+const SettingsView = dynamic(() => import("@/shared/components/SettingsView"), { loading: () => <ComponentSpinner /> });
+const ConfirmDialog = dynamic(() => import("@/shared/components/ConfirmDialog"));
 
 const HotelOverviewPage = dynamic(() => import("../pages/HotelOverviewPage"), { loading: () => <ComponentSpinner /> });
 const DailyCollectionsPage = dynamic(() => import("../pages/DailyCollectionsPage"), { loading: () => <ComponentSpinner /> });

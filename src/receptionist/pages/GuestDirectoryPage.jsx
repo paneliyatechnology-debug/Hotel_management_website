@@ -36,15 +36,17 @@ import {
   WhatsApp,
   Refresh,
 } from "@/shared/icons";
+import dynamic from "next/dynamic";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { formatTime12Hour } from "@/shared/utils/timeUtils";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
-import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
 import { downloadGuestDirectoryPDF, downloadGovtIdReportPDF } from "@/shared/utils/pdfGenerator";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
 import { apiRequest, API_ENDPOINTS } from "@/config/api";
 import { toast } from "@/shared/utils/toast";
+
+const GuestDetailsModal = dynamic(() => import("@/shared/components/GuestDetailsModal"));
 
 export default function GuestDirectoryPage({
   hotelSettings = { checkInTime: "14:00", checkOutTime: "12:00", timezone: "Asia/Kolkata" },

@@ -54,7 +54,6 @@ export function SocketProvider({ children }) {
     } catch {}
 
     const hotelId = user?.hotel?._id || user?.hotel?.id || user?.hotel || user?.hotelId;
-    console.log("📡 [Socket.io Client] Emitting join & presence:", { role: user?.role, hotelId });
 
     if (user?.role === "SUPER_ADMIN") {
       sock.emit("join_super_admin", { user, token });
@@ -86,7 +85,6 @@ export function SocketProvider({ children }) {
     }
 
     const socketUrl = getApiBaseUrl() || "http://localhost:5000";
-    console.log(`🔌 [Socket.io Client] Connecting to: ${socketUrl}`);
 
     const socket = io(socketUrl, {
       transports: ["websocket", "polling"],
@@ -99,17 +97,14 @@ export function SocketProvider({ children }) {
     socketRef.current = socket;
 
     socket.on("connect", () => {
-      console.log(`✅ [Socket.io Client] Connected with ID: ${socket.id}`);
       setIsConnected(true);
       joinRoom();
     });
 
     socket.on("joined_room", (data) => {
-      console.log(`🏨 [Socket.io Client] Confirmed joined room:`, data);
     });
 
     socket.on("disconnect", (reason) => {
-      console.log(`❌ [Socket.io Client] Disconnected:`, reason);
       setIsConnected(false);
     });
 

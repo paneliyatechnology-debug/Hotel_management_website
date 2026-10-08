@@ -78,11 +78,13 @@ import {
   Fingerprint,
   WhatsApp,
 } from "@/shared/icons";
-import DigitalSignaturePad from "@/shared/components/DigitalSignaturePad";
+import dynamic from "next/dynamic";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { formatTime12Hour } from "@/shared/utils/timeUtils";
 import { getAmenityIcon } from "@/shared/utils/amenityUtils";
 import { apiRequest, API_ENDPOINTS } from "@/config/api";
+
+const DigitalSignaturePad = dynamic(() => import("@/shared/components/DigitalSignaturePad"), { ssr: false });
 
 const CHECKIN_STEPS = [
   "Guest Profile & ID",
@@ -477,21 +479,21 @@ export default function CheckInWizardPage({
     if (!room) return 0;
     const rt = getRoomTypeObj(room);
     const explicitCap = Number(room.seatingCapacity) ||
-                        Number(room.maxCapacity) ||
-                        Number(room.capacity?.adults) ||
-                        Number(room.maxGuests) ||
-                        Number(rt?.capacity?.adults) ||
-                        Number(rt?.maxCapacity) ||
-                        0;
+      Number(room.maxCapacity) ||
+      Number(room.capacity?.adults) ||
+      Number(room.maxGuests) ||
+      Number(rt?.capacity?.adults) ||
+      Number(rt?.maxCapacity) ||
+      0;
     if (explicitCap > 0) return explicitCap;
     return calculateRoomCapacity(room).standardCapacity || 2;
   };
 
   // Current active / targeted room among selected rooms (identified by unique _id)
-  const activeRoomId = checkInData.activeRoomId 
-    ? String(checkInData.activeRoomId) 
-    : checkInData.roomId 
-      ? String(checkInData.roomId) 
+  const activeRoomId = checkInData.activeRoomId
+    ? String(checkInData.activeRoomId)
+    : checkInData.roomId
+      ? String(checkInData.roomId)
       : (selectedRoomsList[0]?._id ? String(selectedRoomsList[0]._id) : "");
   const activeRoom = selectedRoomsList.find((r) => String(r._id) === String(activeRoomId)) || selectedRoomsList[0] || null;
 
@@ -1977,8 +1979,8 @@ export default function CheckInWizardPage({
                         bgcolor: isConflict
                           ? "rgba(239, 68, 68, 0.12)"
                           : isActive
-                          ? themeConfig.primary
-                          : (isDarkMode ? "rgba(255,255,255,0.08)" : "#F1F5F9"),
+                            ? themeConfig.primary
+                            : (isDarkMode ? "rgba(255,255,255,0.08)" : "#F1F5F9"),
                         color: isConflict ? "#DC2626" : isActive ? "#FFFFFF" : themeConfig.textMain,
                         borderRadius: "12px",
                         border: `1.5px solid ${isConflict ? "#EF4444" : isActive ? themeConfig.primary : themeConfig.border}`,

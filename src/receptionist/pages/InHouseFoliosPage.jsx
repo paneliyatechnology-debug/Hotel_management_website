@@ -54,14 +54,16 @@ import {
   Check,
   WhatsApp,
 } from "@/shared/icons";
+import dynamic from "next/dynamic";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import StatCard from "@/shared/components/StatCard";
-import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
 import { formatTime12Hour, calculateOverstayFee } from "@/shared/utils/timeUtils";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
 import { toast } from "@/shared/utils/toast";
+
+const GuestDetailsModal = dynamic(() => import("@/shared/components/GuestDetailsModal"));
 
 export default function InHouseFoliosPage({
   bookings = [],

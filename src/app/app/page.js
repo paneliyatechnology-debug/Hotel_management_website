@@ -5,15 +5,40 @@ import { usePathname, useRouter } from "next/navigation";
 import { Box, Button, Chip } from "@mui/material";
 import { AppThemeProvider, useAppTheme } from "@/shared/context/ThemeContext";
 import { SocketProvider, useSocket } from "@/shared/context/SocketContext";
+import dynamic from "next/dynamic";
 import UnifiedLogin from "@/auth/components/UnifiedLogin";
 import HotelAdminLayout from "@/hotel-admin/layout/HotelAdminLayout";
 import ReceptionistLayout from "@/receptionist/layout/ReceptionistLayout";
 import SuperAdminLayout from "@/super-admin/layout/SuperAdminLayout";
-import HotelAdminDashboard from "@/hotel-admin/components/HotelAdminDashboard";
-import ReceptionistDashboard from "@/receptionist/components/ReceptionistDashboard";
-import SuperAdminDashboard from "@/super-admin/components/SuperAdminDashboard";
-import SubscriptionExpiredScreen from "@/shared/components/SubscriptionExpiredScreen";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
+
+const DashboardLoadingFallback = () => (
+  <div className="flex items-center justify-center min-h-[400px] text-slate-500 text-xs animate-pulse font-sans">
+    <div className="flex flex-col items-center gap-3">
+      <div className="w-10 h-10 border-4 border-teal-200 border-t-[#00D0B4] rounded-full animate-spin"></div>
+      <span className="font-semibold text-slate-700">Loading module dynamically...</span>
+    </div>
+  </div>
+);
+
+const HotelAdminDashboard = dynamic(() => import("@/hotel-admin/components/HotelAdminDashboard"), {
+  loading: DashboardLoadingFallback,
+  ssr: false,
+});
+
+const ReceptionistDashboard = dynamic(() => import("@/receptionist/components/ReceptionistDashboard"), {
+  loading: DashboardLoadingFallback,
+  ssr: false,
+});
+
+const SuperAdminDashboard = dynamic(() => import("@/super-admin/components/SuperAdminDashboard"), {
+  loading: DashboardLoadingFallback,
+  ssr: false,
+});
+
+const SubscriptionExpiredScreen = dynamic(() => import("@/shared/components/SubscriptionExpiredScreen"), {
+  ssr: false,
+});
 
 function HotelWebAppContent() {
   const { themeConfig } = useAppTheme();

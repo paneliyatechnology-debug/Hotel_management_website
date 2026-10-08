@@ -3,6 +3,13 @@ import { themeConfig } from "@/config/theme";
 import FloatingTabBar from "@/components/FloatingTabBar";
 import ReactQueryProvider from "@/shared/providers/ReactQueryProvider";
 
+if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+  console.log = () => {};
+  console.info = () => {};
+  console.debug = () => {};
+  console.warn = () => {};
+}
+
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://myownpms.com";
 
 export const metadata = {

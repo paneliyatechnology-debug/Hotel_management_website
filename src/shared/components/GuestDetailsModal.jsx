@@ -183,7 +183,6 @@ export default function GuestDetailsModal({
       guestPayStatus = "PENDING";
     }
   }
-  console.log(guest, "gest---------------")
   return (
     <>
       <Dialog

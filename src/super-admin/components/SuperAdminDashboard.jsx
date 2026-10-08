@@ -51,12 +51,20 @@ import {
   Payments,
   Refresh,
 } from "@/shared/icons";
+import dynamic from "next/dynamic";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import StatCard from "@/shared/components/StatCard";
-import SettingsView from "@/shared/components/SettingsView";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
+
+const SettingsView = dynamic(() => import("@/shared/components/SettingsView"), {
+  loading: () => (
+    <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 8 }}>
+      <CircularProgress size={36} />
+    </Box>
+  ),
+});
 
 export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }) {
   const { themeConfig, isDarkMode } = useAppTheme();

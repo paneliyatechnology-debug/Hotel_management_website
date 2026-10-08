@@ -151,34 +151,70 @@ export const API_ENDPOINTS = {
 };
 
 const inFlightRequests = new Map();
+const apiGetCache = new Map();
+const CACHE_TTL_MS = 3000; // 3 seconds GET cache to prevent duplicate multi-component fetches
+
+function normalizeEndpointKey(ep) {
+  if (!ep) return "";
+  return ep.replace(/^https?:\/\/[^\/]+/, "").replace(/\/+$/, "");
+}
+
+export function clearApiCache() {
+  apiGetCache.clear();
+  inFlightRequests.clear();
+}
 
 /**
- * Reusable helper for Authenticated API Requests with automatic resilient fallback & request deduplication
+ * Reusable helper for Authenticated API Requests with automatic resilient fallback,
+ * in-flight request deduplication & short-lived GET caching.
  */
 export async function apiRequest(endpoint, options = {}) {
   const method = (options.method || "GET").toUpperCase();
   const authToken = options.token || (typeof window !== "undefined" ? localStorage.getItem("token") : null);
+  const normalizedEp = normalizeEndpointKey(endpoint);
+  const cacheKey = `${authToken || "anon"}:${normalizedEp}`;
 
-  // In-flight GET request deduplication: Reuse identical pending GET requests to prevent duplicate network calls
-  if (method === "GET" && !options.skipDeduplication) {
-    const dedupeKey = `${authToken || "anon"}:${endpoint}`;
-    if (inFlightRequests.has(dedupeKey)) {
-      return inFlightRequests.get(dedupeKey);
+  // On data mutation (POST, PUT, PATCH, DELETE), automatically invalidate GET cache!
+  if (method !== "GET") {
+    apiGetCache.clear();
+    return executeApiRequest(endpoint, options);
+  }
+
+  // 1. Check Short-Lived GET Response Cache (3 seconds)
+  if (!options.forceRefresh && !options.skipCache) {
+    const cached = apiGetCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+      return cached.data;
+    }
+  }
+
+  // 2. In-flight GET request deduplication: Reuse identical pending GET requests
+  if (!options.skipDeduplication) {
+    if (inFlightRequests.has(cacheKey)) {
+      return inFlightRequests.get(cacheKey);
     }
 
     const requestPromise = (async () => {
       try {
-        return await executeApiRequest(endpoint, options);
+        const result = await executeApiRequest(endpoint, options);
+        if (result) {
+          apiGetCache.set(cacheKey, { timestamp: Date.now(), data: result });
+        }
+        return result;
       } finally {
-        inFlightRequests.delete(dedupeKey);
+        inFlightRequests.delete(cacheKey);
       }
     })();
 
-    inFlightRequests.set(dedupeKey, requestPromise);
+    inFlightRequests.set(cacheKey, requestPromise);
     return requestPromise;
   }
 
-  return executeApiRequest(endpoint, options);
+  const result = await executeApiRequest(endpoint, options);
+  if (result) {
+    apiGetCache.set(cacheKey, { timestamp: Date.now(), data: result });
+  }
+  return result;
 }
 
 async function executeApiRequest(endpoint, options = {}) {

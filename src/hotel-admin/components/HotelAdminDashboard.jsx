@@ -133,7 +133,9 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
   // On-Demand Tab-Specific Data Loading
   const loadTabData = async (tabIndex, forceRefresh = false) => {
     if (!forceRefresh && fetchedTabs[tabIndex]) return;
-    setLoading(true);
+    if (!dashboardData && !rooms.length) {
+      setLoading(true);
+    }
     try {
       const endpointsToFetch = [];
 

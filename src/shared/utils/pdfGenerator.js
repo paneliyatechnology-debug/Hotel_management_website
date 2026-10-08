@@ -1,5 +1,3 @@
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 import { calculateOverstayFee, formatTime12Hour } from "./timeUtils";
 
 const PDF_DOCUMENT_STYLES = `
@@ -488,6 +486,11 @@ const PDF_DOCUMENT_STYLES = `
  */
 export async function openPrintOrSavePDF(title, htmlBody) {
   if (typeof window === "undefined") return;
+
+  const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+    import("jspdf"),
+    import("html2canvas"),
+  ]);
 
   const rawClean = (title || "Document").replace(/[^a-zA-Z0-9_\-]/g, "_");
   const fileName = `${rawClean}.pdf`;
@@ -1889,10 +1892,20 @@ export function downloadGuestFolioPDF(data = {}, hotel = {}) {
   const roomNumberDisplay = booking.roomNumber || booking.room?.roomNumber || guest.roomAssigned || "101";
   const roomTypeNameDisplay = booking.roomType?.name || booking.roomTypeName || "Executive Suite";
 
+  // Check if digital signature image exists
+  const guestSignature =
+    guest.signature ||
+    guest.signatureUrl ||
+    guest.guestSignature ||
+    booking.guestSignature ||
+    booking.signature ||
+    data.signature ||
+    null;
+
   // Check if any actual ID images exist
   const primaryFront = guest.idProof?.frontImage || guest.idProof?.frontImageUrl || guest.frontImage || guest.frontImageUrl || guest.idProofImage || booking.idProof?.frontImage || booking.idProofImage;
   const primaryBack = guest.idProof?.backImage || guest.idProof?.backImageUrl || guest.backImage || guest.backImageUrl || guest.idProofBackImage || booking.idProof?.backImage || booking.idProofBackImage;
-  const hasAnyIdImages = Boolean(primaryFront || primaryBack || accompanying.some((m) => m.frontImage || m.frontImageUrl || m.backImage || m.backImageUrl || m.idProofImage || m.idProof?.frontImage || m.idProof?.backImage));
+  const hasAnyIdImages = Boolean(primaryFront || primaryBack || guestSignature || accompanying.some((m) => m.frontImage || m.frontImageUrl || m.backImage || m.backImageUrl || m.idProofImage || m.idProof?.frontImage || m.idProof?.backImage));
 
   const allIdCards = [
     {
@@ -2230,7 +2243,14 @@ export function downloadGuestFolioPDF(data = {}, hotel = {}) {
         <div style="font-size: 10px; color: #94A3B8; margin-top: 2px;">Official Guest Stay Folio &bull; Verified and Digitally Sealed by PMS Front Desk</div>
       </div>
       <div style="text-align: right; width: 220px;">
-        <div style="border-bottom: 1.5px dashed #94A3B8; margin-bottom: 6px; height: 35px;"></div>
+        ${guestSignature ? `
+          <div style="height: 42px; display: flex; align-items: center; justify-content: flex-end; margin-bottom: 2px;">
+            <img src="${guestSignature}" alt="Guest Signature" style="max-height: 40px; max-width: 200px; object-fit: contain;" />
+          </div>
+          <div style="border-bottom: 1.5px solid #0F172A; margin-bottom: 4px;"></div>
+        ` : `
+          <div style="border-bottom: 1.5px dashed #94A3B8; margin-bottom: 6px; height: 35px;"></div>
+        `}
         <div style="font-size: 10.5px; font-weight: 800; color: #0F172A; text-transform: uppercase;">Guest / Cashier Signature</div>
       </div>
     </div>
@@ -2306,6 +2326,20 @@ export function downloadGuestFolioPDF(data = {}, hotel = {}) {
             </div>
           `).join("")}
         </div>
+
+        ${guestSignature ? `
+          <div class="pdf-section" style="background: #F8FAFC; border: 1.5px solid #CBD5E1; border-radius: 12px; padding: 12px; margin-bottom: 16px; box-sizing: border-box;">
+            <div style="font-size: 11.5px; font-weight: 900; color: #0F172A; border-bottom: 1.5px solid #E2E8F0; padding-bottom: 6px; margin-bottom: 8px;">
+              ✍️ Primary Guest Digital E-Signature Record
+            </div>
+            <div style="height: 100px; display: flex; align-items: center; justify-content: center; background: #FFFFFF; border-radius: 8px; border: 1px solid #E2E8F0; padding: 8px;">
+              <img src="${guestSignature}" alt="Guest Digital Signature" style="max-height: 85px; max-width: 320px; object-fit: contain;" />
+            </div>
+            <div style="font-size: 9.5px; color: #64748B; text-align: center; margin-top: 6px; font-weight: 700;">
+              Digitally executed and timestamped at front-desk registration for Folio #${booking.bookingNumber || folioNum}.
+            </div>
+          </div>
+        ` : ""}
 
         <!-- Page 2 Official Verification Footer -->
         <div class="pdf-section" style="display: flex; justify-content: space-between; align-items: flex-end; padding-top: 12px; border-top: 1.5px solid #E2E8F0; font-size: 10.5px; color: #64748B; margin-top: 14px;">

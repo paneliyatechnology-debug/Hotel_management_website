@@ -223,6 +223,19 @@ export default function AvailableRoomsPage({
     });
   };
 
+  // Auto-clear selection or remove non-AVAILABLE rooms if room statuses change after check-in/booking
+  useEffect(() => {
+    if (selectedRoomIds.length > 0) {
+      const stillAvailableIds = selectedRoomIds.filter((id) => {
+        const found = rooms.find((r) => String(r._id) === String(id));
+        return found && found.status === "AVAILABLE";
+      });
+      if (stillAvailableIds.length !== selectedRoomIds.length) {
+        setSelectedRoomIds(stillAvailableIds);
+      }
+    }
+  }, [rooms, selectedRoomIds]);
+
   const handleClearSelection = () => {
     setSelectedRoomIds([]);
   };
@@ -232,6 +245,7 @@ export default function AvailableRoomsPage({
     if (onSelectRoomForCheckIn) {
       onSelectRoomForCheckIn(selectedRoomsList);
     }
+    setSelectedRoomIds([]);
   };
 
   // Room Status & Checkout Settlement Modal State

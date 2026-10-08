@@ -57,6 +57,7 @@ import StatusChip from "@/shared/components/StatusChip";
 import { downloadGuestFolioPDF } from "@/shared/utils/pdfGenerator";
 import { downloadAllGuestIdImages, downloadSingleImage, sanitizeFilename } from "@/shared/utils/idProofDownloader";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
+import { formatTime12Hour } from "@/shared/utils/timeUtils";
 import { toast } from "@/shared/utils/toast";
 
 export default function GuestDetailsModal({
@@ -349,13 +350,6 @@ export default function GuestDetailsModal({
                       </Grid>
 
                       <Grid size={{ xs: 12, sm: 4 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Age / Date of Birth</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                          {guest.age ? `${guest.age} yrs` : guest.dob ? new Date(guest.dob).toLocaleDateString("en-IN") : "N/A"}
-                        </Typography>
-                      </Grid>
-
-                      <Grid size={{ xs: 12, sm: 4 }}>
                         <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Gender</Typography>
                         <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
                           {guest.gender || "Male"}
@@ -366,28 +360,6 @@ export default function GuestDetailsModal({
                         <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Nationality</Typography>
                         <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
                           {guest.nationality || "Indian"}
-                        </Typography>
-                      </Grid>
-
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Residential Address</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 0.5 }}>
-                          <LocationOn sx={{ fontSize: 14, color: themeConfig.primary }} />
-                          {guest.address || guest.address?.fullAddress || "N/A"}
-                        </Typography>
-                      </Grid>
-
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>City</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                          {guest.city || guest.address?.city || "N/A"}
-                        </Typography>
-                      </Grid>
-
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>State</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                          {guest.state || guest.address?.state || "N/A"}
                         </Typography>
                       </Grid>
                     </Grid>
@@ -575,6 +547,91 @@ export default function GuestDetailsModal({
                               </Paper>
                             </Grid>
                           </Grid>
+
+                          {/* Digital Signature Card */}
+                          {(() => {
+                            const signaturePhoto =
+                              guest?.signature ||
+                              guest?.signatureUrl ||
+                              guest?.guestSignature ||
+                              activeBooking?.guestSignature ||
+                              activeBooking?.signature ||
+                              guestData?.signature ||
+                              guestData?.guestSignature ||
+                              guestData?.guest?.signature ||
+                              guestData?.booking?.guestSignature ||
+                              guestData?.booking?.signature ||
+                              guestData?.activeBooking?.guestSignature ||
+                              guestData?.activeBooking?.signature ||
+                              null;
+
+                            return (
+                              <Box sx={{ mt: 2.5 }}>
+                                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", display: "block", mb: 1 }}>
+                                  Guest E-Signature Record:
+                                </Typography>
+                                <Paper
+                                  sx={{
+                                    p: 1.5,
+                                    borderRadius: "12px",
+                                    border: `1px solid ${themeConfig.border}`,
+                                    bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
+                                  }}
+                                >
+                                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                                    <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 0.5 }}>
+                                      ✍️ Guest Digital Signature
+                                    </Typography>
+                                    {signaturePhoto && (
+                                      <Chip
+                                        icon={<FileDownload sx={{ fontSize: "14px !important" }} />}
+                                        label="Download"
+                                        size="small"
+                                        clickable
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const cleanName = sanitizeFilename(guest.fullName || guest.name || "Guest");
+                                          downloadSingleImage(signaturePhoto, `${cleanName}_Digital_Signature`);
+                                        }}
+                                        sx={{
+                                          height: 20,
+                                          fontSize: "0.68rem",
+                                          fontWeight: 800,
+                                          bgcolor: "rgba(16, 185, 129, 0.1)",
+                                          color: "#10B981",
+                                          "&:hover": { bgcolor: "rgba(16, 185, 129, 0.2)" },
+                                        }}
+                                      />
+                                    )}
+                                  </Box>
+                                  {signaturePhoto ? (
+                                    <Box
+                                      component="img"
+                                      src={signaturePhoto}
+                                      alt="Guest Digital Signature"
+                                      onClick={() => setPreviewImage(signaturePhoto)}
+                                      sx={{
+                                        width: "100%",
+                                        height: 110,
+                                        objectFit: "contain",
+                                        bgcolor: isDarkMode ? "rgba(0,0,0,0.25)" : "#FFFFFF",
+                                        border: `1px solid ${themeConfig.border}`,
+                                        borderRadius: "8px",
+                                        cursor: "pointer",
+                                        p: 1,
+                                        transition: "transform 0.2s, box-shadow 0.2s",
+                                        "&:hover": { transform: "scale(1.02)", opacity: 0.95, boxShadow: "0 6px 16px rgba(0,0,0,0.15)" },
+                                      }}
+                                    />
+                                  ) : (
+                                    <Box sx={{ py: 3, textAlign: "center", color: themeConfig.textMuted }}>
+                                      <Typography variant="caption" sx={{ fontStyle: "italic" }}>No Digital Signature Recorded</Typography>
+                                    </Box>
+                                  )}
+                                </Paper>
+                              </Box>
+                            );
+                          })()}
                         </>
                       );
                     })()}

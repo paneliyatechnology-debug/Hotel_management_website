@@ -57,6 +57,7 @@ import {
   People,
   Lightbulb,
   Warning,
+  EventBusy,
   Add,
   Remove,
   Check,
@@ -714,25 +715,99 @@ export default function CheckInWizardPage({
 
   // Accompanying Members Handlers (Step 1)
   const handleAddMember = () => {
-    if (totalRoomCapacity > 0 && totalPartySize >= totalRoomCapacity) {
-      showErrorAlert(`⚠️ Maximum guest capacity reached (${totalRoomCapacity} guest(s) max for selected rooms).`);
-      return;
-    }
-    if (totalRoomCapacity === 0 && selectedRoomsList.length === 0) {
-      showErrorAlert("⚠️ Please select room(s) first to set the guest capacity limit.");
-      return;
-    }
     const newMember = {
       id: Date.now() + Math.random(),
       name: "",
       frontImage: "",
       backImage: "",
+      images: [],
     };
     const updatedMembers = [...(checkInData.accompanyingGuests || []), newMember];
     setCheckInData((prev) => ({
       ...prev,
       accompanyingGuests: updatedMembers,
       adults: 1 + updatedMembers.length,
+    }));
+  };
+
+  // Direct File Picker Handler for "+ Upload Member Documents" Button (Unlimited Image Uploads Allowed)
+  const handleAddNewMemberWithFiles = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    // Local Base64 previews for instant feedback
+    const newPreviews = await Promise.all(
+      files.map(
+        (file) =>
+          new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (evt) => resolve(evt.target.result);
+            reader.readAsDataURL(file);
+          })
+      )
+    );
+
+    const newDocItems = newPreviews.map((imgSrc, idx) => ({
+      id: Date.now() + Math.random() + idx,
+      name: `Document #${(checkInData.accompanyingGuests?.length || 0) + idx + 1}`,
+      frontImage: imgSrc,
+      backImage: "",
+      images: [imgSrc],
+    }));
+
+    setCheckInData((prev) => {
+      const updatedMembers = [...(prev.accompanyingGuests || []), ...newDocItems];
+      return {
+        ...prev,
+        accompanyingGuests: updatedMembers,
+        adults: 1 + updatedMembers.length,
+      };
+    });
+
+    // Cloudinary background uploads
+    files.forEach(async (file, idx) => {
+      try {
+        const liveCloudUrl = await uploadToCloudinaryServer(file, "hotel_guest_documents/members");
+        if (liveCloudUrl && (liveCloudUrl.startsWith("http://") || liveCloudUrl.startsWith("https://"))) {
+          const targetId = newDocItems[idx].id;
+          setCheckInData((prev) => {
+            const updatedMembers = (prev.accompanyingGuests || []).map((m) => {
+              if (m.id === targetId) {
+                return {
+                  ...m,
+                  frontImage: liveCloudUrl,
+                  images: [liveCloudUrl],
+                };
+              }
+              return m;
+            });
+            return { ...prev, accompanyingGuests: updatedMembers };
+          });
+        }
+      } catch (err) {
+        console.warn("Cloudinary upload fallback to preview:", err);
+      }
+    });
+
+    if (e.target) e.target.value = "";
+  };
+
+  const handleRemoveSingleMemberDoc = (docId) => {
+    setCheckInData((prev) => {
+      const updatedMembers = (prev.accompanyingGuests || []).filter((m) => m.id !== docId);
+      return {
+        ...prev,
+        accompanyingGuests: updatedMembers,
+        adults: 1 + updatedMembers.length,
+      };
+    });
+  };
+
+  const handleClearAllMemberDocs = () => {
+    setCheckInData((prev) => ({
+      ...prev,
+      accompanyingGuests: [],
+      adults: 1,
     }));
   };
 
@@ -755,27 +830,89 @@ export default function CheckInWizardPage({
     }));
   };
 
-  const handleMemberImageUpload = async (e, id, target = "front") => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Multi-Image Upload for Accompanying Members
+  const handleMemberMultipleImageUpload = async (e, id) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    // Fast local preview
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const b64 = event.target.result;
-      handleUpdateMember(id, target === "front" ? "frontImage" : "backImage", b64);
-    };
-    reader.readAsDataURL(file);
+    // Local Base64 previews for instant feedback
+    const newPreviews = await Promise.all(
+      files.map(
+        (file) =>
+          new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (evt) => resolve(evt.target.result);
+            reader.readAsDataURL(file);
+          })
+      )
+    );
 
-    // Direct background upload via Multer to Cloudinary
-    try {
-      const liveCloudUrl = await uploadToCloudinaryServer(file, "hotel_guest_documents/members");
-      if (liveCloudUrl && (liveCloudUrl.startsWith("http://") || liveCloudUrl.startsWith("https://"))) {
-        handleUpdateMember(id, target === "front" ? "frontImage" : "backImage", liveCloudUrl);
+    setCheckInData((prev) => {
+      const updatedMembers = (prev.accompanyingGuests || []).map((m) => {
+        if (m.id === id) {
+          const existingImages = m.images || (m.frontImage ? [m.frontImage, ...(m.backImage ? [m.backImage] : [])] : []);
+          const merged = [...existingImages, ...newPreviews];
+          return {
+            ...m,
+            images: merged,
+            frontImage: merged[0] || "",
+            backImage: merged[1] || "",
+          };
+        }
+        return m;
+      });
+      return { ...prev, accompanyingGuests: updatedMembers };
+    });
+
+    // Cloudinary background uploads
+    files.forEach(async (file, idx) => {
+      try {
+        const liveCloudUrl = await uploadToCloudinaryServer(file, "hotel_guest_documents/members");
+        if (liveCloudUrl && (liveCloudUrl.startsWith("http://") || liveCloudUrl.startsWith("https://"))) {
+          setCheckInData((prev) => {
+            const updatedMembers = (prev.accompanyingGuests || []).map((m) => {
+              if (m.id === id) {
+                const currentImages = [...(m.images || [])];
+                const replaceIdx = currentImages.indexOf(newPreviews[idx]);
+                if (replaceIdx !== -1) {
+                  currentImages[replaceIdx] = liveCloudUrl;
+                } else {
+                  currentImages.push(liveCloudUrl);
+                }
+                return {
+                  ...m,
+                  images: currentImages,
+                  frontImage: currentImages[0] || "",
+                  backImage: currentImages[1] || "",
+                };
+              }
+              return m;
+            });
+            return { ...prev, accompanyingGuests: updatedMembers };
+          });
+        }
+      } catch (err) {
+        console.warn("Cloudinary upload fallback to preview:", err);
       }
-    } catch (err) {
-      console.warn("Cloudinary upload fallback to local preview:", err);
-    }
+    });
+  };
+
+  const handleRemoveMemberImage = (memberId, imageIdxToRemove) => {
+    setCheckInData((prev) => {
+      const updatedMembers = (prev.accompanyingGuests || []).map((m) => {
+        if (m.id === memberId) {
+          const currentImages = (m.images || []).filter((_, idx) => idx !== imageIdxToRemove);
+          return {
+            ...m,
+            images: currentImages,
+            frontImage: currentImages[0] || "",
+            backImage: currentImages[1] || "",
+          };
+        }
+        return m;
+      });
+      return { ...prev, accompanyingGuests: updatedMembers };
+    });
   };
 
   // Main Guest Image Upload
@@ -1047,6 +1184,76 @@ export default function CheckInWizardPage({
 
 
 
+  // Form Validation Field Error State for Red Input Highlight
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  // Ensure clean state on mount & wipe any old cached draft data completely
+  useEffect(() => {
+    if (typeof localStorage !== "undefined") {
+      try {
+        localStorage.removeItem("hotel_checkin_wizard_draft_v1");
+      } catch (e) {}
+    }
+  }, []);
+
+  // Clear & reset form data when user clicks "Reset Form"
+  const handleClearFormDraft = () => {
+    if (typeof localStorage !== "undefined") {
+      try { localStorage.removeItem("hotel_checkin_wizard_draft_v1"); } catch (e) {}
+    }
+    setCheckInData({
+      fullName: "",
+      mobile: "",
+      email: "",
+      address: "",
+      govtIdType: "AADHAAR",
+      govtIdNumber: "",
+      roomType: "",
+      roomNumber: "",
+      roomId: "",
+      roomIds: [],
+      selectedRooms: [],
+      selectedRoomNumbers: [],
+      checkInDate: getTodayLocalDate(),
+      checkInTime: getCurrentLocalTime(),
+      checkOutDate: (() => {
+        const d = new Date();
+        d.setDate(d.getDate() + 1);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
+      })(),
+      checkOutTime: hotelSettings?.checkOutTime || "12:00",
+      numberOfNights: 1,
+      rate: 0,
+      paid: 0,
+      total: 0,
+      accompanyingGuests: [],
+    });
+    setFieldErrors({});
+    setStepError("");
+    toast.show("🧹 Old form data cleared. Ready for new check-in!", "info");
+  };
+
+  // Smooth Scroll Helper to auto-scroll to missing/unfilled fields or top of wizard
+  const scrollToElement = (id) => {
+    if (typeof document !== "undefined") {
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        const input = el.querySelector("input, select, textarea") || el;
+        if (input && typeof input.focus === "function") {
+          try { input.focus(); } catch {}
+        }
+        return;
+      }
+    }
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
   // Step Validation Helpers & Error Alerts (Toast Notification System)
   const showErrorAlert = (msg, severity = "warning") => {
     setStepError(msg);
@@ -1055,37 +1262,50 @@ export default function CheckInWizardPage({
 
   const handleNext = () => {
     setStepError("");
+    setFieldErrors({});
 
     // Step 1 (Index 0): Primary Guest & Member Photos Validation
     if (activeStep === 0) {
-      if (!checkInData.fullName?.trim()) {
-        showErrorAlert("⚠️ Name Required: Please enter the Primary Guest's Full Name.");
-        return;
-      }
-      if (!checkInData.mobile?.trim()) {
-        showErrorAlert("⚠️ Mobile Number Required: Please enter the Primary Guest's Mobile Number.");
-        return;
-      }
+      const isNameMissing = !checkInData.fullName?.trim();
+      const isMobileMissing = !checkInData.mobile?.trim();
+      const isFrontIdMissing = !checkInData.frontImage;
 
-      // Mandatory ID Proof Upload Validation for Primary Guest
-      if (!checkInData.frontImage) {
-        showErrorAlert("⚠️ ID Upload Required: Primary Guest ID photo (Front) is required before proceeding.");
-        if (typeof document !== "undefined") {
-          const el = document.getElementById("main-guest-id-section");
-          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (isNameMissing || isMobileMissing || isFrontIdMissing) {
+        const newErrors = {};
+        if (isNameMissing) newErrors.fullName = true;
+        if (isMobileMissing) newErrors.mobile = true;
+        if (isFrontIdMissing) newErrors.frontImage = true;
+        setFieldErrors(newErrors);
+
+        if (isNameMissing) {
+          showErrorAlert("⚠️ Name Required: Please enter the Primary Guest's Full Name.");
+          scrollToElement("field-primary-fullname");
+          return;
         }
-        return;
+        if (isMobileMissing) {
+          showErrorAlert("⚠️ Mobile Number Required: Please enter the Primary Guest's Mobile Number.");
+          scrollToElement("field-primary-mobile");
+          return;
+        }
+        if (isFrontIdMissing) {
+          showErrorAlert("⚠️ ID Upload Required: Primary Guest ID photo (Front) is required before proceeding.");
+          scrollToElement("main-guest-id-section");
+          return;
+        }
       }
     }
 
     // Step 2 (Index 1): Stay & Room Allocation Validation
     if (activeStep === 1) {
       if (!checkInData.roomId && (!checkInData.roomIds || checkInData.roomIds.length === 0)) {
+        setFieldErrors({ roomId: true });
         showErrorAlert("⚠️ Room Required: Please assign at least one room before continuing.");
+        scrollToElement("room-selection-section");
         return;
       }
 
       if (conflictingRooms.length > 0) {
+        setFieldErrors({ roomId: true });
         const firstConflict = conflictingRooms[0];
         const conflictDetails = getRoomConflict(firstConflict);
         const cIn = formatDisplayDate(conflictDetails?.checkInDate);
@@ -1094,30 +1314,32 @@ export default function CheckInWizardPage({
         showErrorAlert(
           `⚠️ Room Conflict: Room #${firstConflict.roomNumber} is ALREADY BOOKED from ${cIn} to ${cOut} (${gName}). Please choose different stay dates or switch to an available room!`
         );
+        scrollToElement("room-selection-section");
         return;
       }
     }
 
-    // Step 3 (Index 2): Billing & Settlement (100% Advance Payment Requirement)
+    // Step 3 (Index 2): Billing & Settlement (100% Auto Advance Settlement)
     if (activeStep === 2) {
-      const requiredAdvance = calculatedGrandTotal;
-      const advancePaid = Number(checkInData.paid ?? calculatedGrandTotal);
-      if (isNaN(advancePaid) || advancePaid < requiredAdvance) {
-        showErrorAlert(`⚠️ 100% Advance Payment Required: Full booking amount of ₹${requiredAdvance.toLocaleString("en-IN")} must be paid in advance to confirm reservation.`);
-        return;
-      }
+      setCheckInData((prev) => ({
+        ...prev,
+        paid: calculatedGrandTotal,
+        due: 0,
+      }));
     }
 
     setActiveStep((prev) => Math.min(prev + 1, CHECKIN_STEPS.length - 1));
+    scrollToElement("checkin-wizard-top");
   };
 
   const handleBack = () => {
     setStepError("");
     setActiveStep((prev) => Math.max(prev - 1, 0));
+    scrollToElement("checkin-wizard-top");
   };
 
   return (
-    <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 } }}>
+    <Box id="checkin-wizard-top" sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 } }}>
       <Card
         className="card-3d"
         sx={{
@@ -1153,6 +1375,25 @@ export default function CheckInWizardPage({
                 Back to Rooms
               </Button>
             )}
+
+            <Button
+              variant="text"
+              size="small"
+              onClick={handleClearFormDraft}
+              startIcon={<Refresh sx={{ fontSize: 16 }} />}
+              sx={{
+                borderRadius: "10px",
+                fontWeight: 800,
+                fontSize: "0.75rem",
+                color: themeConfig.textMuted,
+                textTransform: "none",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
+                "&:hover": { color: "#EF4444", bgcolor: "rgba(239, 68, 68, 0.08)" },
+              }}
+            >
+              Reset Form
+            </Button>
             <Box sx={{ width: "100%" }}>
               <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 0.2, letterSpacing: -0.5, fontSize: { xs: "1.15rem", sm: "1.45rem" }, lineHeight: 1.25 }}>
                 Express Check-In & Guest Allocation
@@ -1181,7 +1422,7 @@ export default function CheckInWizardPage({
         {/* ========================================================================= */}
         {/* LUXURY STEP-BY-STEP CONNECTED HORIZONTAL STEPPER (EQUAL SEGMENTS & TRACK) */}
         {/* ========================================================================= */}
-        <Box sx={{ mb: 2, mt: 0.5, px: { xs: 0.5, sm: 2 }, overflowX: "auto", pb: 1, "&::-webkit-scrollbar": { height: 4 } }}>
+        <Box sx={{ mb: 2, mt: 0.9, px: { xs: 0.5, sm: 2 }, overflowX: "auto", pb: 1, "&::-webkit-scrollbar": { height: 4 } }}>
           <Box
             sx={{
               display: "flex",
@@ -1197,11 +1438,12 @@ export default function CheckInWizardPage({
               sx={{
                 position: "absolute",
                 top: { xs: 18, sm: 22 },
-                left: { xs: "10%", sm: "10%" },
-                right: { xs: "10%", sm: "10%" },
+                left: { xs: "12%", sm: "12%" },
+                right: { xs: "12%", sm: "12%" },
                 height: 4,
                 bgcolor: "#E2E8F0",
                 borderRadius: "10px",
+                transform: "translateY(-50%)",
                 zIndex: 0,
               }}
             >
@@ -1353,15 +1595,20 @@ export default function CheckInWizardPage({
 
               <Grid container spacing={2}>
                 {/* 1. Primary Guest Full Name */}
-                <Grid size={{ xs: 12, sm: 6 }}>
+                <Grid id="field-primary-fullname" size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     size="small"
                     label="Primary Guest Full Name *"
                     placeholder="e.g. Rahul Sharma"
                     value={checkInData.fullName || ""}
-                    onChange={(e) => setCheckInData({ ...checkInData, fullName: e.target.value })}
+                    onChange={(e) => {
+                      setCheckInData({ ...checkInData, fullName: e.target.value });
+                      if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, fullName: false }));
+                    }}
                     required
+                    error={Boolean(fieldErrors.fullName)}
+                    helperText={fieldErrors.fullName ? "⚠️ Primary Guest Full Name is required" : ""}
                   />
                 </Grid>
 
@@ -1378,7 +1625,7 @@ export default function CheckInWizardPage({
                 </Grid>
 
                 {/* 3. WhatsApp Mobile Number */}
-                <Grid size={{ xs: 12, sm: 6 }}>
+                <Grid id="field-primary-mobile" size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     size="small"
@@ -1388,8 +1635,10 @@ export default function CheckInWizardPage({
                     onChange={(e) => {
                       const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
                       handlePhoneChange(digits);
+                      if (digits.trim()) setFieldErrors((prev) => ({ ...prev, mobile: false }));
                     }}
                     required
+                    error={Boolean(fieldErrors.mobile)}
                     slotProps={{
                       input: {
                         startAdornment: (
@@ -1403,9 +1652,15 @@ export default function CheckInWizardPage({
                       },
                     }}
                     helperText={
-                      <Typography component="span" variant="caption" sx={{ fontSize: "0.68rem", color: themeConfig.textMuted }}>
-                        📱 Auto-lookup on 10 digits
-                      </Typography>
+                      fieldErrors.mobile ? (
+                        <Typography component="span" variant="caption" sx={{ fontSize: "0.68rem", color: "#EF4444", fontWeight: 800 }}>
+                          ⚠️ 10-digit WhatsApp Mobile Number is required
+                        </Typography>
+                      ) : (
+                        <Typography component="span" variant="caption" sx={{ fontSize: "0.68rem", color: themeConfig.textMuted }}>
+                          📱 Auto-lookup on 10 digits
+                        </Typography>
+                      )
                     }
                   />
                 </Grid>
@@ -1429,11 +1684,11 @@ export default function CheckInWizardPage({
                 sx={{
                   mt: 2.5,
                   pt: 2,
-                  p: stepError && !checkInData.frontImage ? 1.5 : 0,
+                  p: (fieldErrors.frontImage || (stepError && !checkInData.frontImage)) ? 1.5 : 0,
                   borderRadius: "14px",
-                  borderTop: stepError && !checkInData.frontImage ? "none" : `1px dashed ${themeConfig.border}`,
-                  border: stepError && !checkInData.frontImage ? "2px solid #EF4444" : undefined,
-                  bgcolor: stepError && !checkInData.frontImage ? "rgba(239, 68, 68, 0.04)" : "transparent",
+                  borderTop: (fieldErrors.frontImage || (stepError && !checkInData.frontImage)) ? "none" : `1px dashed ${themeConfig.border}`,
+                  border: (fieldErrors.frontImage || (stepError && !checkInData.frontImage)) ? "2px solid #EF4444" : undefined,
+                  bgcolor: (fieldErrors.frontImage || (stepError && !checkInData.frontImage)) ? "rgba(239, 68, 68, 0.04)" : "transparent",
                   transition: "all 0.3s ease",
                 }}
               >
@@ -1546,7 +1801,7 @@ export default function CheckInWizardPage({
                     </Avatar>
                     <div>
                       <Typography variant="subtitle1" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-                        Accompanying Member Photos
+                        Accompanying Member Documents ({checkInData.accompanyingGuests?.length || 0})
                       </Typography>
                       <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
                         Upload ID photos for additional accompanying guests
@@ -1554,113 +1809,139 @@ export default function CheckInWizardPage({
                     </div>
                   </Box>
 
-                  <Button
-                    variant="outlined"
-                    startIcon={<Add />}
-                    onClick={handleAddMember}
-                    size="small"
-                    sx={{
-                      borderRadius: "10px",
-                      fontWeight: 800,
-                      borderColor: themeConfig.primary,
-                      color: themeConfig.primaryDark,
-                      "&:hover": { bgcolor: themeConfig.champagne },
-                    }}
-                  >
-                    + Add Member Photo
-                  </Button>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    {checkInData.accompanyingGuests && checkInData.accompanyingGuests.length > 0 && (
+                      <Button
+                        variant="text"
+                        size="small"
+                        onClick={handleClearAllMemberDocs}
+                        sx={{ color: "#EF4444", fontWeight: 800, fontSize: "0.75rem", textTransform: "none" }}
+                      >
+                        Clear All ({checkInData.accompanyingGuests.length})
+                      </Button>
+                    )}
+
+                    <Button
+                      variant="contained"
+                      component="label"
+                      startIcon={<CloudUpload />}
+                      size="small"
+                      sx={{
+                        borderRadius: "10px",
+                        fontWeight: 800,
+                        bgcolor: themeConfig.primary,
+                        color: "#FFFFFF",
+                        px: 2,
+                        py: 0.8,
+                        boxShadow: `0 4px 12px ${themeConfig.primaryGlow}`,
+                        "&:hover": { bgcolor: themeConfig.primaryDark },
+                      }}
+                    >
+                      + Upload Member Documents
+                      <input
+                        type="file"
+                        hidden
+                        multiple
+                        accept="image/*"
+                        onChange={handleAddNewMemberWithFiles}
+                      />
+                    </Button>
+                  </Box>
                 </Box>
 
+                {/* Direct Image Gallery Grid (Without Outer Member Card Boxes) */}
                 {checkInData.accompanyingGuests && checkInData.accompanyingGuests.length > 0 ? (
-                  <Grid container spacing={2}>
-                    {checkInData.accompanyingGuests.map((member, index) => (
-                      <Grid key={member.id || index} size={{ xs: 12, sm: 6 }}>
-                        <Paper
-                          sx={{
-                            p: 2,
-                            borderRadius: "14px",
-                            bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F8FAFC",
-                            border: `1px solid ${themeConfig.border}`,
-                          }}
-                        >
-                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                              Member #{index + 1} ID Photos
-                            </Typography>
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => handleRemoveMember(member.id)}
-                            >
-                              <Delete sx={{ fontSize: 18 }} />
-                            </IconButton>
-                          </Box>
-
-                          <Grid container spacing={1}>
-                            {/* Front Photo */}
-                            <Grid size={{ xs: 6 }}>
-                              {member.frontImage ? (
-                                <Box sx={{ position: "relative", width: "100%", height: 100, borderRadius: "8px", overflow: "hidden", border: "1px solid #10B981" }}>
-                                  <Box component="img" src={member.frontImage} alt={`Member ${index + 1} Front`} sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => handleUpdateMember(member.id, "frontImage", "")}
-                                    sx={{ position: "absolute", top: 4, right: 4, bgcolor: "rgba(239,68,68,0.9)", color: "#FFF", p: 0.3 }}
-                                  >
-                                    <Close sx={{ fontSize: 14 }} />
-                                  </IconButton>
-                                </Box>
+                  <Grid container spacing={1.5}>
+                    {checkInData.accompanyingGuests.map((member, index) => {
+                      const imgSrc = member.frontImage || (member.images && member.images[0]) || "";
+                      return (
+                        <Grid key={member.id || index} size={{ xs: 6, sm: 4, md: 3 }}>
+                          <Paper
+                            className="card-3d"
+                            sx={{
+                              position: "relative",
+                              borderRadius: "12px",
+                              overflow: "hidden",
+                              border: "1.5px solid #10B981",
+                              bgcolor: "#FFFFFF",
+                              boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
+                              transition: "all 0.25s ease",
+                              "&:hover": { transform: "translateY(-2px)", boxShadow: "0 6px 16px rgba(16, 185, 129, 0.2)" },
+                            }}
+                          >
+                            {/* Image Preview */}
+                            <Box sx={{ width: "100%", height: 110, bgcolor: "#F8FAFC", position: "relative" }}>
+                              {imgSrc ? (
+                                <Box
+                                  component="img"
+                                  src={imgSrc}
+                                  alt={`Member Document #${index + 1}`}
+                                  sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                />
                               ) : (
-                                <Button
-                                  variant="contained"
-                                  component="label"
-                                  startIcon={<CloudUpload />}
-                                  size="small"
-                                  fullWidth
-                                  sx={{ borderRadius: "8px", fontWeight: 700, fontSize: "0.75rem", bgcolor: themeConfig.primary, py: 1 }}
-                                >
-                                  Front ID
-                                  <input type="file" hidden accept="image/*" onChange={(e) => handleMemberImageUpload(e, member.id, "front")} />
-                                </Button>
-                              )}
-                            </Grid>
-
-                            {/* Back Photo */}
-                            <Grid size={{ xs: 6 }}>
-                              {member.backImage ? (
-                                <Box sx={{ position: "relative", width: "100%", height: 100, borderRadius: "8px", overflow: "hidden", border: "1px solid #10B981" }}>
-                                  <Box component="img" src={member.backImage} alt={`Member ${index + 1} Back`} sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => handleUpdateMember(member.id, "backImage", "")}
-                                    sx={{ position: "absolute", top: 4, right: 4, bgcolor: "rgba(239,68,68,0.9)", color: "#FFF", p: 0.3 }}
-                                  >
-                                    <Close sx={{ fontSize: 14 }} />
-                                  </IconButton>
+                                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+                                  <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>No Preview</Typography>
                                 </Box>
-                              ) : (
-                                <Button
-                                  variant="outlined"
-                                  component="label"
-                                  startIcon={<CloudUpload />}
-                                  size="small"
-                                  fullWidth
-                                  sx={{ borderRadius: "8px", fontWeight: 700, fontSize: "0.75rem", borderColor: themeConfig.border, py: 1 }}
-                                >
-                                  Back ID
-                                  <input type="file" hidden accept="image/*" onChange={(e) => handleMemberImageUpload(e, member.id, "back")} />
-                                </Button>
                               )}
-                            </Grid>
-                          </Grid>
-                        </Paper>
-                      </Grid>
-                    ))}
+
+                              {/* Delete Button at top right */}
+                              <IconButton
+                                size="small"
+                                onClick={() => handleRemoveSingleMemberDoc(member.id)}
+                                sx={{
+                                  position: "absolute",
+                                  top: 5,
+                                  right: 5,
+                                  bgcolor: "rgba(239, 68, 68, 0.92)",
+                                  color: "#FFFFFF",
+                                  p: 0.4,
+                                  boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
+                                  "&:hover": { bgcolor: "#DC2626", transform: "scale(1.1)" },
+                                }}
+                              >
+                                <Close sx={{ fontSize: 15 }} />
+                              </IconButton>
+
+                              {/* Document Badge at bottom left */}
+                              <Chip
+                                label={`Doc #${index + 1}`}
+                                size="small"
+                                sx={{
+                                  position: "absolute",
+                                  bottom: 6,
+                                  left: 6,
+                                  bgcolor: "rgba(16, 185, 129, 0.92)",
+                                  color: "#FFFFFF",
+                                  fontWeight: 900,
+                                  fontSize: "0.68rem",
+                                  height: 20,
+                                  px: 0.5,
+                                  boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+                                }}
+                              />
+                            </Box>
+                          </Paper>
+                        </Grid>
+                      );
+                    })}
                   </Grid>
                 ) : (
-                  <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontStyle: "italic", textAlign: "center", py: 1 }}>
-                    No accompanying member photos added yet. Click "+ Add Member Photo" to upload photos for additional guests.
-                  </Typography>
+                  <Box
+                    sx={{
+                      p: 2.5,
+                      textAlign: "center",
+                      borderRadius: "14px",
+                      border: `1.5px dashed ${themeConfig.border}`,
+                      bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#F8FAFC",
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+                      📁 No member documents uploaded yet.
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", mt: 0.5 }}>
+                      Click <strong>"+ Upload Member Documents"</strong> above to select multiple photos at once.
+                    </Typography>
+                  </Box>
                 )}
               </Box>
 
@@ -1852,6 +2133,7 @@ export default function CheckInWizardPage({
 
             {/* Section 2: Room Allocation Overview & Date Conflict Guard */}
             <Paper
+              id="room-selection-section"
               className="card-3d"
               sx={{
                 p: 3,
@@ -1999,6 +2281,7 @@ export default function CheckInWizardPage({
         {activeStep === 2 && (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 3.5 }}>
             <Paper
+              id="payment-advance-section"
               className="card-3d"
               sx={{
                 p: 3,
@@ -2187,56 +2470,6 @@ export default function CheckInWizardPage({
                     onChange={(e) => setCheckInData({ ...checkInData, transactionId: e.target.value })}
                   />
                 </Grid>
-
-                {/* Amount Paid Advance (Auto-Filled with Full Grand Total Including GST) */}
-                <Grid size={{ xs: 12 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Advance Amount Paid (₹) *"
-                    placeholder="e.g. 2360"
-                    value={checkInData.paid ?? calculatedGrandTotal}
-                    onChange={(e) => {
-                      const valStr = e.target.value;
-                      const p = valStr === "" ? 0 : Number(valStr) || 0;
-                      setCheckInData({
-                        ...checkInData,
-                        paid: p,
-                        isPaidManuallyEdited: true,
-                        due: Math.max(0, calculatedGrandTotal - p),
-                      });
-                    }}
-                    slotProps={{
-                      input: {
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <Button
-                              size="small"
-                              onClick={() => {
-                                setCheckInData((prev) => ({
-                                  ...prev,
-                                  paid: calculatedGrandTotal,
-                                  isPaidManuallyEdited: false,
-                                  due: 0,
-                                }));
-                              }}
-                              sx={{ fontSize: "0.72rem", fontWeight: 800, textTransform: "none", py: 0.3, px: 1.2, bgcolor: "rgba(16, 185, 129, 0.12)", color: themeConfig.primary, borderRadius: "8px", "&:hover": { bgcolor: "rgba(16, 185, 129, 0.22)" } }}
-                            >
-                              ⚡ Auto-fill 100% (₹{calculatedGrandTotal.toLocaleString("en-IN")})
-                            </Button>
-                          </InputAdornment>
-                        ),
-                      },
-                    }}
-                    helperText={
-                      <Typography component="span" variant="caption" sx={{ fontWeight: 800, color: Math.max(0, calculatedGrandTotal - (checkInData.paid ?? calculatedGrandTotal)) > 0 ? "#EF4444" : "#10B981", display: "inline-flex", alignItems: "center", gap: 0.5, mt: 0.5 }}>
-                        {Math.max(0, calculatedGrandTotal - (checkInData.paid ?? calculatedGrandTotal)) > 0
-                          ? `⚠️ Balance Outstanding: ₹${Math.max(0, calculatedGrandTotal - (checkInData.paid ?? calculatedGrandTotal)).toLocaleString("en-IN")}`
-                          : "✅ Paid in Full — 100% Advance Settlement Auto-Filled (Includes CGST 9% + SGST 9%)"}
-                      </Typography>
-                    }
-                  />
-                </Grid>
               </Grid>
             </Paper>
           </Box>
@@ -2298,37 +2531,55 @@ export default function CheckInWizardPage({
               {checkInData.accompanyingGuests && checkInData.accompanyingGuests.length > 0 && (
                 <Box sx={{ mb: 3 }}>
                   <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 1.5 }}>
-                    Accompanying Member Photos ({checkInData.accompanyingGuests.length}):
+                    Accompanying Member Documents ({checkInData.accompanyingGuests.length}):
                   </Typography>
                   <TableContainer sx={{ borderRadius: "12px", border: `1px solid ${themeConfig.border}`, overflowX: "auto" }}>
                     <Table size="small" sx={{ minWidth: 480 }}>
                       <TableHead sx={{ bgcolor: themeConfig.champagne }}>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 800 }}>#</TableCell>
-                          <TableCell sx={{ fontWeight: 800 }}>Front ID Photo</TableCell>
-                          <TableCell sx={{ fontWeight: 800 }}>Back ID Photo</TableCell>
+                          <TableCell sx={{ fontWeight: 800 }}>Member #</TableCell>
+                          <TableCell sx={{ fontWeight: 800 }}>Uploaded Documents</TableCell>
+                          <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {checkInData.accompanyingGuests.map((m, i) => (
-                          <TableRow key={m.id || i}>
-                            <TableCell sx={{ fontWeight: 700 }}>Member #{i + 1}</TableCell>
-                            <TableCell>
-                              {m.frontImage ? (
-                                <Chip label="Uploaded" size="small" sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", color: "#10B981", fontWeight: 800, fontSize: "0.72rem" }} />
-                              ) : (
-                                <Chip label="Pending" size="small" sx={{ bgcolor: "rgba(239, 68, 68, 0.15)", color: "#EF4444", fontWeight: 800, fontSize: "0.72rem" }} />
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {m.backImage ? (
-                                <Chip label="Uploaded" size="small" sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", color: "#10B981", fontWeight: 800, fontSize: "0.72rem" }} />
-                              ) : (
-                                <Chip label="Optional" size="small" sx={{ bgcolor: "rgba(100, 116, 139, 0.1)", color: themeConfig.textMuted, fontWeight: 700, fontSize: "0.72rem" }} />
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {checkInData.accompanyingGuests.map((m, i) => {
+                          const docList = m.images && m.images.length > 0
+                            ? m.images
+                            : (m.frontImage ? [m.frontImage, ...(m.backImage ? [m.backImage] : [])] : []);
+                          return (
+                            <TableRow key={m.id || i}>
+                              <TableCell sx={{ fontWeight: 700 }}>Member #{i + 1}</TableCell>
+                              <TableCell>
+                                {docList.length > 0 ? (
+                                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, flexWrap: "wrap" }}>
+                                    {docList.map((img, idx) => (
+                                      <Box
+                                        key={idx}
+                                        component="img"
+                                        src={img}
+                                        alt={`Member ${i + 1} Doc ${idx + 1}`}
+                                        sx={{ width: 36, height: 36, borderRadius: "6px", objectFit: "cover", border: "1px solid #10B981" }}
+                                      />
+                                    ))}
+                                    <Typography variant="caption" sx={{ fontWeight: 800, color: "#10B981" }}>
+                                      ({docList.length} Image{docList.length > 1 ? "s" : ""})
+                                    </Typography>
+                                  </Box>
+                                ) : (
+                                  <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>No document photos</Typography>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {docList.length > 0 ? (
+                                  <Chip label={`${docList.length} Document(s) Uploaded`} size="small" sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", color: "#10B981", fontWeight: 800, fontSize: "0.72rem" }} />
+                                ) : (
+                                  <Chip label="Optional / Pending" size="small" sx={{ bgcolor: "rgba(100, 116, 139, 0.1)", color: themeConfig.textMuted, fontWeight: 700, fontSize: "0.72rem" }} />
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </TableContainer>
@@ -2374,7 +2625,7 @@ export default function CheckInWizardPage({
 
               {/* 4. Payment Settlement Summary */}
               <Box sx={{ p: 2, borderRadius: "14px", bgcolor: "rgba(16, 185, 129, 0.06)", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
-                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1 }}>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1, mb: 1.5 }}>
                   <div>
                     <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 800, textTransform: "uppercase" }}>
                       Total Amount (Grand Total):
@@ -2401,6 +2652,14 @@ export default function CheckInWizardPage({
                       ₹{Math.max(0, calculatedGrandTotal - (checkInData.paid ?? calculatedGrandTotal)).toLocaleString()}
                     </Typography>
                   </div>
+                </Box>
+
+                {/* Auto-filled 100% Advance Settlement & GST breakdown alert as requested */}
+                <Box sx={{ p: 1.2, borderRadius: "10px", bgcolor: "rgba(16, 185, 129, 0.12)", border: "1px solid rgba(16, 185, 129, 0.35)", display: "flex", alignItems: "center", gap: 1 }}>
+                  <CheckCircle sx={{ color: "#10B981", fontSize: 18, flexShrink: 0 }} />
+                  <Typography variant="caption" sx={{ fontWeight: 900, color: "#065F46" }}>
+                    ✅ Paid in Full — 100% Advance Settlement Auto-Filled (Includes CGST {totalCgstAmount > 0 ? "9%" : "0%"} + SGST {totalSgstAmount > 0 ? "9%" : "0%"} GST Tax)
+                  </Typography>
                 </Box>
               </Box>
             </Paper>

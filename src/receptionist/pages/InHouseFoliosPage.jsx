@@ -79,7 +79,7 @@ export default function InHouseFoliosPage({
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeStatusTab, setActiveStatusTab] = useState("ALL");
+  const [activeStatusTab, setActiveStatusTab] = useState("CHECKED_IN");
   const [balanceFilter, setBalanceFilter] = useState("ALL");
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [page, setPage] = useState(0);
@@ -125,13 +125,23 @@ export default function InHouseFoliosPage({
   const confirmedBookings = bookings.filter((b) => b.status === "CONFIRMED" || b.status === "PENDING");
   const checkedOutBookings = bookings.filter((b) => b.status === "CHECKED_OUT");
 
-  const totalGrossLedger = bookings.reduce((sum, b) => {
+  // Operational active folios (excludes historical past checkouts prior to today)
+  const activeOperationalBookings = bookings.filter((b) => {
+    if (b.status === "CHECKED_IN" || b.status === "CONFIRMED" || b.status === "PENDING") return true;
+    if (b.status === "CHECKED_OUT") {
+      const outDate = b.checkOutDate ? String(b.checkOutDate).split("T")[0] : "";
+      return outDate && outDate >= todayStr;
+    }
+    return false;
+  });
+
+  const totalGrossLedger = activeOperationalBookings.reduce((sum, b) => {
     const pos = (b.posCharges || []).reduce((pSum, c) => pSum + (c.amount || 0), 0);
     const overstay = calculateOverstayFee(b, hotelSettings);
     return sum + (b.totalAmount || 0) + pos + (overstay.lateFee || 0);
   }, 0);
 
-  const totalPendingDues = bookings.reduce((sum, b) => {
+  const totalPendingDues = activeOperationalBookings.reduce((sum, b) => {
     const pos = (b.posCharges || []).reduce((pSum, c) => pSum + (c.amount || 0), 0);
     const overstay = calculateOverstayFee(b, hotelSettings);
     const gross = (b.totalAmount || 0) + pos + (overstay.lateFee || 0);
@@ -166,6 +176,12 @@ export default function InHouseFoliosPage({
   const filteredBookings = bookings.filter((b) => {
     // Status Filter
     if (activeStatusTab !== "ALL" && b.status !== activeStatusTab) return false;
+
+    // For ALL tab: exclude past historical checkouts from previous days (< todayStr)
+    if (activeStatusTab === "ALL" && b.status === "CHECKED_OUT") {
+      const outDate = b.checkOutDate ? String(b.checkOutDate).split("T")[0] : "";
+      if (outDate && outDate < todayStr) return false;
+    }
 
     // Balance Filter
     const overstay = calculateOverstayFee(b, hotelSettings);
@@ -403,8 +419,8 @@ export default function InHouseFoliosPage({
               },
             }}
           >
-            <Tab value="ALL" label={`All Folios (${bookings.length})`} />
             <Tab value="CHECKED_IN" label={`Active In-House (${inHouseBookings.length})`} />
+            <Tab value="ALL" label={`Today's Active Folios (${activeOperationalBookings.length})`} />
             <Tab value="CONFIRMED" label={`Reserved (${confirmedBookings.length})`} />
             <Tab value="CHECKED_OUT" label={`Checked-Out (${checkedOutBookings.length})`} />
           </Tabs>
@@ -963,58 +979,91 @@ export default function InHouseFoliosPage({
             {/* LATE CHECKOUT DETECTED SECTION (PART E) */}
             {checkoutDialog.overstay?.isLate && (
               <Paper
+                elevation={0}
                 sx={{
                   p: 2.5,
                   borderRadius: "16px",
-                  bgcolor: "rgba(239, 68, 68, 0.06)",
-                  border: "1.5px solid rgba(239, 68, 68, 0.35)",
+                  bgcolor: "#FFF5F5",
+                  border: "1px solid #FECDD3",
+                  boxShadow: "0 4px 14px rgba(225, 29, 72, 0.05)",
                 }}
               >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 1.5 }}>
-                  <Avatar sx={{ bgcolor: "#DC2626", color: "#FFF", width: 30, height: 30 }}>
-                    <Schedule sx={{ fontSize: 18 }} />
-                  </Avatar>
-                  <div>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#DC2626", lineHeight: 1.2 }}>
-                      Late Checkout Detected
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                      Exceeded standard {checkoutDialog.overstay?.gracePeriodMinutes}-minute grace period
-                    </Typography>
-                  </div>
+                {/* Header Banner */}
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2, flexWrap: "wrap", gap: 1 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                    <Avatar sx={{ bgcolor: "#E11D48", color: "#FFFFFF", width: 34, height: 34, boxShadow: "0 2px 8px rgba(225, 29, 72, 0.3)" }}>
+                      <Schedule sx={{ fontSize: 20 }} />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#881337", lineHeight: 1.2, fontSize: "0.98rem" }}>
+                        Late Checkout Detected
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: "#9F1239", fontWeight: 500 }}>
+                        Exceeded standard {checkoutDialog.overstay?.gracePeriodMinutes || 10}-minute grace period
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Chip
+                    label={`${checkoutDialog.overstay?.chargeableHours || 1} Hour Overstay`}
+                    size="small"
+                    sx={{
+                      bgcolor: "#FFE4E6",
+                      color: "#E11D48",
+                      fontWeight: 800,
+                      fontSize: "0.72rem",
+                      border: "1px solid #FECDD3",
+                    }}
+                  />
                 </Box>
 
-                {/* Breakdown Grid */}
+                {/* 4 Metric Badges */}
                 <Grid container spacing={1.5} sx={{ mb: 2 }}>
                   <Grid size={{ xs: 6, sm: 3 }}>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block" }}>Scheduled Checkout</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                      {formatTime12Hour(checkoutDialog.overstay?.scheduledCheckOutTime || "12:00")}
-                    </Typography>
+                    <Box sx={{ p: 1.2, borderRadius: "10px", bgcolor: "#FFFFFF", border: "1px solid #FFE4E6" }}>
+                      <Typography variant="caption" sx={{ color: "#94A3B8", fontWeight: 700, display: "block", fontSize: "0.7rem", textTransform: "uppercase" }}>
+                        Scheduled Checkout
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 800, color: "#0F172A", mt: 0.2 }}>
+                        {formatTime12Hour(checkoutDialog.overstay?.scheduledCheckOutTime || "12:00")}
+                      </Typography>
+                    </Box>
                   </Grid>
+
                   <Grid size={{ xs: 6, sm: 3 }}>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block" }}>Actual Checkout</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 800, color: "#DC2626" }}>
-                      {formatTime12Hour(checkoutDialog.overstay?.actualCheckOutTime || "12:00")}
-                    </Typography>
+                    <Box sx={{ p: 1.2, borderRadius: "10px", bgcolor: "#FFFFFF", border: "1px solid #FFE4E6" }}>
+                      <Typography variant="caption" sx={{ color: "#94A3B8", fontWeight: 700, display: "block", fontSize: "0.7rem", textTransform: "uppercase" }}>
+                        Actual Checkout
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 800, color: "#E11D48", mt: 0.2 }}>
+                        {formatTime12Hour(checkoutDialog.overstay?.actualCheckOutTime || "12:00")}
+                      </Typography>
+                    </Box>
                   </Grid>
+
                   <Grid size={{ xs: 6, sm: 3 }}>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block" }}>Late Duration</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 900, color: "#DC2626" }}>
-                      {checkoutDialog.overstay?.chargeableHours} Hour{checkoutDialog.overstay?.chargeableHours !== 1 ? "s" : ""}
-                    </Typography>
+                    <Box sx={{ p: 1.2, borderRadius: "10px", bgcolor: "#FFFFFF", border: "1px solid #FFE4E6" }}>
+                      <Typography variant="caption" sx={{ color: "#94A3B8", fontWeight: 700, display: "block", fontSize: "0.7rem", textTransform: "uppercase" }}>
+                        Late Duration
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 800, color: "#E11D48", mt: 0.2 }}>
+                        {checkoutDialog.overstay?.chargeableHours} Hour{checkoutDialog.overstay?.chargeableHours !== 1 ? "s" : ""}
+                      </Typography>
+                    </Box>
                   </Grid>
+
                   <Grid size={{ xs: 6, sm: 3 }}>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block" }}>Hourly Rate (Rent ÷ 12)</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.primary }}>
-                      ₹{checkoutDialog.overstay?.hourlyRate?.toLocaleString()}/hr
-                    </Typography>
+                    <Box sx={{ p: 1.2, borderRadius: "10px", bgcolor: "#FFFFFF", border: "1px solid #FFE4E6" }}>
+                      <Typography variant="caption" sx={{ color: "#94A3B8", fontWeight: 700, display: "block", fontSize: "0.7rem", textTransform: "uppercase" }}>
+                        Hourly Rate (Rent ÷ 12)
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 800, color: "#0D9488", mt: 0.2 }}>
+                        ₹{checkoutDialog.overstay?.hourlyRate?.toLocaleString()}/hr
+                      </Typography>
+                    </Box>
                   </Grid>
                 </Grid>
 
-                <Divider sx={{ my: 1.5, borderColor: "rgba(239, 68, 68, 0.2)" }} />
-
-                <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.textMain, display: "block", mb: 1, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: "#475569", display: "block", mb: 1.2, textTransform: "uppercase", letterSpacing: 0.5, fontSize: "0.72rem" }}>
                   Select Charging Option:
                 </Typography>
 
@@ -1022,29 +1071,49 @@ export default function InHouseFoliosPage({
                   {/* OPTION 1: Charge Full Day */}
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <Paper
+                      elevation={0}
                       onClick={() => handleLateOptionChange("full_day")}
                       sx={{
-                        p: 1.5,
+                        p: 1.8,
                         borderRadius: "12px",
                         cursor: "pointer",
-                        border: `2px solid ${checkoutDialog.lateOption === "full_day" ? "#DC2626" : "rgba(239, 68, 68, 0.25)"}`,
-                        bgcolor: checkoutDialog.lateOption === "full_day" ? "#FEF2F2" : "#FFFFFF",
+                        border: checkoutDialog.lateOption === "full_day" ? "2px solid #E11D48" : "1px solid #CBD5E1",
+                        bgcolor: checkoutDialog.lateOption === "full_day" ? "#FFF1F2" : "#FFFFFF",
                         transition: "all 0.2s ease",
-                        "&:hover": { borderColor: "#DC2626" },
+                        "&:hover": { borderColor: "#E11D48" },
                       }}
                     >
                       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 900, color: checkoutDialog.lateOption === "full_day" ? "#DC2626" : themeConfig.textMain }}>
-                            Option 1 — Charge Full Day
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                            Full Day Charge: ₹{checkoutDialog.overstay?.fullDayCharge?.toLocaleString()}
-                          </Typography>
-                        </div>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#DC2626" }}>
-                          ₹{checkoutDialog.overstay?.fullDayCharge?.toLocaleString()}
-                        </Typography>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                          <Box
+                            sx={{
+                              width: 18,
+                              height: 18,
+                              borderRadius: "50%",
+                              border: checkoutDialog.lateOption === "full_day" ? "5px solid #E11D48" : "2px solid #94A3B8",
+                              bgcolor: "#FFFFFF",
+                              flexShrink: 0,
+                            }}
+                          />
+                          <Box>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: checkoutDialog.lateOption === "full_day" ? "#BE123C" : "#0F172A", fontSize: "0.85rem" }}>
+                              Charge Full Day
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 500, fontSize: "0.75rem" }}>
+                              1 Full Day Room Rent
+                            </Typography>
+                          </Box>
+                        </Box>
+                        <Chip
+                          label={`₹${checkoutDialog.overstay?.fullDayCharge?.toLocaleString()}`}
+                          size="small"
+                          sx={{
+                            fontWeight: 800,
+                            bgcolor: checkoutDialog.lateOption === "full_day" ? "#FFE4E6" : "#F1F5F9",
+                            color: checkoutDialog.lateOption === "full_day" ? "#E11D48" : "#475569",
+                            fontSize: "0.82rem",
+                          }}
+                        />
                       </Box>
                     </Paper>
                   </Grid>
@@ -1052,29 +1121,49 @@ export default function InHouseFoliosPage({
                   {/* OPTION 2: Charge By Hour */}
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <Paper
+                      elevation={0}
                       onClick={() => handleLateOptionChange("hourly")}
                       sx={{
-                        p: 1.5,
+                        p: 1.8,
                         borderRadius: "12px",
                         cursor: "pointer",
-                        border: `2px solid ${checkoutDialog.lateOption === "hourly" ? "#059669" : "rgba(5, 150, 105, 0.25)"}`,
-                        bgcolor: checkoutDialog.lateOption === "hourly" ? "#F0FDF4" : "#FFFFFF",
+                        border: checkoutDialog.lateOption === "hourly" ? "2px solid #059669" : "1px solid #CBD5E1",
+                        bgcolor: checkoutDialog.lateOption === "hourly" ? "#ECFDF5" : "#FFFFFF",
                         transition: "all 0.2s ease",
                         "&:hover": { borderColor: "#059669" },
                       }}
                     >
                       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 900, color: checkoutDialog.lateOption === "hourly" ? "#059669" : themeConfig.textMain }}>
-                            Option 2 — Charge {checkoutDialog.overstay?.chargeableHours} Hour{checkoutDialog.overstay?.chargeableHours !== 1 ? "s" : ""}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                            ₹{checkoutDialog.overstay?.hourlyRate}/hr &times; {checkoutDialog.overstay?.chargeableHours}h
-                          </Typography>
-                        </div>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#059669" }}>
-                          ₹{checkoutDialog.overstay?.hourlyCharge?.toLocaleString()}
-                        </Typography>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                          <Box
+                            sx={{
+                              width: 18,
+                              height: 18,
+                              borderRadius: "50%",
+                              border: checkoutDialog.lateOption === "hourly" ? "5px solid #059669" : "2px solid #94A3B8",
+                              bgcolor: "#FFFFFF",
+                              flexShrink: 0,
+                            }}
+                          />
+                          <Box>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: checkoutDialog.lateOption === "hourly" ? "#047857" : "#0F172A", fontSize: "0.85rem" }}>
+                              Charge {checkoutDialog.overstay?.chargeableHours} Hour{checkoutDialog.overstay?.chargeableHours !== 1 ? "s" : ""}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 500, fontSize: "0.75rem" }}>
+                              ₹{checkoutDialog.overstay?.hourlyRate}/hr &times; {checkoutDialog.overstay?.chargeableHours}h
+                            </Typography>
+                          </Box>
+                        </Box>
+                        <Chip
+                          label={`₹${checkoutDialog.overstay?.hourlyCharge?.toLocaleString()}`}
+                          size="small"
+                          sx={{
+                            fontWeight: 800,
+                            bgcolor: checkoutDialog.lateOption === "hourly" ? "#D1FAE5" : "#F1F5F9",
+                            color: checkoutDialog.lateOption === "hourly" ? "#059669" : "#475569",
+                            fontSize: "0.82rem",
+                          }}
+                        />
                       </Box>
                     </Paper>
                   </Grid>

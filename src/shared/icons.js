@@ -51,6 +51,7 @@ export {
   Download,
   Edit,
   Email,
+  EventBusy,
   EventNote,
   EventSeat,
   ExpandMore,

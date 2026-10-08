@@ -63,6 +63,15 @@ export default function GuestDirectoryPage({
     guest: null,
   });
 
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const fetchGuests = useCallback(async () => {
     setLoading(true);
     try {
@@ -70,8 +79,8 @@ export default function GuestDirectoryPage({
       if (statusFilter && statusFilter !== "ALL") {
         params.append("status", statusFilter);
       }
-      if (search.trim()) {
-        params.append("search", search.trim());
+      if (debouncedSearch.trim()) {
+        params.append("search", debouncedSearch.trim());
       }
 
       const endpoint = `${API_ENDPOINTS.RECEPTIONIST.GUESTS}?${params.toString()}`;
@@ -90,7 +99,7 @@ export default function GuestDirectoryPage({
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, search]);
+  }, [statusFilter, debouncedSearch]);
 
   useEffect(() => {
     fetchGuests();

@@ -65,6 +65,11 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
   const [checkInSuccessModal, setCheckInSuccessModal] = useState({ open: false, booking: null, guest: null });
   const [fetchedTabs, setFetchedTabs] = useState({});
 
+  // Reset Express Check-In wizard when changing navigation tabs
+  useEffect(() => {
+    setIsCheckInOpen(false);
+  }, [activeNav]);
+
   // Helper for current local date in YYYY-MM-DD
   const getTodayLocalDate = () => {
     const d = new Date();
@@ -149,7 +154,9 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
   // On-Demand Tab-Specific Data Loading
   const loadTabData = async (tabIndex, forceRefresh = false) => {
     if (!forceRefresh && fetchedTabs[tabIndex]) return;
-    setLoading(true);
+    if (!dashboardData && !rooms.length) {
+      setLoading(true);
+    }
     try {
       const endpointsToFetch = [];
 
@@ -267,6 +274,8 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         govtIdNumber: checkInData.govtIdNumber || "PENDING",
         frontImage: checkInData.frontImage || checkInData.idProofImage || "",
         backImage: checkInData.backImage || checkInData.idProofBackImage || "",
+        signature: checkInData.signature || checkInData.guestSignature || "",
+        guestSignature: checkInData.signature || checkInData.guestSignature || "",
         reusePreviousId: checkInData.reusePreviousId !== false,
         roomId: String(checkInData.roomId || resolvedRoomIds[0] || ""),
         roomIds: resolvedRoomIds,
@@ -462,28 +471,49 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
       )
     ).join(", ");
 
-    setCheckInData((prev) => {
-      const n = prev.numberOfNights || 1;
-      const baseTot = totalTariff * n;
-      const isVip = Boolean(prev.isRepeatGuest || (prev.totalVisits && prev.totalVisits >= 2));
-      const disc = isVip ? Math.round(baseTot * 0.10) : (prev.discountAmount || 0);
-      const netTot = Math.max(0, baseTot - disc) + (prev.collectSecurityDeposit ? (Number(prev.securityDepositAmount) || 1000) : 0);
-      return {
-        ...prev,
-        activeRoomId: String(firstRoom._id),
-        roomId: String(firstRoom._id),
-        roomIds: roomsArr.map((r) => String(r._id)),
-        roomNumber: roomNumbersStr,
-        selectedRooms: roomsArr,
-        selectedRoomNumbers: roomsArr.map((r) => String(r.roomNumber)),
-        roomType: categoryNames,
-        floor: firstRoom.floor || 1,
-        rate: totalTariff,
-        discountAmount: disc,
-        total: netTot,
-        paid: netTot,
-        due: 0,
-      };
+    // Always start with fresh blank guest data for a new room check-in session
+    setCheckInData({
+      fullName: "",
+      mobile: "",
+      email: "",
+      address: "",
+      city: "",
+      state: "",
+      country: "India",
+      nationality: "Indian",
+      gender: "Male",
+      govtIdType: "AADHAAR",
+      govtIdNumber: "",
+      frontImage: "",
+      backImage: "",
+      signature: "",
+      guestSignature: "",
+      accompanyingGuests: [],
+      activeRoomId: String(firstRoom._id),
+      roomId: String(firstRoom._id),
+      roomIds: roomsArr.map((r) => String(r._id)),
+      roomNumber: roomNumbersStr,
+      selectedRooms: roomsArr,
+      selectedRoomNumbers: roomsArr.map((r) => String(r.roomNumber)),
+      roomType: categoryNames,
+      floor: firstRoom.floor || 1,
+      rate: totalTariff,
+      numberOfNights: 1,
+      checkInDate: getTodayLocalDate(),
+      checkInTime: getCurrentLocalTime(),
+      checkOutDate: (() => {
+        const d = new Date();
+        d.setDate(d.getDate() + 1);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
+      })(),
+      checkOutTime: hotelSettings?.checkOutTime || "12:00",
+      discountAmount: 0,
+      total: totalTariff,
+      paid: totalTariff,
+      due: 0,
     });
     setActiveStep(0);
     setIsCheckInOpen(true);
@@ -585,7 +615,43 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
               guests={guests}
               bookings={bookings}
               onFinalCheckIn={handleFinalCheckIn}
-              onBackToRooms={() => setIsCheckInOpen(false)}
+              onBackToRooms={() => {
+                if (typeof localStorage !== "undefined") {
+                  localStorage.removeItem("hotel_checkin_wizard_draft_v1");
+                }
+                setCheckInData({
+                  fullName: "",
+                  mobile: "",
+                  email: "",
+                  address: "",
+                  govtIdType: "AADHAAR",
+                  govtIdNumber: "",
+                  roomType: "",
+                  roomNumber: "",
+                  roomId: "",
+                  roomIds: [],
+                  selectedRooms: [],
+                  selectedRoomNumbers: [],
+                  checkInDate: getTodayLocalDate(),
+                  checkInTime: getCurrentLocalTime(),
+                  checkOutDate: (() => {
+                    const d = new Date();
+                    d.setDate(d.getDate() + 1);
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, "0");
+                    const day = String(d.getDate()).padStart(2, "0");
+                    return `${y}-${m}-${day}`;
+                  })(),
+                  checkOutTime: hotelSettings?.checkOutTime || "12:00",
+                  numberOfNights: 1,
+                  rate: 0,
+                  paid: 0,
+                  total: 0,
+                  accompanyingGuests: [],
+                });
+                setActiveStep(0);
+                setIsCheckInOpen(false);
+              }}
             />
           )}
           <Box sx={{ display: isCheckInOpen ? 'none' : 'block' }}>

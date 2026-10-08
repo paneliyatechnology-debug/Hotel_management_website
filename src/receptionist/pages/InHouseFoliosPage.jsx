@@ -120,6 +120,30 @@ export default function InHouseFoliosPage({
   const timezoneStr = hotelSettings?.timezone || "Asia/Kolkata";
   const todayStr = new Date().toISOString().split("T")[0];
 
+  const formatDDMMYYYY = (val) => {
+    if (!val || val === "N/A" || val === "Today" || val === "Tomorrow") return val || "";
+    if (typeof val === "string" && /^\d{2}-\d{2}-\d{4}$/.test(val)) return val;
+    if (typeof val === "string" && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+      const [y, m, d] = val.split("-");
+      return `${d}-${m}-${y}`;
+    }
+    if (typeof val === "string" && val.includes("/")) {
+      const parts = val.split("/");
+      if (parts.length === 3) {
+        const m = parts[0].padStart(2, "0");
+        const d = parts[1].padStart(2, "0");
+        const y = parts[2];
+        return `${d}-${m}-${y}`;
+      }
+    }
+    const dateObj = new Date(val);
+    if (isNaN(dateObj.getTime())) return String(val);
+    const day = String(dateObj.getDate()).padStart(2, "0");
+    const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+    const year = dateObj.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
   // Telemetry Calculations
   const inHouseBookings = bookings.filter((b) => b.status === "CHECKED_IN");
   const confirmedBookings = bookings.filter((b) => b.status === "CONFIRMED" || b.status === "PENDING");
@@ -383,7 +407,7 @@ export default function InHouseFoliosPage({
       <Paper
         className="card-3d"
         sx={{
-          p: { xs: 2, sm: 3 },
+          p: { xs: 1.5, sm: 2 },
           borderRadius: "22px",
           bgcolor: themeConfig.bgCard,
           border: `1px solid ${themeConfig.border}`,
@@ -393,7 +417,7 @@ export default function InHouseFoliosPage({
         }}
       >
         {/* Controls Bar: Search, Status Tabs & Balance Filter */}
-        <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 2, mb: 3 }}>
+        <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 1.5, mb: 2 }}>
           <Tabs
             value={activeStatusTab}
             onChange={(e, v) => {
@@ -477,32 +501,30 @@ export default function InHouseFoliosPage({
             "&::-webkit-scrollbar-thumb:hover": { background: themeConfig.primary },
           }}
         >
-          <Table stickyHeader size="small" sx={{ minWidth: 1020 }}>
+          <Table stickyHeader size="small" sx={{ width: "100%", tableLayout: "auto" }}>
             <TableHead>
-              <TableRow sx={{ "& th": { bgcolor: themeConfig.champagne, color: themeConfig.textMain, fontWeight: 800, py: 1.5 } }}>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>Folio #</TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>Guest Profile</TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>Allocated Room</TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>Stay Schedule</TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>Ledger Breakdown</TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>Balance Due</TableCell>
+              <TableRow sx={{ "& th": { bgcolor: themeConfig.champagne, color: themeConfig.textMain, fontWeight: 800, py: 1, px: 1.5 } }}>
+                <TableCell sx={{ whiteSpace: "nowrap" }}>Guest</TableCell>
+                <TableCell sx={{ whiteSpace: "nowrap" }}>Room</TableCell>
+                <TableCell sx={{ whiteSpace: "nowrap" }}>Schedule</TableCell>
+                <TableCell sx={{ whiteSpace: "nowrap" }}>Balance</TableCell>
                 <TableCell sx={{ whiteSpace: "nowrap" }}>Status</TableCell>
-                <TableCell align="right" sx={{ whiteSpace: "nowrap", pr: 2 }}>Front Desk Actions</TableCell>
+                <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>Actions</TableCell>
               </TableRow>
             </TableHead>
 
             <TableBody>
               {filteredBookings.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} sx={{ py: 6 }}>
+                  <TableCell colSpan={6} sx={{ py: 4 }}>
                     <EmptyState
                       title="No Folios Found"
                       description={
                         searchQuery
                           ? "No reservation folios match your search query."
                           : activeStatusTab === "CHECKED_IN"
-                          ? "No resident guests currently checked in. Use the Check-In Wizard to register guests."
-                          : "No folios under this category."
+                            ? "No resident guests currently checked in. Use the Check-In Wizard to register guests."
+                            : "No folios under this category."
                       }
                     />
                   </TableCell>
@@ -511,395 +533,318 @@ export default function InHouseFoliosPage({
                 filteredBookings
                   .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                   .map((b) => {
-                  const guestName = b.guest?.name || b.guest?.fullName || "Walk-In Guest";
-                  const guestPhone = b.guest?.phone || b.guest?.mobileNumber || "";
-                  const roomsList = getBookingRoomNumbers(b);
-                  const roomType = b.roomType?.name || b.room?.roomType?.name || "Room Stay";
-                  const overstay = calculateOverstayFee(b, hotelSettings);
-                  const posChargesTotal = (b.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
-                  const grandTotal = (b.totalAmount || 0) + posChargesTotal + (overstay.lateFee || 0);
-                  const paidTotal = b.paidAmount || 0;
-                  const dueBalance = Math.max(0, grandTotal - paidTotal);
-                  const isCheckoutToday = b.checkOutDate && String(b.checkOutDate).split("T")[0] <= todayStr;
+                    const guestName = b.guest?.name || b.guest?.fullName || "Walk-In Guest";
+                    const guestPhone = b.guest?.phone || b.guest?.mobileNumber || "";
+                    const roomsList = getBookingRoomNumbers(b);
+                    const roomType = b.roomType?.name || b.room?.roomType?.name || "Room Stay";
+                    const overstay = calculateOverstayFee(b, hotelSettings);
+                    const posChargesTotal = (b.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
+                    const grandTotal = (b.totalAmount || 0) + posChargesTotal + (overstay.lateFee || 0);
+                    const paidTotal = b.paidAmount || 0;
+                    const dueBalance = Math.max(0, grandTotal - paidTotal);
+                    const isCheckoutToday = b.checkOutDate && String(b.checkOutDate).split("T")[0] <= todayStr;
 
-                  return (
-                    <TableRow key={b._id} hover sx={{ "&:hover": { bgcolor: "rgba(11, 142, 224, 0.03)" } }}>
-                      {/* Folio # */}
-                      <TableCell sx={{ whiteSpace: "nowrap" }}>
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            fontFamily: "monospace",
-                            fontWeight: 900,
-                            color: themeConfig.primaryDark,
-                            cursor: "pointer",
-                            "&:hover": { textDecoration: "underline" },
-                          }}
-                          onClick={() => setDetailsModal({ open: true, booking: b })}
-                        >
-                          #{b.bookingNumber}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.7rem" }}>
-                          {b.createdAt ? new Date(b.createdAt).toLocaleDateString("en-IN") : "Direct"}
-                        </Typography>
-                      </TableCell>
+                    return (
+                      <TableRow key={b._id} hover sx={{ "&:hover": { bgcolor: "rgba(11, 142, 224, 0.03)" }, "& td": { py: 1, px: 1.5 } }}>
 
-                      {/* Guest Details */}
-                      <TableCell sx={{ whiteSpace: "nowrap" }}>
-                        <Box
-                          sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 1.2,
-                            cursor: "pointer",
-                            "&:hover": { opacity: 0.8 },
-                          }}
-                          onClick={() => {
-                            const targetGuest = b.guest || {
-                              name: b.guestName || b.guest?.name,
-                              mobileNumber: b.guestPhone || b.guest?.mobileNumber,
-                              email: b.guestEmail || b.guest?.email,
-                              roomAssigned: roomsList.join(", "),
-                              booking: b,
-                            };
-                            setSelectedGuestModal({
-                              open: true,
-                              guest: targetGuest,
-                              guestId: b.guest?._id || b.guest?.id || (typeof b.guest === "string" ? b.guest : null),
-                            });
-                          }}
-                        >
-                          <Avatar sx={{ bgcolor: themeConfig.primary, width: 34, height: 34, fontSize: "0.85rem", fontWeight: 800 }}>
-                            {guestName.charAt(0).toUpperCase()}
-                          </Avatar>
-                          <div>
-                            <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, "&:hover": { textDecoration: "underline" } }}>
-                              {guestName}
-                            </Typography>
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, flexWrap: "wrap", mt: 0.4 }}>
-                              {guestPhone && (
-                                <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "flex", alignItems: "center", gap: 0.5 }}>
-                                  <Phone sx={{ fontSize: 11 }} /> {guestPhone}
-                                </Typography>
-                              )}
-                              {(b.guest?.idProof?.frontImage || b.guest?.frontImage) && (
-                                <Chip
-                                  label="📄 ID Photo"
-                                  size="small"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setPreviewImage(b.guest?.idProof?.frontImage || b.guest?.frontImage);
-                                  }}
-                                  sx={{
-                                    height: 18,
-                                    fontSize: "0.65rem",
-                                    fontWeight: 800,
-                                    bgcolor: "rgba(16, 185, 129, 0.12)",
-                                    color: "#059669",
-                                    border: "1px solid rgba(16, 185, 129, 0.3)",
-                                    cursor: "pointer",
-                                    "&:hover": { bgcolor: "#10B981", color: "#FFF" },
-                                  }}
-                                />
-                              )}
+                        {/* Guest Details */}
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 1.2,
+                              cursor: "pointer",
+                              "&:hover": { opacity: 0.8 },
+                            }}
+                            onClick={() => {
+                              const targetGuest = b.guest || {
+                                name: b.guestName || b.guest?.name,
+                                mobileNumber: b.guestPhone || b.guest?.mobileNumber,
+                                email: b.guestEmail || b.guest?.email,
+                                roomAssigned: roomsList.join(", "),
+                                booking: b,
+                              };
+                              setSelectedGuestModal({
+                                open: true,
+                                guest: targetGuest,
+                                guestId: b.guest?._id || b.guest?.id || (typeof b.guest === "string" ? b.guest : null),
+                              });
+                            }}
+                          >
+                            <Avatar sx={{ bgcolor: themeConfig.primary, width: 34, height: 34, fontSize: "0.85rem", fontWeight: 800 }}>
+                              {guestName.charAt(0).toUpperCase()}
+                            </Avatar>
+                            <div>
+                              <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, "&:hover": { textDecoration: "underline" } }}>
+                                {guestName}
+                              </Typography>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, flexWrap: "wrap", mt: 0.4 }}>
+                                {/* {guestPhone && (
+                                  <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "flex", alignItems: "center", gap: 0.5 }}>
+                                    <Phone sx={{ fontSize: 11 }} /> {guestPhone}
+                                  </Typography>
+                                )} */}
+
+                                {(b.guest?.idProof?.frontImage || b.guest?.frontImage) && (
+
+                                  <Chip
+                                    label="📄 ID Photo"
+                                    size="small"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setPreviewImage(b.guest?.idProof?.frontImage || b.guest?.frontImage);
+                                    }}
+                                    sx={{
+                                      height: 18,
+                                      fontSize: "0.65rem",
+                                      fontWeight: 800,
+                                      bgcolor: "rgba(16, 185, 129, 0.12)",
+                                      color: "#059669",
+                                      border: "1px solid rgba(16, 185, 129, 0.3)",
+                                      cursor: "pointer",
+                                    }}
+                                  />
+                                )}
+                              </Box>
+                            </div>
+                          </Box>
+                        </TableCell>
+
+                        {/* Room Details */}
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>
+                          {roomsList.length > 1 ? (
+                            <Box sx={{ mb: 0.3 }}>
+                              <Chip
+                                icon={<MeetingRoom sx={{ fontSize: 14, color: `${themeConfig.primaryDark} !important` }} />}
+                                label={`Rooms ${roomsList.join(", ")}`}
+                                size="small"
+                                sx={{
+                                  fontWeight: 800,
+                                  bgcolor: themeConfig.champagne,
+                                  color: themeConfig.primaryDark,
+                                  border: `1px solid ${themeConfig.border}`,
+                                  height: 24,
+                                }}
+                              />
+                              <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", fontSize: "0.72rem", mt: 0.3 }}>
+                                {roomType} ({roomsList.length} Rooms)
+                              </Typography>
                             </Box>
-                            {b.accompanyingGuests && b.accompanyingGuests.length > 0 && (
-                              <Tooltip title={b.accompanyingGuests.map((m) => `${m.name} (${m.relationship || 'Family'})`).join(', ')}>
+                          ) : (
+                            <Box sx={{ mb: 0.3 }}>
+                              <Chip
+                                icon={<MeetingRoom sx={{ fontSize: 14, color: `${themeConfig.primaryDark} !important` }} />}
+                                label={`Room ${roomsList[0] || "N/A"}`}
+                                size="small"
+                                sx={{
+                                  fontWeight: 800,
+                                  bgcolor: themeConfig.champagne,
+                                  color: themeConfig.primaryDark,
+                                  border: `1px solid ${themeConfig.border}`,
+                                  height: 24,
+                                }}
+                              />
+                              <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", fontSize: "0.72rem", mt: 0.3 }}>
+                                {roomType}
+                              </Typography>
+                            </Box>
+                          )}
+                        </TableCell>
+
+                        {/* Stay Duration */}
+                        <TableCell sx={{ color: themeConfig.textMuted, fontSize: "0.78rem", whiteSpace: "nowrap" }}>
+                          <div><strong>In:</strong> {formatDDMMYYYY(b.checkInDate || "Today")} ({b.checkInTime ? formatTime12Hour(b.checkInTime) : checkInTimeFormatted})</div>
+                          <div>
+                            <strong>Out:</strong> {formatDDMMYYYY((() => {
+                              if (b.actualCheckOut) {
+                                const d = new Date(b.actualCheckOut);
+                                if (!isNaN(d.getTime())) {
+                                  const y = d.getFullYear();
+                                  const m = String(d.getMonth() + 1).padStart(2, "0");
+                                  const day = String(d.getDate()).padStart(2, "0");
+                                  return `${day}-${m}-${y}`;
+                                }
+                              }
+                              return b.checkOutDate || "Tomorrow";
+                            })())} ({(() => {
+                              if (b.actualCheckOut) {
+                                const d = new Date(b.actualCheckOut);
+                                if (!isNaN(d.getTime())) {
+                                  const h = String(d.getHours()).padStart(2, "0");
+                                  const m = String(d.getMinutes()).padStart(2, "0");
+                                  return formatTime12Hour(`${h}:${m}`);
+                                }
+                              }
+                              return formatTime12Hour(b.checkOutTime || hotelSettings?.checkOutTime || "12:00");
+                            })()})
+                            {overstay.isOverstay ? (
+                              <Tooltip title={`Late Check-Out: Stayed +${overstay.overdueHours}h past check-out time. +₹${overstay.lateFee} (${overstay.extraDays} Extra Day Tariff) automatically applied.`}>
                                 <Chip
-                                  label={`+${b.accompanyingGuests.length} Member(s)`}
+                                  label={`🚨 Overdue (+${overstay.overdueHours}h)`}
                                   size="small"
                                   sx={{
+                                    ml: 0.8,
                                     height: 18,
                                     fontSize: "0.65rem",
-                                    fontWeight: 800,
-                                    bgcolor: "rgba(11, 142, 224, 0.1)",
-                                    color: themeConfig.primary,
-                                    mt: 0.3,
+                                    bgcolor: "rgba(220, 38, 38, 0.15)",
+                                    color: "#DC2626",
+                                    fontWeight: 900,
+                                    border: "1px solid rgba(220, 38, 38, 0.4)",
                                   }}
                                 />
                               </Tooltip>
-                            )}
-                          </div>
-                        </Box>
-                      </TableCell>
-
-                      {/* Room Details */}
-                      <TableCell sx={{ whiteSpace: "nowrap" }}>
-                        {roomsList.length > 1 ? (
-                          <Box sx={{ mb: 0.3 }}>
-                            <Chip
-                              icon={<MeetingRoom sx={{ fontSize: 14, color: `${themeConfig.primaryDark} !important` }} />}
-                              label={`Rooms ${roomsList.join(", ")}`}
-                              size="small"
-                              sx={{
-                                fontWeight: 800,
-                                bgcolor: themeConfig.champagne,
-                                color: themeConfig.primaryDark,
-                                border: `1px solid ${themeConfig.border}`,
-                                height: 24,
-                              }}
-                            />
-                            <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", fontSize: "0.72rem", mt: 0.3 }}>
-                              {roomType} ({roomsList.length} Rooms)
-                            </Typography>
-                          </Box>
-                        ) : (
-                          <Box sx={{ mb: 0.3 }}>
-                            <Chip
-                              icon={<MeetingRoom sx={{ fontSize: 14, color: `${themeConfig.primaryDark} !important` }} />}
-                              label={`Room ${roomsList[0] || "N/A"}`}
-                              size="small"
-                              sx={{
-                                fontWeight: 800,
-                                bgcolor: themeConfig.champagne,
-                                color: themeConfig.primaryDark,
-                                border: `1px solid ${themeConfig.border}`,
-                                height: 24,
-                              }}
-                            />
-                            <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", fontSize: "0.72rem", mt: 0.3 }}>
-                              {roomType}
-                            </Typography>
-                          </Box>
-                        )}
-                      </TableCell>
-
-                      {/* Stay Duration */}
-                      <TableCell sx={{ color: themeConfig.textMuted, fontSize: "0.78rem", whiteSpace: "nowrap" }}>
-                        <div><strong>In:</strong> {b.checkInDate || "Today"} ({b.checkInTime ? formatTime12Hour(b.checkInTime) : checkInTimeFormatted})</div>
-                        <div>
-                          <strong>Out:</strong> {(() => {
-                            if (b.actualCheckOut) {
-                              const d = new Date(b.actualCheckOut);
-                              if (!isNaN(d.getTime())) {
-                                const y = d.getFullYear();
-                                const m = String(d.getMonth() + 1).padStart(2, "0");
-                                const day = String(d.getDate()).padStart(2, "0");
-                                return `${y}-${m}-${day}`;
-                              }
-                            }
-                            return b.checkOutDate || "Tomorrow";
-                          })()} ({(() => {
-                            if (b.actualCheckOut) {
-                              const d = new Date(b.actualCheckOut);
-                              if (!isNaN(d.getTime())) {
-                                const h = String(d.getHours()).padStart(2, "0");
-                                const m = String(d.getMinutes()).padStart(2, "0");
-                                return formatTime12Hour(`${h}:${m}`);
-                              }
-                            }
-                            return formatTime12Hour(b.checkOutTime || hotelSettings?.checkOutTime || "12:00");
-                          })()})
-                          {overstay.isOverstay ? (
-                            <Tooltip title={`Late Check-Out: Stayed +${overstay.overdueHours}h past check-out time. +₹${overstay.lateFee} (${overstay.extraDays} Extra Day Tariff) automatically applied.`}>
+                            ) : isCheckoutToday && b.status === "CHECKED_IN" ? (
                               <Chip
-                                label={`🚨 Overdue (+${overstay.overdueHours}h)`}
+                                label="Due Today"
                                 size="small"
                                 sx={{
                                   ml: 0.8,
                                   height: 18,
                                   fontSize: "0.65rem",
-                                  bgcolor: "rgba(220, 38, 38, 0.15)",
+                                  bgcolor: "rgba(239, 68, 68, 0.12)",
                                   color: "#DC2626",
-                                  fontWeight: 900,
-                                  border: "1px solid rgba(220, 38, 38, 0.4)",
+                                  fontWeight: 800,
                                 }}
                               />
-                            </Tooltip>
-                          ) : isCheckoutToday && b.status === "CHECKED_IN" ? (
+                            ) : null}
+                          </div>
+                        </TableCell>
+
+                        {/* Balance Due */}
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>
+                          {dueBalance > 0 ? (
                             <Chip
-                              label="Due Today"
+                              label={`₹${dueBalance.toLocaleString()} Due`}
                               size="small"
                               sx={{
-                                ml: 0.8,
-                                height: 18,
-                                fontSize: "0.65rem",
                                 bgcolor: "rgba(239, 68, 68, 0.12)",
                                 color: "#DC2626",
                                 fontWeight: 800,
+                                fontSize: "0.75rem",
+                                border: "1px solid rgba(239, 68, 68, 0.3)",
                               }}
                             />
-                          ) : null}
-                        </div>
-                      </TableCell>
-
-                      {/* Ledger Breakdown */}
-                      <TableCell sx={{ whiteSpace: "nowrap" }}>
-                        <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-                          ₹{grandTotal.toLocaleString()}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", display: "block" }}>
-                          Room: ₹{(b.totalAmount || 0).toLocaleString()}
-                          {overstay.isOverstay && ` + Extra Day: ₹${overstay.lateFee}`}
-                          {posChargesTotal > 0 && ` + POS: ₹${posChargesTotal}`}
-                        </Typography>
-                        <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", mt: 0.3 }}>
-                          {overstay.isOverstay && (
+                          ) : (
                             <Chip
-                              label={`+₹${overstay.lateFee} Extra Day`}
+                              label="Fully Settled"
                               size="small"
                               sx={{
-                                height: 18,
-                                fontSize: "0.65rem",
+                                bgcolor: "rgba(16, 185, 129, 0.12)",
+                                color: "#059669",
                                 fontWeight: 800,
-                                bgcolor: "rgba(220, 38, 38, 0.12)",
-                                color: "#DC2626",
-                                border: "1px solid rgba(220, 38, 38, 0.3)",
+                                fontSize: "0.75rem",
+                                border: "1px solid rgba(16, 185, 129, 0.3)",
                               }}
                             />
                           )}
-                          {(b.posCharges || []).length > 0 && (
-                            <Chip
-                              label={`${b.posCharges.length} POS Items`}
-                              size="small"
-                              onClick={() => setDetailsModal({ open: true, booking: b })}
-                              sx={{
-                                height: 18,
-                                fontSize: "0.65rem",
-                                fontWeight: 800,
-                                cursor: "pointer",
-                                bgcolor: "rgba(11, 142, 224, 0.1)",
-                                color: themeConfig.primary,
-                              }}
-                            />
-                          )}
-                        </Box>
-                      </TableCell>
+                          {/* <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", fontSize: "0.7rem", mt: 0.2 }}>
+                            Paid: ₹{paidTotal.toLocaleString()}
+                          </Typography> */}
+                        </TableCell>
 
-                      {/* Balance Due */}
-                      <TableCell sx={{ whiteSpace: "nowrap" }}>
-                        {dueBalance > 0 ? (
-                          <Chip
-                            label={`₹${dueBalance.toLocaleString()} Due`}
-                            size="small"
-                            sx={{
-                              bgcolor: "rgba(239, 68, 68, 0.12)",
-                              color: "#DC2626",
-                              fontWeight: 800,
-                              fontSize: "0.75rem",
-                              border: "1px solid rgba(239, 68, 68, 0.3)",
-                            }}
-                          />
-                        ) : (
-                          <Chip
-                            label="Fully Settled"
-                            size="small"
-                            sx={{
-                              bgcolor: "rgba(16, 185, 129, 0.12)",
-                              color: "#059669",
-                              fontWeight: 800,
-                              fontSize: "0.75rem",
-                              border: "1px solid rgba(16, 185, 129, 0.3)",
-                            }}
-                          />
-                        )}
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", fontSize: "0.7rem", mt: 0.2 }}>
-                          Paid: ₹{paidTotal.toLocaleString()}
-                        </Typography>
-                      </TableCell>
+                        {/* Status */}
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>
+                          <StatusChip status={b.status} size="small" />
+                        </TableCell>
 
-                      {/* Status */}
-                      <TableCell sx={{ whiteSpace: "nowrap" }}>
-                        <StatusChip status={b.status} size="small" />
-                      </TableCell>
-
-                      {/* Actions */}
-                      <TableCell align="right" sx={{ whiteSpace: "nowrap", pr: 2.5 }}>
-                        <Box sx={{ display: "flex", gap: 0.8, justifyContent: "flex-end", alignItems: "center" }}>
-                          {/* 1. WhatsApp Notification */}
-                          <Tooltip title={b.status === "CHECKED_IN" ? "Send Check-In Confirmation on WhatsApp" : "Send Final Bill on WhatsApp"}>
-                            <IconButton
-                              size="small"
-                              onClick={() => {
-                                if (b.status === "CHECKED_IN") {
-                                  sendCheckInWhatsApp({
-                                    booking: b,
-                                    guest: b.guest || { name: b.guestName, mobileNumber: b.guestPhone },
-                                    hotel: hotelSettings,
-                                    onShowToast: (msg, sev) => toast.show(msg, sev),
-                                  });
-                                } else {
-                                  sendCheckoutBillWhatsApp({
-                                    booking: b,
-                                    guest: b.guest || { name: b.guestName, mobileNumber: b.guestPhone },
-                                    hotel: hotelSettings,
-                                    onShowToast: (msg, sev) => toast.show(msg, sev),
-                                  });
-                                }
-                              }}
-                              sx={{
-                                color: "#25D366",
-                                bgcolor: "rgba(37, 211, 102, 0.08)",
-                                border: "1px solid rgba(37, 211, 102, 0.28)",
-                                borderRadius: "10px",
-                                p: 0.8,
-                                transition: "all 0.18s ease",
-                                "&:hover": {
-                                  bgcolor: "#25D366",
-                                  color: "#FFFFFF",
-                                  transform: "translateY(-2px)",
-                                  boxShadow: "0 4px 10px rgba(37, 211, 102, 0.35)",
-                                },
-                              }}
-                            >
-                              <WhatsApp sx={{ fontSize: 18 }} />
-                            </IconButton>
-                          </Tooltip>
-
-                          {/* 3. View / Download Invoice */}
-                          <Tooltip title="View & Print Tax Invoice">
-                            <IconButton
-                              size="small"
-                              onClick={() => onOpenInvoice(b)}
-                              sx={{
-                                color: themeConfig.primary,
-                                bgcolor: isDarkMode ? "rgba(11, 142, 224, 0.12)" : themeConfig.champagne,
-                                border: `1px solid ${themeConfig.border}`,
-                                borderRadius: "10px",
-                                p: 0.8,
-                                transition: "all 0.18s ease",
-                                "&:hover": {
-                                  background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                                  color: "#FFFFFF",
-                                  transform: "translateY(-2px)",
-                                  boxShadow: `0 4px 10px ${themeConfig.primaryGlow}`,
-                                },
-                              }}
-                            >
-                              <Receipt sx={{ fontSize: 18 }} />
-                            </IconButton>
-                          </Tooltip>
-
-                          {/* 4. Check-Out Guest */}
-                          {b.status === "CHECKED_IN" && (
-                            <Tooltip title="Check-Out Guest & Release Room">
+                        {/* Actions */}
+                        <TableCell align="right" sx={{ whiteSpace: "nowrap", pr: 2.5 }}>
+                          <Box sx={{ display: "flex", gap: 0.8, justifyContent: "flex-end", alignItems: "center" }}>
+                            {/* 1. WhatsApp Notification */}
+                            <Tooltip title={b.status === "CHECKED_IN" ? "Send Check-In Confirmation on WhatsApp" : "Send Final Bill on WhatsApp"}>
                               <IconButton
                                 size="small"
-                                onClick={() => handleOpenCheckout(b)}
+                                onClick={() => {
+                                  if (b.status === "CHECKED_IN") {
+                                    sendCheckInWhatsApp({
+                                      booking: b,
+                                      guest: b.guest || { name: b.guestName, mobileNumber: b.guestPhone },
+                                      hotel: hotelSettings,
+                                      onShowToast: (msg, sev) => toast.show(msg, sev),
+                                    });
+                                  } else {
+                                    sendCheckoutBillWhatsApp({
+                                      booking: b,
+                                      guest: b.guest || { name: b.guestName, mobileNumber: b.guestPhone },
+                                      hotel: hotelSettings,
+                                      onShowToast: (msg, sev) => toast.show(msg, sev),
+                                    });
+                                  }
+                                }}
                                 sx={{
-                                  color: "#DC2626",
-                                  bgcolor: "rgba(220, 38, 38, 0.08)",
-                                  border: "1px solid rgba(220, 38, 38, 0.28)",
+                                  color: "#25D366",
+                                  bgcolor: "rgba(37, 211, 102, 0.08)",
+                                  border: "1px solid rgba(37, 211, 102, 0.28)",
                                   borderRadius: "10px",
                                   p: 0.8,
                                   transition: "all 0.18s ease",
                                   "&:hover": {
-                                    bgcolor: "#DC2626",
+                                    bgcolor: "#25D366",
                                     color: "#FFFFFF",
                                     transform: "translateY(-2px)",
-                                    boxShadow: "0 4px 10px rgba(220, 38, 38, 0.35)",
+                                    boxShadow: "0 4px 10px rgba(37, 211, 102, 0.35)",
                                   },
                                 }}
                               >
-                                <Logout sx={{ fontSize: 18 }} />
+                                <WhatsApp sx={{ fontSize: 18 }} />
                               </IconButton>
                             </Tooltip>
-                          )}
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
+
+                            {/* 3. View / Download Invoice */}
+                            {/* <Tooltip title="View & Print Tax Invoice">
+                              <IconButton
+                                size="small"
+                                onClick={() => onOpenInvoice(b)}
+                                sx={{
+                                  color: themeConfig.primary,
+                                  bgcolor: isDarkMode ? "rgba(11, 142, 224, 0.12)" : themeConfig.champagne,
+                                  border: `1px solid ${themeConfig.border}`,
+                                  borderRadius: "10px",
+                                  p: 0.8,
+                                  transition: "all 0.18s ease",
+                                  "&:hover": {
+                                    background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
+                                    color: "#FFFFFF",
+                                    transform: "translateY(-2px)",
+                                    boxShadow: `0 4px 10px ${themeConfig.primaryGlow}`,
+                                  },
+                                }}
+                              >
+                                <Receipt sx={{ fontSize: 18 }} />
+                              </IconButton>
+                            </Tooltip> */}
+
+                            {/* 4. Check-Out Guest */}
+                            {b.status === "CHECKED_IN" && (
+                              <Tooltip title="Check-Out Guest & Release Room">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleOpenCheckout(b)}
+                                  sx={{
+                                    color: "#DC2626",
+                                    bgcolor: "rgba(220, 38, 38, 0.08)",
+                                    border: "1px solid rgba(220, 38, 38, 0.28)",
+                                    borderRadius: "10px",
+                                    p: 0.8,
+                                    transition: "all 0.18s ease",
+                                    "&:hover": {
+                                      bgcolor: "#DC2626",
+                                      color: "#FFFFFF",
+                                      transform: "translateY(-2px)",
+                                      boxShadow: "0 4px 10px rgba(220, 38, 38, 0.35)",
+                                    },
+                                  }}
+                                >
+                                  <Logout sx={{ fontSize: 18 }} />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
               )}
             </TableBody>
           </Table>
@@ -1556,43 +1501,74 @@ export default function InHouseFoliosPage({
 
                   {/* Guest ID & Documents Showcase */}
                   {(b.guest?.idProof?.frontImage || b.guest?.frontImage || b.guest?.idProof?.backImage || b.guest?.backImage || (b.accompanyingGuests && b.accompanyingGuests.some(m => m.frontImage || m.backImage))) && (
-                      <Box sx={{ mt: 2, pt: 1.5, borderTop: `1px dashed ${themeConfig.border}` }}>
-                        <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.primaryDark, display: "block", mb: 1 }}>
-                          📄 Guest ID Documents & Photo Verification:
-                        </Typography>
-                        <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
-                          {/* Main Guest Front ID */}
-                          {(b.guest?.idProof?.frontImage || b.guest?.frontImage) && (
-                            <Paper
-                              sx={{
-                                p: 1,
-                                borderRadius: "10px",
-                                border: "1px solid #10B981",
-                                bgcolor: "rgba(16, 185, 129, 0.04)",
-                                display: "flex",
-                                flexDirection: "column",
-                                alignItems: "center",
-                                gap: 0.5,
-                                cursor: "pointer",
-                                "&:hover": { boxShadow: "0 4px 12px rgba(16, 185, 129, 0.2)" },
-                              }}
-                              onClick={() => setPreviewImage(b.guest?.idProof?.frontImage || b.guest?.frontImage)}
-                            >
-                              <Box
-                                component="img"
-                                src={b.guest?.idProof?.frontImage || b.guest?.frontImage}
-                                alt="Main Guest Front ID"
-                                sx={{ width: 110, height: 70, objectFit: "cover", borderRadius: "6px" }}
-                              />
-                              <Typography variant="caption" sx={{ fontWeight: 800, color: "#059669", fontSize: "0.68rem" }}>
-                                Main Front ID
-                              </Typography>
-                            </Paper>
-                          )}
+                    <Box sx={{ mt: 2, pt: 1.5, borderTop: `1px dashed ${themeConfig.border}` }}>
+                      <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.primaryDark, display: "block", mb: 1 }}>
+                        📄 Guest ID Documents & Photo Verification:
+                      </Typography>
+                      <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+                        {/* Main Guest Front ID */}
+                        {(b.guest?.idProof?.frontImage || b.guest?.frontImage) && (
+                          <Paper
+                            sx={{
+                              p: 1,
+                              borderRadius: "10px",
+                              border: "1px solid #10B981",
+                              bgcolor: "rgba(16, 185, 129, 0.04)",
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              gap: 0.5,
+                              cursor: "pointer",
+                              "&:hover": { boxShadow: "0 4px 12px rgba(16, 185, 129, 0.2)" },
+                            }}
+                            onClick={() => setPreviewImage(b.guest?.idProof?.frontImage || b.guest?.frontImage)}
+                          >
+                            <Box
+                              component="img"
+                              src={b.guest?.idProof?.frontImage || b.guest?.frontImage}
+                              alt="Main Guest Front ID"
+                              sx={{ width: 110, height: 70, objectFit: "cover", borderRadius: "6px" }}
+                            />
+                            <Typography variant="caption" sx={{ fontWeight: 800, color: "#059669", fontSize: "0.68rem" }}>
+                              Main Front ID
+                            </Typography>
+                          </Paper>
+                        )}
 
-                          {/* Main Guest Back ID */}
-                          {(b.guest?.idProof?.backImage || b.guest?.backImage) && (
+                        {/* Main Guest Back ID */}
+                        {(b.guest?.idProof?.backImage || b.guest?.backImage) && (
+                          <Paper
+                            sx={{
+                              p: 1,
+                              borderRadius: "10px",
+                              border: `1px solid ${themeConfig.border}`,
+                              bgcolor: themeConfig.bgCard,
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              gap: 0.5,
+                              cursor: "pointer",
+                              "&:hover": { borderColor: themeConfig.primary },
+                            }}
+                            onClick={() => setPreviewImage(b.guest?.idProof?.backImage || b.guest?.backImage)}
+                          >
+                            <Box
+                              component="img"
+                              src={b.guest?.idProof?.backImage || b.guest?.backImage}
+                              alt="Main Guest Back ID"
+                              sx={{ width: 110, height: 70, objectFit: "cover", borderRadius: "6px" }}
+                            />
+                            <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, fontSize: "0.68rem" }}>
+                              Main Back ID
+                            </Typography>
+                          </Paper>
+                        )}
+
+                        {/* Accompanying Member IDs */}
+                        {(b.accompanyingGuests || []).map((m, mIdx) => (
+                          m.frontImage ? (
                             <Paper
+                              key={mIdx}
                               sx={{
                                 p: 1,
                                 borderRadius: "10px",
@@ -1605,55 +1581,24 @@ export default function InHouseFoliosPage({
                                 cursor: "pointer",
                                 "&:hover": { borderColor: themeConfig.primary },
                               }}
-                              onClick={() => setPreviewImage(b.guest?.idProof?.backImage || b.guest?.backImage)}
+                              onClick={() => setPreviewImage(m.frontImage)}
                             >
                               <Box
                                 component="img"
-                                src={b.guest?.idProof?.backImage || b.guest?.backImage}
-                                alt="Main Guest Back ID"
+                                src={m.frontImage}
+                                alt={`${m.name} ID`}
                                 sx={{ width: 110, height: 70, objectFit: "cover", borderRadius: "6px" }}
                               />
-                              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, fontSize: "0.68rem" }}>
-                                Main Back ID
+                              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.primary, fontSize: "0.68rem" }}>
+                                {m.name || `Member ${mIdx + 1}`}
                               </Typography>
                             </Paper>
-                          )}
-
-                          {/* Accompanying Member IDs */}
-                          {(b.accompanyingGuests || []).map((m, mIdx) => (
-                            m.frontImage ? (
-                              <Paper
-                                key={mIdx}
-                                sx={{
-                                  p: 1,
-                                  borderRadius: "10px",
-                                  border: `1px solid ${themeConfig.border}`,
-                                  bgcolor: themeConfig.bgCard,
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  alignItems: "center",
-                                  gap: 0.5,
-                                  cursor: "pointer",
-                                  "&:hover": { borderColor: themeConfig.primary },
-                                }}
-                                onClick={() => setPreviewImage(m.frontImage)}
-                              >
-                                <Box
-                                  component="img"
-                                  src={m.frontImage}
-                                  alt={`${m.name} ID`}
-                                  sx={{ width: 110, height: 70, objectFit: "cover", borderRadius: "6px" }}
-                                />
-                                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.primary, fontSize: "0.68rem" }}>
-                                  {m.name || `Member ${mIdx + 1}`}
-                                </Typography>
-                              </Paper>
-                            ) : null
-                          ))}
-                        </Box>
+                          ) : null
+                        ))}
                       </Box>
-                    )}
-                  </Paper>
+                    </Box>
+                  )}
+                </Paper>
 
                 {overstay.isOverstay && (
                   <Paper sx={{ p: 1.8, borderRadius: "14px", bgcolor: "rgba(239, 68, 68, 0.08)", border: "1.5px dashed rgba(239, 68, 68, 0.4)" }}>

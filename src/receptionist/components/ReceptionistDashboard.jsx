@@ -597,6 +597,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
             onTabChange && onTabChange(tab);
           }}
           onSelectRoomForCheckIn={handleSelectRoomForCheckIn}
+          onCheckOut={handleCheckOut}
         />
       )}
 

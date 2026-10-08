@@ -79,6 +79,7 @@ import {
   Draw,
   Fingerprint,
   WhatsApp,
+  CalendarMonth,
   Visibility,
 } from "@/shared/icons";
 import dynamic from "next/dynamic";

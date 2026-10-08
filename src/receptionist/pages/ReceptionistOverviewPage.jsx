@@ -26,6 +26,7 @@ import {
   TextField,
   Divider,
   InputAdornment,
+  MenuItem,
 } from "@mui/material";
 import { toast } from "@/shared/utils/toast";
 import {
@@ -58,6 +59,7 @@ import {
   WhatsApp,
   CurrencyRupee,
   Search,
+  Logout,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import StatusChip from "@/shared/components/StatusChip";
@@ -79,6 +81,7 @@ export default function ReceptionistOverviewPage({
   onRefresh,
   onNavigateTab,
   onSelectRoomForCheckIn,
+  onCheckOut,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
 
@@ -92,6 +95,80 @@ export default function ReceptionistOverviewPage({
     guest: null,
     guestId: null,
   });
+
+  // Quick Check-Out Modal State
+  const [checkoutModal, setCheckoutModal] = useState({
+    open: false,
+    item: null,
+    paymentMethod: "CASH",
+    settlementAmount: 0,
+    isSubmitting: false,
+  });
+
+  const handleOpenCheckoutModal = (item) => {
+    const due = item.dueAmount || 0;
+    setCheckoutModal({
+      open: true,
+      item,
+      paymentMethod: due > 0 ? "UPI" : "CASH",
+      settlementAmount: due,
+      isSubmitting: false,
+    });
+  };
+
+  const handleConfirmCheckoutModal = async () => {
+    if (!checkoutModal.item) return;
+    const item = checkoutModal.item;
+    const bookingId = item.booking?._id || item.booking?.id || item._id;
+
+    setCheckoutModal((prev) => ({ ...prev, isSubmitting: true }));
+    try {
+      if (onCheckOut) {
+        await onCheckOut(item.booking || bookingId, {
+          paymentMethod: checkoutModal.paymentMethod,
+          settlementPaymentAmount: Number(checkoutModal.settlementAmount) || 0,
+        });
+      } else {
+        await apiRequest(API_ENDPOINTS.RECEPTIONIST.CHECKOUT(bookingId), {
+          method: "POST",
+          body: {
+            settlementPaymentAmount: Number(checkoutModal.settlementAmount) || 0,
+            paymentMethod: checkoutModal.paymentMethod,
+          },
+        });
+        toast.success("Guest checked out successfully! Room marked for cleaning.");
+        if (onRefresh) await onRefresh();
+      }
+      setCheckoutModal({ open: false, item: null, paymentMethod: "CASH", settlementAmount: 0, isSubmitting: false });
+    } catch (err) {
+      toast.error(err.message || "Failed to check out guest");
+      setCheckoutModal((prev) => ({ ...prev, isSubmitting: false }));
+    }
+  };
+
+  const formatDDMMYYYY = (val) => {
+    if (!val || val === "N/A") return "N/A";
+    if (typeof val === "string" && /^\d{2}-\d{2}-\d{4}$/.test(val)) return val;
+    if (typeof val === "string" && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+      const [y, m, d] = val.split("-");
+      return `${d}-${m}-${y}`;
+    }
+    if (typeof val === "string" && val.includes("/")) {
+      const parts = val.split("/");
+      if (parts.length === 3) {
+        const m = parts[0].padStart(2, "0");
+        const d = parts[1].padStart(2, "0");
+        const y = parts[2];
+        return `${d}-${m}-${y}`;
+      }
+    }
+    const dateObj = new Date(val);
+    if (isNaN(dateObj.getTime())) return String(val);
+    const day = String(dateObj.getDate()).padStart(2, "0");
+    const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+    const year = dateObj.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
 
   // Telemetry Detail Modal State (Available, Occupied, Cleaning, Maintenance, In-House Guests)
   const [telemetryModal, setTelemetryModal] = useState({
@@ -209,8 +286,8 @@ export default function ReceptionistOverviewPage({
           (Array.isArray(b.roomNumbers) && b.roomNumbers.length > 0)
             ? b.roomNumbers.join(", ")
             : (Array.isArray(b.rooms) && b.rooms.length > 0 && typeof b.rooms[0] === "object" && b.rooms[0]?.roomNumber)
-            ? b.rooms.map((r) => r.roomNumber).join(", ")
-            : b.roomNumber || (b.room?.roomNumber ? String(b.room.roomNumber) : "")
+              ? b.rooms.map((r) => r.roomNumber).join(", ")
+              : b.roomNumber || (b.room?.roomNumber ? String(b.room.roomNumber) : "")
         ) : "") || "Not Assigned";
 
       const checkInDateStr = g.checkInDate || (b?.checkInDate ? (typeof b.checkInDate === "string" ? b.checkInDate.split("T")[0] : new Date(b.checkInDate).toISOString().split("T")[0]) : "N/A");
@@ -250,8 +327,8 @@ export default function ReceptionistOverviewPage({
           (Array.isArray(b.roomNumbers) && b.roomNumbers.length > 0)
             ? b.roomNumbers.join(", ")
             : (Array.isArray(b.rooms) && b.rooms.length > 0 && typeof b.rooms[0] === "object" && b.rooms[0]?.roomNumber)
-            ? b.rooms.map((r) => r.roomNumber).join(", ")
-            : b.roomNumber || (b.room?.roomNumber ? String(b.room.roomNumber) : "Not Assigned");
+              ? b.rooms.map((r) => r.roomNumber).join(", ")
+              : b.roomNumber || (b.room?.roomNumber ? String(b.room.roomNumber) : "Not Assigned");
 
         const checkInDateStr = b.checkInDate ? (typeof b.checkInDate === "string" ? b.checkInDate.split("T")[0] : new Date(b.checkInDate).toISOString().split("T")[0]) : "N/A";
         const checkOutDateStr = b.checkOutDate ? (typeof b.checkOutDate === "string" ? b.checkOutDate.split("T")[0] : new Date(b.checkOutDate).toISOString().split("T")[0]) : "N/A";
@@ -408,10 +485,10 @@ export default function ReceptionistOverviewPage({
       const roomsList = Array.isArray(b.roomNumbers) && b.roomNumbers.length > 0
         ? b.roomNumbers.map(String)
         : Array.isArray(b.rooms) && b.rooms.length > 0 && typeof b.rooms[0] === "object" && b.rooms[0]?.roomNumber
-        ? b.rooms.map((r) => String(r.roomNumber))
-        : b.roomNumber
-        ? String(b.roomNumber).split(",").map((s) => s.trim()).filter(Boolean)
-        : [b.room?.roomNumber || "101"];
+          ? b.rooms.map((r) => String(r.roomNumber))
+          : b.roomNumber
+            ? String(b.roomNumber).split(",").map((s) => s.trim()).filter(Boolean)
+            : [b.room?.roomNumber || "101"];
 
       return {
         _id: b._id,
@@ -944,17 +1021,18 @@ export default function ReceptionistOverviewPage({
                   <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Contact</TableCell>
                   <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Check-In Date</TableCell>
                   <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Status</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Action</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {activeRecentBookings.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 3, color: themeConfig.textMuted, fontWeight: 700 }}>
+                    <TableCell colSpan={6} align="center" sx={{ py: 3, color: themeConfig.textMuted, fontWeight: 700 }}>
                       No active check-ins or in-house guest folios found.
                     </TableCell>
                   </TableRow>
                 ) : (
-                    activeRecentBookings
+                  activeRecentBookings
                     .slice(guestPage * guestRowsPerPage, guestPage * guestRowsPerPage + guestRowsPerPage)
                     .map((g) => (
                       <TableRow
@@ -981,7 +1059,7 @@ export default function ReceptionistOverviewPage({
                                 {g.name}
                               </Typography>
                               <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                                {g.email}
+                                {/* {g.email} */}
                               </Typography>
                             </Box>
                           </Box>
@@ -1030,6 +1108,38 @@ export default function ReceptionistOverviewPage({
                         </TableCell>
                         <TableCell>
                           <StatusChip status={g.status || "IN-HOUSE"} size="small" />
+                        </TableCell>
+                        <TableCell align="center" onClick={(e) => e.stopPropagation()}>
+                          {(g.status === "IN-HOUSE" || g.status === "CHECKED_IN") ? (
+                            <Button
+                              variant="contained"
+                              color="error"
+                              size="small"
+                              startIcon={<Logout sx={{ fontSize: 15 }} />}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenCheckoutModal(g);
+                              }}
+                              sx={{
+                                fontWeight: 800,
+                                fontSize: "0.78rem",
+                                borderRadius: "8px",
+                                textTransform: "none",
+                                bgcolor: "#EF4444",
+                                color: "#FFFFFF",
+                                minWidth: "105px",
+                                "&:hover": { bgcolor: "#DC2626" },
+                                boxShadow: "0 2px 6px rgba(239, 68, 68, 0.3)",
+                                py: 0.5,
+                                px: 1.5,
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              Check-Out
+                            </Button>
+                          ) : (
+                            <Chip label={g.status || "DEPARTED"} size="small" variant="outlined" sx={{ fontSize: "0.7rem", fontWeight: 700 }} />
+                          )}
                         </TableCell>
                       </TableRow>
                     ))
@@ -1108,12 +1218,12 @@ export default function ReceptionistOverviewPage({
                     telemetryModal.type === "AVAILABLE"
                       ? "#10B981"
                       : telemetryModal.type === "OCCUPIED"
-                      ? "#0B8EE0"
-                      : telemetryModal.type === "CLEANING"
-                      ? "#D97706"
-                      : telemetryModal.type === "MAINTENANCE"
-                      ? "#EF4444"
-                      : "#8E24AA",
+                        ? "#0B8EE0"
+                        : telemetryModal.type === "CLEANING"
+                          ? "#D97706"
+                          : telemetryModal.type === "MAINTENANCE"
+                            ? "#EF4444"
+                            : "#8E24AA",
                   color: "#FFFFFF",
                   width: 42,
                   height: 42,
@@ -1762,6 +1872,100 @@ export default function ReceptionistOverviewPage({
           </DialogActions>
         </Dialog>
       )}
+
+      {/* Quick Check-Out Confirmation Modal */}
+      <Dialog
+        open={checkoutModal.open}
+        onClose={() => !checkoutModal.isSubmitting && setCheckoutModal({ open: false, item: null, paymentMethod: "CASH", settlementAmount: 0, isSubmitting: false })}
+        maxWidth="xs"
+        fullWidth
+        slotProps={{ paper: { sx: { borderRadius: "20px", p: 1 } } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, pb: 1, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Logout color="error" />
+            <Typography variant="h6" sx={{ fontWeight: 900 }}>Confirm Guest Check-Out</Typography>
+          </Box>
+          <IconButton size="small" onClick={() => setCheckoutModal({ open: false, item: null, paymentMethod: "CASH", settlementAmount: 0, isSubmitting: false })}>
+            <Close fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          {checkoutModal.item && (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 0.5 }}>
+              <Box sx={{ p: 2, borderRadius: "14px", bgcolor: themeConfig.champagne, border: `1px solid ${themeConfig.border}` }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                  {checkoutModal.item.name}
+                </Typography>
+                <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
+                  Room #{checkoutModal.item.roomAssigned} &bull; Contact: {checkoutModal.item.phone}
+                </Typography>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.primary, mt: 0.5, display: "block" }}>
+                  Check-In: {checkoutModal.item.checkInDate}
+                </Typography>
+              </Box>
+
+              {checkoutModal.item.dueAmount > 0 && (
+                <Box>
+                  <Typography variant="caption" sx={{ fontWeight: 800, color: "#EF4444", mb: 0.5, display: "block" }}>
+                    Outstanding Folio Balance: ₹{checkoutModal.item.dueAmount}
+                  </Typography>
+                  <TextField
+                    label="Settlement Amount (₹)"
+                    type="number"
+                    size="small"
+                    fullWidth
+                    value={checkoutModal.settlementAmount}
+                    onChange={(e) => setCheckoutModal((prev) => ({ ...prev, settlementAmount: e.target.value }))}
+                    sx={{ mb: 1.5 }}
+                  />
+                  <TextField
+                    select
+                    label="Payment Method"
+                    size="small"
+                    fullWidth
+                    value={checkoutModal.paymentMethod}
+                    onChange={(e) => setCheckoutModal((prev) => ({ ...prev, paymentMethod: e.target.value }))}
+                  >
+                    <MenuItem value="CASH">Cash Payment</MenuItem>
+                    <MenuItem value="UPI">UPI / QR Code</MenuItem>
+                    <MenuItem value="CARD">Debit / Credit Card</MenuItem>
+                  </TextField>
+                </Box>
+              )}
+
+              <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontSize: "0.85rem" }}>
+                Are you sure you want to check out <strong>{checkoutModal.item.name}</strong> from <strong>Room #{checkoutModal.item.roomAssigned}</strong>? Room status will automatically change to <em>Cleaning Needed</em>.
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2, pt: 1.5 }}>
+          <Button
+            onClick={() => setCheckoutModal({ open: false, item: null, paymentMethod: "CASH", settlementAmount: 0, isSubmitting: false })}
+            disabled={checkoutModal.isSubmitting}
+            sx={{ borderRadius: "10px" }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleConfirmCheckoutModal}
+            disabled={checkoutModal.isSubmitting}
+            startIcon={<Logout />}
+            sx={{
+              borderRadius: "10px",
+              fontWeight: 800,
+              bgcolor: "#EF4444",
+              "&:hover": { bgcolor: "#DC2626" },
+              px: 2.5,
+            }}
+          >
+            {checkoutModal.isSubmitting ? "Processing..." : "Complete Check-Out"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

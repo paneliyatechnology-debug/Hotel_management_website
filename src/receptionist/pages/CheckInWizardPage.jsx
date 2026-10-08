@@ -34,6 +34,7 @@ import {
   TableRow,
   TableCell,
   TableContainer,
+  Dialog,
 } from "@mui/material";
 import { calculateMultiRoomBookingGST } from "@/shared/utils/gstUtils";
 import { uploadToCloudinaryServer } from "@/shared/utils/uploadService";
@@ -78,10 +79,11 @@ import {
   Draw,
   Fingerprint,
   WhatsApp,
+  Visibility,
 } from "@/shared/icons";
 import dynamic from "next/dynamic";
 import { useAppTheme } from "@/shared/context/ThemeContext";
-import { formatTime12Hour } from "@/shared/utils/timeUtils";
+import { formatTime12Hour, formatTime24Hour } from "@/shared/utils/timeUtils";
 import { getAmenityIcon } from "@/shared/utils/amenityUtils";
 import { apiRequest, API_ENDPOINTS } from "@/config/api";
 
@@ -161,6 +163,18 @@ export default function CheckInWizardPage({
     return `${y}-${m}-${day}`;
   };
 
+  // Helper to format ISO Date (YYYY-MM-DD) to DD-MM-YYYY format
+  const formatDDMMYYYY = (val) => {
+    if (!val) return "";
+    const s = toDateStr(val);
+    if (!s) return "";
+    const parts = s.split("-");
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return s;
+  };
+
   // Helper to check night-based date overlap: (existIn < reqOut) && (existOut > reqIn)
   const isStayOverlapping = (reqIn, reqOut, existIn, existOut) => {
     const rIn = toDateStr(reqIn);
@@ -220,6 +234,7 @@ export default function CheckInWizardPage({
 
   // Form validation feedback
   const [stepError, setStepError] = useState("");
+  const [previewImageSrc, setPreviewImageSrc] = useState(null);
 
   useEffect(() => {
     const initialTime = getCurrentLocalTime();
@@ -2043,39 +2058,54 @@ export default function CheckInWizardPage({
               )}
 
               <Grid container spacing={2}>
-                {/* Check-In Date */}
+                {/* Check-In Date (Today - DD-MM-YYYY) */}
                 <Grid size={{ xs: 12, sm: 2.5 }}>
                   <TextField
                     fullWidth
                     size="small"
-                    label="Check-In Date"
-                    type="date"
+                    label="Check-In Date (Today)"
+                    value={formatDDMMYYYY(getTodayLocalDate())}
+                    slotProps={{
+                      input: {
+                        readOnly: true,
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <CalendarMonth sx={{ fontSize: 18, color: themeConfig.primary }} />
+                          </InputAdornment>
+                        ),
+                      },
+                      inputLabel: { shrink: true },
+                    }}
                     error={conflictingRooms.length > 0}
-                    helperText={conflictingRooms.length > 0 ? "⚠️ Room is already booked for this date!" : ""}
-                    value={checkInData.checkInDate || getTodayLocalDate()}
-                    onChange={(e) => handleCheckInDateChange(e.target.value)}
-                    slotProps={{ inputLabel: { shrink: true } }}
+                    helperText={conflictingRooms.length > 0 ? "⚠️ Room is already occupied!" : "Instant Check-In Today"}
                   />
                 </Grid>
 
-                {/* Check-In Time */}
+                {/* Check-In Time (12-Hour AM/PM) */}
                 <Grid size={{ xs: 12, sm: 2.5 }}>
                   <TextField
                     fullWidth
                     size="small"
-                    label={checkInData.isCustomCheckInTime ? "Check-In Time (Manual)" : "Check-In Time (Live)"}
-                    type="time"
-                    value={checkInData.isCustomCheckInTime ? checkInData.checkInTime : liveTime}
-                    onChange={(e) => setCheckInData({ ...checkInData, checkInTime: e.target.value, isCustomCheckInTime: true })}
+                    label={checkInData.isCustomCheckInTime ? "Check-In Time (12h)" : "Check-In Time (Live 12h)"}
+                    value={formatTime12Hour(checkInData.isCustomCheckInTime ? checkInData.checkInTime : liveTime)}
                     slotProps={{
                       inputLabel: { shrink: true },
                       input: {
+                        readOnly: true,
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <AccessTime sx={{ fontSize: 18, color: themeConfig.primary }} />
+                          </InputAdornment>
+                        ),
                         endAdornment: (
                           <InputAdornment position="end">
                             <Tooltip title="Reset to live ticking clock">
                               <IconButton
                                 size="small"
-                                onClick={() => setCheckInData({ ...checkInData, checkInTime: getCurrentLocalTime(), isCustomCheckInTime: false })}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCheckInData({ ...checkInData, checkInTime: getCurrentLocalTime(), isCustomCheckInTime: false });
+                                }}
                               >
                                 <Refresh sx={{ fontSize: 16 }} />
                               </IconButton>
@@ -2094,9 +2124,9 @@ export default function CheckInWizardPage({
                     size="small"
                     label="Nights Count"
                     type="number"
-                    slotProps={{ htmlInput: { min: 0 } }}
-                    placeholder="0"
-                    value={checkInData.numberOfNights ?? ""}
+                    slotProps={{ htmlInput: { min: 1 } }}
+                    placeholder="1"
+                    value={checkInData.numberOfNights ?? 1}
                     onChange={(e) => handleNightsChange(e.target.value)}
                   />
                 </Grid>
@@ -2112,21 +2142,44 @@ export default function CheckInWizardPage({
                     value={checkInData.checkOutDate || ""}
                     onChange={(e) => handleCheckOutDateChange(e.target.value)}
                     slotProps={{ inputLabel: { shrink: true } }}
-                    helperText={conflictingRooms.length > 0 ? "⚠️ Overlaps with booked stay" : `Out: ${formatTime12Hour(checkInData.checkOutTime || hotelSettings?.checkOutTime || "12:00")}`}
+                    helperText={
+                      conflictingRooms.length > 0
+                        ? "⚠️ Overlaps with booked stay"
+                        : `Out: ${formatDDMMYYYY(checkInData.checkOutDate)} (${formatTime12Hour(checkInData.checkOutTime || hotelSettings?.checkOutTime || "12:00")})`
+                    }
                   />
                 </Grid>
 
-                {/* Check-Out Time */}
+                {/* Check-Out Time (12-Hour Select) */}
                 <Grid size={{ xs: 12, sm: 2.5 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Check-Out Time"
-                    type="time"
-                    value={checkInData.checkOutTime || hotelSettings?.checkOutTime || "12:00"}
-                    onChange={(e) => setCheckInData({ ...checkInData, checkOutTime: e.target.value })}
-                    slotProps={{ inputLabel: { shrink: true } }}
-                  />
+                  <FormControl fullWidth size="small">
+                    <InputLabel shrink>Check-Out Time (12h)</InputLabel>
+                    <Select
+                      value={formatTime12Hour(checkInData.checkOutTime || hotelSettings?.checkOutTime || "12:00")}
+                      onChange={(e) => {
+                        const time24 = formatTime24Hour(e.target.value);
+                        setCheckInData({ ...checkInData, checkOutTime: time24 });
+                      }}
+                      label="Check-Out Time (12h)"
+                      notched
+                      startAdornment={
+                        <InputAdornment position="start" sx={{ ml: 0.5 }}>
+                          <AccessTime sx={{ fontSize: 18, color: themeConfig.primary }} />
+                        </InputAdornment>
+                      }
+                    >
+                      {[
+                        "08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM", "11:30 AM",
+                        "12:00 PM", "12:30 PM", "01:00 PM", "01:30 PM", "02:00 PM",
+                        "02:30 PM", "03:00 PM", "03:30 PM", "04:00 PM", "05:00 PM",
+                        "06:00 PM", "07:00 PM", "08:00 PM", "09:00 PM", "10:00 PM", "11:00 PM"
+                      ].map((t12) => (
+                        <MenuItem key={t12} value={t12}>
+                          {t12}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
                 </Grid>
               </Grid>
             </Paper>
@@ -2527,63 +2580,55 @@ export default function CheckInWizardPage({
                 </Grid>
               </Box>
 
-              {/* 2. Accompanying Members List */}
+              {/* 2. Uploaded Document Verification */}
               {checkInData.accompanyingGuests && checkInData.accompanyingGuests.length > 0 && (
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 1.5 }}>
-                    Accompanying Member Documents ({checkInData.accompanyingGuests.length}):
-                  </Typography>
-                  <TableContainer sx={{ borderRadius: "12px", border: `1px solid ${themeConfig.border}`, overflowX: "auto" }}>
-                    <Table size="small" sx={{ minWidth: 480 }}>
-                      <TableHead sx={{ bgcolor: themeConfig.champagne }}>
-                        <TableRow>
-                          <TableCell sx={{ fontWeight: 800 }}>Member #</TableCell>
-                          <TableCell sx={{ fontWeight: 800 }}>Uploaded Documents</TableCell>
-                          <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {checkInData.accompanyingGuests.map((m, i) => {
-                          const docList = m.images && m.images.length > 0
-                            ? m.images
-                            : (m.frontImage ? [m.frontImage, ...(m.backImage ? [m.backImage] : [])] : []);
-                          return (
-                            <TableRow key={m.id || i}>
-                              <TableCell sx={{ fontWeight: 700 }}>Member #{i + 1}</TableCell>
-                              <TableCell>
-                                {docList.length > 0 ? (
-                                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, flexWrap: "wrap" }}>
-                                    {docList.map((img, idx) => (
-                                      <Box
-                                        key={idx}
-                                        component="img"
-                                        src={img}
-                                        alt={`Member ${i + 1} Doc ${idx + 1}`}
-                                        sx={{ width: 36, height: 36, borderRadius: "6px", objectFit: "cover", border: "1px solid #10B981" }}
-                                      />
-                                    ))}
-                                    <Typography variant="caption" sx={{ fontWeight: 800, color: "#10B981" }}>
-                                      ({docList.length} Image{docList.length > 1 ? "s" : ""})
-                                    </Typography>
-                                  </Box>
-                                ) : (
-                                  <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>No document photos</Typography>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                {docList.length > 0 ? (
-                                  <Chip label={`${docList.length} Document(s) Uploaded`} size="small" sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", color: "#10B981", fontWeight: 800, fontSize: "0.72rem" }} />
-                                ) : (
-                                  <Chip label="Optional / Pending" size="small" sx={{ bgcolor: "rgba(100, 116, 139, 0.1)", color: themeConfig.textMuted, fontWeight: 700, fontSize: "0.72rem" }} />
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </Box>
+                <Paper sx={{ mb: 3, p: 2, borderRadius: "14px", border: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#FFFFFF" }}>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1.5 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                      <Avatar sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", color: "#10B981", width: 38, height: 38 }}>
+                        <CheckCircle sx={{ fontSize: 22 }} />
+                      </Avatar>
+                      <div>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+                          Uploaded Member Documents & ID Verification
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
+                          {checkInData.accompanyingGuests.length} Document Photo(s) Attached & Verified
+                        </Typography>
+                      </div>
+                    </Box>
+
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                      {checkInData.accompanyingGuests.map((m, idx) => {
+                        const imgSrc = m.frontImage || (m.images && m.images[0]) || "";
+                        return (
+                          <Chip
+                            key={m.id || idx}
+                            icon={<Visibility sx={{ fontSize: "14px !important" }} />}
+                            label={`Doc #${idx + 1}`}
+                            size="small"
+                            clickable
+                            onClick={() => setPreviewImageSrc(imgSrc)}
+                            sx={{
+                              bgcolor: "rgba(11, 142, 224, 0.12)",
+                              color: "#0B8EE0",
+                              fontWeight: 800,
+                              fontSize: "0.72rem",
+                              height: 26,
+                              "&:hover": { bgcolor: "rgba(11, 142, 224, 0.22)" },
+                            }}
+                          />
+                        );
+                      })}
+                      <Chip
+                        icon={<CheckCircle sx={{ fontSize: "14px !important", color: "#10B981 !important" }} />}
+                        label="Verified"
+                        size="small"
+                        sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", color: "#10B981", fontWeight: 900, fontSize: "0.72rem", height: 26 }}
+                      />
+                    </Box>
+                  </Box>
+                </Paper>
               )}
 
               {/* 3. Stay & Room Allocation Details */}
@@ -2594,10 +2639,10 @@ export default function CheckInWizardPage({
                       Stay Schedule:
                     </Typography>
                     <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                      In: {checkInData.checkInDate} &bull; {checkInData.checkInTime || liveTime}
+                      In: {formatDDMMYYYY(checkInData.checkInDate || getTodayLocalDate())} &bull; {formatTime12Hour(checkInData.checkInTime || liveTime)}
                     </Typography>
                     <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                      Out: {checkInData.checkOutDate} &bull; {formatTime12Hour(checkInData.checkOutTime || hotelSettings?.checkOutTime || "12:00")}
+                      Out: {formatDDMMYYYY(checkInData.checkOutDate)} &bull; {formatTime12Hour(checkInData.checkOutTime || hotelSettings?.checkOutTime || "12:00")}
                     </Typography>
                     <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
                       Duration: {checkInData.numberOfNights || nights || 1} Night(s)
@@ -2772,6 +2817,26 @@ export default function CheckInWizardPage({
           </Box>
         </Box>
       </Card>
+
+      {/* Image Preview Modal */}
+      <Dialog open={Boolean(previewImageSrc)} onClose={() => setPreviewImageSrc(null)} maxWidth="md">
+        <Box sx={{ position: "relative", p: 2, bgcolor: "#000", textAlign: "center", minWidth: 320 }}>
+          <IconButton
+            onClick={() => setPreviewImageSrc(null)}
+            sx={{ position: "absolute", top: 8, right: 8, color: "#FFF", bgcolor: "rgba(255,255,255,0.25)", "&:hover": { bgcolor: "rgba(255,255,255,0.4)" } }}
+          >
+            <Close />
+          </IconButton>
+          {previewImageSrc && (
+            <Box
+              component="img"
+              src={previewImageSrc}
+              alt="Document Preview"
+              sx={{ maxWidth: "100%", maxHeight: "80vh", objectFit: "contain", borderRadius: "8px", mt: 3 }}
+            />
+          )}
+        </Box>
+      </Dialog>
     </Box>
   );
 }

@@ -6,7 +6,7 @@
  * - "LIVE"  -> https://hotelmanagementbackend-dev.up.railway.app
  */
 
-export const ENVIRONMENT = "LIVE"; // 👉 Toggle "LOCAL" or "LIVE" here
+export const ENVIRONMENT = "LOCAL"; // 👉 Toggle "LOCAL" or "LIVE" here
 
 export const LOCAL_API_URL = "http://localhost:5000";
 export const LIVE_API_URL = "https://hotelmanagementbackend-dev.up.railway.app";

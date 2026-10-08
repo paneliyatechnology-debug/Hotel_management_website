@@ -143,7 +143,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
     if (typeof window !== "undefined") {
       try {
         sessionStorage.removeItem("saved_checkInData");
-      } catch (e) {}
+      } catch (e) { }
     }
   }, []);
 
@@ -593,9 +593,9 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
           hotelSettings={hotelSettings}
           onRefresh={fetchFrontDeskData}
           onNavigateTab={(tab, categoryId) => {
-              if (categoryId) setInitialSelectedCategory(categoryId);
-              onTabChange && onTabChange(tab);
-            }}
+            if (categoryId) setInitialSelectedCategory(categoryId);
+            onTabChange && onTabChange(tab);
+          }}
           onSelectRoomForCheckIn={handleSelectRoomForCheckIn}
         />
       )}

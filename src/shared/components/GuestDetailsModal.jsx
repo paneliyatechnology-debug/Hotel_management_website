@@ -640,82 +640,151 @@ export default function GuestDetailsModal({
                   {/* Accompanying Members if any */}
                   {accompanyingGuests && accompanyingGuests.length > 0 && (
                     <Paper sx={{ p: 2.5, borderRadius: "16px", border: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#FFFFFF" }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
                         <Group sx={{ fontSize: 18, color: themeConfig.primary }} />
                         Accompanying Members ({accompanyingGuests.length})
                       </Typography>
-                      <TableContainer sx={{ borderRadius: "10px", border: `1px solid ${themeConfig.border}`, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-                        <Table size="small" sx={{ minWidth: 480 }}>
-                          <TableHead sx={{ bgcolor: themeConfig.champagne }}>
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 800 }}>#</TableCell>
-                              <TableCell sx={{ fontWeight: 800 }}>Member Name</TableCell>
-                              <TableCell sx={{ fontWeight: 800 }}>Front ID</TableCell>
-                              <TableCell sx={{ fontWeight: 800 }}>Back ID</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {accompanyingGuests.map((m, i) => {
-                              const mName = m.name || m.fullName || `Member_${i + 1}`;
-                              const cleanMName = sanitizeFilename(mName);
-                              const mFront = m.frontImage || m.frontImageUrl || m.idProofImage || m.idProof?.frontImage || m.idProof?.frontImageUrl;
-                              const mBack = m.backImage || m.backImageUrl || m.idProofBackImage || m.idProof?.backImage || m.idProof?.backImageUrl;
-                              return (
-                                <TableRow key={m.id || i}>
-                                  <TableCell sx={{ fontWeight: 700 }}>{i + 1}</TableCell>
-                                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>{mName}</TableCell>
-                                  <TableCell>
-                                    {mFront ? (
-                                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
-                                        <Chip
-                                          label="View"
-                                          size="small"
-                                          clickable
-                                          onClick={() => setPreviewImage(mFront)}
-                                          sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", color: "#10B981", fontWeight: 800, height: 22, fontSize: "0.68rem" }}
+
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        {accompanyingGuests.map((m, i) => {
+                          const mName = m.name || m.fullName || `Member ${i + 1}`;
+                          const cleanMName = sanitizeFilename(mName);
+
+                          // Extract all document images for this member
+                          const memberDocs = [];
+
+                          if (Array.isArray(m.images) && m.images.length > 0) {
+                            m.images.forEach((imgSrc, imgIdx) => {
+                              if (imgSrc) {
+                                memberDocs.push({
+                                  id: `img_${imgIdx}`,
+                                  label: `${mName} - Photo ${imgIdx + 1}`,
+                                  src: imgSrc,
+                                  filename: `${cleanMName}_Doc_${imgIdx + 1}`,
+                                });
+                              }
+                            });
+                          }
+
+                          const mFront = m.frontImage || m.frontImageUrl || m.idProofImage || m.idProof?.frontImage || m.idProof?.frontImageUrl;
+                          if (mFront && !memberDocs.some((d) => d.src === mFront)) {
+                            memberDocs.push({
+                              id: "front",
+                              label: `${mName} - Front ID`,
+                              src: mFront,
+                              filename: `${cleanMName}_Front_ID`,
+                            });
+                          }
+
+                          const mBack = m.backImage || m.backImageUrl || m.idProofBackImage || m.idProof?.backImage || m.idProof?.backImageUrl;
+                          if (mBack && !memberDocs.some((d) => d.src === mBack)) {
+                            memberDocs.push({
+                              id: "back",
+                              label: `${mName} - Back ID`,
+                              src: mBack,
+                              filename: `${cleanMName}_Back_ID`,
+                            });
+                          }
+
+                          if (typeof m === "string" && (m.startsWith("data:image") || m.startsWith("http"))) {
+                            memberDocs.push({
+                              id: "direct_str",
+                              label: `Member ${i + 1} ID Photo`,
+                              src: m,
+                              filename: `Member_${i + 1}_Photo`,
+                            });
+                          }
+
+                          return (
+                            <Paper
+                              key={m.id || i}
+                              sx={{
+                                p: 2,
+                                borderRadius: "14px",
+                                border: `1px solid ${themeConfig.border}`,
+                                bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#F8FAFC",
+                              }}
+                            >
+                              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                                👤 {i + 1}. {mName} {m.relationship ? `(${m.relationship})` : ""}
+                              </Typography>
+
+                              {memberDocs.length > 0 ? (
+                                <Grid container spacing={2}>
+                                  {memberDocs.map((doc) => (
+                                    <Grid key={doc.id} size={{ xs: 12, sm: 6, md: 4 }}>
+                                      <Paper
+                                        sx={{
+                                          p: 1.5,
+                                          borderRadius: "12px",
+                                          border: `1px solid ${themeConfig.border}`,
+                                          textAlign: "center",
+                                          bgcolor: isDarkMode ? "rgba(0,0,0,0.2)" : "#FFFFFF",
+                                        }}
+                                      >
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1, gap: 1 }}>
+                                          <Typography
+                                            variant="caption"
+                                            sx={{
+                                              fontWeight: 800,
+                                              color: themeConfig.textMain,
+                                              overflow: "hidden",
+                                              textOverflow: "ellipsis",
+                                              whiteSpace: "nowrap",
+                                            }}
+                                          >
+                                            📄 {doc.label}
+                                          </Typography>
+                                          <Chip
+                                            icon={<FileDownload sx={{ fontSize: "14px !important" }} />}
+                                            label="Download"
+                                            size="small"
+                                            clickable
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              downloadSingleImage(doc.src, doc.filename);
+                                            }}
+                                            sx={{
+                                              height: 20,
+                                              fontSize: "0.68rem",
+                                              fontWeight: 800,
+                                              bgcolor: "rgba(11, 142, 224, 0.1)",
+                                              color: "#0B8EE0",
+                                              "&:hover": { bgcolor: "rgba(11, 142, 224, 0.2)" },
+                                              flexShrink: 0,
+                                            }}
+                                          />
+                                        </Box>
+                                        <Box
+                                          component="img"
+                                          src={doc.src}
+                                          alt={doc.label}
+                                          onClick={() => setPreviewImage(doc.src)}
+                                          sx={{
+                                            width: "100%",
+                                            height: 140,
+                                            objectFit: "contain",
+                                            bgcolor: isDarkMode ? "rgba(0,0,0,0.25)" : "#F8FAFC",
+                                            border: `1px solid ${themeConfig.border}`,
+                                            borderRadius: "8px",
+                                            cursor: "pointer",
+                                            transition: "transform 0.2s, box-shadow 0.2s",
+                                            "&:hover": { transform: "scale(1.02)", opacity: 0.95, boxShadow: "0 6px 16px rgba(0,0,0,0.15)" },
+                                          }}
                                         />
-                                        <Chip
-                                          icon={<FileDownload sx={{ fontSize: "13px !important" }} />}
-                                          label="Download"
-                                          size="small"
-                                          clickable
-                                          onClick={() => downloadSingleImage(mFront, `${cleanMName}_Front_ID`)}
-                                          sx={{ bgcolor: "rgba(11, 142, 224, 0.12)", color: "#0B8EE0", fontWeight: 800, height: 22, fontSize: "0.68rem" }}
-                                        />
-                                      </Box>
-                                    ) : (
-                                      <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>Pending</Typography>
-                                    )}
-                                  </TableCell>
-                                  <TableCell>
-                                    {mBack ? (
-                                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
-                                        <Chip
-                                          label="View"
-                                          size="small"
-                                          clickable
-                                          onClick={() => setPreviewImage(mBack)}
-                                          sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", color: "#10B981", fontWeight: 800, height: 22, fontSize: "0.68rem" }}
-                                        />
-                                        <Chip
-                                          icon={<FileDownload sx={{ fontSize: "13px !important" }} />}
-                                          label="Download"
-                                          size="small"
-                                          clickable
-                                          onClick={() => downloadSingleImage(mBack, `${cleanMName}_Back_ID`)}
-                                          sx={{ bgcolor: "rgba(11, 142, 224, 0.12)", color: "#0B8EE0", fontWeight: 800, height: 22, fontSize: "0.68rem" }}
-                                        />
-                                      </Box>
-                                    ) : (
-                                      <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>None</Typography>
-                                    )}
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
+                                      </Paper>
+                                    </Grid>
+                                  ))}
+                                </Grid>
+                              ) : (
+                                <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontStyle: "italic" }}>
+                                  No document photos uploaded for this member.
+                                </Typography>
+                              )}
+                            </Paper>
+                          );
+                        })}
+                      </Box>
                     </Paper>
                   )}
                 </Box>

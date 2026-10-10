@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useSocket } from "@/shared/context/SocketContext";
 import {
   Box,
   Typography,
@@ -122,6 +123,25 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
       fetchHotels();
     }
   }, [user]);
+
+  useSocket(
+    [
+      "HOTEL_REGISTERED",
+      "NEW_TRIAL_REQUEST",
+      "TRIAL_REQUEST_APPROVED",
+      "TRIAL_REQUEST_REJECTED",
+      "HOTEL_STATUS_UPDATED",
+      "HOTEL_UPDATED",
+      "HOTEL_ONLINE",
+      "HOTEL_OFFLINE",
+      "PRESENCE_SYNC",
+      "DASHBOARD_SYNC",
+    ],
+    () => {
+      fetchDashboardMetrics();
+      fetchHotels();
+    }
+  );
 
   const handleOpenHotelDetails = async (hotel) => {
     setSelectedHotelModal({

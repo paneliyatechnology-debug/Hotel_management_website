@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useSocket } from "@/shared/context/SocketContext";
 import {
   Box,
   Typography,
@@ -84,6 +85,22 @@ export default function ReceptionistOverviewPage({
   onCheckOut,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
+
+  // Real-Time Socket Auto-Sync
+  useSocket(
+    [
+      "ROOM_UPDATED",
+      "BOOKING_CREATED",
+      "BOOKING_UPDATED",
+      "GUEST_CHECKED_OUT",
+      "PAYMENT_RECORDED",
+      "GUEST_UPDATED",
+      "DASHBOARD_SYNC",
+    ],
+    () => {
+      if (onRefresh) onRefresh();
+    }
+  );
 
   // Pagination for Recent Check-Ins Table
   const [guestPage, setGuestPage] = useState(0);
@@ -379,13 +396,13 @@ export default function ReceptionistOverviewPage({
   // Dynamic Category Icon helper
   const getCategoryIcon = (name = "") => {
     const n = name.toLowerCase();
-    if (n.includes("coupl") || n.includes("copol") || n.includes("honey") || n.includes("romant") || n.includes("love"))
+    if (n.includes("coupl") || n.includes("copol") || n.includes("copul") || n.includes("honey") || n.includes("romant") || n.includes("love"))
       return <Favorite sx={{ fontSize: 22, color: "#E11D48" }} />;
     if (n.includes("fam") || n.includes("group") || n.includes("quad"))
       return <FamilyRestroom sx={{ fontSize: 22, color: "#059669" }} />;
     if (n.includes("villa") || n.includes("cottage") || n.includes("penthouse") || n.includes("resort") || n.includes("bungalow"))
       return <Villa sx={{ fontSize: 22, color: "#0891B2" }} />;
-    if (n.includes("deluxe") || n.includes("super") || n.includes("luxury") || n.includes("suite") || n.includes("vip") || n.includes("presid"))
+    if (n.includes("sweet") || n.includes("suite") || n.includes("deluxe") || n.includes("super") || n.includes("luxury") || n.includes("vip") || n.includes("presid"))
       return <Diamond sx={{ fontSize: 22, color: "#D97706" }} />;
     if (n.includes("single") || n.includes("solo"))
       return <SingleBed sx={{ fontSize: 22, color: "#6366F1" }} />;

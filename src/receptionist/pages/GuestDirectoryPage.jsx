@@ -38,6 +38,7 @@ import {
 } from "@/shared/icons";
 import dynamic from "next/dynamic";
 import { useAppTheme } from "@/shared/context/ThemeContext";
+import { useSocket } from "@/shared/context/SocketContext";
 import { formatTime12Hour } from "@/shared/utils/timeUtils";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
@@ -50,8 +51,24 @@ const GuestDetailsModal = dynamic(() => import("@/shared/components/GuestDetails
 
 export default function GuestDirectoryPage({
   hotelSettings = { checkInTime: "14:00", checkOutTime: "12:00", timezone: "Asia/Kolkata" },
+  onRefresh,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
+
+  // Real-Time Socket Auto-Sync
+  useSocket(
+    [
+      "GUEST_UPDATED",
+      "BOOKING_CREATED",
+      "BOOKING_UPDATED",
+      "GUEST_CHECKED_OUT",
+      "DASHBOARD_SYNC",
+    ],
+    () => {
+      fetchGuests();
+      if (onRefresh) onRefresh();
+    }
+  );
   const [guests, setGuests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");

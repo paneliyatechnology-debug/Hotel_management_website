@@ -133,64 +133,79 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
   // On-Demand Tab-Specific Data Loading
   const loadTabData = async (tabIndex, forceRefresh = false) => {
     if (!forceRefresh && fetchedTabs[tabIndex]) return;
-    if (!dashboardData && !rooms.length) {
+    if (!dashboardData && !rooms.length && !forceRefresh) {
       setLoading(true);
     }
     try {
       const endpointsToFetch = [];
 
-      // Route 0: OVERVIEW / DASHBOARD
-      if (tabIndex === 0) {
+      if (forceRefresh) {
         endpointsToFetch.push(
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(res.data)),
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
           apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || [])),
           apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || [])),
+          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
         );
-      }
-      // Route 1: DAILY COLLECTIONS
-      else if (tabIndex === 1) {
-        endpointsToFetch.push(
-          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
-        );
-      }
-      // Route 2: GUEST DIRECTORY
-      else if (tabIndex === 2) {
-        endpointsToFetch.push(
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || [])),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || [])),
-          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || []))
-        );
-      }
-      // Route 3: STAFF TEAM
-      else if (tabIndex === 3) {
-        endpointsToFetch.push(
-          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.RECEPTIONISTS).then((res) => (res?.data || Array.isArray(res)) && setStaffList(res.data || res || []))
-        );
-      }
-      // Route 4: ROOMS & CATEGORIES MASTER
-      else if (tabIndex === 4) {
-        endpointsToFetch.push(
-          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
-          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || []))
-        );
-      }
-      // Route 5: SUBSCRIPTION
-      else if (tabIndex === 5) {
-        endpointsToFetch.push(
-          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(res.data))
-        );
-      }
-      // Route 6: SETTINGS
-      else if (tabIndex === 6) {
-        endpointsToFetch.push(
-          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
-        );
+      } else {
+        // Route 0: OVERVIEW / DASHBOARD
+        if (tabIndex === 0) {
+          endpointsToFetch.push(
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(res.data)),
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
+          );
+        }
+        // Route 1: DAILY COLLECTIONS
+        else if (tabIndex === 1) {
+          endpointsToFetch.push(
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
+          );
+        }
+        // Route 2: GUEST DIRECTORY
+        else if (tabIndex === 2) {
+          endpointsToFetch.push(
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || []))
+          );
+        }
+        // Route 3: STAFF TEAM
+        else if (tabIndex === 3) {
+          endpointsToFetch.push(
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.RECEPTIONISTS).then((res) => (res?.data || Array.isArray(res)) && setStaffList(res.data || res || []))
+          );
+        }
+        // Route 4: ROOMS & CATEGORIES MASTER
+        else if (tabIndex === 4) {
+          endpointsToFetch.push(
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || []))
+          );
+        }
+        // Route 5: SUBSCRIPTION
+        else if (tabIndex === 5) {
+          endpointsToFetch.push(
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(res.data))
+          );
+        }
+        // Route 6: SETTINGS
+        else if (tabIndex === 6) {
+          endpointsToFetch.push(
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
+          );
+        }
       }
 
       await Promise.allSettled(endpointsToFetch);
-      setFetchedTabs((prev) => ({ ...prev, [tabIndex]: true }));
+      if (forceRefresh) {
+        setFetchedTabs({ 0: true, 1: true, 2: true, 3: true, 4: true, 5: true, 6: true });
+      } else {
+        setFetchedTabs((prev) => ({ ...prev, [tabIndex]: true }));
+      }
     } catch (err) {
       console.error("Tab data fetch error:", err);
     } finally {

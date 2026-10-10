@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 export default function ReactQueryProvider({ children }) {
@@ -9,15 +9,29 @@ export default function ReactQueryProvider({ children }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 60 * 1000, // 1 minute data freshness
+            staleTime: 10 * 1000, // 10 seconds default stale time
             gcTime: 5 * 60 * 1000, // 5 minutes cache retention
-            refetchOnWindowFocus: false, // Prevent aggressive refetching on window focus
+            refetchOnWindowFocus: false,
             refetchOnReconnect: true,
-            retry: 1, // Single retry on network glitch before throwing error
+            retry: 1,
           },
         },
       })
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleSocketAnyEvent = (e) => {
+      // Instantly invalidate all active React Query caches across Receptionist, Hotel Admin, and Super Admin
+      queryClient.invalidateQueries();
+    };
+
+    window.addEventListener("socket:any", handleSocketAnyEvent);
+    return () => {
+      window.removeEventListener("socket:any", handleSocketAnyEvent);
+    };
+  }, [queryClient]);
 
   return (
     <QueryClientProvider client={queryClient}>

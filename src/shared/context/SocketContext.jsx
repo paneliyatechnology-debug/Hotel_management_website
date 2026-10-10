@@ -169,6 +169,11 @@ export function SocketProvider({ children }) {
       "GUEST_UPDATED",
       "DASHBOARD_SYNC",
       "HANDOVER_SETTLED",
+      "STAFF_STATUS_UPDATED",
+      "USER_UPDATED",
+      "STAFF_CREATED",
+      "STAFF_UPDATED",
+      "STAFF_DELETED",
       "HOTEL_STATUS_UPDATED",
       "SIGNATURE_SUBMITTED",
       "HOTEL_UPDATED",
@@ -256,12 +261,24 @@ export function usePresence() {
 
 export function useSocket(eventSubscriptions = [], callback) {
   const context = useContext(SocketContext);
+  const callbackRef = useRef(callback);
 
   useEffect(() => {
-    if (!callback || eventSubscriptions.length === 0 || typeof window === "undefined") return;
+    callbackRef.current = callback;
+  }, [callback]);
 
-    const handlers = eventSubscriptions.map((evtName) => {
-      const handler = (e) => callback(e.detail, evtName);
+  const eventsKey = Array.isArray(eventSubscriptions) ? eventSubscriptions.join(",") : "";
+
+  useEffect(() => {
+    if (!eventsKey || typeof window === "undefined") return;
+    const events = eventsKey.split(",").filter(Boolean);
+
+    const handlers = events.map((evtName) => {
+      const handler = (e) => {
+        if (callbackRef.current) {
+          callbackRef.current(e.detail, evtName);
+        }
+      };
       window.addEventListener(`socket:${evtName}`, handler);
       return { evtName, handler };
     });
@@ -271,7 +288,7 @@ export function useSocket(eventSubscriptions = [], callback) {
         window.removeEventListener(`socket:${evtName}`, handler);
       });
     };
-  }, [eventSubscriptions, callback]);
+  }, [eventsKey]);
 
   return context;
 }

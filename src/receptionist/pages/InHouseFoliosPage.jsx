@@ -56,6 +56,7 @@ import {
 } from "@/shared/icons";
 import dynamic from "next/dynamic";
 import { useAppTheme } from "@/shared/context/ThemeContext";
+import { useSocket } from "@/shared/context/SocketContext";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import StatCard from "@/shared/components/StatCard";
@@ -73,11 +74,28 @@ export default function InHouseFoliosPage({
     timezone: "Asia/Kolkata",
     upiId: "jatinkakadiya234-1@okicici",
   },
+  onRefresh,
   onCheckOut,
   onOpenInvoice,
   onOpenPosCharge,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
+
+  // Real-Time Socket Auto-Sync
+  useSocket(
+    [
+      "ROOM_UPDATED",
+      "BOOKING_CREATED",
+      "BOOKING_UPDATED",
+      "GUEST_CHECKED_OUT",
+      "PAYMENT_RECORDED",
+      "GUEST_UPDATED",
+      "DASHBOARD_SYNC",
+    ],
+    () => {
+      if (onRefresh) onRefresh();
+    }
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [activeStatusTab, setActiveStatusTab] = useState("CHECKED_IN");
   const [balanceFilter, setBalanceFilter] = useState("ALL");

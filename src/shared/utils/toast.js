@@ -2,7 +2,18 @@ import { toast as toastify } from "react-toastify";
 
 export const showToast = (message, severity = "success", options = {}) => {
   if (!message) return;
-  const toastId = options.toastId || (typeof message === "string" ? message : JSON.stringify(message));
+
+  let textMessage = message;
+  if (typeof message === "object" && message !== null) {
+    textMessage = message.message || message.error || message.detail || JSON.stringify(message);
+  }
+  textMessage = String(textMessage || "").trim();
+
+  if (!textMessage || textMessage === "{}" || textMessage === "[object Object]") {
+    return;
+  }
+
+  const toastId = options.toastId || textMessage;
 
   if (toastify.isActive && toastify.isActive(toastId)) {
     return toastId;
@@ -21,14 +32,14 @@ export const showToast = (message, severity = "success", options = {}) => {
 
   switch (severity) {
     case "error":
-      return toastify.error(message, config);
+      return toastify.error(textMessage, config);
     case "warning":
-      return toastify.warning(message, config);
+      return toastify.warning(textMessage, config);
     case "info":
-      return toastify.info(message, config);
+      return toastify.info(textMessage, config);
     case "success":
     default:
-      return toastify.success(message, config);
+      return toastify.success(textMessage, config);
   }
 };
 

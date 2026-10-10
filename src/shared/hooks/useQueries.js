@@ -132,9 +132,23 @@ export function useBookingRoomOptions(params = {}, options = {}) {
       if (params.checkOutDate || params.checkOut) searchParams.append("checkOutDate", params.checkOutDate || params.checkOut);
       if (params.roomType) searchParams.append("roomType", params.roomType);
       const queryStr = searchParams.toString();
-      const endpoint = `${API_ENDPOINTS.RECEPTIONIST.BOOKING_ROOM_OPTIONS}${queryStr ? "?" + queryStr : ""}`;
-      const res = await apiRequest(endpoint);
-      return res?.data || { roomTypes: [], availableRooms: [], rooms: [] };
+
+      const availEndpoint = `${API_ENDPOINTS.RECEPTIONIST.AVAILABLE_ROOMS}${queryStr ? "?" + queryStr : ""}`;
+      const typesEndpoint = API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES;
+
+      const [roomsRes, typesRes] = await Promise.all([
+        apiRequest(availEndpoint),
+        apiRequest(typesEndpoint),
+      ]);
+
+      const availableRooms = roomsRes?.data || (Array.isArray(roomsRes) ? roomsRes : []);
+      const roomTypes = typesRes?.data || (Array.isArray(typesRes) ? typesRes : []);
+
+      return {
+        roomTypes,
+        availableRooms,
+        rooms: availableRooms,
+      };
     },
     staleTime: 20 * 1000,
     ...options,

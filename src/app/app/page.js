@@ -48,15 +48,138 @@ function HotelWebAppContent() {
   // Mode override for Hotel Admin to view Frontdesk Receptionist UI
   const [activePortalRole, setActivePortalRole] = useState(null);
 
-  // ⚡ Realtime Socket.IO Sync: Auto-show / Auto-hide Subscription Expired & Lockout Popup
+  const [user, setUser] = useState(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const stored = localStorage.getItem("user");
+      const token = localStorage.getItem("token");
+      return stored && token ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const computeLockout = (userData) => {
+    if (!userData || userData.role === "SUPER_ADMIN") {
+      return { locked: false, type: "EXPIRED", reason: "" };
+    }
+
+    if (userData.status === "INACTIVE" || userData.status === "BLOCKED" || userData.status === "DELETED") {
+      return {
+        locked: true,
+        type: "DISABLED",
+        reason: "Your staff account has been deactivated by Hotel Administration. All portal access is suspended.",
+      };
+    }
+
+    const hotel = userData.hotel;
+    if (!hotel) return { locked: false, type: "EXPIRED", reason: "" };
+
+    if (hotel.status === "DISABLED" || hotel.status === "SUSPENDED") {
+      return {
+        locked: true,
+        type: hotel.status,
+        reason: hotel.statusReason || `Hotel account has been ${hotel.status.toLowerCase()} by Super Admin policy.`,
+      };
+    }
+
+    const sub = hotel.subscription;
+    if (sub) {
+      const now = new Date();
+      const trialEndDate = sub.trialEndDate ? new Date(sub.trialEndDate) : null;
+
+      if (trialEndDate && trialEndDate > now && (hotel.status === "ACTIVE" || !hotel.status)) {
+        return { locked: false, type: "EXPIRED", reason: "" };
+      }
+
+      const isExpiredByDate = trialEndDate ? trialEndDate <= now : false;
+      const isExpiredByStatus = sub.status === "EXPIRED" || sub.isExpired === true;
+
+      if ((isExpiredByDate || isExpiredByStatus) && sub.status !== "ACTIVE" && (sub.plan === "TRIAL" || !sub.plan)) {
+        return {
+          locked: true,
+          type: "EXPIRED",
+          reason: "Your free trial or hotel subscription plan evaluation period has ended.",
+        };
+      }
+    }
+
+    return { locked: false, type: "EXPIRED", reason: "" };
+  };
+
+  const [lockout, setLockout] = useState(() => {
+    if (typeof window === "undefined") return { locked: false, type: "EXPIRED", reason: "" };
+    try {
+      const stored = localStorage.getItem("user");
+      const token = localStorage.getItem("token");
+      const u = stored && token ? JSON.parse(stored) : null;
+      return computeLockout(u);
+    } catch {
+      return { locked: false, type: "EXPIRED", reason: "" };
+    }
+  });
+
+  // ⚡ Realtime Socket.IO Sync: Auto-show / Auto-hide Subscription Expired & Staff Lockout Popup
   useSocket(
-    ["HOTEL_UPDATED", "SUBSCRIPTION_UPDATED", "HOTEL_STATUS_UPDATED", "TRIAL_REQUEST_APPROVED", "TRIAL_REQUEST_REJECTED", "DASHBOARD_SYNC"],
+    [
+      "HOTEL_UPDATED",
+      "SUBSCRIPTION_UPDATED",
+      "HOTEL_STATUS_UPDATED",
+      "STAFF_STATUS_UPDATED",
+      "USER_UPDATED",
+      "TRIAL_REQUEST_APPROVED",
+      "TRIAL_REQUEST_REJECTED",
+      "DASHBOARD_SYNC",
+    ],
     (payload, eventName) => {
+      // 1. Staff Status Live Lockout Handler
+      if (eventName === "STAFF_STATUS_UPDATED" || eventName === "USER_UPDATED") {
+        const targetUserId = String(payload?.userId || payload?.staffId || payload?.user?._id || payload?.user?.id || "");
+        
+        let storedUserId = "";
+        try {
+          const stored = localStorage.getItem("user");
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            storedUserId = String(parsed?._id || parsed?.id || "");
+          }
+        } catch {}
+
+        const currentUserId = String(user?._id || user?.id || storedUserId);
+
+        if (targetUserId && currentUserId && targetUserId === currentUserId) {
+          const nextStatus = payload?.status || payload?.user?.status;
+
+          if (nextStatus === "INACTIVE" || nextStatus === "BLOCKED" || nextStatus === "DELETED") {
+            setLockout({
+              locked: true,
+              type: "DISABLED",
+              reason: "Your staff account has been deactivated by Hotel Administration. All operational access is suspended.",
+            });
+            setUser((prev) => {
+              if (!prev) return prev;
+              const updated = { ...prev, status: nextStatus };
+              try { localStorage.setItem("user", JSON.stringify(updated)); } catch {}
+              return updated;
+            });
+          } else if (nextStatus === "ACTIVE") {
+            setLockout({ locked: false, type: "EXPIRED", reason: "" });
+            setUser((prev) => {
+              if (!prev) return prev;
+              const updated = { ...prev, status: "ACTIVE" };
+              try { localStorage.setItem("user", JSON.stringify(updated)); } catch {}
+              return updated;
+            });
+          }
+        }
+      }
+
+      // 2. Hotel Subscription / Status Live Handler
       const updatedHotel = payload?.hotel;
       if (updatedHotel && user?.role !== "SUPER_ADMIN") {
-        const userHotelId = user?.hotel?._id || user?.hotel || user?.hotelId;
-        const targetHotelId = updatedHotel._id || updatedHotel.id;
-        if (userHotelId && targetHotelId && String(userHotelId) === String(targetHotelId)) {
+        const userHotelId = String(user?.hotel?._id || user?.hotel || user?.hotelId || "");
+        const targetHotelId = String(updatedHotel._id || updatedHotel.id || "");
+        if (userHotelId && targetHotelId && userHotelId === targetHotelId) {
           if (updatedHotel.status === "DISABLED" || updatedHotel.status === "SUSPENDED" || updatedHotel.status === "EXPIRED") {
             setLockout({
               locked: true,
@@ -121,65 +244,6 @@ function HotelWebAppContent() {
     return 0;
   };
 
-  const computeLockout = (userData) => {
-    if (!userData || userData.role === "SUPER_ADMIN") {
-      return { locked: false, type: "EXPIRED", reason: "" };
-    }
-
-    if (userData.status === "INACTIVE" || userData.status === "BLOCKED" || userData.status === "DELETED") {
-      return {
-        locked: true,
-        type: "DISABLED",
-        reason: "Your staff account has been deactivated by Hotel Administration. All portal access is suspended.",
-      };
-    }
-
-    const hotel = userData.hotel;
-    if (!hotel) return { locked: false, type: "EXPIRED", reason: "" };
-
-    if (hotel.status === "DISABLED" || hotel.status === "SUSPENDED") {
-      return {
-        locked: true,
-        type: hotel.status,
-        reason: hotel.statusReason || `Hotel account has been ${hotel.status.toLowerCase()} by Super Admin policy.`,
-      };
-    }
-
-    const sub = hotel.subscription;
-    if (sub) {
-      const now = new Date();
-      const trialEndDate = sub.trialEndDate ? new Date(sub.trialEndDate) : null;
-
-      if (trialEndDate && trialEndDate > now && (hotel.status === "ACTIVE" || !hotel.status)) {
-        return { locked: false, type: "EXPIRED", reason: "" };
-      }
-
-      const isExpiredByDate = trialEndDate ? trialEndDate <= now : false;
-      const isExpiredByStatus = sub.status === "EXPIRED" || sub.isExpired === true;
-
-      if ((isExpiredByDate || isExpiredByStatus) && sub.status !== "ACTIVE" && (sub.plan === "TRIAL" || !sub.plan)) {
-        return {
-          locked: true,
-          type: "EXPIRED",
-          reason: "Your free trial or hotel subscription plan evaluation period has ended.",
-        };
-      }
-    }
-
-    return { locked: false, type: "EXPIRED", reason: "" };
-  };
-
-  const [user, setUser] = useState(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const stored = localStorage.getItem("user");
-      const token = localStorage.getItem("token");
-      return stored && token ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
-  });
-
   const currentEffectiveRole = activePortalRole || user?.role || "HOTEL_ADMIN";
 
   const [activeTab, setActiveTab] = useState(() => {
@@ -191,18 +255,6 @@ function HotelWebAppContent() {
       return getActiveTabFromPath(u, pathname, u?.role);
     } catch {
       return 0;
-    }
-  });
-
-  const [lockout, setLockout] = useState(() => {
-    if (typeof window === "undefined") return { locked: false, type: "EXPIRED", reason: "" };
-    try {
-      const stored = localStorage.getItem("user");
-      const token = localStorage.getItem("token");
-      const u = stored && token ? JSON.parse(stored) : null;
-      return computeLockout(u);
-    } catch {
-      return { locked: false, type: "EXPIRED", reason: "" };
     }
   });
 

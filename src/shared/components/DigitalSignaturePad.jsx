@@ -40,7 +40,10 @@ export default function DigitalSignaturePad({
   signerName = "",
   signerRole = "Guest",
   value = null,
+  signature = null,
   onChange,
+  onSave,
+  onClear,
   themeConfig: propThemeConfig,
   required = false,
 }) {
@@ -48,15 +51,22 @@ export default function DigitalSignaturePad({
   const themeConfig = propThemeConfig || appThemeConfig;
   const { socket } = useSocket();
 
+  const activeSig = value || signature || null;
   const sigPadRef = useRef(null);
-  const [hasSignature, setHasSignature] = useState(Boolean(value));
+  const [hasSignature, setHasSignature] = useState(Boolean(activeSig));
   const [mode, setMode] = useState("QR_MOBILE"); // 'QR_MOBILE' | 'DRAW' | 'TYPE'
   const [typedName, setTypedName] = useState(signerName || "");
 
-  // Update signature status when value prop updates
+  // Update signature status when activeSig prop updates
   useEffect(() => {
-    setHasSignature(Boolean(value));
-  }, [value]);
+    setHasSignature(Boolean(activeSig));
+  }, [activeSig]);
+
+  const handleSignatureUpdate = useCallback((dataUrl) => {
+    setHasSignature(Boolean(dataUrl));
+    if (onChange) onChange(dataUrl);
+    if (onSave) onSave(dataUrl);
+  }, [onChange, onSave]);
 
   // Mobile QR Code Sync state
   const [sessionId, setSessionId] = useState("");
@@ -117,10 +127,7 @@ export default function DigitalSignaturePad({
       if (data && data.sessionId === sessionId && data.signature) {
         if (isMounted) {
           setIsPollingMobile(false);
-          setHasSignature(true);
-          if (onChange) {
-            onChange(data.signature);
-          }
+          handleSignatureUpdate(data.signature);
         }
       }
     };
@@ -141,10 +148,7 @@ export default function DigitalSignaturePad({
         const data = await res.json();
         if (isMounted && data?.status === "SIGNED" && data?.signature) {
           setIsPollingMobile(false);
-          setHasSignature(true);
-          if (onChange) {
-            onChange(data.signature);
-          }
+          handleSignatureUpdate(data.signature);
         }
       } catch (err) {
         // Silent catch for network polling
@@ -159,7 +163,7 @@ export default function DigitalSignaturePad({
         socket.off("SIGNATURE_SUBMITTED", handleSignatureSubmitted);
       }
     };
-  }, [socket, sessionId, hasSignature, onChange]);
+  }, [socket, sessionId, hasSignature, handleSignatureUpdate]);
 
   const mobileSignUrl = `${networkHost || (typeof window !== "undefined" ? window.location.origin : "")}/mobile-sign?session=${sessionId}&name=${encodeURIComponent(
     signerName || "Guest"
@@ -172,16 +176,15 @@ export default function DigitalSignaturePad({
     setHasSignature(false);
     setTypedName("");
     generateNewSession();
-    if (onChange) {
-      onChange(null);
-    }
+    if (onChange) onChange(null);
+    if (onSave) onSave(null);
+    if (onClear) onClear();
   };
 
   const handleTypedChange = (e) => {
     const text = e.target.value;
     setTypedName(text);
     if (text.trim()) {
-      setHasSignature(true);
       const canvas = document.createElement("canvas");
       canvas.width = 400;
       canvas.height = 140;
@@ -195,10 +198,9 @@ export default function DigitalSignaturePad({
       ctx.fillText(text, 200, 70);
 
       const dataUrl = canvas.toDataURL("image/png");
-      if (onChange) onChange(dataUrl);
+      handleSignatureUpdate(dataUrl);
     } else {
-      setHasSignature(false);
-      if (onChange) onChange(null);
+      handleSignatureUpdate(null);
     }
   };
 
@@ -390,7 +392,7 @@ export default function DigitalSignaturePad({
               <Typography variant="caption" sx={{ color: "#059669", fontWeight: 700, display: "block", mt: 0.5 }}>
                 Signature has been successfully saved from mobile device.
               </Typography>
-              {value && (
+              {activeSig && (
                 <Box
                   sx={{
                     mt: 2,
@@ -403,7 +405,7 @@ export default function DigitalSignaturePad({
                   }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={value} alt="Signature Preview" style={{ width: "100%", maxHeight: 100, objectFit: "contain" }} />
+                  <img src={activeSig} alt="Signature Preview" style={{ width: "100%", maxHeight: 100, objectFit: "contain" }} />
                 </Box>
               )}
             </Box>
@@ -579,11 +581,11 @@ export default function DigitalSignaturePad({
             color={isDarkMode ? "#38BDF8" : themeConfig.textMain || "#0F172A"}
             placeholder="Sign here using touchscreen or mouse"
             onSignChange={(signed, dataUrl) => {
-              setHasSignature(signed);
-              if (signed && onChange) {
-                onChange(dataUrl || sigPadRef.current?.toDataURL());
-              } else if (!signed && onChange) {
-                onChange(null);
+              if (signed) {
+                const imgUrl = dataUrl || sigPadRef.current?.toDataURL();
+                handleSignatureUpdate(imgUrl);
+              } else {
+                handleSignatureUpdate(null);
               }
             }}
           />

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -71,12 +71,34 @@ import {
   ViewList,
   ReceiptLong,
   Percent,
+  Diamond,
+  FamilyRestroom,
+  Favorite,
+  Apartment,
+  DragHandle,
+  DragIndicator,
 } from "@/shared/icons";
+
+const getCategoryIcon = (categoryName = "") => {
+  const name = (categoryName || "").toLowerCase();
+  if (name.includes("sweet") || name.includes("suite") || name.includes("deluxe") || name.includes("vip")) {
+    return <Diamond sx={{ fontSize: 16, color: "#8B5CF6" }} />;
+  }
+  if (name.includes("family") || name.includes("familyroom") || name.includes("group")) {
+    return <FamilyRestroom sx={{ fontSize: 16, color: "#3B82F6" }} />;
+  }
+  if (name.includes("couple") || name.includes("honeymoon") || name.includes("love") || name.includes("romantic")) {
+    return <Favorite sx={{ fontSize: 16, color: "#EC4899" }} />;
+  }
+  return <MeetingRoom sx={{ fontSize: 16, color: "#10B981" }} />;
+};
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import { getAmenityIcon } from "@/shared/utils/amenityUtils";
 import { calculateSingleRoomGST } from "@/shared/utils/gstUtils";
+import { API_ENDPOINTS, apiRequest } from "@/config/api";
+import { toast } from "@/shared/utils/toast";
 
 // Reusable Room GST Configuration Section Component
 export function RoomGstFields({ formData = {}, setFormData, basePrice = 0, themeConfig, isDarkMode }) {
@@ -348,6 +370,140 @@ export default function RoomTypesPage({
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
+  // Local rooms copy for smooth Drag & Drop reordering
+  const [displayRooms, setDisplayRooms] = useState(rooms);
+
+  useEffect(() => {
+    setDisplayRooms(rooms);
+  }, [rooms]);
+
+  // Drag & Drop State
+  const [customFloorOrder, setCustomFloorOrder] = useState([]);
+  const [draggedFloorIndex, setDraggedFloorIndex] = useState(null);
+  const [dragOverFloorIndex, setDragOverFloorIndex] = useState(null);
+
+  const [draggedRoom, setDraggedRoom] = useState(null);
+  const [dragOverRoomId, setDragOverRoomId] = useState(null);
+  const [dragOverFloorNum, setDragOverFloorNum] = useState(null);
+
+  useEffect(() => {
+    const sortedFloors = Array.from(new Set(displayRooms.map((r) => Number(r.floor || 1)))).sort((a, b) => a - b);
+    setCustomFloorOrder((prev) => {
+      if (!prev.length) return sortedFloors;
+      const combined = prev.filter((f) => sortedFloors.includes(f));
+      sortedFloors.forEach((f) => {
+        if (!combined.includes(f)) combined.push(f);
+      });
+      return combined;
+    });
+  }, [displayRooms]);
+
+  const activeFloorsList = customFloorOrder.length
+    ? customFloorOrder
+    : Array.from(new Set(displayRooms.map((r) => Number(r.floor || 1)))).sort((a, b) => a - b);
+
+  // Floor Drag Handlers
+  const handleFloorDragStart = (e, index) => {
+    e.stopPropagation();
+    e.dataTransfer.setData("dragType", "FLOOR");
+    setDraggedFloorIndex(index);
+  };
+
+  const handleFloorDragOver = (e, index) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (draggedFloorIndex !== null && draggedFloorIndex !== index) {
+      setDragOverFloorIndex(index);
+    }
+  };
+
+  const handleFloorDrop = (e, dropIndex) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const dragType = e.dataTransfer.getData("dragType");
+    if (dragType === "FLOOR" && draggedFloorIndex !== null && draggedFloorIndex !== dropIndex) {
+      const updatedFloors = [...activeFloorsList];
+      const [movedFloor] = updatedFloors.splice(draggedFloorIndex, 1);
+      updatedFloors.splice(dropIndex, 0, movedFloor);
+      setCustomFloorOrder(updatedFloors);
+    }
+    setDraggedFloorIndex(null);
+    setDragOverFloorIndex(null);
+  };
+
+  // Room Card Drag Handlers
+  const handleRoomDragStart = (e, room) => {
+    e.stopPropagation();
+    e.dataTransfer.setData("dragType", "ROOM");
+    setDraggedRoom(room);
+  };
+
+  const handleRoomDragOver = (e, targetRoomId, targetFloorNum) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverRoomId(targetRoomId);
+    setDragOverFloorNum(targetFloorNum);
+  };
+
+  const handleRoomDrop = async (e, targetRoom, targetFloorNum) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const dragType = e.dataTransfer.getData("dragType");
+    if (dragType === "ROOM" && draggedRoom) {
+      const sourceId = draggedRoom._id || draggedRoom.id || draggedRoom.roomNumber;
+      const targetId = targetRoom ? (targetRoom._id || targetRoom.id || targetRoom.roomNumber) : null;
+      const targetFloor = Number(targetFloorNum);
+
+      const floorChanged = Number(draggedRoom.floor || 1) !== targetFloor;
+
+      const updatedRooms = [...displayRooms];
+      const sourceIndex = updatedRooms.findIndex((r) => (r._id || r.id || r.roomNumber) === sourceId);
+
+      if (sourceIndex !== -1) {
+        const [movedRoom] = updatedRooms.splice(sourceIndex, 1);
+        const updatedMovedRoom = { ...movedRoom, floor: targetFloor };
+
+        if (targetId && targetId !== sourceId) {
+          const targetIndex = updatedRooms.findIndex((r) => (r._id || r.id || r.roomNumber) === targetId);
+          if (targetIndex !== -1) {
+            updatedRooms.splice(targetIndex, 0, updatedMovedRoom);
+          } else {
+            updatedRooms.push(updatedMovedRoom);
+          }
+        } else {
+          updatedRooms.push(updatedMovedRoom);
+        }
+        setDisplayRooms(updatedRooms);
+
+        if (floorChanged && movedRoom._id) {
+          try {
+            const payload = {
+              roomNumber: movedRoom.roomNumber,
+              roomType: typeof movedRoom.roomType === "object" ? movedRoom.roomType._id : movedRoom.roomType,
+              floor: targetFloor,
+              seatingCapacity: movedRoom.seatingCapacity || 2,
+              bedCount: movedRoom.bedCount || 1,
+              bedType: movedRoom.bedType || "1 King Size Bed",
+              customPricePerNight: movedRoom.customPricePerNight,
+              status: movedRoom.status || "AVAILABLE",
+              notes: movedRoom.notes || "",
+              amenities: movedRoom.amenities || [],
+            };
+            await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.UPDATE_ROOM(movedRoom._id), {
+              method: "PUT",
+              body: payload,
+            });
+          } catch (err) {
+            console.error("Failed to update room floor:", err);
+          }
+        }
+      }
+    }
+    setDraggedRoom(null);
+    setDragOverRoomId(null);
+    setDragOverFloorNum(null);
+  };
+
   // Helper to open Add Room modal with preselected Category
   const handleOpenAddRoomForCategory = (category) => {
     const catId = category?._id || roomTypes[0]?._id || "";
@@ -366,6 +522,32 @@ export default function RoomTypesPage({
         bedCount: category?.bedCount || 1,
         bedType: category?.bedType || "1 King Size Bed",
         seatingCapacity: category?.capacity?.adults || 2,
+        customPricePerNight: "",
+        status: "AVAILABLE",
+        notes: "",
+        amenities: catAmenities,
+      },
+    });
+  };
+
+  // Helper to open Add Room modal with preselected Floor
+  const handleOpenAddRoomForFloor = (floorNumber) => {
+    const defaultCat = roomTypes[0];
+    const catAmenities = defaultCat?.amenities?.length
+      ? [...defaultCat.amenities]
+      : ["Free High-Speed WiFi", "Air Conditioner (AC)", "Smart 4K LED TV", "Attached Bathroom & Geyser"];
+
+    setRoomModal({
+      open: true,
+      mode: "ADD",
+      data: {
+        _id: "",
+        roomNumber: "",
+        roomType: defaultCat?._id || "",
+        floor: Number(floorNumber) || 1,
+        bedCount: defaultCat?.bedCount || 1,
+        bedType: defaultCat?.bedType || "1 King Size Bed",
+        seatingCapacity: defaultCat?.capacity?.adults || 2,
         customPricePerNight: "",
         status: "AVAILABLE",
         notes: "",
@@ -697,7 +879,7 @@ export default function RoomTypesPage({
           }}
         >
           <Tab
-            label={`🏷️ Category-Wise Rooms (${roomTypes.length})`}
+            label={`🏢 Floor-Wise Rooms (${availableFloors.length} Floors)`}
             sx={{
               fontWeight: 800,
               fontSize: "0.85rem",
@@ -714,7 +896,7 @@ export default function RoomTypesPage({
             }}
           />
           <Tab
-            label={`🏨 Inventory Table (${rooms.length})`}
+            label={`🏷️ Category-Wise Rooms (${roomTypes.length})`}
             sx={{
               fontWeight: 800,
               fontSize: "0.85rem",
@@ -731,7 +913,7 @@ export default function RoomTypesPage({
             }}
           />
           <Tab
-            label={`⚙️ Categories Master (${roomTypes.length})`}
+            label={`🏨 Inventory Table (${rooms.length})`}
             sx={{
               fontWeight: 800,
               fontSize: "0.85rem",
@@ -747,13 +929,608 @@ export default function RoomTypesPage({
               transition: "all 0.2s ease",
             }}
           />
+          <Tab
+            label={`⚙️ Categories Master (${roomTypes.length})`}
+            sx={{
+              fontWeight: 800,
+              fontSize: "0.85rem",
+              borderRadius: "12px",
+              py: 1,
+              px: { xs: 1.5, sm: 2.5 },
+              minHeight: "auto",
+              whiteSpace: "nowrap",
+              flexShrink: 0,
+              color: activeTab === 3 ? "#FFFFFF" : themeConfig.textMuted,
+              bgcolor: activeTab === 3 ? themeConfig.primary : "transparent",
+              boxShadow: activeTab === 3 ? `0 4px 12px ${themeConfig.primaryGlow}` : "none",
+              transition: "all 0.2s ease",
+            }}
+          />
         </Tabs>
       </Paper>
 
       {/* ========================================================================= */}
-      {/* TAB 0: CATEGORY-WISE GROUPED VIEW                                         */}
+      {/* TAB 0: FLOOR-WISE ROOMS VIEW                                              */}
       {/* ========================================================================= */}
       {activeTab === 0 && (
+        <Box>
+          {/* Search & Filter Strip */}
+          <Paper
+            className="card-3d"
+            sx={{
+              p: 2,
+              mb: 3,
+              borderRadius: "18px",
+              border: `1px solid ${themeConfig.border}`,
+              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+              boxShadow: isDarkMode ? "0 6px 20px rgba(0,0,0,0.3)" : "0 6px 20px rgba(12, 39, 59, 0.04)",
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 2,
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <TextField
+              size="small"
+              placeholder="Search room number (e.g. 101), category, notes..."
+              value={roomSearch}
+              onChange={(e) => setRoomSearch(e.target.value)}
+              sx={{
+                width: { xs: "100%", sm: "300px" },
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: "12px",
+                  bgcolor: themeConfig.bgMain,
+                },
+              }}
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Search fontSize="small" sx={{ color: themeConfig.textMuted }} />
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
+
+            {/* Status Filters */}
+            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted }}>
+                STATUS:
+              </Typography>
+              {["ALL", "AVAILABLE", "OCCUPIED", "CLEANING", "MAINTENANCE", "BLOCKED"].map((st) => (
+                <Chip
+                  key={st}
+                  label={st}
+                  clickable
+                  onClick={() => setStatusFilter(st)}
+                  size="small"
+                  sx={{
+                    fontWeight: 800,
+                    fontSize: "0.72rem",
+                    bgcolor: statusFilter === st ? themeConfig.primary : themeConfig.champagne,
+                    color: statusFilter === st ? "#FFFFFF" : themeConfig.primaryDark,
+                  }}
+                />
+              ))}
+            </Box>
+
+            {/* Floor Filters */}
+            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted }}>
+                FLOOR:
+              </Typography>
+              {["ALL", ...availableFloors].map((fl) => (
+                <Chip
+                  key={fl}
+                  label={fl === "ALL" ? "All Floors" : `Floor ${fl}`}
+                  clickable
+                  onClick={() => setFloorFilter(String(fl))}
+                  size="small"
+                  sx={{
+                    fontWeight: 800,
+                    fontSize: "0.72rem",
+                    bgcolor: floorFilter === String(fl) ? themeConfig.primary : themeConfig.champagne,
+                    color: floorFilter === String(fl) ? "#FFFFFF" : themeConfig.primaryDark,
+                  }}
+                />
+              ))}
+            </Box>
+          </Paper>
+
+          {/* Rooms Grouped By Floor */}
+          {displayRooms.length === 0 ? (
+            <Card
+              className="card-3d"
+              sx={{
+                p: 4,
+                borderRadius: "20px",
+                border: `1px solid ${themeConfig.border}`,
+                bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+              }}
+            >
+              <EmptyState
+                title="No Rooms Found"
+                description="Click the button below to add your first room to the hotel inventory."
+              />
+              <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
+                <Button
+                  variant="contained"
+                  startIcon={<Add />}
+                  onClick={() => handleOpenAddRoomForCategory(roomTypes[0])}
+                  sx={{
+                    background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
+                    borderRadius: "12px",
+                    fontWeight: 800,
+                  }}
+                >
+                  Add First Room (e.g. 101)
+                </Button>
+              </Box>
+            </Card>
+          ) : (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 3.5 }}>
+              {activeFloorsList
+                .filter((fl) => floorFilter === "ALL" || String(fl) === String(floorFilter))
+                .map((floorNum, floorIdx) => {
+                  const roomsOnFloor = displayRooms.filter((r) => {
+                    const matchesFloor = Number(r.floor || 1) === Number(floorNum);
+                    const roomTypeObj = typeof r.roomType === "object" ? r.roomType : roomTypes.find((t) => t._id === r.roomType);
+                    const typeName = (roomTypeObj?.name || "").toLowerCase();
+                    const roomNum = (r.roomNumber || "").toLowerCase();
+                    const notes = (r.notes || "").toLowerCase();
+                    const amenitiesText = (r.amenities || roomTypeObj?.amenities || []).join(" ").toLowerCase();
+
+                    const matchesSearch =
+                      !roomSearch ||
+                      roomNum.includes(roomSearch.toLowerCase()) ||
+                      typeName.includes(roomSearch.toLowerCase()) ||
+                      notes.includes(roomSearch.toLowerCase()) ||
+                      amenitiesText.includes(roomSearch.toLowerCase());
+
+                    const matchesStatus = statusFilter === "ALL" || r.status === statusFilter;
+                    const matchesCategory = categoryFilter === "ALL" || (roomTypeObj?._id === categoryFilter || roomTypeObj?.name === categoryFilter);
+
+                    return matchesFloor && matchesSearch && matchesStatus && matchesCategory;
+                  });
+
+                  const totalOnFloor = displayRooms.filter((r) => Number(r.floor || 1) === Number(floorNum)).length;
+                  const availOnFloor = displayRooms.filter((r) => Number(r.floor || 1) === Number(floorNum) && r.status === "AVAILABLE").length;
+                  const occOnFloor = displayRooms.filter((r) => Number(r.floor || 1) === Number(floorNum) && (r.status === "OCCUPIED" || r.status === "RESERVED")).length;
+
+                  return (
+                    <Paper
+                      key={floorNum}
+                      className="card-3d"
+                      draggable
+                      onDragStart={(e) => handleFloorDragStart(e, floorIdx)}
+                      onDragOver={(e) => handleFloorDragOver(e, floorIdx)}
+                      onDrop={(e) => handleFloorDrop(e, floorIdx)}
+                      onDragEnd={() => { setDraggedFloorIndex(null); setDragOverFloorIndex(null); }}
+                      sx={{
+                        p: { xs: 2, sm: 3 },
+                        borderRadius: "22px",
+                        border: dragOverFloorIndex === floorIdx ? `2px dashed ${themeConfig.primary}` : `1px solid ${themeConfig.border}`,
+                        bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                        boxShadow: isDarkMode ? "0 10px 28px -6px rgba(0,0,0,0.4)" : "0 10px 28px -6px rgba(12, 39, 59, 0.07)",
+                        opacity: draggedFloorIndex === floorIdx ? 0.45 : 1,
+                        transition: "all 0.2s ease",
+                      }}
+                    >
+                      {/* Floor Banner Header */}
+                      <Box
+                        sx={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: 2,
+                          pb: 2,
+                          mb: 2.5,
+                          borderBottom: `1px solid ${themeConfig.border}`,
+                        }}
+                      >
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                          <Tooltip title="Drag to reorder floor up/down">
+                            <Box
+                              sx={{
+                                cursor: "grab",
+                                "&:active": { cursor: "grabbing" },
+                                display: "flex",
+                                alignItems: "center",
+                                color: themeConfig.textMuted,
+                                p: 0.5,
+                                borderRadius: "8px",
+                                bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+                                "&:hover": { color: themeConfig.primary, bgcolor: isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)" },
+                              }}
+                            >
+                              <DragIndicator sx={{ fontSize: 24 }} />
+                            </Box>
+                          </Tooltip>
+
+                          <Avatar
+                            sx={{
+                              width: 44,
+                              height: 44,
+                              borderRadius: "14px",
+                              bgcolor: `${themeConfig.primary}18`,
+                              color: themeConfig.primary,
+                              fontWeight: 900,
+                              boxShadow: `0 4px 12px ${themeConfig.primaryGlow}`,
+                            }}
+                          >
+                            <Layers sx={{ fontSize: 24 }} />
+                          </Avatar>
+                          <Box>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+                              <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+                                🏢 Floor {floorNum}
+                              </Typography>
+                              <Chip
+                                label={`Total: ${totalOnFloor} Rooms`}
+                                size="small"
+                                sx={{
+                                  bgcolor: themeConfig.champagne,
+                                  color: themeConfig.primaryDark,
+                                  fontWeight: 800,
+                                  fontSize: "0.75rem",
+                                }}
+                              />
+                              <Chip
+                                label={`✅ ${availOnFloor} Available`}
+                                size="small"
+                                sx={{
+                                  bgcolor: "rgba(16, 185, 129, 0.15)",
+                                  color: "#10B981",
+                                  fontWeight: 800,
+                                  fontSize: "0.72rem",
+                                }}
+                              />
+                              {occOnFloor > 0 && (
+                                <Chip
+                                  label={`🔑 ${occOnFloor} Occupied`}
+                                  size="small"
+                                  sx={{
+                                    bgcolor: "rgba(245, 158, 11, 0.15)",
+                                    color: "#F59E0B",
+                                    fontWeight: 800,
+                                    fontSize: "0.72rem",
+                                  }}
+                                />
+                              )}
+                            </Box>
+                            <Typography variant="body2" sx={{ color: themeConfig.textMuted, mt: 0.5 }}>
+                              Rooms on Floor {floorNum} ({roomsOnFloor.length} matching active filters) • Drag & drop to reorder
+                            </Typography>
+                          </Box>
+                        </Box>
+
+                        <Button
+                          variant="contained"
+                          size="small"
+                          startIcon={<Add />}
+                          onClick={() => handleOpenAddRoomForFloor(floorNum)}
+                          sx={{
+                            background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
+                            color: "#FFFFFF",
+                            fontWeight: 800,
+                            borderRadius: "10px",
+                            px: 2,
+                            py: 0.8,
+                            fontSize: "0.8rem",
+                            boxShadow: `0 4px 12px ${themeConfig.primaryGlow}`,
+                          }}
+                        >
+                          Add Room to Floor {floorNum}
+                        </Button>
+                      </Box>
+
+                      {/* Rooms Grid */}
+                      {roomsOnFloor.length === 0 ? (
+                        <Box
+                          onDragOver={(e) => handleRoomDragOver(e, null, floorNum)}
+                          onDrop={(e) => handleRoomDrop(e, null, floorNum)}
+                          sx={{
+                            p: 3,
+                            textAlign: "center",
+                            bgcolor: dragOverFloorNum === floorNum ? `${themeConfig.primary}12` : themeConfig.bgMain,
+                            borderRadius: "14px",
+                            border: dragOverFloorNum === floorNum ? `2px dashed ${themeConfig.primary}` : `1px solid ${themeConfig.border}`,
+                            transition: "all 0.2s ease",
+                          }}
+                        >
+                          <Typography variant="body2" sx={{ fontWeight: 700, color: themeConfig.textMuted }}>
+                            No rooms found on Floor {floorNum}. Drag room cards here to assign them to Floor {floorNum}!
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Grid
+                          container
+                          spacing={2}
+                          onDragOver={(e) => handleRoomDragOver(e, null, floorNum)}
+                          onDrop={(e) => handleRoomDrop(e, null, floorNum)}
+                        >
+                          {roomsOnFloor.map((room) => {
+                            const roomId = room._id || room.id || room.roomNumber;
+                            const roomTypeObj = typeof room.roomType === "object" ? room.roomType : roomTypes.find((t) => t._id === room.roomType);
+                            const catName = roomTypeObj?.name || "Standard Room";
+                            const effectiveTariff = room.customPricePerNight || roomTypeObj?.basePrice || room.basePrice || 0;
+                            const roomAmenities = Array.isArray(room.amenities) && room.amenities.length > 0
+                              ? room.amenities
+                              : roomTypeObj?.amenities || [];
+
+                            const roomGstCalc = calculateSingleRoomGST({
+                              basePrice: effectiveTariff,
+                              gstEnabled: room.gstEnabled !== false && (room.gstEnabled !== undefined || roomTypeObj?.gstEnabled !== false),
+                              gstRate: room.gstRate ?? roomTypeObj?.gstRate ?? 18,
+                              taxInclusive: room.taxInclusive ?? roomTypeObj?.taxInclusive ?? false,
+                              nights: 1,
+                            });
+
+                            const isDragging = draggedRoom?._id === room._id || draggedRoom?.roomNumber === room.roomNumber;
+                            const isDragTarget = dragOverRoomId === roomId;
+
+                            return (
+                              <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={roomId}>
+                                <Card
+                                  draggable
+                                  onDragStart={(e) => handleRoomDragStart(e, room)}
+                                  onDragOver={(e) => handleRoomDragOver(e, roomId, floorNum)}
+                                  onDrop={(e) => handleRoomDrop(e, room, floorNum)}
+                                  onDragEnd={() => { setDraggedRoom(null); setDragOverRoomId(null); setDragOverFloorNum(null); }}
+                                  sx={{
+                                    borderRadius: "16px",
+                                    border: isDragTarget ? `2px dashed ${themeConfig.primary}` : `1px solid ${themeConfig.border}`,
+                                    bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                                    p: 2,
+                                    height: "100%",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    justifyContent: "space-between",
+                                    transition: "all 0.2s ease",
+                                    opacity: isDragging ? 0.45 : 1,
+                                    transform: isDragTarget ? "scale(1.03)" : "none",
+                                    boxShadow: isDragTarget ? `0 8px 24px ${themeConfig.primaryGlow}` : (isDarkMode ? "0 4px 12px rgba(0,0,0,0.3)" : "0 4px 12px rgba(12, 39, 59, 0.04)"),
+                                    "&:hover": {
+                                      transform: "translateY(-3px)",
+                                      boxShadow: `0 8px 20px ${themeConfig.primaryGlow}`,
+                                      borderColor: themeConfig.primary,
+                                    },
+                                  }}
+                                >
+                                  <Box>
+                                    {/* Top Drag Handle & Status */}
+                                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                                      <Tooltip title="Drag box up/down or onto another floor">
+                                        <Box
+                                          sx={{
+                                            cursor: "grab",
+                                            "&:active": { cursor: "grabbing" },
+                                            display: "flex",
+                                            alignItems: "center",
+                                            color: themeConfig.textMuted,
+                                            px: 0.8,
+                                            py: 0.2,
+                                            borderRadius: "6px",
+                                            bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+                                            "&:hover": { color: themeConfig.primary, bgcolor: isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)" },
+                                          }}
+                                        >
+                                          <DragIndicator sx={{ fontSize: 18 }} />
+                                          <Typography variant="caption" sx={{ fontWeight: 800, fontSize: "0.65rem", ml: 0.3, letterSpacing: 0.5 }}>
+                                            DRAG BOX
+                                          </Typography>
+                                        </Box>
+                                      </Tooltip>
+                                      <StatusChip status={room.status || "AVAILABLE"} size="small" />
+                                    </Box>
+
+                                    {/* Room Avatar & Category Badge */}
+                                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
+                                      <Avatar
+                                        sx={{
+                                          width: 40,
+                                          height: 40,
+                                          borderRadius: "12px",
+                                          bgcolor: themeConfig.primary,
+                                          color: "#FFFFFF",
+                                          fontWeight: 900,
+                                          fontSize: "1rem",
+                                          boxShadow: `0 4px 10px ${themeConfig.primaryGlow}`,
+                                        }}
+                                      >
+                                        {room.roomNumber}
+                                      </Avatar>
+                                      <Box>
+                                        <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+                                          Room {room.roomNumber}
+                                        </Typography>
+                                        <Chip
+                                          icon={getCategoryIcon(catName)}
+                                          label={catName}
+                                          size="small"
+                                          sx={{
+                                            height: 20,
+                                            fontSize: "0.68rem",
+                                            fontWeight: 800,
+                                            bgcolor: themeConfig.champagne,
+                                            color: themeConfig.primaryDark,
+                                            border: `1px solid ${themeConfig.border}`,
+                                          }}
+                                        />
+                                      </Box>
+                                    </Box>
+
+                                    {/* Tariff & Live GST Box */}
+                                    <Box sx={{ mb: 1.5, p: 1.2, borderRadius: "10px", bgcolor: themeConfig.bgMain, border: `1px solid ${themeConfig.border}` }}>
+                                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.3 }}>
+                                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+                                          Base Price:
+                                        </Typography>
+                                        <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                                          ₹{roomGstCalc.taxableAmount.toLocaleString("en-IN")}/night
+                                        </Typography>
+                                      </Box>
+
+                                      {roomGstCalc.gstEnabled ? (
+                                        <>
+                                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.3 }}>
+                                            <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+                                              GST ({roomGstCalc.gstRate}%):
+                                            </Typography>
+                                            <Chip
+                                              label={`CGST ${roomGstCalc.cgstRate}% | SGST ${roomGstCalc.sgstRate}%`}
+                                              size="small"
+                                              sx={{ height: 16, fontSize: "0.6rem", fontWeight: 800, bgcolor: themeConfig.champagne, color: themeConfig.primaryDark }}
+                                            />
+                                          </Box>
+                                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.3 }}>
+                                            <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+                                              Total Tax:
+                                            </Typography>
+                                            <Typography variant="caption" sx={{ fontWeight: 800, color: "#D97706" }}>
+                                              +₹{roomGstCalc.totalTax.toLocaleString("en-IN")}
+                                            </Typography>
+                                          </Box>
+                                          <Divider sx={{ my: 0.4, borderColor: themeConfig.border }} />
+                                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                            <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+                                              Final Price:
+                                            </Typography>
+                                            <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.primaryDark || "#0F766E" }}>
+                                              ₹{roomGstCalc.finalAmount.toLocaleString("en-IN")}/night
+                                            </Typography>
+                                          </Box>
+                                        </>
+                                      ) : (
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 0.3 }}>
+                                          <Chip label="No GST (0%)" size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#E5E7EB" }} />
+                                          <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.primary }}>
+                                            ₹{roomGstCalc.finalAmount.toLocaleString("en-IN")}/night
+                                          </Typography>
+                                        </Box>
+                                      )}
+                                    </Box>
+
+                                    {/* Amenities Badges */}
+                                    {roomAmenities.length > 0 && (
+                                      <Box sx={{ mb: 1.5 }}>
+                                        <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, fontSize: "0.68rem" }}>
+                                          AMENITIES:
+                                        </Typography>
+                                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.4 }}>
+                                          {roomAmenities.slice(0, 3).map((am, i) => (
+                                            <Chip
+                                              key={i}
+                                              icon={getAmenityIcon(am, 12)}
+                                              label={am}
+                                              size="small"
+                                              sx={{
+                                                height: 22,
+                                                fontSize: "0.65rem",
+                                                fontWeight: 700,
+                                                bgcolor: isDarkMode ? "rgba(255,255,255,0.05)" : "#F3F4F6",
+                                                color: themeConfig.textMain,
+                                                border: `1px solid ${themeConfig.border}`,
+                                                "& .MuiChip-icon": {
+                                                  color: `${themeConfig.primary} !important`,
+                                                },
+                                              }}
+                                            />
+                                          ))}
+                                          {roomAmenities.length > 3 && (
+                                            <Tooltip title={roomAmenities.slice(3).join(", ")}>
+                                              <Chip
+                                                label={`+${roomAmenities.length - 3} more`}
+                                                size="small"
+                                                sx={{
+                                                  height: 20,
+                                                  fontSize: "0.65rem",
+                                                  fontWeight: 800,
+                                                  bgcolor: themeConfig.champagne,
+                                                  color: themeConfig.primaryDark,
+                                                }}
+                                              />
+                                            </Tooltip>
+                                          )}
+                                        </Box>
+                                      </Box>
+                                    )}
+                                  </Box>
+
+                                  {/* Room Actions */}
+                                  <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, pt: 1, borderTop: `1px solid ${themeConfig.border}` }}>
+                                    <Tooltip title="Edit Room Details">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() =>
+                                          setRoomModal({
+                                            open: true,
+                                            mode: "EDIT",
+                                            data: {
+                                              _id: room._id,
+                                              roomNumber: room.roomNumber,
+                                              roomType: typeof room.roomType === "object" ? room.roomType._id : room.roomType,
+                                              floor: room.floor || floorNum,
+                                              bedCount: room.bedCount || 1,
+                                              bedType: room.bedType || "1 King Size Bed",
+                                              seatingCapacity: room.seatingCapacity || 2,
+                                              customPricePerNight: room.customPricePerNight || "",
+                                              status: room.status || "AVAILABLE",
+                                              notes: room.notes || "",
+                                              amenities: room.amenities || roomTypeObj?.amenities || [],
+                                              gstEnabled: room.gstEnabled !== false,
+                                              gstRate: room.gstRate ?? roomTypeObj?.gstRate ?? 18,
+                                              cgstRate: room.cgstRate ?? (room.gstRate ? room.gstRate / 2 : 9),
+                                              sgstRate: room.sgstRate ?? (room.gstRate ? room.gstRate / 2 : 9),
+                                              taxInclusive: Boolean(room.taxInclusive ?? roomTypeObj?.taxInclusive),
+                                            },
+                                          })
+                                        }
+                                        sx={{
+                                          color: themeConfig.info,
+                                          bgcolor: themeConfig.infoBg,
+                                          borderRadius: "8px",
+                                        }}
+                                      >
+                                        <Edit fontSize="small" sx={{ fontSize: 16 }} />
+                                      </IconButton>
+                                    </Tooltip>
+
+                                    <Tooltip title="Delete Room">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => onDeleteRoom && onDeleteRoom(room)}
+                                        sx={{
+                                          color: themeConfig.danger,
+                                          bgcolor: themeConfig.dangerBg,
+                                          borderRadius: "8px",
+                                        }}
+                                      >
+                                        <Delete fontSize="small" sx={{ fontSize: 16 }} />
+                                      </IconButton>
+                                    </Tooltip>
+                                  </Box>
+                                </Card>
+                              </Grid>
+                            );
+                          })}
+                        </Grid>
+                      )}
+                    </Paper>
+                  );
+                })}
+            </Box>
+          )}
+        </Box>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 1: CATEGORY-WISE GROUPED VIEW                                         */}
+      {/* ========================================================================= */}
+      {activeTab === 1 && (
         <Box>
           {roomTypes.length === 0 ? (
             <Card
@@ -1259,9 +2036,9 @@ export default function RoomTypesPage({
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 1: ALL ROOMS MASTER INVENTORY TABLE                                   */}
+      {/* TAB 2: ALL ROOMS MASTER INVENTORY TABLE                                   */}
       {/* ========================================================================= */}
-      {activeTab === 1 && (
+      {activeTab === 2 && (
         <Box>
           {/* Filter & Search Strip */}
           <Paper
@@ -1710,9 +2487,9 @@ export default function RoomTypesPage({
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 2: ROOM CATEGORIES & AMENITIES MASTER                                */}
+      {/* TAB 3: ROOM CATEGORIES & AMENITIES MASTER                                */}
       {/* ========================================================================= */}
-      {activeTab === 2 && (
+      {activeTab === 3 && (
         <Box>
           {roomTypes.length === 0 ? (
             <Card

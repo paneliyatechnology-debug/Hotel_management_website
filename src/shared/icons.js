@@ -49,6 +49,8 @@ export {
   DocumentScanner,
   Domain,
   Download,
+  DragHandle,
+  DragIndicator,
   Edit,
   Email,
   EventBusy,

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -268,13 +269,13 @@ export default function AvailableRoomsPage({
   // Dynamic Category Icon helper
   const getCategoryIcon = (name = "") => {
     const n = name.toLowerCase();
-    if (n.includes("coupl") || n.includes("copol") || n.includes("honey") || n.includes("romant") || n.includes("love"))
+    if (n.includes("coupl") || n.includes("copol") || n.includes("copul") || n.includes("honey") || n.includes("romant") || n.includes("love"))
       return <Favorite sx={{ fontSize: 20, color: "#E11D48" }} />;
     if (n.includes("fam") || n.includes("group") || n.includes("quad"))
       return <FamilyRestroom sx={{ fontSize: 20, color: "#059669" }} />;
     if (n.includes("villa") || n.includes("cottage") || n.includes("penthouse") || n.includes("resort") || n.includes("bungalow"))
       return <Villa sx={{ fontSize: 20, color: "#0891B2" }} />;
-    if (n.includes("deluxe") || n.includes("super") || n.includes("luxury") || n.includes("suite") || n.includes("vip") || n.includes("presid"))
+    if (n.includes("sweet") || n.includes("suite") || n.includes("deluxe") || n.includes("super") || n.includes("luxury") || n.includes("vip") || n.includes("presid"))
       return <Diamond sx={{ fontSize: 20, color: "#D97706" }} />;
     if (n.includes("single") || n.includes("solo"))
       return <SingleBed sx={{ fontSize: 20, color: "#6366F1" }} />;
@@ -1478,687 +1479,687 @@ export default function AvailableRoomsPage({
         </>
       ) : (
         /* Category Rooms Drilldown (With Box and Table View inside Category!) */
-            <Box>
-              {/* Drilldown Header with Back Button and Category Box/Table Switcher */}
+        <Box>
+          {/* Drilldown Header with Back Button and Category Box/Table Switcher */}
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: { xs: "stretch", sm: "center" },
+              flexDirection: { xs: "column", sm: "row" },
+              mb: 2.5,
+              gap: 1.5,
+            }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, flexWrap: "wrap" }}>
+              <Button
+                variant="outlined"
+                startIcon={<ArrowBack />}
+                onClick={() => {
+                  if (cameFromExternalRoute && onNavigateTab) {
+                    setCameFromExternalRoute(false);
+                    setSelectedCategory(null);
+                    onNavigateTab(0);
+                  } else {
+                    setSelectedCategory(null);
+                  }
+                }}
+                sx={{
+                  borderRadius: "10px",
+                  fontWeight: 800,
+                  fontSize: "0.78rem",
+                  borderColor: themeConfig.border,
+                  color: themeConfig.textMain,
+                  bgcolor: themeConfig.bgCard || "#FFFFFF",
+                  "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
+                }}
+              >
+                Back
+              </Button>
+
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Avatar
+                  sx={{
+                    bgcolor: themeConfig.champagne,
+                    color: themeConfig.primaryDark,
+                    width: 36,
+                    height: 36,
+                    borderRadius: "10px",
+                  }}
+                >
+                  {getCategoryIcon(activeCategory?.name || "")}
+                </Avatar>
+                <div>
+                  <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5, fontSize: "1.1rem" }}>
+                    {activeCategory?.name || "Category"} ({activeCategory?.totalRooms || 0} Rooms)
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.75rem" }}>
+                    ₹{Number(activeCategory?.basePrice || 0).toLocaleString()} / night &bull; {activeCategory?.bedCount} Bed ({activeCategory?.bedType})
+                  </Typography>
+                </div>
+              </Box>
+            </Box>
+
+            {/* Right Side: Status Pills & Category Sub-View Toggle (Box / Table) */}
+            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center", justifyContent: { xs: "space-between", sm: "flex-end" } }}>
+              <Box sx={{ display: "flex", gap: 0.8, flexWrap: "wrap" }}>
+                <Chip
+                  label={`🟢 ${activeCategory?.available || 0} Avail`}
+                  size="small"
+                  sx={{ bgcolor: "rgba(16, 185, 129, 0.12)", color: "#059669", fontWeight: 800, fontSize: "0.72rem" }}
+                />
+                <Chip
+                  label={`🔵 ${(activeCategory?.occupied || 0) + (activeCategory?.reserved || 0)} Booked`}
+                  size="small"
+                  sx={{ bgcolor: "rgba(11, 142, 224, 0.12)", color: "#0284C7", fontWeight: 800, fontSize: "0.72rem" }}
+                />
+              </Box>
+
+              {/* Personal Box vs Table Toggle for this category */}
               <Box
                 sx={{
                   display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: { xs: "stretch", sm: "center" },
-                  flexDirection: { xs: "column", sm: "row" },
-                  mb: 2.5,
-                  gap: 1.5,
-                }}
-              >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, flexWrap: "wrap" }}>
-                  <Button
-                    variant="outlined"
-                    startIcon={<ArrowBack />}
-                    onClick={() => {
-                      if (cameFromExternalRoute && onNavigateTab) {
-                        setCameFromExternalRoute(false);
-                        setSelectedCategory(null);
-                        onNavigateTab(0);
-                      } else {
-                        setSelectedCategory(null);
-                      }
-                    }}
-                    sx={{
-                      borderRadius: "10px",
-                      fontWeight: 800,
-                      fontSize: "0.78rem",
-                      borderColor: themeConfig.border,
-                      color: themeConfig.textMain,
-                      bgcolor: themeConfig.bgCard || "#FFFFFF",
-                      "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
-                    }}
-                  >
-                    Back
-                  </Button>
-
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Avatar
-                      sx={{
-                        bgcolor: themeConfig.champagne,
-                        color: themeConfig.primaryDark,
-                        width: 36,
-                        height: 36,
-                        borderRadius: "10px",
-                      }}
-                    >
-                      {getCategoryIcon(activeCategory?.name || "")}
-                    </Avatar>
-                    <div>
-                      <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5, fontSize: "1.1rem" }}>
-                        {activeCategory?.name || "Category"} ({activeCategory?.totalRooms || 0} Rooms)
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.75rem" }}>
-                        ₹{Number(activeCategory?.basePrice || 0).toLocaleString()} / night &bull; {activeCategory?.bedCount} Bed ({activeCategory?.bedType})
-                      </Typography>
-                    </div>
-                  </Box>
-                </Box>
-
-                {/* Right Side: Status Pills & Category Sub-View Toggle (Box / Table) */}
-                <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center", justifyContent: { xs: "space-between", sm: "flex-end" } }}>
-                  <Box sx={{ display: "flex", gap: 0.8, flexWrap: "wrap" }}>
-                    <Chip
-                      label={`🟢 ${activeCategory?.available || 0} Avail`}
-                      size="small"
-                      sx={{ bgcolor: "rgba(16, 185, 129, 0.12)", color: "#059669", fontWeight: 800, fontSize: "0.72rem" }}
-                    />
-                    <Chip
-                      label={`🔵 ${(activeCategory?.occupied || 0) + (activeCategory?.reserved || 0)} Booked`}
-                      size="small"
-                      sx={{ bgcolor: "rgba(11, 142, 224, 0.12)", color: "#0284C7", fontWeight: 800, fontSize: "0.72rem" }}
-                    />
-                  </Box>
-
-                  {/* Personal Box vs Table Toggle for this category */}
-                  <Box
-                    sx={{
-                      display: "flex",
-                      bgcolor: themeConfig.bgCard || "#FFFFFF",
-                      p: 0.4,
-                      borderRadius: "12px",
-                      border: `1px solid ${themeConfig.border}`,
-                      boxShadow: isDarkMode ? "0 4px 12px rgba(0,0,0,0.3)" : "0 2px 6px rgba(12, 39, 59, 0.03)",
-                    }}
-                  >
-                    <Button
-                      size="small"
-                      onClick={() => setCategorySubViewMode("BOX")}
-                      startIcon={<ViewModule sx={{ fontSize: 16 }} />}
-                      sx={{
-                        borderRadius: "8px",
-                        px: 1.2,
-                        py: 0.4,
-                        fontWeight: 800,
-                        fontSize: "0.75rem",
-                        textTransform: "none",
-                        bgcolor: categorySubViewMode === "BOX" ? themeConfig.primary : "transparent",
-                        color: categorySubViewMode === "BOX" ? "#FFFFFF !important" : themeConfig.textMain,
-                        boxShadow: categorySubViewMode === "BOX" ? `0 2px 8px ${themeConfig.primaryGlow}` : "none",
-                      }}
-                    >
-                      Box
-                    </Button>
-                    <Button
-                      size="small"
-                      onClick={() => setCategorySubViewMode("TABLE")}
-                      startIcon={<TableRows sx={{ fontSize: 16 }} />}
-                      sx={{
-                        borderRadius: "8px",
-                        px: 1.2,
-                        py: 0.4,
-                        fontWeight: 800,
-                        fontSize: "0.75rem",
-                        textTransform: "none",
-                        bgcolor: categorySubViewMode === "TABLE" ? themeConfig.primary : "transparent",
-                        color: categorySubViewMode === "TABLE" ? "#FFFFFF !important" : themeConfig.textMain,
-                        boxShadow: categorySubViewMode === "TABLE" ? `0 2px 8px ${themeConfig.primaryGlow}` : "none",
-                      }}
-                    >
-                      Table
-                    </Button>
-                  </Box>
-                </Box>
-              </Box>
-
-              {/* Filters Bar */}
-              <Card
-                sx={{
-                  p: { xs: 1.5, sm: 2 },
-                  mb: 2.5,
-                  borderRadius: "16px",
-                  border: `1px solid ${themeConfig.border}`,
                   bgcolor: themeConfig.bgCard || "#FFFFFF",
-                  boxShadow: isDarkMode ? "0 8px 24px rgba(0,0,0,0.35)" : "0 4px 14px rgba(12, 39, 59, 0.04)",
+                  p: 0.4,
+                  borderRadius: "12px",
+                  border: `1px solid ${themeConfig.border}`,
+                  boxShadow: isDarkMode ? "0 4px 12px rgba(0,0,0,0.3)" : "0 2px 6px rgba(12, 39, 59, 0.03)",
                 }}
               >
-                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 1.5, alignItems: "center" }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    placeholder="Search room #, guest..."
-                    value={roomSearch}
-                    onChange={(e) => {
-                      setRoomSearch(e.target.value);
-                      setPage(0);
-                    }}
-                    sx={{ "& .MuiOutlinedInput-root": { borderRadius: "10px" } }}
-                    slotProps={{
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <Search fontSize="small" sx={{ color: themeConfig.textMuted }} />
-                          </InputAdornment>
-                        ),
-                      },
-                    }}
-                  />
+                <Button
+                  size="small"
+                  onClick={() => setCategorySubViewMode("BOX")}
+                  startIcon={<ViewModule sx={{ fontSize: 16 }} />}
+                  sx={{
+                    borderRadius: "8px",
+                    px: 1.2,
+                    py: 0.4,
+                    fontWeight: 800,
+                    fontSize: "0.75rem",
+                    textTransform: "none",
+                    bgcolor: categorySubViewMode === "BOX" ? themeConfig.primary : "transparent",
+                    color: categorySubViewMode === "BOX" ? "#FFFFFF !important" : themeConfig.textMain,
+                    boxShadow: categorySubViewMode === "BOX" ? `0 2px 8px ${themeConfig.primaryGlow}` : "none",
+                  }}
+                >
+                  Box
+                </Button>
+                <Button
+                  size="small"
+                  onClick={() => setCategorySubViewMode("TABLE")}
+                  startIcon={<TableRows sx={{ fontSize: 16 }} />}
+                  sx={{
+                    borderRadius: "8px",
+                    px: 1.2,
+                    py: 0.4,
+                    fontWeight: 800,
+                    fontSize: "0.75rem",
+                    textTransform: "none",
+                    bgcolor: categorySubViewMode === "TABLE" ? themeConfig.primary : "transparent",
+                    color: categorySubViewMode === "TABLE" ? "#FFFFFF !important" : themeConfig.textMain,
+                    boxShadow: categorySubViewMode === "TABLE" ? `0 2px 8px ${themeConfig.primaryGlow}` : "none",
+                  }}
+                >
+                  Table
+                </Button>
+              </Box>
+            </Box>
+          </Box>
 
-                  <TextField
-                    select
-                    fullWidth
-                    size="small"
-                    value={selectedFloor}
-                    onChange={(e) => {
-                      setSelectedFloor(e.target.value);
-                      setPage(0);
-                    }}
-                    sx={{ "& .MuiOutlinedInput-root": { borderRadius: "10px", fontWeight: 700 } }}
-                  >
-                    <MenuItem value="ALL">All Floors</MenuItem>
-                    {distinctFloors.map((fl) => (
-                      <MenuItem key={fl} value={String(fl)}>
-                        Floor {fl}
-                      </MenuItem>
-                    ))}
-                  </TextField>
+          {/* Filters Bar */}
+          <Card
+            sx={{
+              p: { xs: 1.5, sm: 2 },
+              mb: 2.5,
+              borderRadius: "16px",
+              border: `1px solid ${themeConfig.border}`,
+              bgcolor: themeConfig.bgCard || "#FFFFFF",
+              boxShadow: isDarkMode ? "0 8px 24px rgba(0,0,0,0.35)" : "0 4px 14px rgba(12, 39, 59, 0.04)",
+            }}
+          >
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 1.5, alignItems: "center" }}>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Search room #, guest..."
+                value={roomSearch}
+                onChange={(e) => {
+                  setRoomSearch(e.target.value);
+                  setPage(0);
+                }}
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: "10px" } }}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search fontSize="small" sx={{ color: themeConfig.textMuted }} />
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+              />
 
-                  <TextField
-                    select
-                    fullWidth
-                    size="small"
-                    value={selectedStatus}
-                    onChange={(e) => {
-                      setSelectedStatus(e.target.value);
-                      setPage(0);
-                    }}
-                    sx={{ "& .MuiOutlinedInput-root": { borderRadius: "10px", fontWeight: 700 } }}
-                  >
-                    <MenuItem value="ALL">All Status</MenuItem>
-                    <MenuItem value="AVAILABLE">🟢 Available</MenuItem>
-                    <MenuItem value="OCCUPIED">🔵 Occupied</MenuItem>
-                    <MenuItem value="CLEANING">🟡 Cleaning</MenuItem>
-                    <MenuItem value="MAINTENANCE">🔴 Maintenance</MenuItem>
-                    <MenuItem value="BLOCKED">⚪ Blocked</MenuItem>
-                  </TextField>
-                </Box>
-              </Card>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                value={selectedFloor}
+                onChange={(e) => {
+                  setSelectedFloor(e.target.value);
+                  setPage(0);
+                }}
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: "10px", fontWeight: 700 } }}
+              >
+                <MenuItem value="ALL">All Floors</MenuItem>
+                {distinctFloors.map((fl) => (
+                  <MenuItem key={fl} value={String(fl)}>
+                    Floor {fl}
+                  </MenuItem>
+                ))}
+              </TextField>
 
-              {/* 1A. Category Rooms Box View (Cards Grid) */}
-              {categorySubViewMode === "BOX" && (
-                filteredCategoryRooms.length === 0 ? (
-                  <Box sx={{ py: 6 }}>
-                    <EmptyState
-                      title="No Rooms Found"
-                      description="No rooms match the current search or filter criteria in this category."
-                    />
-                  </Box>
-                ) : (
-                  <Box
-                    sx={{
-                      display: "grid",
-                      gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(3, 1fr)", lg: "repeat(4, 1fr)" },
-                      gap: 2,
-                    }}
-                  >
-                    {filteredCategoryRooms.map((room) => {
-                      const isAvail = room.status === "AVAILABLE";
-                      const isOcc = room.status === "OCCUPIED" || room.status === "RESERVED";
-                      const isCln = room.status === "CLEANING";
-                      const isSelected = selectedRoomIds.includes(room._id);
-                      const tariff = room.customPricePerNight || activeCategory?.basePrice || 0;
-                      const roomGuestName = getRoomGuestName(room);
+              <TextField
+                select
+                fullWidth
+                size="small"
+                value={selectedStatus}
+                onChange={(e) => {
+                  setSelectedStatus(e.target.value);
+                  setPage(0);
+                }}
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: "10px", fontWeight: 700 } }}
+              >
+                <MenuItem value="ALL">All Status</MenuItem>
+                <MenuItem value="AVAILABLE">🟢 Available</MenuItem>
+                <MenuItem value="OCCUPIED">🔵 Occupied</MenuItem>
+                <MenuItem value="CLEANING">🟡 Cleaning</MenuItem>
+                <MenuItem value="MAINTENANCE">🔴 Maintenance</MenuItem>
+                <MenuItem value="BLOCKED">⚪ Blocked</MenuItem>
+              </TextField>
+            </Box>
+          </Card>
 
-                      let borderAccent = isSelected ? "#10B981" : isAvail ? "#10B981" : isOcc ? "#0B8EE0" : isCln ? "#D97706" : "#EF4444";
+          {/* 1A. Category Rooms Box View (Cards Grid) */}
+          {categorySubViewMode === "BOX" && (
+            filteredCategoryRooms.length === 0 ? (
+              <Box sx={{ py: 6 }}>
+                <EmptyState
+                  title="No Rooms Found"
+                  description="No rooms match the current search or filter criteria in this category."
+                />
+              </Box>
+            ) : (
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(3, 1fr)", lg: "repeat(4, 1fr)" },
+                  gap: 2,
+                }}
+              >
+                {filteredCategoryRooms.map((room) => {
+                  const isAvail = room.status === "AVAILABLE";
+                  const isOcc = room.status === "OCCUPIED" || room.status === "RESERVED";
+                  const isCln = room.status === "CLEANING";
+                  const isSelected = selectedRoomIds.includes(room._id);
+                  const tariff = room.customPricePerNight || activeCategory?.basePrice || 0;
+                  const roomGuestName = getRoomGuestName(room);
 
-                      return (
-                        <Card
-                          key={room._id || room.roomNumber}
-                          className="card-3d"
-                          onClick={() => {
-                            if (isAvail) handleToggleRoomSelection(room._id);
+                  let borderAccent = isSelected ? "#10B981" : isAvail ? "#10B981" : isOcc ? "#0B8EE0" : isCln ? "#D97706" : "#EF4444";
+
+                  return (
+                    <Card
+                      key={room._id || room.roomNumber}
+                      className="card-3d"
+                      onClick={() => {
+                        if (isAvail) handleToggleRoomSelection(room._id);
+                      }}
+                      sx={{
+                        p: 2,
+                        borderRadius: "18px",
+                        border: isSelected ? "2px solid #10B981" : `1px solid ${themeConfig.border}`,
+                        borderTop: isSelected ? "5px solid #10B981" : `4px solid ${borderAccent}`,
+                        background: isSelected
+                          ? (isDarkMode ? "rgba(16, 185, 129, 0.12)" : "rgba(16, 185, 129, 0.05)")
+                          : themeConfig.bgCard,
+                        bgcolor: isSelected
+                          ? (isDarkMode ? "rgba(16, 185, 129, 0.12)" : "rgba(16, 185, 129, 0.05)")
+                          : themeConfig.bgCard,
+                        boxShadow: isSelected
+                          ? "0 0 0 2px rgba(16, 185, 129, 0.25), 0 8px 24px rgba(16, 185, 129, 0.18)"
+                          : isDarkMode
+                            ? "0 8px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)"
+                            : "0 6px 20px rgba(12, 39, 59, 0.04)",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "space-between",
+                        cursor: isAvail ? "pointer" : "default",
+                        transition: "all 0.2s ease",
+                        "&:hover": {
+                          transform: "translateY(-3px)",
+                          boxShadow: isSelected
+                            ? "0 0 0 2px rgba(16, 185, 129, 0.35), 0 12px 28px rgba(16, 185, 129, 0.25)"
+                            : isDarkMode
+                              ? "0 14px 32px rgba(0, 0, 0, 0.6)"
+                              : "0 12px 28px rgba(12, 39, 59, 0.08)",
+                        },
+                      }}
+                    >
+                      <div>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1.2 }}>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                            {isAvail && (
+                              <Checkbox
+                                size="small"
+                                color="success"
+                                checked={isSelected}
+                                onChange={(e) => handleToggleRoomSelection(room._id, e)}
+                                onClick={(e) => e.stopPropagation()}
+                                sx={{ p: 0.2, ml: -0.5 }}
+                              />
+                            )}
+                            <Avatar
+                              sx={{
+                                bgcolor: isSelected
+                                  ? "rgba(16, 185, 129, 0.25)"
+                                  : isAvail
+                                    ? "rgba(16, 185, 129, 0.15)"
+                                    : isOcc
+                                      ? "rgba(11, 142, 224, 0.15)"
+                                      : isCln
+                                        ? "rgba(217, 119, 6, 0.15)"
+                                        : "rgba(239, 68, 68, 0.15)",
+                                color: borderAccent,
+                                width: 36,
+                                height: 36,
+                                fontSize: "0.85rem",
+                                fontWeight: 900,
+                                borderRadius: "10px",
+                              }}
+                            >
+                              {room.roomNumber}
+                            </Avatar>
+                            <div>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 900, color: themeConfig.textMain, lineHeight: 1.2 }}>
+                                Room {room.roomNumber}
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+                                Floor {room.floor || 1}
+                              </Typography>
+                            </div>
+                          </Box>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                            {isSelected && (
+                              <Chip
+                                label="✓ Selected"
+                                size="small"
+                                sx={{
+                                  fontWeight: 900,
+                                  fontSize: "0.65rem",
+                                  bgcolor: "#10B981",
+                                  color: "#FFFFFF",
+                                  height: 20,
+                                }}
+                              />
+                            )}
+                            <StatusChip status={room.status} size="small" />
+                          </Box>
+                        </Box>
+
+                        <Box sx={{ p: 1, borderRadius: "10px", bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC", border: `1px solid ${themeConfig.border}`, mb: 1.2 }}>
+                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", fontWeight: 700, fontSize: "0.68rem" }}>
+                            Rate / Tariff
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.primary }}>
+                            ₹{Number(tariff).toLocaleString()} <span style={{ fontSize: "0.72rem", color: themeConfig.textMuted, fontWeight: 600 }}>/ night</span>
+                          </Typography>
+                          {roomGuestName ? (
+                            <Typography variant="caption" sx={{ color: themeConfig.textMain, fontWeight: 800, mt: 0.3, display: "block" }}>
+                              👤 {roomGuestName}
+                            </Typography>
+                          ) : room.advanceBookingSummary ? (
+                            <Typography variant="caption" sx={{ color: "#D97706", fontWeight: 800, mt: 0.3, display: "block", fontSize: "0.7rem" }}>
+                              📅 {room.advanceBookingSummary}
+                            </Typography>
+                          ) : null}
+                        </Box>
+                      </div>
+
+                      <Box sx={{ display: "flex", gap: 0.8, pt: 1, borderTop: `1px solid ${themeConfig.border}` }}>
+                        {isAvail && onSelectRoomForCheckIn && (
+                          <Button
+                            fullWidth
+                            size="small"
+                            variant="contained"
+                            startIcon={<Bolt sx={{ fontSize: 13 }} />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectRoomForCheckIn(room);
+                            }}
+                            sx={{
+                              borderRadius: "8px",
+                              fontWeight: 900,
+                              fontSize: "0.72rem",
+                              whiteSpace: "nowrap",
+                              textTransform: "none",
+                              background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
+                              color: "#FFFFFF",
+                              boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)",
+                            }}
+                          >
+                            Check-In
+                          </Button>
+                        )}
+                        <Button
+                          fullWidth={!isAvail}
+                          size="small"
+                          variant="outlined"
+                          startIcon={<Edit sx={{ fontSize: 12 }} />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenStatusDialog(room);
                           }}
                           sx={{
-                            p: 2,
-                            borderRadius: "18px",
-                            border: isSelected ? "2px solid #10B981" : `1px solid ${themeConfig.border}`,
-                            borderTop: isSelected ? "5px solid #10B981" : `4px solid ${borderAccent}`,
-                            background: isSelected
-                              ? (isDarkMode ? "rgba(16, 185, 129, 0.12)" : "rgba(16, 185, 129, 0.05)")
-                              : themeConfig.bgCard,
-                            bgcolor: isSelected
-                              ? (isDarkMode ? "rgba(16, 185, 129, 0.12)" : "rgba(16, 185, 129, 0.05)")
-                              : themeConfig.bgCard,
-                            boxShadow: isSelected
-                              ? "0 0 0 2px rgba(16, 185, 129, 0.25), 0 8px 24px rgba(16, 185, 129, 0.18)"
-                              : isDarkMode
-                                ? "0 8px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)"
-                                : "0 6px 20px rgba(12, 39, 59, 0.04)",
-                            display: "flex",
-                            flexDirection: "column",
-                            justifyContent: "space-between",
-                            cursor: isAvail ? "pointer" : "default",
-                            transition: "all 0.2s ease",
-                            "&:hover": {
-                              transform: "translateY(-3px)",
-                              boxShadow: isSelected
-                                ? "0 0 0 2px rgba(16, 185, 129, 0.35), 0 12px 28px rgba(16, 185, 129, 0.25)"
-                                : isDarkMode
-                                  ? "0 14px 32px rgba(0, 0, 0, 0.6)"
-                                  : "0 12px 28px rgba(12, 39, 59, 0.08)",
-                            },
+                            borderRadius: "8px",
+                            fontWeight: 800,
+                            fontSize: "0.72rem",
+                            textTransform: "none",
+                            whiteSpace: "nowrap",
+                            borderColor: themeConfig.border,
+                            color: themeConfig.textMain,
+                            "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne },
                           }}
                         >
-                          <div>
-                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1.2 }}>
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                {isAvail && (
+                          Status
+                        </Button>
+                      </Box>
+                    </Card>
+                  );
+                })}
+              </Box>
+            )
+          )}
+
+          {/* 1B. Category Rooms Table View */}
+          {categorySubViewMode === "TABLE" && (
+            filteredCategoryRooms.length === 0 ? (
+              <Box sx={{ py: 6 }}>
+                <EmptyState
+                  title="No Rooms Found"
+                  description="No rooms match the current search or filter criteria in this category."
+                />
+              </Box>
+            ) : (
+              <Paper
+                sx={{
+                  borderRadius: "18px",
+                  border: `1px solid ${themeConfig.border}`,
+                  boxShadow: "0 8px 24px rgba(12, 39, 59, 0.05)",
+                  overflow: "hidden",
+                }}
+              >
+                <TableContainer
+                  sx={{
+                    maxHeight: { xs: 450, md: 540 },
+                    overflowX: "auto",
+                    "&::-webkit-scrollbar": { height: "6px", width: "6px" },
+                    "&::-webkit-scrollbar-track": { background: isDarkMode ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)" },
+                    "&::-webkit-scrollbar-thumb": { background: themeConfig.border, borderRadius: "6px" },
+                  }}
+                >
+                  <Table stickyHeader size="small" sx={{ minWidth: 680 }}>
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: themeConfig.champagne }}>
+                        <TableCell padding="checkbox" sx={{ pl: 2, bgcolor: themeConfig.champagne }}>
+                          <Checkbox
+                            size="small"
+                            color="success"
+                            checked={
+                              filteredCategoryRooms.filter((r) => r.status === "AVAILABLE").length > 0 &&
+                              filteredCategoryRooms.filter((r) => r.status === "AVAILABLE").every((r) => selectedRoomIds.includes(r._id))
+                            }
+                            indeterminate={
+                              filteredCategoryRooms.some((r) => r.status === "AVAILABLE" && selectedRoomIds.includes(r._id)) &&
+                              !filteredCategoryRooms.filter((r) => r.status === "AVAILABLE").every((r) => selectedRoomIds.includes(r._id))
+                            }
+                            onChange={() => handleSelectAllAvailable(filteredCategoryRooms)}
+                          />
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 900, color: themeConfig.textMain, py: 1.2, fontSize: "0.82rem", whiteSpace: "nowrap" }}>
+                          Room Number
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "0.82rem", whiteSpace: "nowrap" }}>
+                          Floor
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "0.82rem", whiteSpace: "nowrap" }}>
+                          Rate / Tariff
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "0.82rem", whiteSpace: "nowrap" }}>
+                          Live Status
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "0.82rem", whiteSpace: "nowrap" }}>
+                          Guest / Occupant
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 900, color: themeConfig.textMain, textAlign: "right", pr: 2.5, fontSize: "0.82rem", whiteSpace: "nowrap" }}>
+                          Action
+                        </TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {filteredCategoryRooms
+                        .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                        .map((room) => {
+                          const isAvail = room.status === "AVAILABLE";
+                          const isOcc = room.status === "OCCUPIED" || room.status === "RESERVED";
+                          const isCln = room.status === "CLEANING";
+                          const isSelected = selectedRoomIds.includes(room._id);
+                          const tariff = room.customPricePerNight || activeCategory?.basePrice || 0;
+                          const roomGuestName = getRoomGuestName(room);
+
+                          return (
+                            <TableRow
+                              key={room._id || room.roomNumber}
+                              hover
+                              onClick={() => {
+                                if (isAvail) {
+                                  handleToggleRoomSelection(room._id);
+                                } else {
+                                  handleOpenStatusDialog(room);
+                                }
+                              }}
+                              sx={{
+                                cursor: "pointer",
+                                bgcolor: isSelected
+                                  ? (isDarkMode ? "rgba(16, 185, 129, 0.12)" : "rgba(16, 185, 129, 0.06)")
+                                  : "transparent",
+                                "&:hover": {
+                                  bgcolor: isSelected
+                                    ? (isDarkMode ? "rgba(16, 185, 129, 0.18)" : "rgba(16, 185, 129, 0.1)")
+                                    : "rgba(11, 142, 224, 0.04)",
+                                },
+                                transition: "background 0.15s ease",
+                              }}
+                            >
+                              {/* Multi-select Checkbox */}
+                              <TableCell padding="checkbox" sx={{ pl: 2 }} onClick={(e) => {
+                                if (isAvail) handleToggleRoomSelection(room._id, e);
+                              }}>
+                                {isAvail ? (
                                   <Checkbox
                                     size="small"
                                     color="success"
                                     checked={isSelected}
                                     onChange={(e) => handleToggleRoomSelection(room._id, e)}
                                     onClick={(e) => e.stopPropagation()}
-                                    sx={{ p: 0.2, ml: -0.5 }}
                                   />
+                                ) : (
+                                  <Box sx={{ width: 24, height: 24 }} />
                                 )}
-                                <Avatar
-                                  sx={{
-                                    bgcolor: isSelected
-                                      ? "rgba(16, 185, 129, 0.25)"
-                                      : isAvail
+                              </TableCell>
+                              {/* Room Number */}
+                              <TableCell sx={{ py: 1.2, pl: 2.5, whiteSpace: "nowrap" }}>
+                                <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                                  <Avatar
+                                    sx={{
+                                      bgcolor: isAvail
                                         ? "rgba(16, 185, 129, 0.15)"
                                         : isOcc
                                           ? "rgba(11, 142, 224, 0.15)"
                                           : isCln
                                             ? "rgba(217, 119, 6, 0.15)"
                                             : "rgba(239, 68, 68, 0.15)",
-                                    color: borderAccent,
-                                    width: 36,
-                                    height: 36,
-                                    fontSize: "0.85rem",
-                                    fontWeight: 900,
-                                    borderRadius: "10px",
-                                  }}
-                                >
-                                  {room.roomNumber}
-                                </Avatar>
-                                <div>
-                                  <Typography variant="subtitle1" sx={{ fontWeight: 900, color: themeConfig.textMain, lineHeight: 1.2 }}>
-                                    Room {room.roomNumber}
-                                  </Typography>
-                                  <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                                    Floor {room.floor || 1}
-                                  </Typography>
-                                </div>
-                              </Box>
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                                {isSelected && (
-                                  <Chip
-                                    label="✓ Selected"
-                                    size="small"
-                                    sx={{
+                                      color: isAvail
+                                        ? "#10B981"
+                                        : isOcc
+                                          ? "#0B8EE0"
+                                          : isCln
+                                            ? "#D97706"
+                                            : "#EF4444",
+                                      width: 32,
+                                      height: 32,
+                                      fontSize: "0.8rem",
                                       fontWeight: 900,
-                                      fontSize: "0.65rem",
-                                      bgcolor: "#10B981",
-                                      color: "#FFFFFF",
-                                      height: 20,
+                                      borderRadius: "8px",
                                     }}
-                                  />
-                                )}
-                                <StatusChip status={room.status} size="small" />
-                              </Box>
-                            </Box>
+                                  >
+                                    {room.roomNumber}
+                                  </Avatar>
+                                  <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "0.9rem" }}>
+                                    Room #{room.roomNumber}
+                                  </Typography>
+                                </Box>
+                              </TableCell>
 
-                            <Box sx={{ p: 1, borderRadius: "10px", bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC", border: `1px solid ${themeConfig.border}`, mb: 1.2 }}>
-                              <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", fontWeight: 700, fontSize: "0.68rem" }}>
-                                Rate / Tariff
-                              </Typography>
-                              <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.primary }}>
-                                ₹{Number(tariff).toLocaleString()} <span style={{ fontSize: "0.72rem", color: themeConfig.textMuted, fontWeight: 600 }}>/ night</span>
-                              </Typography>
-                              {roomGuestName ? (
-                                <Typography variant="caption" sx={{ color: themeConfig.textMain, fontWeight: 800, mt: 0.3, display: "block" }}>
-                                  👤 {roomGuestName}
-                                </Typography>
-                              ) : room.advanceBookingSummary ? (
-                                <Typography variant="caption" sx={{ color: "#D97706", fontWeight: 800, mt: 0.3, display: "block", fontSize: "0.7rem" }}>
-                                  📅 {room.advanceBookingSummary}
-                                </Typography>
-                              ) : null}
-                            </Box>
-                          </div>
-
-                          <Box sx={{ display: "flex", gap: 0.8, pt: 1, borderTop: `1px solid ${themeConfig.border}` }}>
-                            {isAvail && onSelectRoomForCheckIn && (
-                              <Button
-                                fullWidth
-                                size="small"
-                                variant="contained"
-                                startIcon={<Bolt sx={{ fontSize: 13 }} />}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onSelectRoomForCheckIn(room);
-                                }}
-                                sx={{
-                                  borderRadius: "8px",
-                                  fontWeight: 900,
-                                  fontSize: "0.72rem",
-                                  whiteSpace: "nowrap",
-                                  textTransform: "none",
-                                  background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
-                                  color: "#FFFFFF",
-                                  boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)",
-                                }}
-                              >
-                                Check-In
-                              </Button>
-                            )}
-                            <Button
-                              fullWidth={!isAvail}
-                              size="small"
-                              variant="outlined"
-                              startIcon={<Edit sx={{ fontSize: 12 }} />}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenStatusDialog(room);
-                              }}
-                              sx={{
-                                borderRadius: "8px",
-                                fontWeight: 800,
-                                fontSize: "0.72rem",
-                                textTransform: "none",
-                                whiteSpace: "nowrap",
-                                borderColor: themeConfig.border,
-                                color: themeConfig.textMain,
-                                "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne },
-                              }}
-                            >
-                              Status
-                            </Button>
-                          </Box>
-                        </Card>
-                      );
-                    })}
-                  </Box>
-                )
-              )}
-
-              {/* 1B. Category Rooms Table View */}
-              {categorySubViewMode === "TABLE" && (
-                filteredCategoryRooms.length === 0 ? (
-                  <Box sx={{ py: 6 }}>
-                    <EmptyState
-                      title="No Rooms Found"
-                      description="No rooms match the current search or filter criteria in this category."
-                    />
-                  </Box>
-                ) : (
-                  <Paper
-                    sx={{
-                      borderRadius: "18px",
-                      border: `1px solid ${themeConfig.border}`,
-                      boxShadow: "0 8px 24px rgba(12, 39, 59, 0.05)",
-                      overflow: "hidden",
-                    }}
-                  >
-                    <TableContainer
-                      sx={{
-                        maxHeight: { xs: 450, md: 540 },
-                        overflowX: "auto",
-                        "&::-webkit-scrollbar": { height: "6px", width: "6px" },
-                        "&::-webkit-scrollbar-track": { background: isDarkMode ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)" },
-                        "&::-webkit-scrollbar-thumb": { background: themeConfig.border, borderRadius: "6px" },
-                      }}
-                    >
-                      <Table stickyHeader size="small" sx={{ minWidth: 680 }}>
-                        <TableHead>
-                          <TableRow sx={{ bgcolor: themeConfig.champagne }}>
-                            <TableCell padding="checkbox" sx={{ pl: 2, bgcolor: themeConfig.champagne }}>
-                              <Checkbox
-                                size="small"
-                                color="success"
-                                checked={
-                                  filteredCategoryRooms.filter((r) => r.status === "AVAILABLE").length > 0 &&
-                                  filteredCategoryRooms.filter((r) => r.status === "AVAILABLE").every((r) => selectedRoomIds.includes(r._id))
-                                }
-                                indeterminate={
-                                  filteredCategoryRooms.some((r) => r.status === "AVAILABLE" && selectedRoomIds.includes(r._id)) &&
-                                  !filteredCategoryRooms.filter((r) => r.status === "AVAILABLE").every((r) => selectedRoomIds.includes(r._id))
-                                }
-                                onChange={() => handleSelectAllAvailable(filteredCategoryRooms)}
-                              />
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 900, color: themeConfig.textMain, py: 1.2, fontSize: "0.82rem", whiteSpace: "nowrap" }}>
-                              Room Number
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "0.82rem", whiteSpace: "nowrap" }}>
-                              Floor
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "0.82rem", whiteSpace: "nowrap" }}>
-                              Rate / Tariff
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "0.82rem", whiteSpace: "nowrap" }}>
-                              Live Status
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "0.82rem", whiteSpace: "nowrap" }}>
-                              Guest / Occupant
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 900, color: themeConfig.textMain, textAlign: "right", pr: 2.5, fontSize: "0.82rem", whiteSpace: "nowrap" }}>
-                              Action
-                            </TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {filteredCategoryRooms
-                            .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                            .map((room) => {
-                              const isAvail = room.status === "AVAILABLE";
-                              const isOcc = room.status === "OCCUPIED" || room.status === "RESERVED";
-                              const isCln = room.status === "CLEANING";
-                              const isSelected = selectedRoomIds.includes(room._id);
-                              const tariff = room.customPricePerNight || activeCategory?.basePrice || 0;
-                              const roomGuestName = getRoomGuestName(room);
-
-                              return (
-                                <TableRow
-                                  key={room._id || room.roomNumber}
-                                  hover
-                                  onClick={() => {
-                                    if (isAvail) {
-                                      handleToggleRoomSelection(room._id);
-                                    } else {
-                                      handleOpenStatusDialog(room);
-                                    }
-                                  }}
+                              {/* Floor */}
+                              <TableCell sx={{ whiteSpace: "nowrap" }}>
+                                <Chip
+                                  label={`Floor ${room.floor || 1}`}
+                                  size="small"
                                   sx={{
-                                    cursor: "pointer",
-                                    bgcolor: isSelected
-                                      ? (isDarkMode ? "rgba(16, 185, 129, 0.12)" : "rgba(16, 185, 129, 0.06)")
-                                      : "transparent",
-                                    "&:hover": {
-                                      bgcolor: isSelected
-                                        ? (isDarkMode ? "rgba(16, 185, 129, 0.18)" : "rgba(16, 185, 129, 0.1)")
-                                        : "rgba(11, 142, 224, 0.04)",
-                                    },
-                                    transition: "background 0.15s ease",
+                                    fontWeight: 800,
+                                    fontSize: "0.7rem",
+                                    bgcolor: themeConfig.champagne,
+                                    color: themeConfig.primaryDark,
+                                    borderRadius: "6px",
+                                    height: 22,
                                   }}
-                                >
-                                  {/* Multi-select Checkbox */}
-                                  <TableCell padding="checkbox" sx={{ pl: 2 }} onClick={(e) => {
-                                    if (isAvail) handleToggleRoomSelection(room._id, e);
-                                  }}>
-                                    {isAvail ? (
-                                      <Checkbox
-                                        size="small"
-                                        color="success"
-                                        checked={isSelected}
-                                        onChange={(e) => handleToggleRoomSelection(room._id, e)}
-                                        onClick={(e) => e.stopPropagation()}
-                                      />
-                                    ) : (
-                                      <Box sx={{ width: 24, height: 24 }} />
-                                    )}
-                                  </TableCell>
-                                  {/* Room Number */}
-                                  <TableCell sx={{ py: 1.2, pl: 2.5, whiteSpace: "nowrap" }}>
-                                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                                      <Avatar
-                                        sx={{
-                                          bgcolor: isAvail
-                                            ? "rgba(16, 185, 129, 0.15)"
-                                            : isOcc
-                                              ? "rgba(11, 142, 224, 0.15)"
-                                              : isCln
-                                                ? "rgba(217, 119, 6, 0.15)"
-                                                : "rgba(239, 68, 68, 0.15)",
-                                          color: isAvail
-                                            ? "#10B981"
-                                            : isOcc
-                                              ? "#0B8EE0"
-                                              : isCln
-                                                ? "#D97706"
-                                                : "#EF4444",
-                                          width: 32,
-                                          height: 32,
-                                          fontSize: "0.8rem",
-                                          fontWeight: 900,
-                                          borderRadius: "8px",
-                                        }}
-                                      >
-                                        {room.roomNumber}
-                                      </Avatar>
-                                      <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "0.9rem" }}>
-                                        Room #{room.roomNumber}
-                                      </Typography>
-                                    </Box>
-                                  </TableCell>
+                                />
+                              </TableCell>
 
-                                  {/* Floor */}
-                                  <TableCell sx={{ whiteSpace: "nowrap" }}>
-                                    <Chip
-                                      label={`Floor ${room.floor || 1}`}
-                                      size="small"
-                                      sx={{
-                                        fontWeight: 800,
-                                        fontSize: "0.7rem",
-                                        bgcolor: themeConfig.champagne,
-                                        color: themeConfig.primaryDark,
-                                        borderRadius: "6px",
-                                        height: 22,
-                                      }}
-                                    />
-                                  </TableCell>
+                              {/* Rate */}
+                              <TableCell sx={{ whiteSpace: "nowrap" }}>
+                                <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.primary }}>
+                                  ₹{Number(tariff).toLocaleString()}
+                                  <Typography component="span" variant="caption" sx={{ color: themeConfig.textMuted, ml: 0.5 }}>
+                                    / night
+                                  </Typography>
+                                </Typography>
+                              </TableCell>
 
-                                  {/* Rate */}
-                                  <TableCell sx={{ whiteSpace: "nowrap" }}>
-                                    <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.primary }}>
-                                      ₹{Number(tariff).toLocaleString()}
-                                      <Typography component="span" variant="caption" sx={{ color: themeConfig.textMuted, ml: 0.5 }}>
-                                        / night
-                                      </Typography>
+                              {/* Status */}
+                              <TableCell sx={{ whiteSpace: "nowrap" }}>
+                                <StatusChip status={room.status} size="small" />
+                              </TableCell>
+
+                              {/* Guest */}
+                              <TableCell sx={{ whiteSpace: "nowrap" }}>
+                                {roomGuestName ? (
+                                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
+                                    <Avatar sx={{ width: 22, height: 22, fontSize: "0.65rem", bgcolor: themeConfig.primary }}>
+                                      {roomGuestName.charAt(0).toUpperCase()}
+                                    </Avatar>
+                                    <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.82rem" }}>
+                                      {roomGuestName}
                                     </Typography>
-                                  </TableCell>
+                                  </Box>
+                                ) : room.advanceBookingSummary ? (
+                                  <Typography variant="caption" sx={{ color: "#D97706", fontWeight: 700, display: "flex", alignItems: "center", gap: 0.5 }}>
+                                    📅 {room.advanceBookingSummary}
+                                  </Typography>
+                                ) : (
+                                  <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontStyle: "italic" }}>
+                                    &mdash; Vacant &mdash;
+                                  </Typography>
+                                )}
+                              </TableCell>
 
-                                  {/* Status */}
-                                  <TableCell sx={{ whiteSpace: "nowrap" }}>
-                                    <StatusChip status={room.status} size="small" />
-                                  </TableCell>
+                              {/* Action */}
+                              <TableCell sx={{ textAlign: "right", pr: 2.5, whiteSpace: "nowrap" }}>
+                                <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 0.8 }}>
+                                  {isAvail && (
+                                    <Button
+                                      size="small"
+                                      variant="contained"
+                                      startIcon={<Bolt sx={{ fontSize: 13 }} />}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (onSelectRoomForCheckIn) onSelectRoomForCheckIn(room);
+                                      }}
+                                      sx={{
+                                        borderRadius: "8px",
+                                        fontWeight: 900,
+                                        fontSize: "0.72rem",
+                                        background: `linear-gradient(135deg, #10B981 0%, #059669 100%)`,
+                                        color: "#FFFFFF",
+                                        boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)",
+                                        px: 1.4,
+                                        py: 0.3,
+                                        "&:hover": { background: "#059669" },
+                                      }}
+                                    >
+                                      Check-In
+                                    </Button>
+                                  )}
 
-                                  {/* Guest */}
-                                  <TableCell sx={{ whiteSpace: "nowrap" }}>
-                                    {roomGuestName ? (
-                                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
-                                        <Avatar sx={{ width: 22, height: 22, fontSize: "0.65rem", bgcolor: themeConfig.primary }}>
-                                          {roomGuestName.charAt(0).toUpperCase()}
-                                        </Avatar>
-                                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.82rem" }}>
-                                          {roomGuestName}
-                                        </Typography>
-                                      </Box>
-                                    ) : room.advanceBookingSummary ? (
-                                      <Typography variant="caption" sx={{ color: "#D97706", fontWeight: 700, display: "flex", alignItems: "center", gap: 0.5 }}>
-                                        📅 {room.advanceBookingSummary}
-                                      </Typography>
-                                    ) : (
-                                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontStyle: "italic" }}>
-                                        &mdash; Vacant &mdash;
-                                      </Typography>
-                                    )}
-                                  </TableCell>
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={<Edit sx={{ fontSize: 12 }} />}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenStatusDialog(room);
+                                    }}
+                                    sx={{
+                                      borderRadius: "8px",
+                                      fontWeight: 800,
+                                      fontSize: "0.7rem",
+                                      borderColor: themeConfig.border,
+                                      color: themeConfig.textMain,
+                                      "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne },
+                                    }}
+                                  >
+                                    Status
+                                  </Button>
+                                </Box>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
 
-                                  {/* Action */}
-                                  <TableCell sx={{ textAlign: "right", pr: 2.5, whiteSpace: "nowrap" }}>
-                                    <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 0.8 }}>
-                                      {isAvail && (
-                                        <Button
-                                          size="small"
-                                          variant="contained"
-                                          startIcon={<Bolt sx={{ fontSize: 13 }} />}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (onSelectRoomForCheckIn) onSelectRoomForCheckIn(room);
-                                          }}
-                                          sx={{
-                                            borderRadius: "8px",
-                                            fontWeight: 900,
-                                            fontSize: "0.72rem",
-                                            background: `linear-gradient(135deg, #10B981 0%, #059669 100%)`,
-                                            color: "#FFFFFF",
-                                            boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)",
-                                            px: 1.4,
-                                            py: 0.3,
-                                            "&:hover": { background: "#059669" },
-                                          }}
-                                        >
-                                          Check-In
-                                        </Button>
-                                      )}
-
-                                      <Button
-                                        size="small"
-                                        variant="outlined"
-                                        startIcon={<Edit sx={{ fontSize: 12 }} />}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleOpenStatusDialog(room);
-                                        }}
-                                        sx={{
-                                          borderRadius: "8px",
-                                          fontWeight: 800,
-                                          fontSize: "0.7rem",
-                                          borderColor: themeConfig.border,
-                                          color: themeConfig.textMain,
-                                          "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne },
-                                        }}
-                                      >
-                                        Status
-                                      </Button>
-                                    </Box>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-
-                    {/* Table Pagination */}
-                    <TablePagination
-                      rowsPerPageOptions={[5, 10, 25, 50]}
-                      component="div"
-                      count={filteredCategoryRooms.length}
-                      rowsPerPage={rowsPerPage}
-                      page={page}
-                      onPageChange={(e, newPage) => setPage(newPage)}
-                      onRowsPerPageChange={(e) => {
-                        setRowsPerPage(parseInt(e.target.value, 10));
-                        setPage(0);
-                      }}
-                      sx={{
-                        borderTop: `1px solid ${themeConfig.border}`,
-                        bgcolor: themeConfig.bgCard || "#FFFFFF",
-                      }}
-                    />
-                  </Paper>
-                )
-              )}
-            </Box>
+                {/* Table Pagination */}
+                <TablePagination
+                  rowsPerPageOptions={[5, 10, 25, 50]}
+                  component="div"
+                  count={filteredCategoryRooms.length}
+                  rowsPerPage={rowsPerPage}
+                  page={page}
+                  onPageChange={(e, newPage) => setPage(newPage)}
+                  onRowsPerPageChange={(e) => {
+                    setRowsPerPage(parseInt(e.target.value, 10));
+                    setPage(0);
+                  }}
+                  sx={{
+                    borderTop: `1px solid ${themeConfig.border}`,
+                    bgcolor: themeConfig.bgCard || "#FFFFFF",
+                  }}
+                />
+              </Paper>
+            )
           )}
+        </Box>
+      )}
 
 
       {/* ========================================================================= */}
@@ -2637,8 +2638,8 @@ export default function AvailableRoomsPage({
                   background: isOccupiedWithBooking && statusDialog.amount > 0
                     ? "linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)"
                     : isOccupiedWithBooking
-                    ? "linear-gradient(135deg, #059669 0%, #047857 100%)"
-                    : `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
+                      ? "linear-gradient(135deg, #059669 0%, #047857 100%)"
+                      : `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
                   color: "#FFFFFF",
                   fontWeight: 900,
                   borderRadius: "10px",
@@ -2649,10 +2650,10 @@ export default function AvailableRoomsPage({
                 {isSubmitting
                   ? "Processing..."
                   : isOccupiedWithBooking
-                  ? statusDialog.amount > 0
-                    ? `Collect ₹${statusDialog.amount.toLocaleString()} & Check Out`
-                    : "Complete Check-Out & Release Room"
-                  : "Update Status"}
+                    ? statusDialog.amount > 0
+                      ? `Collect ₹${statusDialog.amount.toLocaleString()} & Check Out`
+                      : "Complete Check-Out & Release Room"
+                    : "Update Status"}
               </Button>
             </DialogActions>
           </Dialog>

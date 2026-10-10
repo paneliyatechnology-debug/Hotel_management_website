@@ -213,6 +213,34 @@ body {
   margin-bottom: 10px !important;
 }
 
+.Toastify__toast-icon {
+  width: 22px !important;
+  height: 22px !important;
+  margin-right: 12px !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.Toastify__toast-icon svg {
+  fill: #FFFFFF !important;
+  color: #FFFFFF !important;
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.Toastify__toast-body {
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  font-size: 0.88rem !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
 .Toastify__toast--success {
   background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
   color: #FFFFFF !important;

@@ -154,58 +154,62 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
   // On-Demand Tab-Specific Data Loading
   const loadTabData = async (tabIndex, forceRefresh = false) => {
     if (!forceRefresh && fetchedTabs[tabIndex]) return;
-    if (!dashboardData && !rooms.length) {
+    if (!dashboardData && !rooms.length && !forceRefresh) {
       setLoading(true);
     }
     try {
       const endpointsToFetch = [];
 
-      // Route 0: OVERVIEW & DASHBOARD
-      if (tabIndex === 0) {
+      if (forceRefresh) {
+        // When forceRefresh is true (e.g. check-in, check-out, socket events),
+        // fetch ALL key datasets at once so every view/tab stays 100% live in real-time!
         endpointsToFetch.push(
           apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD).then((res) => res?.data && setDashboardData(res.data)),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKING_ROOM_OPTIONS).then((res) => {
-            if (res?.data) {
-              const roomData = res.data.availableRooms || res.data.rooms;
-              const typeData = res.data.roomTypes;
-              if (roomData) setRooms(roomData);
-              if (typeData) setRoomTypes(typeData);
-            }
-          }),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || []))
-        );
-      }
-      // Route 1: AVAILABLE ROOMS & CATEGORIES (Receptionist Booking Page)
-      else if (tabIndex === 1) {
-        endpointsToFetch.push(
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKING_ROOM_OPTIONS).then((res) => {
-            if (res?.data) {
-              const roomData = res.data.availableRooms || res.data.rooms;
-              const typeData = res.data.roomTypes;
-              if (roomData) setRooms(roomData);
-              if (typeData) setRoomTypes(typeData);
-            }
-          }),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || []))
-        );
-      }
-      // Route 2: IN-HOUSE FOLIOS & GUEST DIRECTORY
-      else if (tabIndex === 2) {
-        endpointsToFetch.push(
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.AVAILABLE_ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
           apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || [])),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || [])),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.AVAILABLE_ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || []))
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || []))
         );
-      }
-      // Route 3: MORE OPERATIONS
-      else if (tabIndex === 3) {
-        endpointsToFetch.push(
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD).then((res) => res?.data && setDashboardData(res.data))
-        );
+      } else {
+        // Route 0: OVERVIEW & DASHBOARD
+        if (tabIndex === 0) {
+          endpointsToFetch.push(
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD).then((res) => res?.data && setDashboardData(res.data)),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.AVAILABLE_ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || []))
+          );
+        }
+        // Route 1: AVAILABLE ROOMS & CATEGORIES (Receptionist Booking Page)
+        else if (tabIndex === 1) {
+          endpointsToFetch.push(
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.AVAILABLE_ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || []))
+          );
+        }
+        // Route 2: IN-HOUSE FOLIOS & GUEST DIRECTORY
+        else if (tabIndex === 2) {
+          endpointsToFetch.push(
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.AVAILABLE_ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || []))
+          );
+        }
+        // Route 3: MORE OPERATIONS
+        else if (tabIndex === 3) {
+          endpointsToFetch.push(
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD).then((res) => res?.data && setDashboardData(res.data))
+          );
+        }
       }
 
       await Promise.allSettled(endpointsToFetch);
-      setFetchedTabs((prev) => ({ ...prev, [tabIndex]: true }));
+      if (forceRefresh) {
+        setFetchedTabs({ 0: true, 1: true, 2: true, 3: true });
+      } else {
+        setFetchedTabs((prev) => ({ ...prev, [tabIndex]: true }));
+      }
     } catch (err) {
       console.error("Front desk error:", err);
     } finally {
@@ -259,13 +263,16 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
 
       const secDepAmt = checkInData.collectSecurityDeposit ? (Number(checkInData.securityDepositAmount) || 1000) : 0;
 
-      // STEP 1: Register / Update Guest via Guest API (POST /api/v1/receptionist/guests)
-      let resolvedGuestId = checkInData.guestId;
+      // STEP 1: Separate API 1 - Guest Registration / Update (POST /api/v1/receptionist/guests)
+      let registeredGuestId = checkInData.guestId;
+      let isNewlyCreatedGuest = false;
+
       const guestPayload = {
         fullName: checkInData.fullName || checkInData.guestName || "Walk-in Guest",
         mobileNumber: checkInData.mobile || checkInData.mobileNumber || checkInData.phone || "",
         email: checkInData.email || "",
         gender: checkInData.gender || "Male",
+        dateOfBirth: checkInData.dateOfBirth || checkInData.dob || "",
         nationality: checkInData.nationality || "Indian",
         address: checkInData.address || "",
         city: checkInData.city || "",
@@ -285,33 +292,22 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
           method: "POST",
           body: guestPayload,
         });
-        if (guestRes?.data?._id || guestRes?.data?.guest?._id) {
-          resolvedGuestId = guestRes?.data?._id || guestRes?.data?.guest?._id;
+        const gData = guestRes?.guest || guestRes?.data?.guest || guestRes?.data;
+        if (gData?._id) {
+          if (!registeredGuestId) isNewlyCreatedGuest = true;
+          registeredGuestId = gData._id;
         }
       } catch (guestErr) {
-        console.warn("Guest API registration step output:", guestErr);
+        console.warn("Guest API 1 registration note:", guestErr);
       }
 
-      // STEP 2: Create Booking via Booking API (POST /api/v1/receptionist/bookings) using resolvedGuestId
+      // STEP 2: Separate API 2 - Booking Creation (POST /api/v1/receptionist/bookings)
       const payload = {
-        guestId: resolvedGuestId,
+        guestId: registeredGuestId,
         fullName: checkInData.fullName || checkInData.guestName || "Walk-in Guest",
         mobileNumber: checkInData.mobile || checkInData.mobileNumber || checkInData.phone || "",
-        email: checkInData.email || "",
-        gender: checkInData.gender || "Male",
-        nationality: checkInData.nationality || "Indian",
-        address: checkInData.address || "",
-        city: checkInData.city || "",
-        state: checkInData.state || "",
-        country: checkInData.country || "India",
-        govtIdType: checkInData.govtIdType || "AADHAAR",
-        govtIdNumber: checkInData.govtIdNumber || "PENDING",
-        frontImage: checkInData.frontImage || checkInData.idProofImage || "",
-        backImage: checkInData.backImage || checkInData.idProofBackImage || "",
-        signature: checkInData.signature || checkInData.guestSignature || "",
-        guestSignature: checkInData.signature || checkInData.guestSignature || "",
-        reusePreviousId: checkInData.reusePreviousId !== false,
         roomId: String(checkInData.roomId || resolvedRoomIds[0] || ""),
+        roomType: checkInData.roomType || checkInData.roomTypeId || "",
         roomIds: resolvedRoomIds,
         roomNumber: resolvedRoomNumbers,
         checkInDate: checkInData.checkInDate || getTodayLocalDate(),
@@ -328,13 +324,28 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         transactionId: checkInData.transactionId || "",
         paymentReference: checkInData.paymentReference || "",
         paymentNote: `${checkInData.paymentMethod || "CASH"} settlement at check-in${secDepAmt > 0 ? ` (Includes ₹${secDepAmt} security deposit)` : ""}`,
+        signature: checkInData.signature || checkInData.guestSignature || "",
+        guestSignature: checkInData.signature || checkInData.guestSignature || "",
         isInstantCheckIn: true,
       };
 
-      const res = await apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, {
-        method: "POST",
-        body: payload,
-      });
+      let res;
+      try {
+        res = await apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, {
+          method: "POST",
+          body: payload,
+        });
+      } catch (bookingErr) {
+        // Rollback: If booking failed and we registered a new guest in Step 1, delete it so no orphan guest remains
+        if (isNewlyCreatedGuest && registeredGuestId) {
+          try {
+            await apiRequest(API_ENDPOINTS.RECEPTIONIST.DELETE_GUEST(registeredGuestId), { method: "DELETE" });
+          } catch (rollbackErr) {
+            console.warn("Rollback guest deletion failed:", rollbackErr);
+          }
+        }
+        throw bookingErr;
+      }
 
       const confirmedBooking = res?.data?.booking || res?.data || payload;
       const successMsg = payload.isInstantCheckIn
@@ -722,6 +733,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         <InHouseFoliosPage
           bookings={bookings}
           hotelSettings={hotelSettings}
+          onRefresh={fetchFrontDeskData}
           onCheckOut={handleCheckOut}
           onOpenInvoice={(b) => setInvoiceModal({ open: true, booking: b })}
           onOpenPosCharge={(b) => setPosChargeDialog({ open: true, booking: b, serviceType: "ROOM_SERVICE", amount: 850, description: "Dinner Service" })}
@@ -732,6 +744,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
       {activeNav === 3 && (
         <GuestDirectoryPage
           hotelSettings={hotelSettings}
+          onRefresh={fetchFrontDeskData}
         />
       )}
 

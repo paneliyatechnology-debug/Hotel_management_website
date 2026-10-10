@@ -80,7 +80,7 @@ export default function SubscriptionExpiredScreen({
     whatsapp: "+919876543210",
   };
 
-  const isSuspended = type === "DISABLED" || type === "SUSPENDED" || hotel.status === "DISABLED" || hotel.status === "SUSPENDED";
+  const isSuspended = type === "DISABLED" || type === "SUSPENDED" || hotel.status === "DISABLED" || hotel.status === "SUSPENDED" || user?.status === "INACTIVE" || user?.status === "BLOCKED";
   const isReceptionist = user?.role === "RECEPTIONIST";
 
   // Fetch real subscription plans from database
@@ -307,26 +307,32 @@ export default function SubscriptionExpiredScreen({
             position: "relative",
           }}
         >
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 2 }}>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2 }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
               <Avatar
                 sx={{
                   bgcolor: "rgba(255,255,255,0.2)",
                   color: "#FFFFFF",
-                  width: 58,
-                  height: 58,
-                  borderRadius: "18px",
+                  width: 54,
+                  height: 54,
+                  borderRadius: "16px",
                   boxShadow: "0 8px 20px rgba(0,0,0,0.25)",
                   backdropFilter: "blur(8px)",
                 }}
               >
-                {isSuspended ? <Lock sx={{ fontSize: 32 }} /> : <HourglassBottom sx={{ fontSize: 32 }} />}
+                {isSuspended ? <Lock sx={{ fontSize: 28 }} /> : <HourglassBottom sx={{ fontSize: 28 }} />}
               </Avatar>
 
               <Box>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5, flexWrap: "wrap" }}>
                   <Chip
-                    label={isSuspended ? "ACCOUNT ACCESS SUSPENDED" : "30-DAY FREE TRIAL ENDED"}
+                    label={
+                      user?.status === "INACTIVE" || user?.status === "BLOCKED"
+                        ? "STAFF ACCOUNT DEACTIVATED"
+                        : isSuspended
+                        ? "ACCOUNT ACCESS SUSPENDED"
+                        : "30-DAY FREE TRIAL ENDED"
+                    }
                     size="small"
                     sx={{
                       bgcolor: "rgba(255,255,255,0.2)",
@@ -343,7 +349,9 @@ export default function SubscriptionExpiredScreen({
                 </Box>
 
                 <Typography variant="h5" sx={{ fontWeight: 900, color: "#FFFFFF", letterSpacing: -0.5 }}>
-                  {isSuspended
+                  {user?.status === "INACTIVE" || user?.status === "BLOCKED"
+                    ? "Staff Account Deactivated"
+                    : isSuspended
                     ? "Hotel Account Temporarily Suspended"
                     : "Your 30-Day Free Trial Has Expired"}
                 </Typography>
@@ -351,19 +359,25 @@ export default function SubscriptionExpiredScreen({
             </Box>
 
             <Button
-              variant="outlined"
+              variant="contained"
               size="small"
-              startIcon={<Logout />}
+              startIcon={<Logout sx={{ fontSize: 16, color: "#FFFFFF" }} />}
               onClick={onLogout}
               sx={{
+                bgcolor: "rgba(0, 0, 0, 0.25)",
                 color: "#FFFFFF",
-                borderColor: "rgba(255,255,255,0.4)",
-                borderRadius: "12px",
-                fontWeight: 700,
+                fontWeight: 800,
                 fontSize: "0.78rem",
+                px: 2.2,
+                py: 0.8,
+                borderRadius: "12px",
+                backdropFilter: "blur(8px)",
+                border: "1px solid rgba(255, 255, 255, 0.35)",
+                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.2)",
                 "&:hover": {
+                  bgcolor: "rgba(0, 0, 0, 0.4)",
                   borderColor: "#FFFFFF",
-                  bgcolor: "rgba(255,255,255,0.15)",
+                  transform: "translateY(-1px)",
                 },
               }}
             >

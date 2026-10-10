@@ -197,8 +197,16 @@ export default function CheckInWizardPage({
     }
 
     return rooms.filter((r) => {
-      // Exclude rooms under maintenance or blocked
-      if (r.status === "MAINTENANCE" || r.status === "BLOCKED" || r.status === "OUT_OF_ORDER" || r.isActive === false) {
+      // Exclude occupied, maintenance, blocked, inactive, or unavailable rooms
+      if (
+        r.status === "OCCUPIED" ||
+        r.status === "MAINTENANCE" ||
+        r.status === "BLOCKED" ||
+        r.status === "OUT_OF_ORDER" ||
+        r.isActive === false ||
+        r.isAvailable === false ||
+        r.isAvailableForDates === false
+      ) {
         return false;
       }
 
@@ -478,14 +486,46 @@ export default function CheckInWizardPage({
       if (matched.length > 0) return matched;
     }
 
-    // 3. Match by room number strings
+    // 3. Match by room number strings (filtered by target category if specified)
     const rawNumbers = checkInData.selectedRoomNumbers || (checkInData.roomNumber ? String(checkInData.roomNumber).split(",").map((s) => s.trim()) : []);
     if (rawNumbers.length > 0) {
-      const matched = rooms.filter((r) => rawNumbers.includes(String(r.roomNumber)));
+      const reqCategory = checkInData.roomTypeId || checkInData.roomType;
+      let matched = rooms.filter((r) => {
+        const numMatch = rawNumbers.includes(String(r.roomNumber));
+        if (!numMatch) return false;
+        if (!reqCategory) return true;
+        const rt = getRoomTypeObj(r);
+        return (
+          String(r.roomType) === String(reqCategory) ||
+          String(rt?._id) === String(reqCategory) ||
+          (rt?.name && rt.name.toLowerCase() === String(reqCategory).toLowerCase()) ||
+          (r.category && r.category.toLowerCase() === String(reqCategory).toLowerCase())
+        );
+      });
+      // Prefer AVAILABLE rooms over OCCUPIED rooms when multiple rooms share same number across categories
+      if (matched.length > 1) {
+        const availMatched = matched.filter((r) => r.status === "AVAILABLE");
+        if (availMatched.length > 0) matched = availMatched;
+      }
       if (matched.length > 0) return matched;
     }
 
-    // 4. Fallback only if no room was selected
+    // 4. Match by selected category (roomType / roomTypeId)
+    const reqCategory = checkInData.roomTypeId || checkInData.roomType;
+    if (reqCategory) {
+      const categoryRooms = availableRooms.filter((r) => {
+        const rt = getRoomTypeObj(r);
+        return (
+          String(r.roomType) === String(reqCategory) ||
+          String(rt?._id) === String(reqCategory) ||
+          (rt?.name && rt.name.toLowerCase() === String(reqCategory).toLowerCase()) ||
+          (r.category && r.category.toLowerCase() === String(reqCategory).toLowerCase())
+        );
+      });
+      if (categoryRooms.length > 0) return [categoryRooms[0]];
+    }
+
+    // 5. Fallback only if no specific room or category matched
     if (availableRooms.length > 0) return [availableRooms[0]];
     if (rooms.length > 0) return [rooms[0]];
     return [];
@@ -502,8 +542,9 @@ export default function CheckInWizardPage({
       Number(rt?.capacity?.adults) ||
       Number(rt?.maxCapacity) ||
       0;
-    if (explicitCap > 0) return explicitCap;
-    return calculateRoomCapacity(room).standardCapacity || 2;
+    const baseCap = explicitCap > 0 ? explicitCap : (calculateRoomCapacity(room).standardCapacity || 2);
+    // Allow extra guest buffer (+2 per room, minimum 4 guests per room) so 2+ accompanying members can be added
+    return Math.max(baseCap + 2, 4);
   };
 
   // Current active / targeted room among selected rooms (identified by unique _id)
@@ -599,6 +640,8 @@ export default function CheckInWizardPage({
     const targetRoom = rooms.find((r) => String(r._id) === String(roomIdToSet));
     if (!targetRoom) return;
     const catName = getRoomCategoryName(targetRoom);
+    const catObj = getRoomTypeObj(targetRoom);
+    const catId = catObj?._id || (typeof targetRoom.roomType === "string" ? targetRoom.roomType : "");
     const tariff = getRoomTariff(targetRoom);
     const n = checkInData.numberOfNights || 1;
     const baseTot = tariff * n;
@@ -614,6 +657,7 @@ export default function CheckInWizardPage({
       selectedRoomNumbers: [String(targetRoom.roomNumber)],
       activeRoomId: String(targetRoom._id),
       roomType: catName,
+      roomTypeId: catId,
       floor: targetRoom.floor || 1,
       rate: tariff,
       discountAmount: disc,
@@ -1128,6 +1172,9 @@ export default function CheckInWizardPage({
 
     const combinedRate = newSelectedRooms.reduce((sum, r) => sum + getRoomTariff(r), 0);
 
+    const primaryRoomTypeObj = primaryRoom ? getRoomTypeObj(primaryRoom) : null;
+    const primaryRoomTypeId = primaryRoomTypeObj?._id || (typeof primaryRoom?.roomType === 'string' ? primaryRoom.roomType : "");
+
     setCheckInData((prev) => ({
       ...prev,
       roomId: primaryRoom ? String(primaryRoom._id) : "",
@@ -1136,6 +1183,7 @@ export default function CheckInWizardPage({
       selectedRooms: newSelectedRooms,
       selectedRoomNumbers: newRoomNumbers,
       roomType: primaryCat,
+      roomTypeId: primaryRoomTypeId,
       floor: primaryRoom?.floor || 1,
       rate: combinedRate,
       isPaidManuallyEdited: false,
@@ -1154,6 +1202,8 @@ export default function CheckInWizardPage({
     const newRoomNumbers = newSelectedRooms.map((r) => String(r.roomNumber));
     const primaryRoom = newSelectedRooms[0];
     const primaryCat = getRoomCategoryName(primaryRoom);
+    const primaryRoomTypeObj = primaryRoom ? getRoomTypeObj(primaryRoom) : null;
+    const primaryRoomTypeId = primaryRoomTypeObj?._id || (typeof primaryRoom?.roomType === 'string' ? primaryRoom.roomType : "");
 
     const combinedRate = newSelectedRooms.reduce((sum, r) => sum + getRoomTariff(r), 0);
 
@@ -1165,6 +1215,7 @@ export default function CheckInWizardPage({
       selectedRooms: newSelectedRooms,
       selectedRoomNumbers: newRoomNumbers,
       roomType: primaryCat,
+      roomTypeId: primaryRoomTypeId,
       floor: primaryRoom?.floor || 1,
       rate: combinedRate,
       isPaidManuallyEdited: false,
@@ -1181,6 +1232,8 @@ export default function CheckInWizardPage({
     const newRoomNumbers = newSelectedRooms.map((r) => String(r.roomNumber));
     const primaryRoom = newSelectedRooms[0];
     const primaryCat = getRoomCategoryName(primaryRoom);
+    const primaryRoomTypeObj = primaryRoom ? getRoomTypeObj(primaryRoom) : null;
+    const primaryRoomTypeId = primaryRoomTypeObj?._id || (typeof primaryRoom?.roomType === 'string' ? primaryRoom.roomType : "");
 
     const combinedRate = newSelectedRooms.reduce((sum, r) => sum + getRoomTariff(r), 0);
 
@@ -1192,6 +1245,7 @@ export default function CheckInWizardPage({
       selectedRooms: newSelectedRooms,
       selectedRoomNumbers: newRoomNumbers,
       roomType: primaryCat,
+      roomTypeId: primaryRoomTypeId,
       floor: primaryRoom?.floor || 1,
       rate: combinedRate,
       isPaidManuallyEdited: false,
@@ -1865,19 +1919,20 @@ export default function CheckInWizardPage({
                   </Box>
                 </Box>
 
-                {/* Direct Image Gallery Grid (Without Outer Member Card Boxes) */}
+                {/* Member Document Cards Grid (Front & Back Photos Display) */}
                 {checkInData.accompanyingGuests && checkInData.accompanyingGuests.length > 0 ? (
-                  <Grid container spacing={1.5}>
+                  <Grid container spacing={2}>
                     {checkInData.accompanyingGuests.map((member, index) => {
-                      const imgSrc = member.frontImage || (member.images && member.images[0]) || "";
+                      const frontImg = member.frontImage || (member.images && member.images[0]) || "";
+                      const backImg = member.backImage || (member.images && member.images[1]) || "";
+
                       return (
-                        <Grid key={member.id || index} size={{ xs: 6, sm: 4, md: 3 }}>
+                        <Grid key={member.id || index} size={{ xs: 12, sm: 6, md: 4 }}>
                           <Paper
                             className="card-3d"
                             sx={{
-                              position: "relative",
-                              borderRadius: "12px",
-                              overflow: "hidden",
+                              p: 1.5,
+                              borderRadius: "14px",
                               border: "1.5px solid #10B981",
                               bgcolor: "#FFFFFF",
                               boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
@@ -1885,57 +1940,60 @@ export default function CheckInWizardPage({
                               "&:hover": { transform: "translateY(-2px)", boxShadow: "0 6px 16px rgba(16, 185, 129, 0.2)" },
                             }}
                           >
-                            {/* Image Preview */}
-                            <Box sx={{ width: "100%", height: 110, bgcolor: "#F8FAFC", position: "relative" }}>
-                              {imgSrc ? (
-                                <Box
-                                  component="img"
-                                  src={imgSrc}
-                                  alt={`Member Document #${index + 1}`}
-                                  sx={{ width: "100%", height: "100%", objectFit: "cover" }}
-                                />
-                              ) : (
-                                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-                                  <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>No Preview</Typography>
-                                </Box>
-                              )}
-
-                              {/* Delete Button at top right */}
+                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                              <Chip
+                                label={`Member #${index + 1}`}
+                                size="small"
+                                sx={{ fontWeight: 900, bgcolor: "rgba(16, 185, 129, 0.12)", color: "#059669" }}
+                              />
                               <IconButton
                                 size="small"
                                 onClick={() => handleRemoveSingleMemberDoc(member.id)}
-                                sx={{
-                                  position: "absolute",
-                                  top: 5,
-                                  right: 5,
-                                  bgcolor: "rgba(239, 68, 68, 0.92)",
-                                  color: "#FFFFFF",
-                                  p: 0.4,
-                                  boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
-                                  "&:hover": { bgcolor: "#DC2626", transform: "scale(1.1)" },
-                                }}
+                                sx={{ color: "#EF4444", p: 0.5, "&:hover": { bgcolor: "rgba(239,68,68,0.1)" } }}
                               >
-                                <Close sx={{ fontSize: 15 }} />
+                                <Close sx={{ fontSize: 16 }} />
                               </IconButton>
-
-                              {/* Document Badge at bottom left */}
-                              <Chip
-                                label={`Doc #${index + 1}`}
-                                size="small"
-                                sx={{
-                                  position: "absolute",
-                                  bottom: 6,
-                                  left: 6,
-                                  bgcolor: "rgba(16, 185, 129, 0.92)",
-                                  color: "#FFFFFF",
-                                  fontWeight: 900,
-                                  fontSize: "0.68rem",
-                                  height: 20,
-                                  px: 0.5,
-                                  boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
-                                }}
-                              />
                             </Box>
+
+                            <Grid container spacing={1}>
+                              {/* Front Photo Box */}
+                              <Grid size={6}>
+                                <Box sx={{ width: "100%", height: 85, bgcolor: "#F8FAFC", borderRadius: "8px", overflow: "hidden", position: "relative", border: "1px solid #CBD5E1" }}>
+                                  {frontImg ? (
+                                    <Box
+                                      component="img"
+                                      src={frontImg}
+                                      alt={`Member #${index + 1} Front ID`}
+                                      sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                    />
+                                  ) : (
+                                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+                                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.68rem" }}>Front ID</Typography>
+                                    </Box>
+                                  )}
+                                  <Chip label="Front 📸" size="small" sx={{ position: "absolute", bottom: 3, left: 3, bgcolor: "rgba(15,23,42,0.82)", color: "#FFF", fontSize: "0.58rem", height: 16, px: 0.2 }} />
+                                </Box>
+                              </Grid>
+
+                              {/* Back Photo Box */}
+                              <Grid size={6}>
+                                <Box sx={{ width: "100%", height: 85, bgcolor: "#F8FAFC", borderRadius: "8px", overflow: "hidden", position: "relative", border: "1px solid #CBD5E1" }}>
+                                  {backImg ? (
+                                    <Box
+                                      component="img"
+                                      src={backImg}
+                                      alt={`Member #${index + 1} Back ID`}
+                                      sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                    />
+                                  ) : (
+                                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+                                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.68rem" }}>Back ID</Typography>
+                                    </Box>
+                                  )}
+                                  <Chip label="Back 📸" size="small" sx={{ position: "absolute", bottom: 3, left: 3, bgcolor: "rgba(15,23,42,0.82)", color: "#FFF", fontSize: "0.58rem", height: 16, px: 0.2 }} />
+                                </Box>
+                              </Grid>
+                            </Grid>
                           </Paper>
                         </Grid>
                       );
@@ -1968,7 +2026,9 @@ export default function CheckInWizardPage({
                   Guest Digital Signature
                 </Typography>
                 <DigitalSignaturePad
+                  value={checkInData.signature}
                   signature={checkInData.signature}
+                  onChange={(sig) => setCheckInData((prev) => ({ ...prev, signature: sig }))}
                   onSave={(sig) => setCheckInData((prev) => ({ ...prev, signature: sig }))}
                   onClear={() => setCheckInData((prev) => ({ ...prev, signature: "" }))}
                 />

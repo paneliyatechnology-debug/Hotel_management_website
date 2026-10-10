@@ -1897,9 +1897,22 @@ export function downloadGuestFolioPDF(data = {}, hotel = {}) {
     guest.signature ||
     guest.signatureUrl ||
     guest.guestSignature ||
+    guest.idProof?.signature ||
+    guest.idProof?.signatureUrl ||
+    guest.idProof?.guestSignature ||
     booking.guestSignature ||
     booking.signature ||
+    booking.signatureUrl ||
+    booking.idProof?.signature ||
+    booking.idProof?.signatureUrl ||
+    booking.idProof?.guestSignature ||
+    booking.guest?.signature ||
+    booking.guest?.signatureUrl ||
+    booking.guest?.guestSignature ||
+    booking.guest?.idProof?.signature ||
     data.signature ||
+    data.guestSignature ||
+    data.signatureUrl ||
     null;
 
   // Check if any actual ID images exist

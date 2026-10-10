@@ -765,7 +765,7 @@ export default function CheckInWizardPage({
 
     const newDocItems = newPreviews.map((imgSrc, idx) => ({
       id: Date.now() + Math.random() + idx,
-      name: `Document #${(checkInData.accompanyingGuests?.length || 0) + idx + 1}`,
+      name: "",
       frontImage: imgSrc,
       backImage: "",
       images: [imgSrc],

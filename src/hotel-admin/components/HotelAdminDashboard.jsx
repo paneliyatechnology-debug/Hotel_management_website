@@ -395,28 +395,43 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       return;
     }
 
-    // 🔓 Unlimited Rooms Allowed in Free Trial
-
     try {
-      const payload = {
-        roomNumber: roomModal.data.roomNumber,
-        roomType: roomModal.data.roomType,
-        floor: Number(roomModal.data.floor) || 1,
-        seatingCapacity: Number(roomModal.data.seatingCapacity) || 2,
-        bedCount: Number(roomModal.data.bedCount) || 1,
-        bedType: roomModal.data.bedType || "1 King Size Bed",
-        customPricePerNight: roomModal.data.customPricePerNight ? Number(roomModal.data.customPricePerNight) : undefined,
-        status: roomModal.data.status || "AVAILABLE",
-        notes: roomModal.data.notes || "",
-        amenities: roomModal.data.amenities || [],
-        gstEnabled: roomModal.data.gstEnabled !== false,
-        gstRate: Number(roomModal.data.gstRate) || 0,
-        cgstRate: Number(roomModal.data.cgstRate) || (Number(roomModal.data.gstRate) || 0) / 2,
-        sgstRate: Number(roomModal.data.sgstRate) || (Number(roomModal.data.gstRate) || 0) / 2,
-        taxInclusive: Boolean(roomModal.data.taxInclusive),
-      };
+      const rawInput = String(roomModal.data.roomNumber).trim();
+      let roomNumbersList = [];
+
+      if (rawInput.includes(",")) {
+        roomNumbersList = rawInput.split(",").map((s) => s.trim()).filter(Boolean);
+      } else if (rawInput.includes("-")) {
+        const parts = rawInput.split("-").map((s) => parseInt(s.trim(), 10));
+        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1]) && parts[1] >= parts[0]) {
+          for (let num = parts[0]; num <= parts[1]; num++) {
+            roomNumbersList.push(String(num));
+          }
+        } else {
+          roomNumbersList = [rawInput];
+        }
+      } else {
+        roomNumbersList = [rawInput];
+      }
 
       if (roomModal.mode === "EDIT" && roomModal.data._id) {
+        const payload = {
+          roomNumber: roomNumbersList[0] || rawInput,
+          roomType: roomModal.data.roomType,
+          floor: Number(roomModal.data.floor) || 1,
+          seatingCapacity: Number(roomModal.data.seatingCapacity) || 2,
+          bedCount: Number(roomModal.data.bedCount) || 1,
+          bedType: roomModal.data.bedType || "1 King Size Bed",
+          customPricePerNight: roomModal.data.customPricePerNight ? Number(roomModal.data.customPricePerNight) : undefined,
+          status: roomModal.data.status || "AVAILABLE",
+          notes: roomModal.data.notes || "",
+          amenities: roomModal.data.amenities || [],
+          gstEnabled: roomModal.data.gstEnabled !== false,
+          gstRate: Number(roomModal.data.gstRate) || 0,
+          cgstRate: Number(roomModal.data.cgstRate) || (Number(roomModal.data.gstRate) || 0) / 2,
+          sgstRate: Number(roomModal.data.sgstRate) || (Number(roomModal.data.gstRate) || 0) / 2,
+          taxInclusive: Boolean(roomModal.data.taxInclusive),
+        };
         const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.UPDATE_ROOM(roomModal.data._id), {
           method: "PUT",
           body: payload,
@@ -426,13 +441,51 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
           showToast(`Room ${res.data.roomNumber} updated successfully!`);
         }
       } else {
-        const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS, {
-          method: "POST",
-          body: payload,
-        });
-        if (res.data) {
-          setRooms([res.data, ...rooms]);
-          showToast(`Room ${res.data.roomNumber} created successfully!`);
+        const createdRooms = [];
+        const errors = [];
+
+        for (const numStr of roomNumbersList) {
+          const payload = {
+            roomNumber: numStr,
+            roomType: roomModal.data.roomType,
+            floor: Number(roomModal.data.floor) || 1,
+            seatingCapacity: Number(roomModal.data.seatingCapacity) || 2,
+            bedCount: Number(roomModal.data.bedCount) || 1,
+            bedType: roomModal.data.bedType || "1 King Size Bed",
+            customPricePerNight: roomModal.data.customPricePerNight ? Number(roomModal.data.customPricePerNight) : undefined,
+            status: roomModal.data.status || "AVAILABLE",
+            notes: roomModal.data.notes || "",
+            amenities: roomModal.data.amenities || [],
+            gstEnabled: roomModal.data.gstEnabled !== false,
+            gstRate: Number(roomModal.data.gstRate) || 0,
+            cgstRate: Number(roomModal.data.cgstRate) || (Number(roomModal.data.gstRate) || 0) / 2,
+            sgstRate: Number(roomModal.data.sgstRate) || (Number(roomModal.data.gstRate) || 0) / 2,
+            taxInclusive: Boolean(roomModal.data.taxInclusive),
+          };
+
+          try {
+            const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS, {
+              method: "POST",
+              body: payload,
+            });
+            if (res.data) {
+              createdRooms.push(res.data);
+            }
+          } catch (err) {
+            errors.push(`Room ${numStr}: ${err.message || "Failed"}`);
+          }
+        }
+
+        if (createdRooms.length > 0) {
+          setRooms((prev) => [...createdRooms, ...prev]);
+          if (createdRooms.length === 1) {
+            showToast(`Room ${createdRooms[0].roomNumber} created successfully!`);
+          } else {
+            showToast(`Successfully created ${createdRooms.length} rooms (${createdRooms.map((r) => r.roomNumber).join(", ")})!`);
+          }
+        }
+        if (errors.length > 0) {
+          showToast(errors.join(" | "), "error");
         }
       }
       setRoomModal({ open: false, mode: "ADD", data: getInitialRoomForm() });

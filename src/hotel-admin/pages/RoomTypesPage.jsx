@@ -350,11 +350,6 @@ export default function RoomTypesPage({
 
   // Helper to open Add Room modal with preselected Category
   const handleOpenAddRoomForCategory = (category) => {
-    if (isTrial && rooms.length >= 5) {
-      setTrialLimitModalOpen(true);
-      return;
-    }
-
     const catId = category?._id || roomTypes[0]?._id || "";
     const catAmenities = category?.amenities?.length
       ? [...category.amenities]
@@ -1996,7 +1991,7 @@ export default function RoomTypesPage({
               {/* Room Number */}
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                  Room Number *
+                  Room Number(s) * (Single, Comma or Range)
                 </Typography>
                 <TextField
                   fullWidth
@@ -2004,7 +1999,8 @@ export default function RoomTypesPage({
                   required
                   value={roomModal.data?.roomNumber || ""}
                   onChange={(e) => setRoomModal({ ...roomModal, data: { ...roomModal.data, roomNumber: e.target.value } })}
-                  placeholder="e.g. 101, 204, Suite-A"
+                  placeholder="e.g. 101 OR 101, 102, 103 OR 101-105"
+                  helperText="Enter single (101), multiple (101, 102, 103), or range (101-105) for bulk creation"
                   sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
                 />
               </Grid>

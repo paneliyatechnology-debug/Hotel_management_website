@@ -554,15 +554,33 @@ export default function GuestDetailsModal({
                               guest?.signature ||
                               guest?.signatureUrl ||
                               guest?.guestSignature ||
+                              guest?.idProof?.signature ||
+                              guest?.idProof?.signatureUrl ||
+                              guest?.idProof?.guestSignature ||
+                              guest?.booking?.signature ||
+                              guest?.booking?.guestSignature ||
                               activeBooking?.guestSignature ||
                               activeBooking?.signature ||
+                              activeBooking?.signatureUrl ||
+                              activeBooking?.idProof?.signature ||
+                              activeBooking?.idProof?.signatureUrl ||
+                              activeBooking?.guest?.signature ||
+                              activeBooking?.guest?.guestSignature ||
+                              activeBooking?.guest?.idProof?.signature ||
                               guestData?.signature ||
                               guestData?.guestSignature ||
+                              guestData?.signatureUrl ||
+                              guestData?.idProof?.signature ||
                               guestData?.guest?.signature ||
+                              guestData?.guest?.guestSignature ||
+                              guestData?.guest?.idProof?.signature ||
                               guestData?.booking?.guestSignature ||
                               guestData?.booking?.signature ||
+                              guestData?.booking?.guest?.signature ||
+                              guestData?.booking?.guest?.idProof?.signature ||
                               guestData?.activeBooking?.guestSignature ||
                               guestData?.activeBooking?.signature ||
+                              guestData?.activeBooking?.guest?.signature ||
                               null;
 
                             return (
@@ -637,156 +655,141 @@ export default function GuestDetailsModal({
                     })()}
                   </Paper>
 
-                  {/* Accompanying Members if any */}
-                  {accompanyingGuests && accompanyingGuests.length > 0 && (
-                    <Paper sx={{ p: 2.5, borderRadius: "16px", border: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#FFFFFF" }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
-                        <Group sx={{ fontSize: 18, color: themeConfig.primary }} />
-                        Accompanying Members ({accompanyingGuests.length})
-                      </Typography>
+                  {/* Accompanying Members / Document Photos */}
+                  {accompanyingGuests && accompanyingGuests.length > 0 && (() => {
+                    const allMemberDocs = [];
+                    accompanyingGuests.forEach((m, i) => {
+                      const rawName = m.name || m.fullName || "";
+                      const hasRealName = rawName && !rawName.startsWith("Document #") && !rawName.startsWith("Member #");
+                      const cleanName = sanitizeFilename(hasRealName ? rawName : `Member_${i + 1}`);
 
-                      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        {accompanyingGuests.map((m, i) => {
-                          const mName = m.name || m.fullName || `Member ${i + 1}`;
-                          const cleanMName = sanitizeFilename(mName);
-
-                          // Extract all document images for this member
-                          const memberDocs = [];
-
-                          if (Array.isArray(m.images) && m.images.length > 0) {
-                            m.images.forEach((imgSrc, imgIdx) => {
-                              if (imgSrc) {
-                                memberDocs.push({
-                                  id: `img_${imgIdx}`,
-                                  label: `${mName} - Photo ${imgIdx + 1}`,
-                                  src: imgSrc,
-                                  filename: `${cleanMName}_Doc_${imgIdx + 1}`,
-                                });
-                              }
+                      if (Array.isArray(m.images) && m.images.length > 0) {
+                        m.images.forEach((imgSrc, imgIdx) => {
+                          if (imgSrc && !allMemberDocs.some((d) => d.src === imgSrc)) {
+                            allMemberDocs.push({
+                              id: `img_${i}_${imgIdx}`,
+                              label: hasRealName ? `${rawName} (${imgIdx + 1})` : `Document #${allMemberDocs.length + 1}`,
+                              src: imgSrc,
+                              filename: `${cleanName}_Doc_${imgIdx + 1}`,
                             });
                           }
+                        });
+                      }
 
-                          const mFront = m.frontImage || m.frontImageUrl || m.idProofImage || m.idProof?.frontImage || m.idProof?.frontImageUrl;
-                          if (mFront && !memberDocs.some((d) => d.src === mFront)) {
-                            memberDocs.push({
-                              id: "front",
-                              label: `${mName} - Front ID`,
-                              src: mFront,
-                              filename: `${cleanMName}_Front_ID`,
-                            });
-                          }
+                      const mFront = m.frontImage || m.frontImageUrl || m.idProofImage || m.idProof?.frontImage || m.idProof?.frontImageUrl;
+                      if (mFront && !allMemberDocs.some((d) => d.src === mFront)) {
+                        allMemberDocs.push({
+                          id: `front_${i}`,
+                          label: hasRealName ? `${rawName} - Front` : `Document #${allMemberDocs.length + 1}`,
+                          src: mFront,
+                          filename: `${cleanName}_Front_ID`,
+                        });
+                      }
 
-                          const mBack = m.backImage || m.backImageUrl || m.idProofBackImage || m.idProof?.backImage || m.idProof?.backImageUrl;
-                          if (mBack && !memberDocs.some((d) => d.src === mBack)) {
-                            memberDocs.push({
-                              id: "back",
-                              label: `${mName} - Back ID`,
-                              src: mBack,
-                              filename: `${cleanMName}_Back_ID`,
-                            });
-                          }
+                      const mBack = m.backImage || m.backImageUrl || m.idProofBackImage || m.idProof?.backImage || m.idProof?.backImageUrl;
+                      if (mBack && !allMemberDocs.some((d) => d.src === mBack)) {
+                        allMemberDocs.push({
+                          id: `back_${i}`,
+                          label: hasRealName ? `${rawName} - Back` : `Document #${allMemberDocs.length + 1}`,
+                          src: mBack,
+                          filename: `${cleanName}_Back_ID`,
+                        });
+                      }
 
-                          if (typeof m === "string" && (m.startsWith("data:image") || m.startsWith("http"))) {
-                            memberDocs.push({
-                              id: "direct_str",
-                              label: `Member ${i + 1} ID Photo`,
-                              src: m,
-                              filename: `Member_${i + 1}_Photo`,
-                            });
-                          }
+                      if (typeof m === "string" && (m.startsWith("data:image") || m.startsWith("http")) && !allMemberDocs.some((d) => d.src === m)) {
+                        allMemberDocs.push({
+                          id: `str_${i}`,
+                          label: `Document #${allMemberDocs.length + 1}`,
+                          src: m,
+                          filename: `Member_${i + 1}_Photo`,
+                        });
+                      }
+                    });
 
-                          return (
-                            <Paper
-                              key={m.id || i}
-                              sx={{
-                                p: 2,
-                                borderRadius: "14px",
-                                border: `1px solid ${themeConfig.border}`,
-                                bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#F8FAFC",
-                              }}
-                            >
-                              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
-                                👤 {i + 1}. {mName} {m.relationship ? `(${m.relationship})` : ""}
-                              </Typography>
+                    if (allMemberDocs.length === 0) return null;
 
-                              {memberDocs.length > 0 ? (
-                                <Grid container spacing={2}>
-                                  {memberDocs.map((doc) => (
-                                    <Grid key={doc.id} size={{ xs: 12, sm: 6, md: 4 }}>
-                                      <Paper
-                                        sx={{
-                                          p: 1.5,
-                                          borderRadius: "12px",
-                                          border: `1px solid ${themeConfig.border}`,
-                                          textAlign: "center",
-                                          bgcolor: isDarkMode ? "rgba(0,0,0,0.2)" : "#FFFFFF",
-                                        }}
-                                      >
-                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1, gap: 1 }}>
-                                          <Typography
-                                            variant="caption"
-                                            sx={{
-                                              fontWeight: 800,
-                                              color: themeConfig.textMain,
-                                              overflow: "hidden",
-                                              textOverflow: "ellipsis",
-                                              whiteSpace: "nowrap",
-                                            }}
-                                          >
-                                            📄 {doc.label}
-                                          </Typography>
-                                          <Chip
-                                            icon={<FileDownload sx={{ fontSize: "14px !important" }} />}
-                                            label="Download"
-                                            size="small"
-                                            clickable
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              downloadSingleImage(doc.src, doc.filename);
-                                            }}
-                                            sx={{
-                                              height: 20,
-                                              fontSize: "0.68rem",
-                                              fontWeight: 800,
-                                              bgcolor: "rgba(11, 142, 224, 0.1)",
-                                              color: "#0B8EE0",
-                                              "&:hover": { bgcolor: "rgba(11, 142, 224, 0.2)" },
-                                              flexShrink: 0,
-                                            }}
-                                          />
-                                        </Box>
-                                        <Box
-                                          component="img"
-                                          src={doc.src}
-                                          alt={doc.label}
-                                          onClick={() => setPreviewImage(doc.src)}
-                                          sx={{
-                                            width: "100%",
-                                            height: 140,
-                                            objectFit: "contain",
-                                            bgcolor: isDarkMode ? "rgba(0,0,0,0.25)" : "#F8FAFC",
-                                            border: `1px solid ${themeConfig.border}`,
-                                            borderRadius: "8px",
-                                            cursor: "pointer",
-                                            transition: "transform 0.2s, box-shadow 0.2s",
-                                            "&:hover": { transform: "scale(1.02)", opacity: 0.95, boxShadow: "0 6px 16px rgba(0,0,0,0.15)" },
-                                          }}
-                                        />
-                                      </Paper>
-                                    </Grid>
-                                  ))}
-                                </Grid>
-                              ) : (
-                                <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontStyle: "italic" }}>
-                                  No document photos uploaded for this member.
-                                </Typography>
-                              )}
-                            </Paper>
-                          );
-                        })}
-                      </Box>
-                    </Paper>
-                  )}
+                    return (
+                      <Paper sx={{ p: 2, borderRadius: "16px", border: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#FFFFFF" }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                          <Group sx={{ fontSize: 18, color: themeConfig.primary }} />
+                          Accompanying Guest Photos ({allMemberDocs.length})
+                        </Typography>
+
+                        {/* 4 Cards Per Row Grid */}
+                        <Grid container spacing={1.5}>
+                          {allMemberDocs.map((doc) => (
+                            <Grid key={doc.id} size={{ xs: 12, sm: 6, md: 3 }}>
+                              <Paper
+                                sx={{
+                                  p: 1.2,
+                                  borderRadius: "12px",
+                                  border: `1px solid ${themeConfig.border}`,
+                                  bgcolor: isDarkMode ? "rgba(0,0,0,0.2)" : "#F8FAFC",
+                                  textAlign: "center",
+                                  transition: "all 0.2s ease",
+                                  "&:hover": { borderColor: themeConfig.primary, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" },
+                                }}
+                              >
+                                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1, gap: 0.5 }}>
+                                  <Typography
+                                    variant="caption"
+                                    sx={{
+                                      fontWeight: 800,
+                                      color: themeConfig.textMain,
+                                      fontSize: "0.72rem",
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    📄 {doc.label}
+                                  </Typography>
+                                  <Chip
+                                    icon={<FileDownload sx={{ fontSize: "12px !important" }} />}
+                                    label="Download"
+                                    size="small"
+                                    clickable
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      downloadSingleImage(doc.src, doc.filename);
+                                    }}
+                                    sx={{
+                                      height: 18,
+                                      fontSize: "0.62rem",
+                                      fontWeight: 800,
+                                      bgcolor: "rgba(11, 142, 224, 0.1)",
+                                      color: "#0B8EE0",
+                                      "&:hover": { bgcolor: "rgba(11, 142, 224, 0.2)" },
+                                      flexShrink: 0,
+                                      px: 0.5,
+                                    }}
+                                  />
+                                </Box>
+
+                                <Box
+                                  component="img"
+                                  src={doc.src}
+                                  alt={doc.label}
+                                  onClick={() => setPreviewImage(doc.src)}
+                                  sx={{
+                                    width: "100%",
+                                    height: 120,
+                                    objectFit: "cover",
+                                    bgcolor: isDarkMode ? "rgba(0,0,0,0.25)" : "#FFFFFF",
+                                    border: `1px solid ${themeConfig.border}`,
+                                    borderRadius: "8px",
+                                    cursor: "pointer",
+                                    transition: "transform 0.2s, opacity 0.2s",
+                                    "&:hover": { transform: "scale(1.03)", opacity: 0.95 },
+                                  }}
+                                />
+                              </Paper>
+                            </Grid>
+                          ))}
+                        </Grid>
+                      </Paper>
+                    );
+                  })()}
                 </Box>
               )}
 

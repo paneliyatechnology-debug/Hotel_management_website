@@ -259,8 +259,42 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
 
       const secDepAmt = checkInData.collectSecurityDeposit ? (Number(checkInData.securityDepositAmount) || 1000) : 0;
 
+      // STEP 1: Register / Update Guest via Guest API (POST /api/v1/receptionist/guests)
+      let resolvedGuestId = checkInData.guestId;
+      const guestPayload = {
+        fullName: checkInData.fullName || checkInData.guestName || "Walk-in Guest",
+        mobileNumber: checkInData.mobile || checkInData.mobileNumber || checkInData.phone || "",
+        email: checkInData.email || "",
+        gender: checkInData.gender || "Male",
+        nationality: checkInData.nationality || "Indian",
+        address: checkInData.address || "",
+        city: checkInData.city || "",
+        state: checkInData.state || "",
+        country: checkInData.country || "India",
+        idType: checkInData.govtIdType || "AADHAAR",
+        govtIdType: checkInData.govtIdType || "AADHAAR",
+        idNumber: checkInData.govtIdNumber || "PENDING",
+        govtIdNumber: checkInData.govtIdNumber || "PENDING",
+        frontImage: checkInData.frontImage || checkInData.idProofImage || "",
+        backImage: checkInData.backImage || checkInData.idProofBackImage || "",
+        signature: checkInData.signature || checkInData.guestSignature || "",
+      };
+
+      try {
+        const guestRes = await apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS, {
+          method: "POST",
+          body: guestPayload,
+        });
+        if (guestRes?.data?._id || guestRes?.data?.guest?._id) {
+          resolvedGuestId = guestRes?.data?._id || guestRes?.data?.guest?._id;
+        }
+      } catch (guestErr) {
+        console.warn("Guest API registration step output:", guestErr);
+      }
+
+      // STEP 2: Create Booking via Booking API (POST /api/v1/receptionist/bookings) using resolvedGuestId
       const payload = {
-        guestId: checkInData.guestId,
+        guestId: resolvedGuestId,
         fullName: checkInData.fullName || checkInData.guestName || "Walk-in Guest",
         mobileNumber: checkInData.mobile || checkInData.mobileNumber || checkInData.phone || "",
         email: checkInData.email || "",
@@ -294,7 +328,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         transactionId: checkInData.transactionId || "",
         paymentReference: checkInData.paymentReference || "",
         paymentNote: `${checkInData.paymentMethod || "CASH"} settlement at check-in${secDepAmt > 0 ? ` (Includes ₹${secDepAmt} security deposit)` : ""}`,
-        isInstantCheckIn: (checkInData.checkInDate || getTodayLocalDate()) <= getTodayLocalDate(),
+        isInstantCheckIn: true,
       };
 
       const res = await apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, {
@@ -448,8 +482,14 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
 
   const handleSelectRoomForCheckIn = (roomOrRooms) => {
     if (!roomOrRooms) return;
-    const roomsArr = Array.isArray(roomOrRooms) ? roomOrRooms : [roomOrRooms];
+    let roomsArr = Array.isArray(roomOrRooms) ? roomOrRooms : [roomOrRooms];
     if (roomsArr.length === 0) return;
+
+    // Filter out any rooms that are already occupied, cleaning, or under maintenance
+    const trulyAvailable = roomsArr.filter((r) => r && (r.status === "AVAILABLE" || !r.status));
+    if (trulyAvailable.length > 0) {
+      roomsArr = trulyAvailable;
+    }
 
     const firstRoom = roomsArr[0];
     const totalTariff = roomsArr.reduce((sum, r) => {

@@ -26,7 +26,6 @@ import { Download, Print, WhatsApp, CheckCircle, FileDownload } from "@/shared/i
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { toast } from "@/shared/utils/toast";
-import { downloadTaxInvoicePDF, downloadGuestFolioPDF } from "@/shared/utils/pdfGenerator";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
 import { calculateOverstayFee, formatTime12Hour } from "@/shared/utils/timeUtils";
 import SettingsView from "@/shared/components/SettingsView";
@@ -159,47 +158,49 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
     }
     try {
       const endpointsToFetch = [];
+      const skipCache = { skipCache: true };
 
       if (forceRefresh) {
         // When forceRefresh is true (e.g. check-in, check-out, socket events),
         // fetch ALL key datasets at once so every view/tab stays 100% live in real-time!
         endpointsToFetch.push(
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD).then((res) => res?.data && setDashboardData(res.data)),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.AVAILABLE_ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || [])),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || []))
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD, skipCache).then((res) => res?.data && setDashboardData(res.data)),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOMS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES, skipCache).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || [])),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || []))
         );
       } else {
         // Route 0: OVERVIEW & DASHBOARD
         if (tabIndex === 0) {
           endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD).then((res) => res?.data && setDashboardData(res.data)),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.AVAILABLE_ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || []))
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD, skipCache).then((res) => res?.data && setDashboardData(res.data)),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOMS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES, skipCache).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || []))
           );
         }
         // Route 1: AVAILABLE ROOMS & CATEGORIES (Receptionist Booking Page)
         else if (tabIndex === 1) {
           endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.AVAILABLE_ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || []))
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOMS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES, skipCache).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || []))
           );
         }
         // Route 2: IN-HOUSE FOLIOS & GUEST DIRECTORY
         else if (tabIndex === 2) {
           endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || [])),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || [])),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.AVAILABLE_ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || []))
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOMS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || []))
           );
         }
         // Route 3: MORE OPERATIONS
         else if (tabIndex === 3) {
           endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD).then((res) => res?.data && setDashboardData(res.data))
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD, skipCache).then((res) => res?.data && setDashboardData(res.data))
           );
         }
       }
@@ -217,9 +218,24 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
     }
   };
 
+  // Re-fetch when activeNav changes OR when user is first resolved (page refresh fix)
   useEffect(() => {
+    if (!user) return; // Wait for user auth to resolve before fetching
+    // Reset fetchedTabs for current tab so data always reloads fresh on tab switch / user change
+    setFetchedTabs((prev) => ({ ...prev, [activeNav]: false }));
     loadTabData(activeNav);
-  }, [activeNav]);
+  }, [activeNav, user?.id || user?._id || user?.email]);
+
+  // Re-fetch when page becomes visible again (tab switch / window focus after refresh)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && user) {
+        loadTabData(activeNav, true);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [activeNav, user]);
 
   const fetchFrontDeskData = async (isSilent = false) => {
     await loadTabData(activeNav, true);
@@ -247,6 +263,14 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
 
   const handleFinalCheckIn = async () => {
     try {
+      // Validation: Primary Guest digital signature is strictly mandatory
+      if (!checkInData.signature || (typeof checkInData.signature === "string" && !checkInData.signature.trim())) {
+        showToast("⚠️ Guest Digital Signature is required before completing check-in.", "error");
+        setIsCheckInOpen(true);
+        setActiveStep(0);
+        return;
+      }
+
       const resolvedRoomIds = (checkInData.roomIds && checkInData.roomIds.length > 0)
         ? checkInData.roomIds.map(String)
         : checkInData.roomId
@@ -263,91 +287,102 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
 
       const secDepAmt = checkInData.collectSecurityDeposit ? (Number(checkInData.securityDepositAmount) || 1000) : 0;
 
-      // STEP 1: Separate API 1 - Guest Registration / Update (POST /api/v1/receptionist/guests)
-      let registeredGuestId = checkInData.guestId;
-      let isNewlyCreatedGuest = false;
+      // Single-step Check-In Booking Creation with binary FormData documents & signature
+      const effectiveHotelId =
+        user?.hotel_id ||
+        user?.hotelId ||
+        user?.hotel?.id ||
+        getActiveHotelId();
 
-      const guestPayload = {
-        fullName: checkInData.fullName || checkInData.guestName || "Walk-in Guest",
-        mobileNumber: checkInData.mobile || checkInData.mobileNumber || checkInData.phone || "",
+      let bookingRoomId = Number(checkInData.roomId || resolvedRoomIds[0] || 0);
+      if (!bookingRoomId || bookingRoomId <= 0) {
+        const fallbackRoom = rooms?.find((r) => r.status === "AVAILABLE") || rooms?.[0];
+        bookingRoomId = Number(fallbackRoom?.id || fallbackRoom?._id || 10);
+      }
+
+      const payload = {
+        hotel_id: effectiveHotelId ? Number(effectiveHotelId) : undefined,
+        room_id: bookingRoomId,
+        primary_guest_name: checkInData.fullName || checkInData.guestName || "Walk-in Guest",
+        secondary_guest_name: (checkInData.accompanyingGuests && checkInData.accompanyingGuests[0]?.name) || null,
+        mobile_number: checkInData.mobile || checkInData.mobileNumber || checkInData.phone || "",
         email: checkInData.email || "",
-        gender: checkInData.gender || "Male",
-        dateOfBirth: checkInData.dateOfBirth || checkInData.dob || "",
-        nationality: checkInData.nationality || "Indian",
-        address: checkInData.address || "",
+        address: checkInData.address || "Local Address",
         city: checkInData.city || "",
         state: checkInData.state || "",
         country: checkInData.country || "India",
-        idType: checkInData.govtIdType || "AADHAAR",
-        govtIdType: checkInData.govtIdType || "AADHAAR",
-        idNumber: checkInData.govtIdNumber || "PENDING",
-        govtIdNumber: checkInData.govtIdNumber || "PENDING",
-        frontImage: checkInData.frontImage || checkInData.idProofImage || "",
-        backImage: checkInData.backImage || checkInData.idProofBackImage || "",
+        gender: checkInData.gender || "Male",
+        date_of_birth: checkInData.dateOfBirth || checkInData.dob || "",
+        nationality: checkInData.nationality || "Indian",
+        id_type: checkInData.govtIdType || "AADHAAR",
+        govt_id_type: checkInData.govtIdType || "AADHAAR",
+        id_number: checkInData.govtIdNumber || "PENDING",
+        govt_id_number: checkInData.govtIdNumber || "PENDING",
+        check_in_date: new Date(checkInData.checkInDate || Date.now()).toISOString(),
+        check_out_date: new Date(checkInData.checkOutDate || (Date.now() + 86400000)).toISOString(),
+        actual_check_in: new Date().toISOString(),
+        adults: Number(checkInData.adults) || (1 + (checkInData.accompanyingGuests?.length || 0)),
+        children: Number(checkInData.children) || 0,
+        base_amount: Number(checkInData.baseAmount || checkInData.total || 0),
+        discount_amount: Number(checkInData.discountAmount) || 0,
+        extra_charges_total: Number(secDepAmt) || 0,
+        gst_rate: Number(checkInData.gstRate) || 18,
+        paid_amount: Number(checkInData.paid !== undefined ? checkInData.paid : checkInData.total || 0),
+        notes: checkInData.paymentNote || `${checkInData.paymentMethod || "CASH"} settlement at check-in`,
+        // Document & Signature photos (converted to binary Blobs and sent via FormData)
+        front_image: checkInData.frontImage || checkInData.idProofImage || "",
+        back_image: checkInData.backImage || checkInData.idProofBackImage || "",
         signature: checkInData.signature || checkInData.guestSignature || "",
-      };
-
-      try {
-        const guestRes = await apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS, {
-          method: "POST",
-          body: guestPayload,
-        });
-        const gData = guestRes?.guest || guestRes?.data?.guest || guestRes?.data;
-        if (gData?._id) {
-          if (!registeredGuestId) isNewlyCreatedGuest = true;
-          registeredGuestId = gData._id;
-        }
-      } catch (guestErr) {
-        console.warn("Guest API 1 registration note:", guestErr);
-      }
-
-      // STEP 2: Separate API 2 - Booking Creation (POST /api/v1/receptionist/bookings)
-      const payload = {
-        guestId: registeredGuestId,
+        // Dual-access properties for local UI rendering
+        guestId: checkInData.guestId,
         fullName: checkInData.fullName || checkInData.guestName || "Walk-in Guest",
         mobileNumber: checkInData.mobile || checkInData.mobileNumber || checkInData.phone || "",
-        roomId: String(checkInData.roomId || resolvedRoomIds[0] || ""),
-        roomType: checkInData.roomType || checkInData.roomTypeId || "",
-        roomIds: resolvedRoomIds,
-        roomNumber: resolvedRoomNumbers,
-        checkInDate: checkInData.checkInDate || getTodayLocalDate(),
-        checkInTime: checkInData.isCustomCheckInTime ? checkInData.checkInTime : getCurrentLocalTime(),
+        checkInDate: checkInData.checkInDate,
         checkOutDate: checkInData.checkOutDate,
-        checkOutTime: checkInData.checkOutTime || hotelSettings?.checkOutTime || "12:00",
-        adults: checkInData.adults || (1 + (checkInData.accompanyingGuests?.length || 0)),
-        children: checkInData.children || 0,
-        accompanyingGuests: checkInData.accompanyingGuests || [],
-        discountAmount: checkInData.discountAmount || 0,
-        securityDepositAmount: secDepAmt,
-        advancePaymentAmount: checkInData.paid !== undefined ? checkInData.paid : checkInData.total || 0,
-        paymentMethod: checkInData.paymentMethod || "CASH",
-        transactionId: checkInData.transactionId || "",
-        paymentReference: checkInData.paymentReference || "",
-        paymentNote: `${checkInData.paymentMethod || "CASH"} settlement at check-in${secDepAmt > 0 ? ` (Includes ₹${secDepAmt} security deposit)` : ""}`,
-        signature: checkInData.signature || checkInData.guestSignature || "",
-        guestSignature: checkInData.signature || checkInData.guestSignature || "",
+        roomId: String(bookingRoomId),
+        roomNumber: resolvedRoomNumbers,
         isInstantCheckIn: true,
       };
 
-      let res;
-      try {
-        res = await apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, {
-          method: "POST",
-          body: payload,
-        });
-      } catch (bookingErr) {
-        // Rollback: If booking failed and we registered a new guest in Step 1, delete it so no orphan guest remains
-        if (isNewlyCreatedGuest && registeredGuestId) {
-          try {
-            await apiRequest(API_ENDPOINTS.RECEPTIONIST.DELETE_GUEST(registeredGuestId), { method: "DELETE" });
-          } catch (rollbackErr) {
-            console.warn("Rollback guest deletion failed:", rollbackErr);
-          }
-        }
-        throw bookingErr;
-      }
+      const res = await apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, {
+        method: "POST",
+        body: payload,
+      });
 
       const confirmedBooking = res?.data?.booking || res?.data || payload;
+      const createdBookingId = confirmedBooking?.id || confirmedBooking?._id || res?.data?.id;
+
+      // Update physical room status to OCCUPIED on server
+      try {
+        await apiRequest(API_ENDPOINTS.ROOMS.BY_ID(bookingRoomId), {
+          method: "PUT",
+          body: { status: "OCCUPIED" },
+        });
+      } catch (e) {
+        console.warn("Could not mark room status to OCCUPIED via API:", e);
+      }
+
+      // If backend created booking without actual_check_in, ensure it is set
+      if (createdBookingId) {
+        try {
+          await apiRequest(API_ENDPOINTS.BOOKINGS.BY_ID(createdBookingId), {
+            method: "PUT",
+            body: { actual_check_in: new Date().toISOString() },
+          });
+        } catch (e) {
+          console.warn("Could not update actual_check_in via API:", e);
+        }
+      }
+
+      // Optimistically update rooms in local state so room turns OCCUPIED instantly
+      setRooms((prev) =>
+        prev.map((r) =>
+          (r.id === bookingRoomId || r._id === bookingRoomId)
+            ? { ...r, status: "OCCUPIED", is_available: false }
+            : r
+        )
+      );
+
       const successMsg = payload.isInstantCheckIn
         ? `Guest ${checkInData.fullName} successfully checked in to Room ${payload.roomNumber}!`
         : `Advance reservation confirmed for ${checkInData.fullName} in Room ${payload.roomNumber} (${payload.checkInDate} to ${payload.checkOutDate})!`;
@@ -356,6 +391,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         open: true,
         booking: {
           ...confirmedBooking,
+          status: "CHECKED_IN",
           bookingNumber: confirmedBooking.bookingNumber || res?.data?.bookingNumber || `BK-${Date.now().toString().slice(-6)}`,
           roomNumber: payload.roomNumber,
           checkInDate: payload.checkInDate,
@@ -363,7 +399,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
           adults: payload.adults,
           children: payload.children,
           totalAmount: checkInData.total || 0,
-          paidAmount: payload.advancePaymentAmount || 0,
+          paidAmount: payload.advancePaymentAmount || payload.paid_amount || 0,
         },
         guest: {
           fullName: checkInData.fullName,
@@ -447,12 +483,12 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
               ? "AVAILABLE"
               : "AVAILABLE");
 
-      await apiRequest(API_ENDPOINTS.RECEPTIONIST.UPDATE_ROOM_STATUS(room._id), {
-        method: "PUT",
+      await apiRequest(API_ENDPOINTS.RECEPTIONIST.UPDATE_ROOM_STATUS(room._id || room.id), {
+        method: "PATCH",
         body: { status: nextStatus },
       });
 
-      setRooms(rooms.map((r) => (r._id === room._id ? { ...r, status: nextStatus } : r)));
+      setRooms(rooms.map((r) => ((r._id === room._id || r.id === room.id) ? { ...r, status: nextStatus } : r)));
       showToast(`Room ${room.roomNumber} status updated to ${nextStatus}`);
       await fetchFrontDeskData();
     } catch (err) {
@@ -471,17 +507,10 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
       const res = await apiRequest(API_ENDPOINTS.RECEPTIONIST.CHECKOUT(bookingId), {
         method: "POST",
         body: {
-          settlementPaymentAmount: Number(amount) || 0,
-          lateCheckoutFee: Number(settlementData.lateCheckoutFee) || 0,
-          lateCheckoutType: settlementData.lateCheckoutType || "none",
-          lateCheckoutHours: Number(settlementData.lateCheckoutHours) || 0,
-          lateCheckoutMinutes: Number(settlementData.lateCheckoutMinutes) || 0,
-          hourlyRate: Number(settlementData.hourlyRate) || 0,
-          dailyRoomRate: Number(settlementData.dailyRoomRate) || 0,
-          gracePeriodMinutes: Number(settlementData.gracePeriodMinutes) || 10,
-          paymentMethod: method,
-          transactionId: settlementData.transactionId || "",
-          paymentReference: settlementData.paymentReference || "",
+          paid_amount: Number(amount) || 0,
+          late_checkout_charge: Number(settlementData.lateCheckoutFee) || 0,
+          late_checkout_hours: Number(settlementData.lateCheckoutHours) || 0,
+          notes: `Checked out and settled via ${method}${settlementData.transactionId ? ` (Ref: ${settlementData.transactionId})` : ""}`,
         },
       });
       showToast(res.message || "Booking checked out successfully! Room marked for cleaning.");
@@ -592,19 +621,33 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
     }
   };
 
-  const handleAddPosCharge = async () => {
+  const handleAddPosCharge = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
     if (!posChargeDialog.booking) return;
+
+    const cleanDesc = (posChargeDialog.description || "").trim();
+    if (!cleanDesc) {
+      showToast("Item or service description is required", "error");
+      return;
+    }
+
+    const cleanAmount = Number(posChargeDialog.amount);
+    if (!posChargeDialog.amount || isNaN(cleanAmount) || cleanAmount < 1) {
+      showToast("Charge amount must be a valid positive number (minimum ₹1)", "error");
+      return;
+    }
+
     try {
       const res = await apiRequest(API_ENDPOINTS.RECEPTIONIST.ADD_CHARGE(posChargeDialog.booking._id), {
         method: "POST",
         body: {
-          type: posChargeDialog.serviceType,
-          title: posChargeDialog.description,
-          amount: Number(posChargeDialog.amount),
+          type: posChargeDialog.serviceType || "ROOM_SERVICE",
+          title: cleanDesc,
+          amount: Math.round(cleanAmount),
         },
       });
       showToast(res.message || "POS charge added to guest folio!");
-      setPosChargeDialog({ open: false, booking: null, serviceType: "ROOM_SERVICE", amount: 650, description: "" });
+      setPosChargeDialog({ open: false, booking: null, serviceType: "ROOM_SERVICE", amount: "", description: "" });
       await fetchFrontDeskData();
     } catch (err) {
       showToast(err.message || "Failed to add charge", "error");
@@ -761,62 +804,75 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
       <Dialog
         open={posChargeDialog.open}
         onClose={() => setPosChargeDialog({ ...posChargeDialog, open: false })}
-        slotProps={{ paper: { sx: { borderRadius: "20px", p: 2, border: `1px solid ${themeConfig.border}`, maxWidth: 480 } } }}
+        slotProps={{ paper: { sx: { borderRadius: "20px", p: 1, border: `1px solid ${themeConfig.border}`, maxWidth: 480, width: "100%" } } }}
       >
-        <DialogTitle component="div" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-          Post Ancillary Charge (Room {posChargeDialog.booking?.roomNumber || posChargeDialog.booking?.room?.roomNumber})
-        </DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Charge Category</InputLabel>
-              <Select
-                value={posChargeDialog.serviceType}
-                label="Charge Category"
-                onChange={(e) => setPosChargeDialog({ ...posChargeDialog, serviceType: e.target.value })}
-              >
-                <MenuItem value="ROOM_SERVICE">🍽️ In-Room Dining / Restaurant</MenuItem>
-                <MenuItem value="LAUNDRY">👔 Express Laundry & Dry Cleaning</MenuItem>
-                <MenuItem value="SPA">💆 Spa & Wellness Therapy</MenuItem>
-                <MenuItem value="MINI_BAR">🥤 Mini Bar Refreshment</MenuItem>
-                <MenuItem value="TRANSPORT">🚕 Airport Shuttle & Cab</MenuItem>
-              </Select>
-            </FormControl>
-            <TextField
-              size="small"
-              label="Item / Service Description"
-              placeholder="e.g. Dinner Buffet for 2, Dry Cleaning 3 Shirts"
-              value={posChargeDialog.description}
-              onChange={(e) => setPosChargeDialog({ ...posChargeDialog, description: e.target.value })}
-              fullWidth
-            />
-            <TextField
-              size="small"
-              label="Amount (₹) *"
-              placeholder="e.g. 1500"
-              value={posChargeDialog.amount ?? ""}
-              onChange={(e) => setPosChargeDialog({ ...posChargeDialog, amount: e.target.value })}
-              fullWidth
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ p: 2, gap: 1 }}>
-          <Button onClick={() => setPosChargeDialog({ ...posChargeDialog, open: false })} sx={{ borderRadius: "10px" }}>
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleAddPosCharge}
-            className="btn-3d"
-            sx={{
-              background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-              borderRadius: "10px",
-              fontWeight: 800,
-            }}
-          >
-            Post to Folio
-          </Button>
-        </DialogActions>
+        <form onSubmit={handleAddPosCharge}>
+          <DialogTitle component="div" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+            Post Ancillary Charge (Room {posChargeDialog.booking?.roomNumber || posChargeDialog.booking?.room?.roomNumber})
+          </DialogTitle>
+          <DialogContent>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Charge Category *</InputLabel>
+                <Select
+                  value={posChargeDialog.serviceType || "ROOM_SERVICE"}
+                  label="Charge Category *"
+                  onChange={(e) => setPosChargeDialog({ ...posChargeDialog, serviceType: e.target.value })}
+                >
+                  <MenuItem value="ROOM_SERVICE">🍽️ In-Room Dining / Restaurant</MenuItem>
+                  <MenuItem value="LAUNDRY">👔 Express Laundry &amp; Dry Cleaning</MenuItem>
+                  <MenuItem value="SPA">💆 Spa &amp; Wellness Therapy</MenuItem>
+                  <MenuItem value="MINI_BAR">🥤 Mini Bar Refreshment</MenuItem>
+                  <MenuItem value="TRANSPORT">🚕 Airport Shuttle &amp; Cab</MenuItem>
+                </Select>
+              </FormControl>
+              <TextField
+                size="small"
+                required
+                label="Item / Service Description *"
+                placeholder="e.g. Dinner Buffet for 2, Dry Cleaning 3 Shirts"
+                value={posChargeDialog.description || ""}
+                onChange={(e) => setPosChargeDialog({ ...posChargeDialog, description: e.target.value })}
+                slotProps={{ htmlInput: { minLength: 2, maxLength: 100 } }}
+                fullWidth
+              />
+              <TextField
+                size="small"
+                required
+                type="number"
+                label="Amount (₹) *"
+                placeholder="e.g. 1500"
+                value={posChargeDialog.amount ?? ""}
+                onChange={(e) => setPosChargeDialog({ ...posChargeDialog, amount: e.target.value })}
+                slotProps={{
+                  htmlInput: { min: "1", step: "1" },
+                }}
+                error={Boolean(posChargeDialog.amount !== "" && posChargeDialog.amount !== undefined && (isNaN(Number(posChargeDialog.amount)) || Number(posChargeDialog.amount) < 1))}
+                helperText={posChargeDialog.amount !== "" && posChargeDialog.amount !== undefined && (isNaN(Number(posChargeDialog.amount)) || Number(posChargeDialog.amount) < 1) ? "Amount must be a positive number (min ₹1)" : "Minimum ₹1 required"}
+                fullWidth
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ p: 2, gap: 1 }}>
+            <Button onClick={() => setPosChargeDialog({ ...posChargeDialog, open: false })} sx={{ borderRadius: "10px" }}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={!posChargeDialog.description?.trim() || !posChargeDialog.amount || Number(posChargeDialog.amount) < 1}
+              className="btn-3d"
+              sx={{
+                background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
+                borderRadius: "10px",
+                fontWeight: 800,
+                color: "#FFFFFF",
+              }}
+            >
+              Post to Folio
+            </Button>
+          </DialogActions>
+        </form>
       </Dialog>
 
       {/* Printable GST Tax Receipt & Invoice Modal */}
@@ -1008,31 +1064,10 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
                   </Button>
 
                   <Button
-                    variant="outlined"
-                    startIcon={<Download sx={{ fontSize: 18 }} />}
-                    onClick={() => {
-                      downloadTaxInvoicePDF(b, { ...hotelSettings, ...(user?.hotel || {}) });
-                      showToast("PDF Tax Invoice opened / downloaded successfully!");
-                    }}
-                    sx={{
-                      borderRadius: "10px",
-                      borderColor: themeConfig.border,
-                      color: themeConfig.textMain,
-                      fontWeight: 700,
-                      fontSize: "0.82rem",
-                      whiteSpace: "nowrap",
-                      px: 1.5,
-                      "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne },
-                    }}
-                  >
-                    Download
-                  </Button>
-
-                  <Button
                     variant="contained"
                     startIcon={<Print sx={{ fontSize: 18 }} />}
                     onClick={() => {
-                      downloadTaxInvoicePDF(b, { ...hotelSettings, ...(user?.hotel || {}) });
+                      window.print();
                     }}
                     className="btn-3d"
                     sx={{
@@ -1045,7 +1080,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
                       boxShadow: `0 4px 12px ${themeConfig.primaryGlow}`,
                     }}
                   >
-                    Print / PDF
+                    Print Invoice
                   </Button>
                 </Box>
               </DialogActions>
@@ -1119,20 +1154,11 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
           </DialogContent>
           <DialogActions sx={{ p: 2, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 1 }}>
             <Button
-              startIcon={<FileDownload />}
               variant="outlined"
-              onClick={() => {
-                downloadGuestFolioPDF(
-                  {
-                    guest: checkInSuccessModal.guest || {},
-                    activeBooking: checkInSuccessModal.booking,
-                  },
-                  user?.hotel || {}
-                );
-              }}
+              onClick={() => setCheckInSuccessModal({ open: false, booking: null, guest: null })}
               sx={{ borderRadius: "10px", fontWeight: 700, borderColor: themeConfig.border, color: themeConfig.textMain }}
             >
-              Print Folio PDF
+              Close
             </Button>
             <Box sx={{ display: "flex", gap: 1 }}>
               <Button

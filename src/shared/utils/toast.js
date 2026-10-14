@@ -5,7 +5,22 @@ export const showToast = (message, severity = "success", options = {}) => {
 
   let textMessage = message;
   if (typeof message === "object" && message !== null) {
-    textMessage = message.message || message.error || message.detail || JSON.stringify(message);
+    if (message.message || message.error || message.detail) {
+      textMessage = message.message || message.error || message.detail;
+    } else {
+      try {
+        const seen = new WeakSet();
+        textMessage = JSON.stringify(message, (k, v) => {
+          if (typeof v === "object" && v !== null) {
+            if (seen.has(v)) return undefined;
+            seen.add(v);
+          }
+          return v;
+        });
+      } catch {
+        textMessage = String(message);
+      }
+    }
   }
   textMessage = String(textMessage || "").trim();
 

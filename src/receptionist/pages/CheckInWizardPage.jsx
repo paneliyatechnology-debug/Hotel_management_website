@@ -1098,66 +1098,9 @@ export default function CheckInWizardPage({
     }));
   };
 
-  // Phone lookup & repeat guest logic
-  const handlePhoneChange = async (val) => {
-    const rawVal = val.trim();
-    const queryDigits = rawVal.replace(/\D/g, "");
+  // Mobile number change handler (auto-fill of past guest data disabled)
+  const handlePhoneChange = (val) => {
     setCheckInData((prev) => ({ ...prev, mobile: val }));
-
-    if (queryDigits.length === 10) {
-      const matched = guests.find((g) => {
-        const p = (g.phone || g.mobileNumber || "").replace(/\D/g, "");
-        return p === queryDigits;
-      });
-
-      if (matched) {
-        applyGuestData(matched);
-        return;
-      }
-
-      try {
-        const res = await apiRequest(API_ENDPOINTS.RECEPTIONIST.GUEST_LOOKUP(queryDigits));
-        if (res?.data) {
-          applyGuestData(res.data);
-        }
-      } catch {
-        // New guest
-      }
-    }
-  };
-
-  const applyGuestData = (guest) => {
-    const totalVisits = guest.totalVisits || (bookings.filter((b) => (b.guest?._id || b.guest) === guest._id).length || 1);
-    const idNum = guest.govtIdNumber || guest.idNumber || guest.idProof?.idNumber || "";
-    const isIdVerified = guest.idVerified || guest.idProof?.verificationStatus === "VERIFIED" || Boolean(idNum && idNum !== "PENDING");
-
-    setCheckInData((prev) => {
-      const currentRate = prev.rate ?? 0;
-      const baseTot = currentRate * (prev.numberOfNights || 1);
-      const disc = Math.round(baseTot * 0.10); // 10% VIP Loyalty Discount
-      const netTot = Math.max(0, baseTot - disc) + (prev.collectSecurityDeposit ? (Number(prev.securityDepositAmount) || 1000) : 0);
-
-      return {
-        ...prev,
-        guestId: guest._id,
-        fullName: guest.name || guest.fullName || prev.fullName,
-        email: guest.email || prev.email,
-        address: guest.address || prev.address,
-        city: guest.city || prev.city,
-        state: guest.state || prev.state,
-        nationality: guest.nationality || prev.nationality || "Indian",
-        gender: guest.gender || prev.gender || "Male",
-        govtIdType: guest.govtIdType || guest.idType || guest.idProof?.idType || prev.govtIdType || "AADHAAR",
-        govtIdNumber: idNum || prev.govtIdNumber,
-        gstin: guest.gstin || guest.gstNumber || guest.taxId || prev.gstin || "",
-        companyName: guest.companyName || prev.companyName || "",
-        isRepeatGuest: true,
-        totalVisits: Math.max(totalVisits, 2),
-        hasVerifiedId: isIdVerified,
-        discountAmount: disc,
-        isPaidManuallyEdited: false,
-      };
-    });
   };
 
   // Add a specific room to the selection (for Quick Suggester)
@@ -1334,17 +1277,19 @@ export default function CheckInWizardPage({
     setStepError("");
     setFieldErrors({});
 
-    // Step 1 (Index 0): Primary Guest & Member Photos Validation
+    // Step 1 (Index 0): Primary Guest & Member Photos & Signature Validation
     if (activeStep === 0) {
       const isNameMissing = !checkInData.fullName?.trim();
       const isMobileMissing = !checkInData.mobile?.trim();
       const isFrontIdMissing = !checkInData.frontImage;
+      const isSignatureMissing = !checkInData.signature || (typeof checkInData.signature === "string" && !checkInData.signature.trim());
 
-      if (isNameMissing || isMobileMissing || isFrontIdMissing) {
+      if (isNameMissing || isMobileMissing || isFrontIdMissing || isSignatureMissing) {
         const newErrors = {};
         if (isNameMissing) newErrors.fullName = true;
         if (isMobileMissing) newErrors.mobile = true;
         if (isFrontIdMissing) newErrors.frontImage = true;
+        if (isSignatureMissing) newErrors.signature = true;
         setFieldErrors(newErrors);
 
         if (isNameMissing) {
@@ -1360,6 +1305,11 @@ export default function CheckInWizardPage({
         if (isFrontIdMissing) {
           showErrorAlert("⚠️ ID Upload Required: Primary Guest ID photo (Front) is required before proceeding.");
           scrollToElement("main-guest-id-section");
+          return;
+        }
+        if (isSignatureMissing) {
+          showErrorAlert("⚠️ Signature Required: Primary Guest digital signature is required before proceeding.");
+          scrollToElement("guest-signature-section");
           return;
         }
       }
@@ -1408,6 +1358,18 @@ export default function CheckInWizardPage({
     scrollToElement("checkin-wizard-top");
   };
 
+  const handleTriggerFinalCheckIn = () => {
+    const isSignatureMissing = !checkInData.signature || (typeof checkInData.signature === "string" && !checkInData.signature.trim());
+    if (isSignatureMissing) {
+      setFieldErrors((prev) => ({ ...prev, signature: true }));
+      showErrorAlert("⚠️ Signature Required: Primary Guest digital signature is mandatory before finalizing check-in.");
+      setActiveStep(0);
+      setTimeout(() => scrollToElement("guest-signature-section"), 150);
+      return;
+    }
+    if (onFinalCheckIn) onFinalCheckIn();
+  };
+
   return (
     <Box id="checkin-wizard-top" sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 } }}>
       <Card
@@ -1423,8 +1385,70 @@ export default function CheckInWizardPage({
         }}
       >
         {/* Wizard Header Banner */}
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: { xs: "flex-start", sm: "center" }, flexDirection: { xs: "column", sm: "row" }, gap: 1.5, mb: 1 }}>
-          <Box sx={{ display: "flex", alignItems: { xs: "flex-start", sm: "center" }, flexDirection: { xs: "column", sm: "row" }, gap: 1.5, width: "100%" }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: { xs: "flex-start", sm: "center" },
+            flexWrap: "wrap",
+            gap: 2,
+            mb: 2.5,
+            pb: 2,
+            borderBottom: `1px solid ${themeConfig.border}`,
+          }}
+        >
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", mb: 0.5 }}>
+              <Typography
+                variant="h5"
+                sx={{
+                  fontWeight: 900,
+                  color: themeConfig.textMain,
+                  letterSpacing: -0.5,
+                  fontSize: { xs: "1.2rem", sm: "1.45rem" },
+                  lineHeight: 1.25,
+                }}
+              >
+                Express Check-In &amp; Guest Allocation
+              </Typography>
+              {isVipGuest && (
+                <Chip
+                  icon={<Star sx={{ "&&": { color: "#F59E0B" } }} />}
+                  label="VIP Returning Guest (10% Discount)"
+                  size="small"
+                  sx={{
+                    bgcolor: "rgba(245, 158, 11, 0.12)",
+                    color: "#B45309",
+                    fontWeight: 800,
+                    fontSize: "0.74rem",
+                    border: "1px solid rgba(245, 158, 11, 0.3)",
+                  }}
+                />
+              )}
+            </Box>
+            <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontSize: { xs: "0.8rem", sm: "0.85rem" } }}>
+              Fill guest details, add accompanying members, configure stay duration, and complete allocation.
+            </Typography>
+          </Box>
+
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, flexShrink: 0 }}>
+            <Button
+              variant="text"
+              size="small"
+              onClick={handleClearFormDraft}
+              startIcon={<Refresh sx={{ fontSize: 16 }} />}
+              sx={{
+                borderRadius: "10px",
+                fontWeight: 800,
+                fontSize: "0.78rem",
+                color: themeConfig.textMuted,
+                textTransform: "none",
+                whiteSpace: "nowrap",
+                "&:hover": { color: "#EF4444", bgcolor: "rgba(239, 68, 68, 0.08)" },
+              }}
+            >
+              Reset Form
+            </Button>
             {onBackToRooms && (
               <Button
                 variant="outlined"
@@ -1436,63 +1460,22 @@ export default function CheckInWizardPage({
                   fontSize: "0.82rem",
                   borderColor: themeConfig.border,
                   color: themeConfig.textMain,
+                  bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
                   whiteSpace: "nowrap",
-                  flexShrink: 0,
-                  height: "fit-content",
+                  textTransform: "none",
                   "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
                 }}
               >
                 Back to Rooms
               </Button>
             )}
-
-            <Button
-              variant="text"
-              size="small"
-              onClick={handleClearFormDraft}
-              startIcon={<Refresh sx={{ fontSize: 16 }} />}
-              sx={{
-                borderRadius: "10px",
-                fontWeight: 800,
-                fontSize: "0.75rem",
-                color: themeConfig.textMuted,
-                textTransform: "none",
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-                "&:hover": { color: "#EF4444", bgcolor: "rgba(239, 68, 68, 0.08)" },
-              }}
-            >
-              Reset Form
-            </Button>
-            <Box sx={{ width: "100%" }}>
-              <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 0.2, letterSpacing: -0.5, fontSize: { xs: "1.15rem", sm: "1.45rem" }, lineHeight: 1.25 }}>
-                Express Check-In & Guest Allocation
-              </Typography>
-              <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
-                Fill guest details, add accompanying members, configure stay duration, and complete allocation.
-              </Typography>
-            </Box>
           </Box>
-
-          {isVipGuest && (
-            <Chip
-              icon={<Star sx={{ "&&": { color: "#F59E0B" } }} />}
-              label={`VIP Returning Guest (10% Loyalty Discount Applied)`}
-              sx={{
-                bgcolor: "rgba(245, 158, 11, 0.12)",
-                color: "#B45309",
-                fontWeight: 800,
-                fontSize: "0.78rem",
-                border: "1px solid rgba(245, 158, 11, 0.3)",
-              }}
-            />
-          )}
         </Box>
 
         {/* ========================================================================= */}
         {/* LUXURY STEP-BY-STEP CONNECTED HORIZONTAL STEPPER (EQUAL SEGMENTS & TRACK) */}
         {/* ========================================================================= */}
-        <Box sx={{ mb: 2, mt: 0.9, px: { xs: 0.5, sm: 2 }, overflowX: "auto", pb: 1, "&::-webkit-scrollbar": { height: 4 } }}>
+        <Box sx={{ mb: 3.5, mt: 1, px: { xs: 0.5, sm: 2 } }}>
           <Box
             sx={{
               display: "flex",
@@ -1500,18 +1483,17 @@ export default function CheckInWizardPage({
               justifyContent: "space-between",
               position: "relative",
               width: "100%",
-              minWidth: { xs: 580, sm: "auto" },
             }}
           >
             {/* Background Base Track Line */}
             <Box
               sx={{
                 position: "absolute",
-                top: { xs: 18, sm: 22 },
-                left: { xs: "12%", sm: "12%" },
-                right: { xs: "12%", sm: "12%" },
+                top: 22,
+                left: "12.5%",
+                right: "12.5%",
                 height: 4,
-                bgcolor: "#E2E8F0",
+                bgcolor: isDarkMode ? "rgba(255,255,255,0.12)" : "#E2E8F0",
                 borderRadius: "10px",
                 transform: "translateY(-50%)",
                 zIndex: 0,
@@ -1560,32 +1542,32 @@ export default function CheckInWizardPage({
                 >
                   <Avatar
                     sx={{
-                      width: { xs: 36, sm: 44 },
-                      height: { xs: 36, sm: 44 },
-                      fontSize: { xs: "0.82rem", sm: "0.92rem" },
+                      width: 44,
+                      height: 44,
+                      fontSize: "0.92rem",
                       fontWeight: 900,
                       bgcolor: isCompleted
                         ? "#10B981"
                         : isCurrent
                           ? themeConfig.primary
-                          : "#FFFFFF",
-                      color: isCompleted || isCurrent ? "#FFFFFF" : "#94A3B8",
+                          : isDarkMode ? "#1E293B" : "#FFFFFF",
+                      color: isCompleted || isCurrent ? "#FFFFFF" : isDarkMode ? "#94A3B8" : "#64748B",
                       border: isCurrent
-                        ? `3px solid #FFFFFF`
+                        ? `3px solid ${isDarkMode ? "#0E312C" : "#FFFFFF"}`
                         : isCompleted
-                          ? "3px solid #FFFFFF"
-                          : "3px solid #E2E8F0",
+                          ? `3px solid ${isDarkMode ? "#0E312C" : "#FFFFFF"}`
+                          : `3px solid ${isDarkMode ? "rgba(255,255,255,0.15)" : "#E2E8F0"}`,
                       boxShadow: isCurrent
-                        ? `0 0 0 4px ${themeConfig.primaryGlow}, 0 6px 16px rgba(11, 142, 224, 0.35)`
+                        ? `0 0 0 4px ${themeConfig.primaryGlow || "rgba(11, 142, 224, 0.25)"}, 0 6px 16px rgba(11, 142, 224, 0.35)`
                         : isCompleted
                           ? "0 0 0 4px rgba(16, 185, 129, 0.2), 0 4px 12px rgba(16, 185, 129, 0.25)"
-                          : "0 2px 6px rgba(0,0,0,0.04)",
+                          : "0 2px 8px rgba(0,0,0,0.06)",
                       transition: "all 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
-                      transform: isCurrent ? "scale(1.1)" : "scale(1)",
+                      transform: isCurrent ? "scale(1.08)" : "scale(1)",
                       mb: 1,
                     }}
                   >
-                    {isCompleted ? <Check sx={{ fontSize: { xs: 18, sm: 22 }, fontWeight: 900 }} /> : stepIcons[index]}
+                    {isCompleted ? <Check sx={{ fontSize: 22, fontWeight: 900 }} /> : stepIcons[index]}
                   </Avatar>
 
                   {/* Step Title & Status */}
@@ -1596,33 +1578,32 @@ export default function CheckInWizardPage({
                       color: isCurrent
                         ? themeConfig.primary
                         : isCompleted
-                          ? "#065F46"
+                          ? "#059669"
                           : themeConfig.textMuted,
-                      fontSize: { xs: "0.70rem", sm: "0.76rem" },
+                      fontSize: "0.72rem",
                       textAlign: "center",
                       lineHeight: 1.2,
-                      whiteSpace: { xs: "normal", sm: "nowrap" },
+                      letterSpacing: "0.03em",
+                      textTransform: "uppercase",
                     }}
                   >
                     Step {index + 1}
                   </Typography>
 
                   <Typography
-                    variant="caption"
+                    variant="body2"
                     sx={{
-                      fontWeight: isCurrent ? 800 : 600,
+                      fontWeight: isCurrent ? 800 : isCompleted ? 700 : 600,
                       color: isCurrent
                         ? themeConfig.textMain
                         : isCompleted
                           ? themeConfig.textMain
                           : themeConfig.textMuted,
-                      fontSize: { xs: "0.65rem", sm: "0.72rem" },
+                      fontSize: { xs: "0.75rem", sm: "0.82rem" },
                       textAlign: "center",
-                      lineHeight: 1.25,
+                      lineHeight: 1.3,
                       mt: 0.3,
-                      maxWidth: { xs: 70, sm: 130, md: 150 },
-                      display: { xs: isCurrent ? "block" : "none", sm: "block" },
-                      wordBreak: "break-word",
+                      whiteSpace: { xs: "normal", sm: "nowrap" },
                     }}
                   >
                     {label}
@@ -1919,15 +1900,14 @@ export default function CheckInWizardPage({
                   </Box>
                 </Box>
 
-                {/* Member Document Cards Grid (Front & Back Photos Display) */}
+                {/* Member Document Cards Grid (Single Document Image List) */}
                 {checkInData.accompanyingGuests && checkInData.accompanyingGuests.length > 0 ? (
                   <Grid container spacing={2}>
                     {checkInData.accompanyingGuests.map((member, index) => {
-                      const frontImg = member.frontImage || (member.images && member.images[0]) || "";
-                      const backImg = member.backImage || (member.images && member.images[1]) || "";
+                      const docImg = member.frontImage || (member.images && member.images[0]) || member.image || member.backImage || "";
 
                       return (
-                        <Grid key={member.id || index} size={{ xs: 12, sm: 6, md: 4 }}>
+                        <Grid key={member.id || index} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
                           <Paper
                             className="card-3d"
                             sx={{
@@ -1940,60 +1920,107 @@ export default function CheckInWizardPage({
                               "&:hover": { transform: "translateY(-2px)", boxShadow: "0 6px 16px rgba(16, 185, 129, 0.2)" },
                             }}
                           >
-                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.2 }}>
                               <Chip
                                 label={`Member #${index + 1}`}
                                 size="small"
-                                sx={{ fontWeight: 900, bgcolor: "rgba(16, 185, 129, 0.12)", color: "#059669" }}
+                                sx={{ fontWeight: 900, bgcolor: "rgba(16, 185, 129, 0.12)", color: "#059669", fontSize: "0.75rem" }}
                               />
-                              <IconButton
-                                size="small"
-                                onClick={() => handleRemoveSingleMemberDoc(member.id)}
-                                sx={{ color: "#EF4444", p: 0.5, "&:hover": { bgcolor: "rgba(239,68,68,0.1)" } }}
-                              >
-                                <Close sx={{ fontSize: 16 }} />
-                              </IconButton>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                {docImg && (
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => setPreviewImageSrc(docImg)}
+                                    title="View Full Document"
+                                    sx={{ color: "#0B8EE0", p: 0.4, "&:hover": { bgcolor: "rgba(11, 142, 224, 0.1)" } }}
+                                  >
+                                    <Visibility sx={{ fontSize: 16 }} />
+                                  </IconButton>
+                                )}
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleRemoveSingleMemberDoc(member.id)}
+                                  title="Delete Document"
+                                  sx={{ color: "#EF4444", p: 0.4, "&:hover": { bgcolor: "rgba(239, 68, 68, 0.1)" } }}
+                                >
+                                  <Close sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </Box>
                             </Box>
 
-                            <Grid container spacing={1}>
-                              {/* Front Photo Box */}
-                              <Grid size={6}>
-                                <Box sx={{ width: "100%", height: 85, bgcolor: "#F8FAFC", borderRadius: "8px", overflow: "hidden", position: "relative", border: "1px solid #CBD5E1" }}>
-                                  {frontImg ? (
-                                    <Box
-                                      component="img"
-                                      src={frontImg}
-                                      alt={`Member #${index + 1} Front ID`}
-                                      sx={{ width: "100%", height: "100%", objectFit: "cover" }}
-                                    />
-                                  ) : (
-                                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-                                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.68rem" }}>Front ID</Typography>
-                                    </Box>
-                                  )}
-                                  <Chip label="Front 📸" size="small" sx={{ position: "absolute", bottom: 3, left: 3, bgcolor: "rgba(15,23,42,0.82)", color: "#FFF", fontSize: "0.58rem", height: 16, px: 0.2 }} />
+                            {/* Single Document Image Container */}
+                            <Box
+                              onClick={() => docImg && setPreviewImageSrc(docImg)}
+                              sx={{
+                                width: "100%",
+                                height: 135,
+                                bgcolor: "#F8FAFC",
+                                borderRadius: "10px",
+                                overflow: "hidden",
+                                position: "relative",
+                                border: "1px solid #CBD5E1",
+                                cursor: docImg ? "pointer" : "default",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                transition: "all 0.2s ease",
+                                "&:hover": docImg ? { borderColor: "#10B981" } : undefined,
+                              }}
+                            >
+                              {docImg ? (
+                                <>
+                                  <Box
+                                    component="img"
+                                    src={docImg}
+                                    alt={`Member #${index + 1} ID Document`}
+                                    sx={{
+                                      width: "100%",
+                                      height: "100%",
+                                      objectFit: "cover",
+                                      transition: "transform 0.25s ease",
+                                      "&:hover": { transform: "scale(1.03)" },
+                                    }}
+                                  />
+                                  <Chip
+                                    label="ID Document 📄"
+                                    size="small"
+                                    sx={{
+                                      position: "absolute",
+                                      bottom: 6,
+                                      left: 6,
+                                      bgcolor: "rgba(15, 23, 42, 0.82)",
+                                      color: "#FFFFFF",
+                                      fontSize: "0.62rem",
+                                      fontWeight: 800,
+                                      height: 20,
+                                      px: 0.4,
+                                    }}
+                                  />
+                                  <Chip
+                                    icon={<Visibility sx={{ fontSize: "11px !important", color: "#FFF !important" }} />}
+                                    label="View"
+                                    size="small"
+                                    sx={{
+                                      position: "absolute",
+                                      bottom: 6,
+                                      right: 6,
+                                      bgcolor: "rgba(11, 142, 224, 0.9)",
+                                      color: "#FFFFFF",
+                                      fontSize: "0.6rem",
+                                      fontWeight: 800,
+                                      height: 20,
+                                      px: 0.3,
+                                    }}
+                                  />
+                                </>
+                              ) : (
+                                <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5 }}>
+                                  <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 700 }}>
+                                    📄 Document Photo
+                                  </Typography>
                                 </Box>
-                              </Grid>
-
-                              {/* Back Photo Box */}
-                              <Grid size={6}>
-                                <Box sx={{ width: "100%", height: 85, bgcolor: "#F8FAFC", borderRadius: "8px", overflow: "hidden", position: "relative", border: "1px solid #CBD5E1" }}>
-                                  {backImg ? (
-                                    <Box
-                                      component="img"
-                                      src={backImg}
-                                      alt={`Member #${index + 1} Back ID`}
-                                      sx={{ width: "100%", height: "100%", objectFit: "cover" }}
-                                    />
-                                  ) : (
-                                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-                                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.68rem" }}>Back ID</Typography>
-                                    </Box>
-                                  )}
-                                  <Chip label="Back 📸" size="small" sx={{ position: "absolute", bottom: 3, left: 3, bgcolor: "rgba(15,23,42,0.82)", color: "#FFF", fontSize: "0.58rem", height: 16, px: 0.2 }} />
-                                </Box>
-                              </Grid>
-                            </Grid>
+                              )}
+                            </Box>
                           </Paper>
                         </Grid>
                       );
@@ -2020,17 +2047,41 @@ export default function CheckInWizardPage({
               </Box>
 
               {/* DIGITAL SIGNATURE PAD SECTION */}
-              <Box sx={{ mt: 3, pt: 2.5, borderTop: `1.5px dashed ${themeConfig.border}` }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
-                  <Draw sx={{ fontSize: 18, color: themeConfig.primary }} />
-                  Guest Digital Signature
+              <Box
+                id="guest-signature-section"
+                sx={{
+                  mt: 3,
+                  pt: 2.5,
+                  borderTop: `1.5px dashed ${fieldErrors.signature ? "#EF4444" : themeConfig.border}`,
+                  p: fieldErrors.signature ? 2 : 0,
+                  borderRadius: fieldErrors.signature ? "16px" : 0,
+                  border: fieldErrors.signature ? `2px solid #EF4444` : undefined,
+                  bgcolor: fieldErrors.signature ? "rgba(239, 68, 68, 0.04)" : undefined,
+                  transition: "all 0.2s ease",
+                }}
+              >
+                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: fieldErrors.signature ? "#EF4444" : themeConfig.textMain, mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                  <Draw sx={{ fontSize: 18, color: fieldErrors.signature ? "#EF4444" : themeConfig.primary }} />
+                  Guest Digital Signature *
                 </Typography>
                 <DigitalSignaturePad
+                  required
+                  error={Boolean(fieldErrors.signature)}
+                  helperText="Primary Guest digital signature is required before proceeding to the next step."
+                  signerName={checkInData.fullName || "Primary Guest"}
                   value={checkInData.signature}
                   signature={checkInData.signature}
-                  onChange={(sig) => setCheckInData((prev) => ({ ...prev, signature: sig }))}
-                  onSave={(sig) => setCheckInData((prev) => ({ ...prev, signature: sig }))}
-                  onClear={() => setCheckInData((prev) => ({ ...prev, signature: "" }))}
+                  onChange={(sig) => {
+                    setCheckInData((prev) => ({ ...prev, signature: sig }));
+                    if (sig) setFieldErrors((prev) => ({ ...prev, signature: false }));
+                  }}
+                  onSave={(sig) => {
+                    setCheckInData((prev) => ({ ...prev, signature: sig }));
+                    if (sig) setFieldErrors((prev) => ({ ...prev, signature: false }));
+                  }}
+                  onClear={() => {
+                    setCheckInData((prev) => ({ ...prev, signature: "" }));
+                  }}
                 />
               </Box>
             </Paper>
@@ -2625,18 +2676,56 @@ export default function CheckInWizardPage({
                   Primary / Main Guest Folio Holder:
                 </Typography>
                 <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 6 }}>
+                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                     <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>Full Name:</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
                       {checkInData.fullName || "N/A"}
                     </Typography>
                   </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
+                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                     <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>WhatsApp Number:</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 0.5 }}>
                       <WhatsApp sx={{ color: "#25D366", fontSize: 16 }} />
                       {checkInData.mobile ? `+91 ${checkInData.mobile}` : "N/A"}
                     </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                    <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>Govt ID Proof:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                      {checkInData.govtIdType || "AADHAAR"} • {checkInData.govtIdNumber || "Uploaded"}
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                    <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>Guest Signature:</Typography>
+                    {checkInData.signature ? (
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, mt: 0.3 }}>
+                        <Chip
+                          icon={<CheckCircle sx={{ fontSize: "14px !important", color: "#10B981 !important" }} />}
+                          label="Signed & Verified"
+                          size="small"
+                          sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", color: "#10B981", fontWeight: 900, fontSize: "0.72rem", height: 24 }}
+                        />
+                        <Chip
+                          icon={<Visibility sx={{ fontSize: "14px !important" }} />}
+                          label="View"
+                          size="small"
+                          clickable
+                          onClick={() => setPreviewImageSrc(checkInData.signature)}
+                          sx={{ bgcolor: "rgba(11, 142, 224, 0.12)", color: "#0B8EE0", fontWeight: 800, fontSize: "0.72rem", height: 24 }}
+                        />
+                      </Box>
+                    ) : (
+                      <Chip
+                        label="⚠️ Missing (Required)"
+                        size="small"
+                        clickable
+                        onClick={() => {
+                          setActiveStep(0);
+                          scrollToElement("guest-signature-section");
+                        }}
+                        sx={{ bgcolor: "#FEE2E2", color: "#DC2626", fontWeight: 900, fontSize: "0.72rem", border: "1px solid #FCA5A5", height: 24, mt: 0.3 }}
+                      />
+                    )}
                   </Grid>
                 </Grid>
               </Box>
@@ -2825,6 +2914,20 @@ export default function CheckInWizardPage({
                 }}
               />
             )}
+            {activeStep === 0 && (!checkInData.signature || (typeof checkInData.signature === "string" && !checkInData.signature.trim())) && (
+              <Chip
+                label="Guest Signature Required *"
+                size="small"
+                sx={{
+                  bgcolor: "#FEF2F2",
+                  color: "#DC2626",
+                  fontWeight: 800,
+                  fontSize: "0.72rem",
+                  border: "1px solid #FCA5A5",
+                  display: { xs: "none", sm: "inline-flex" },
+                }}
+              />
+            )}
 
             {activeStep < CHECKIN_STEPS.length - 1 ? (
               <Button
@@ -2854,7 +2957,7 @@ export default function CheckInWizardPage({
               <Button
                 fullWidth
                 variant="contained"
-                onClick={onFinalCheckIn}
+                onClick={handleTriggerFinalCheckIn}
                 startIcon={<CheckCircle />}
                 className="btn-3d"
                 sx={{

@@ -46,6 +46,8 @@ export default function DigitalSignaturePad({
   onClear,
   themeConfig: propThemeConfig,
   required = false,
+  error = false,
+  helperText = "",
 }) {
   const { themeConfig: appThemeConfig, isDarkMode } = useAppTheme();
   const themeConfig = propThemeConfig || appThemeConfig;
@@ -218,13 +220,17 @@ export default function DigitalSignaturePad({
       sx={{
         p: { xs: 1.5, sm: 2.2 },
         borderRadius: "16px",
-        border: `1.5px solid ${hasSignature ? "#10B981" : themeConfig.border || "#E2E8F0"}`,
-        bgcolor: themeConfig.bgCard || (isDarkMode ? "#162032" : "#FFFFFF"),
+        border: `1.5px solid ${hasSignature ? "#10B981" : error ? "#EF4444" : themeConfig.border || "#E2E8F0"}`,
+        bgcolor: error && !hasSignature 
+          ? (isDarkMode ? "rgba(239, 68, 68, 0.08)" : "rgba(239, 68, 68, 0.03)") 
+          : (themeConfig.bgCard || (isDarkMode ? "#162032" : "#FFFFFF")),
         boxShadow: hasSignature
           ? "0 4px 14px rgba(16, 185, 129, 0.12)"
-          : isDarkMode
-            ? "0 4px 14px rgba(0,0,0,0.3)"
-            : "0 2px 8px rgba(0,0,0,0.03)",
+          : error
+            ? "0 0 0 3px rgba(239, 68, 68, 0.15)"
+            : isDarkMode
+              ? "0 4px 14px rgba(0,0,0,0.3)"
+              : "0 2px 8px rgba(0,0,0,0.03)",
         transition: "all 0.2s ease",
       }}
     >
@@ -243,8 +249,8 @@ export default function DigitalSignaturePad({
             sx={{
               p: 0.8,
               borderRadius: "10px",
-              bgcolor: hasSignature ? "rgba(16, 185, 129, 0.12)" : "rgba(197, 160, 89, 0.14)",
-              color: hasSignature ? "#059669" : themeConfig.primary || "#C5A059",
+              bgcolor: hasSignature ? "rgba(16, 185, 129, 0.12)" : error ? "rgba(239, 68, 68, 0.15)" : "rgba(197, 160, 89, 0.14)",
+              color: hasSignature ? "#059669" : error ? "#EF4444" : themeConfig.primary || "#C5A059",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -258,13 +264,13 @@ export default function DigitalSignaturePad({
               variant="subtitle2"
               sx={{
                 fontWeight: 900,
-                color: themeConfig.textMain || "#0F172A",
+                color: error && !hasSignature ? "#EF4444" : (themeConfig.textMain || "#0F172A"),
                 lineHeight: 1.25,
                 fontSize: { xs: "0.82rem", sm: "0.9rem" },
                 wordBreak: "break-word",
               }}
             >
-              {title}
+              {title} {required && <span style={{ color: "#EF4444" }}>*</span>}
             </Typography>
             <Typography
               variant="caption"
@@ -285,20 +291,30 @@ export default function DigitalSignaturePad({
           icon={
             hasSignature ? (
               <CheckCircle style={{ fontSize: 13, color: "#059669" }} />
+            ) : error ? (
+              <Create style={{ fontSize: 13, color: "#DC2626" }} />
             ) : (
               <Create style={{ fontSize: 13, color: "#D97706" }} />
             )
           }
-          label={hasSignature ? "Signed" : "Pending"}
+          label={hasSignature ? "Signed" : error ? "Signature Required *" : required ? "Required *" : "Pending"}
           size="small"
           sx={{
             fontWeight: 800,
             fontSize: "0.68rem",
             height: 24,
             flexShrink: 0,
-            bgcolor: hasSignature ? "rgba(16, 185, 129, 0.12)" : "rgba(245, 158, 11, 0.12)",
-            color: hasSignature ? "#059669" : "#B45309",
-            border: `1px solid ${hasSignature ? "rgba(16, 185, 129, 0.3)" : "rgba(245, 158, 11, 0.3)"}`,
+            bgcolor: hasSignature 
+              ? "rgba(16, 185, 129, 0.12)" 
+              : error 
+                ? "rgba(239, 68, 68, 0.14)" 
+                : "rgba(245, 158, 11, 0.12)",
+            color: hasSignature 
+              ? "#059669" 
+              : error 
+                ? "#DC2626" 
+                : "#B45309",
+            border: `1px solid ${hasSignature ? "rgba(16, 185, 129, 0.3)" : error ? "rgba(239, 68, 68, 0.35)" : "rgba(245, 158, 11, 0.3)"}`,
           }}
         />
       </Box>
@@ -641,13 +657,29 @@ export default function DigitalSignaturePad({
       )}
 
       {/* Footer info */}
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 1 }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 1, flexWrap: "wrap", gap: 0.5 }}>
         <Typography
           variant="caption"
           sx={{ color: themeConfig.textMuted || "#94A3B8", fontSize: "0.65rem", fontWeight: 700 }}
         >
           🔒 Legally binding digital acknowledgement • Mobile & Touch Supported
         </Typography>
+
+        {error && !hasSignature && (
+          <Typography
+            variant="caption"
+            sx={{
+              color: "#EF4444",
+              fontWeight: 800,
+              fontSize: "0.72rem",
+              display: "flex",
+              alignItems: "center",
+              gap: 0.5,
+            }}
+          >
+            ⚠️ {helperText || "Guest digital signature is required before proceeding."}
+          </Typography>
+        )}
       </Box>
     </Paper>
   );

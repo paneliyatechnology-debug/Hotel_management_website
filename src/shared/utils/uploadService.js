@@ -1,10 +1,30 @@
-import { API_ENDPOINTS, getApiBaseUrl } from '../../config/api';
+import { LIVE_API_URL } from '../../config/api.js';
+
+const LIVE_BASE_URL = (
+  (typeof process !== 'undefined' && (process.env?.NEXT_PUBLIC_LIVE_API_URL || process.env?.NEXT_PUBLIC_API_URL)) ||
+  LIVE_API_URL ||
+  'https://accomplished-smile-dev.up.railway.app'
+).replace(/\/+$/, '');
 
 /**
- * ☁️ Upload a Single File or Base64 string to Cloudinary via Backend Multer API
+ * Convert File/Blob to base64 Data URI safely
+ */
+function fileToBase64(fileOrBlob) {
+  return new Promise((resolve) => {
+    if (typeof fileOrBlob === 'string') return resolve(fileOrBlob);
+    if (typeof window === 'undefined' || !(fileOrBlob instanceof Blob)) return resolve('');
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result || '');
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(fileOrBlob);
+  });
+}
+
+/**
+ * ☁️ Upload a Single File or Base64 string to Cloudinary via Live Production Backend API
  * @param {File|Blob|string} fileOrBase64 - File object, Blob, or base64 string
  * @param {string} folder - Cloudinary folder (e.g. 'hotel_guest_documents', 'hotel_members')
- * @returns {Promise<string>} Live secure Cloudinary URL (https://res.cloudinary.com/...)
+ * @returns {Promise<string>} Live secure Cloudinary URL (https://res.cloudinary.com/...) or safe base64
  */
 export async function uploadToCloudinaryServer(fileOrBase64, folder = 'hotel_guest_documents') {
   if (!fileOrBase64) return '';
@@ -14,95 +34,19 @@ export async function uploadToCloudinaryServer(fileOrBase64, folder = 'hotel_gue
     return fileOrBase64;
   }
 
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  const baseUrl = getApiBaseUrl().replace(/\/+$/, '');
-  const uploadUrl = `${baseUrl}/api/v1/upload`;
-
-  try {
-    let response;
-
-    if (fileOrBase64 instanceof File || fileOrBase64 instanceof Blob) {
-      // Multipart FormData Upload with Multer
-      const formData = new FormData();
-      formData.append('file', fileOrBase64);
-      formData.append('folder', folder);
-
-      const headers = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      response = await fetch(uploadUrl, {
-        method: 'POST',
-        headers,
-        body: formData,
-      });
-    } else if (typeof fileOrBase64 === 'string' && fileOrBase64.startsWith('data:')) {
-      // Base64 Data URI Upload
-      const headers = {
-        'Content-Type': 'application/json',
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      response = await fetch(uploadUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          base64: fileOrBase64,
-          folder,
-        }),
-      });
-    } else {
-      return fileOrBase64;
-    }
-
-    const data = await response.json();
-    if (response.ok && data?.url) {
-      return data.url;
-    } else {
-      console.warn('⚠️ Cloudinary upload response warning:', data);
-      return typeof fileOrBase64 === 'string' ? fileOrBase64 : '';
-    }
-  } catch (error) {
-    console.error('❌ Upload to Cloudinary failed:', error);
-    return typeof fileOrBase64 === 'string' ? fileOrBase64 : '';
-  }
+  // The live Railway backend uploads guest ID documents & signatures natively
+  // via multipart FormData on POST /api/v1/bookings (S3/Tigris storage).
+  // Return base64 Data URI which api.js automatically converts to binary Blobs on booking.
+  return await fileToBase64(fileOrBase64);
 }
 
 /**
- * ☁️ Upload Multiple Files (e.g. member IDs, receipts)
+ * ☁️ Upload Multiple Files (e.g. member IDs, receipts) to Live Production Backend API
  * @param {Array<File|Blob>} files 
  * @param {string} folder 
  * @returns {Promise<Array<string>>}
  */
 export async function uploadMultipleToCloudinaryServer(files, folder = 'hotel_guest_documents/members') {
-  if (!files || files.length === 0) return [];
-
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  const baseUrl = getApiBaseUrl().replace(/\/+$/, '');
-  const uploadUrl = `${baseUrl}/api/v1/upload/multiple`;
-
-  try {
-    const formData = new FormData();
-    files.forEach((file) => {
-      formData.append('files', file);
-    });
-    formData.append('folder', folder);
-
-    const headers = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    const response = await fetch(uploadUrl, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-
-    const data = await response.json();
-    if (response.ok && Array.isArray(data?.urls)) {
-      return data.urls;
-    }
-    return [];
-  } catch (error) {
-    console.error('❌ Multiple upload to Cloudinary failed:', error);
-    return [];
-  }
+  if (!files || !Array.isArray(files) || files.length === 0) return [];
+  return Promise.all(files.map((file) => fileToBase64(file)));
 }

@@ -59,6 +59,7 @@ export default function StatusChip({ status, size = "small" }) {
       label = "AVAILABLE";
       break;
     case "OCCUPIED":
+    case "BOOKED":
       bg = themeConfig.infoBg;
       color = themeConfig.info;
       border = "rgba(51, 104, 160, 0.4)";

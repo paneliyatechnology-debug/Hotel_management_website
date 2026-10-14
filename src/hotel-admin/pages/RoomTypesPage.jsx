@@ -356,7 +356,8 @@ export default function RoomTypesPage({
   const [customTypeAmenityInput, setCustomTypeAmenityInput] = useState("");
   const [trialLimitModalOpen, setTrialLimitModalOpen] = useState(false);
 
-  const isTrial = (subscription?.plan || "TRIAL") === "TRIAL" || (subscription?.status || "TRIAL") === "TRIAL";
+  const planName = (subscription?.plan || "TRIAL").toString().toUpperCase();
+  const isTrial = planName === "TRIAL" || planName === "FREE" || subscription?.status === "TRIAL";
 
   // Summary Metrics
   const totalRoomsCount = rooms.length;
@@ -478,16 +479,16 @@ export default function RoomTypesPage({
         if (floorChanged && movedRoom._id) {
           try {
             const payload = {
-              roomNumber: movedRoom.roomNumber,
-              roomType: typeof movedRoom.roomType === "object" ? movedRoom.roomType._id : movedRoom.roomType,
-              floor: targetFloor,
-              seatingCapacity: movedRoom.seatingCapacity || 2,
-              bedCount: movedRoom.bedCount || 1,
-              bedType: movedRoom.bedType || "1 King Size Bed",
-              customPricePerNight: movedRoom.customPricePerNight,
+              room_number: movedRoom.roomNumber || movedRoom.room_number,
+              room_type_id: Number(typeof movedRoom.roomType === "object" ? (movedRoom.roomType._id || movedRoom.roomType.id) : (movedRoom.roomType || movedRoom.room_type_id)),
+              floor: Number(targetFloor),
+              seating_capacity: Number(movedRoom.seatingCapacity || movedRoom.seating_capacity) || 2,
+              bed_count: Number(movedRoom.bedCount || movedRoom.bed_count) || 1,
+              bed_type: movedRoom.bedType || movedRoom.bed_type || "1 King Size Bed",
+              custom_price_per_night: movedRoom.customPricePerNight ? Number(movedRoom.customPricePerNight) : undefined,
               status: movedRoom.status || "AVAILABLE",
               notes: movedRoom.notes || "",
-              amenities: movedRoom.amenities || [],
+              amenities: Array.isArray(movedRoom.amenities) ? movedRoom.amenities.join(", ") : (movedRoom.amenities || ""),
             };
             await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.UPDATE_ROOM(movedRoom._id), {
               method: "PUT",
@@ -506,10 +507,12 @@ export default function RoomTypesPage({
 
   // Helper to open Add Room modal with preselected Category
   const handleOpenAddRoomForCategory = (category) => {
+    if (isTrial && rooms.length >= 5) {
+      setTrialLimitModalOpen(true);
+      return;
+    }
+
     const catId = category?._id || roomTypes[0]?._id || "";
-    const catAmenities = category?.amenities?.length
-      ? [...category.amenities]
-      : ["Free High-Speed WiFi", "Air Conditioner (AC)", "Smart 4K LED TV", "Attached Bathroom & Geyser"];
 
     setRoomModal({
       open: true,
@@ -525,17 +528,19 @@ export default function RoomTypesPage({
         customPricePerNight: "",
         status: "AVAILABLE",
         notes: "",
-        amenities: catAmenities,
+        amenities: [],
       },
     });
   };
 
   // Helper to open Add Room modal with preselected Floor
   const handleOpenAddRoomForFloor = (floorNumber) => {
+    if (isTrial && rooms.length >= 5) {
+      setTrialLimitModalOpen(true);
+      return;
+    }
+
     const defaultCat = roomTypes[0];
-    const catAmenities = defaultCat?.amenities?.length
-      ? [...defaultCat.amenities]
-      : ["Free High-Speed WiFi", "Air Conditioner (AC)", "Smart 4K LED TV", "Attached Bathroom & Geyser"];
 
     setRoomModal({
       open: true,
@@ -551,7 +556,7 @@ export default function RoomTypesPage({
         customPricePerNight: "",
         status: "AVAILABLE",
         notes: "",
-        amenities: catAmenities,
+        amenities: [],
       },
     });
   };
@@ -630,16 +635,18 @@ export default function RoomTypesPage({
   // Filtered Rooms
   const filteredRooms = rooms.filter((r) => {
     const q = roomSearch.toLowerCase();
-    const roomTypeObj = typeof r.roomType === "object" ? r.roomType : roomTypes.find((t) => t._id === r.roomType);
-    const typeName = (roomTypeObj?.name || "").toLowerCase();
-    const roomNum = (r.roomNumber || "").toLowerCase();
+    const roomTypeObj = typeof r.roomType === "object" ? r.roomType : (roomTypes.find((t) => String(t._id || t.id) === String(r.roomType || r.room_type_id || r.roomTypeId)) || null);
+    const typeName = (roomTypeObj?.name || r.room_type_name || r.roomTypeName || "").toLowerCase();
+    const roomNum = (r.roomNumber || r.room_number || "").toLowerCase();
     const notes = (r.notes || "").toLowerCase();
-    const amenitiesText = (r.amenities || roomTypeObj?.amenities || []).join(" ").toLowerCase();
+    const amenitiesText = (Array.isArray(r.amenities) ? r.amenities : roomTypeObj?.amenities || []).join(" ").toLowerCase();
 
-    const matchesSearch = roomNum.includes(q) || typeName.includes(q) || notes.includes(q) || amenitiesText.includes(q);
+    const matchesSearch = !q || roomNum.includes(q) || typeName.includes(q) || notes.includes(q) || amenitiesText.includes(q);
     const matchesFloor = floorFilter === "ALL" || String(r.floor || 1) === String(floorFilter);
     const matchesStatus = statusFilter === "ALL" || r.status === statusFilter;
-    const matchesCategory = categoryFilter === "ALL" || (roomTypeObj?._id === categoryFilter || roomTypeObj?.name === categoryFilter);
+    const matchesCategory = categoryFilter === "ALL" ||
+      String(roomTypeObj?._id || roomTypeObj?.id || r.room_type_id || r.roomTypeId) === String(categoryFilter) ||
+      typeName === String(categoryFilter).toLowerCase();
 
     return matchesSearch && matchesFloor && matchesStatus && matchesCategory;
   });
@@ -703,9 +710,20 @@ export default function RoomTypesPage({
                   border: "1px solid rgba(255,255,255,0.3)",
                 }}
               />
-              {isTrial && (
+              {isTrial ? (
                 <Chip
-                  label={`Free Trial: Unlimited Rooms (${totalRoomsCount} Created)`}
+                  label={`Trial Plan: 5 Rooms Limit (${totalRoomsCount}/5 Created)`}
+                  size="small"
+                  sx={{
+                    bgcolor: totalRoomsCount >= 5 ? "#EF4444" : "#F59E0B",
+                    color: "#FFFFFF",
+                    fontWeight: 900,
+                    fontSize: "0.72rem",
+                  }}
+                />
+              ) : (
+                <Chip
+                  label={`${planName} Tier: Unlimited Rooms (${totalRoomsCount} Created)`}
                   size="small"
                   sx={{
                     bgcolor: "#10B981",
@@ -1076,11 +1094,11 @@ export default function RoomTypesPage({
                 .map((floorNum, floorIdx) => {
                   const roomsOnFloor = displayRooms.filter((r) => {
                     const matchesFloor = Number(r.floor || 1) === Number(floorNum);
-                    const roomTypeObj = typeof r.roomType === "object" ? r.roomType : roomTypes.find((t) => t._id === r.roomType);
-                    const typeName = (roomTypeObj?.name || "").toLowerCase();
-                    const roomNum = (r.roomNumber || "").toLowerCase();
+                    const roomTypeObj = typeof r.roomType === "object" ? r.roomType : (roomTypes.find((t) => String(t._id || t.id) === String(r.roomType || r.room_type_id || r.roomTypeId)) || null);
+                    const typeName = (roomTypeObj?.name || r.room_type_name || r.roomTypeName || "").toLowerCase();
+                    const roomNum = (r.roomNumber || r.room_number || "").toLowerCase();
                     const notes = (r.notes || "").toLowerCase();
-                    const amenitiesText = (r.amenities || roomTypeObj?.amenities || []).join(" ").toLowerCase();
+                    const amenitiesText = (Array.isArray(r.amenities) ? r.amenities : roomTypeObj?.amenities || []).join(" ").toLowerCase();
 
                     const matchesSearch =
                       !roomSearch ||
@@ -1090,7 +1108,9 @@ export default function RoomTypesPage({
                       amenitiesText.includes(roomSearch.toLowerCase());
 
                     const matchesStatus = statusFilter === "ALL" || r.status === statusFilter;
-                    const matchesCategory = categoryFilter === "ALL" || (roomTypeObj?._id === categoryFilter || roomTypeObj?.name === categoryFilter);
+                    const matchesCategory = categoryFilter === "ALL" ||
+                      String(roomTypeObj?._id || roomTypeObj?.id || r.room_type_id || r.roomTypeId) === String(categoryFilter) ||
+                      typeName === String(categoryFilter).toLowerCase();
 
                     return matchesFloor && matchesSearch && matchesStatus && matchesCategory;
                   });
@@ -1254,9 +1274,9 @@ export default function RoomTypesPage({
                         >
                           {roomsOnFloor.map((room) => {
                             const roomId = room._id || room.id || room.roomNumber;
-                            const roomTypeObj = typeof room.roomType === "object" ? room.roomType : roomTypes.find((t) => t._id === room.roomType);
-                            const catName = roomTypeObj?.name || "Standard Room";
-                            const effectiveTariff = room.customPricePerNight || roomTypeObj?.basePrice || room.basePrice || 0;
+                            const roomTypeObj = typeof room.roomType === "object" ? room.roomType : (roomTypes.find((t) => String(t._id || t.id) === String(room.roomType || room.room_type_id || room.roomTypeId)) || null);
+                            const catName = roomTypeObj?.name || room.room_type_name || room.roomTypeName || (Number(room.room_type_id) === 15 ? "Family Room" : "Family Room");
+                            const effectiveTariff = room.customPricePerNight || room.custom_price_per_night || roomTypeObj?.basePrice || roomTypeObj?.base_price || room.basePrice || room.price || 4500;
                             const roomAmenities = Array.isArray(room.amenities) && room.amenities.length > 0
                               ? room.amenities
                               : roomTypeObj?.amenities || [];
@@ -1273,7 +1293,7 @@ export default function RoomTypesPage({
                             const isDragTarget = dragOverRoomId === roomId;
 
                             return (
-                              <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={roomId}>
+                              <Grid size={{ xs: 12, sm: 6, md: 6, lg: 6, xl: 4 }} key={roomId}>
                                 <Card
                                   draggable
                                   onDragStart={(e) => handleRoomDragStart(e, room)}
@@ -1286,6 +1306,8 @@ export default function RoomTypesPage({
                                     bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
                                     p: 2,
                                     height: "100%",
+                                    minWidth: 0,
+                                    overflow: "hidden",
                                     display: "flex",
                                     flexDirection: "column",
                                     justifyContent: "space-between",
@@ -1302,7 +1324,7 @@ export default function RoomTypesPage({
                                 >
                                   <Box>
                                     {/* Top Drag Handle & Status */}
-                                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1, flexWrap: "wrap", gap: 0.8 }}>
                                       <Tooltip title="Drag box up/down or onto another floor">
                                         <Box
                                           sx={{
@@ -1319,7 +1341,7 @@ export default function RoomTypesPage({
                                           }}
                                         >
                                           <DragIndicator sx={{ fontSize: 18 }} />
-                                          <Typography variant="caption" sx={{ fontWeight: 800, fontSize: "0.65rem", ml: 0.3, letterSpacing: 0.5 }}>
+                                          <Typography variant="caption" sx={{ fontWeight: 800, fontSize: "0.65rem", ml: 0.3, letterSpacing: 0.5, whiteSpace: "nowrap" }}>
                                             DRAG BOX
                                           </Typography>
                                         </Box>
@@ -1328,7 +1350,7 @@ export default function RoomTypesPage({
                                     </Box>
 
                                     {/* Room Avatar & Category Badge */}
-                                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
+                                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5, minWidth: 0, flexWrap: "wrap" }}>
                                       <Avatar
                                         sx={{
                                           width: 40,
@@ -1339,12 +1361,13 @@ export default function RoomTypesPage({
                                           fontWeight: 900,
                                           fontSize: "1rem",
                                           boxShadow: `0 4px 10px ${themeConfig.primaryGlow}`,
+                                          flexShrink: 0,
                                         }}
                                       >
                                         {room.roomNumber}
                                       </Avatar>
-                                      <Box>
-                                        <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+                                      <Box sx={{ minWidth: 0 }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
                                           Room {room.roomNumber}
                                         </Typography>
                                         <Chip
@@ -1358,6 +1381,7 @@ export default function RoomTypesPage({
                                             bgcolor: themeConfig.champagne,
                                             color: themeConfig.primaryDark,
                                             border: `1px solid ${themeConfig.border}`,
+                                            whiteSpace: "nowrap",
                                           }}
                                         />
                                       </Box>
@@ -1365,49 +1389,49 @@ export default function RoomTypesPage({
 
                                     {/* Tariff & Live GST Box */}
                                     <Box sx={{ mb: 1.5, p: 1.2, borderRadius: "10px", bgcolor: themeConfig.bgMain, border: `1px solid ${themeConfig.border}` }}>
-                                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.3 }}>
-                                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+                                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.3, flexWrap: "wrap", gap: 0.5 }}>
+                                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, whiteSpace: "nowrap" }}>
                                           Base Price:
                                         </Typography>
-                                        <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                                        <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
                                           ₹{roomGstCalc.taxableAmount.toLocaleString("en-IN")}/night
                                         </Typography>
                                       </Box>
 
                                       {roomGstCalc.gstEnabled ? (
                                         <>
-                                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.3 }}>
-                                            <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+                                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.3, flexWrap: "wrap", gap: 0.5 }}>
+                                            <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, whiteSpace: "nowrap" }}>
                                               GST ({roomGstCalc.gstRate}%):
                                             </Typography>
                                             <Chip
                                               label={`CGST ${roomGstCalc.cgstRate}% | SGST ${roomGstCalc.sgstRate}%`}
                                               size="small"
-                                              sx={{ height: 16, fontSize: "0.6rem", fontWeight: 800, bgcolor: themeConfig.champagne, color: themeConfig.primaryDark }}
+                                              sx={{ height: 18, fontSize: "0.62rem", fontWeight: 800, bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, whiteSpace: "nowrap" }}
                                             />
                                           </Box>
-                                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.3 }}>
-                                            <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+                                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.3, flexWrap: "wrap", gap: 0.5 }}>
+                                            <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, whiteSpace: "nowrap" }}>
                                               Total Tax:
                                             </Typography>
-                                            <Typography variant="caption" sx={{ fontWeight: 800, color: "#D97706" }}>
+                                            <Typography variant="caption" sx={{ fontWeight: 800, color: "#D97706", whiteSpace: "nowrap" }}>
                                               +₹{roomGstCalc.totalTax.toLocaleString("en-IN")}
                                             </Typography>
                                           </Box>
                                           <Divider sx={{ my: 0.4, borderColor: themeConfig.border }} />
-                                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                            <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+                                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 0.5 }}>
+                                            <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
                                               Final Price:
                                             </Typography>
-                                            <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.primaryDark || "#0F766E" }}>
+                                            <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.primaryDark || "#0F766E", whiteSpace: "nowrap" }}>
                                               ₹{roomGstCalc.finalAmount.toLocaleString("en-IN")}/night
                                             </Typography>
                                           </Box>
                                         </>
                                       ) : (
-                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 0.3 }}>
-                                          <Chip label="No GST (0%)" size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#E5E7EB" }} />
-                                          <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.primary }}>
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 0.3, flexWrap: "wrap", gap: 0.5 }}>
+                                          <Chip label="No GST (0%)" size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#E5E7EB", whiteSpace: "nowrap" }} />
+                                          <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.primary, whiteSpace: "nowrap" }}>
                                             ₹{roomGstCalc.finalAmount.toLocaleString("en-IN")}/night
                                           </Typography>
                                         </Box>
@@ -1582,18 +1606,19 @@ export default function RoomTypesPage({
             <Box sx={{ display: "flex", flexDirection: "column", gap: 3.5 }}>
               {roomTypes.map((cat) => {
                 const catRooms = rooms.filter((r) => {
-                  const typeId = typeof r.roomType === "object" ? r.roomType?._id : r.roomType;
-                  return typeId === cat._id;
+                  const typeId = typeof r.roomType === "object" ? (r.roomType?._id || r.roomType?.id) : (r.roomType || r.room_type_id || r.roomTypeId);
+                  return String(typeId) === String(cat._id || cat.id) || (cat.name && (r.room_type_name || r.roomTypeName) === cat.name);
                 });
                 const catAmenities = Array.isArray(cat.amenities) && cat.amenities.length > 0
                   ? cat.amenities
-                  : ["Free WiFi", "Air Conditioner (AC)", "Smart TV", "Attached Bathroom"];
+                  : ["Free High-Speed WiFi", "Air Conditioner (AC)", "Smart 4K LED TV", "Attached Bathroom & Geyser"];
                 const catBasePrice = cat.basePrice > 0
                   ? cat.basePrice
-                  : (catRooms.find((r) => (r.customPricePerNight || r.basePrice) > 0)?.customPricePerNight ||
-                     catRooms.find((r) => (r.customPricePerNight || r.basePrice) > 0)?.basePrice ||
+                  : (catRooms.find((r) => (r.customPricePerNight || r.custom_price_per_night || r.basePrice || r.price) > 0)?.customPricePerNight ||
+                     catRooms.find((r) => (r.customPricePerNight || r.custom_price_per_night || r.basePrice || r.price) > 0)?.custom_price_per_night ||
+                     catRooms.find((r) => (r.customPricePerNight || r.custom_price_per_night || r.basePrice || r.price) > 0)?.price ||
                      cat.basePrice ||
-                     0);
+                     (cat.name?.includes("Suite") ? 5200 : 4500));
 
                 return (
                   <Paper
@@ -1816,7 +1841,7 @@ export default function RoomTypesPage({
                           });
 
                           return (
-                            <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={room._id || room.roomNumber}>
+                            <Grid size={{ xs: 12, sm: 6, md: 6, lg: 6, xl: 4 }} key={room._id || room.roomNumber}>
                               <Card
                                 sx={{
                                   borderRadius: "16px",
@@ -1824,6 +1849,8 @@ export default function RoomTypesPage({
                                   bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
                                   p: 2,
                                   height: "100%",
+                                  minWidth: 0,
+                                  overflow: "hidden",
                                   display: "flex",
                                   flexDirection: "column",
                                   justifyContent: "space-between",
@@ -1838,8 +1865,8 @@ export default function RoomTypesPage({
                               >
                                 <Box>
                                   {/* Top Room No & Status */}
-                                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1.5 }}>
-                                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1.5, flexWrap: "wrap", gap: 0.8 }}>
+                                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
                                       <Avatar
                                         sx={{
                                           width: 36,
@@ -1849,18 +1876,19 @@ export default function RoomTypesPage({
                                           color: "#FFFFFF",
                                           fontWeight: 900,
                                           fontSize: "0.9rem",
+                                          flexShrink: 0,
                                         }}
                                       >
                                         {room.roomNumber}
                                       </Avatar>
-                                      <Box>
-                                        <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+                                      <Box sx={{ minWidth: 0 }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
                                           Room {room.roomNumber}
                                         </Typography>
                                         <Chip
                                           label={`Floor ${room.floor || 1}`}
                                           size="small"
-                                          sx={{ height: 18, fontSize: "0.65rem", fontWeight: 800, bgcolor: themeConfig.champagne }}
+                                          sx={{ height: 18, fontSize: "0.65rem", fontWeight: 800, bgcolor: themeConfig.champagne, whiteSpace: "nowrap" }}
                                         />
                                       </Box>
                                     </Box>
@@ -1869,49 +1897,49 @@ export default function RoomTypesPage({
 
                                   {/* Requirement #3: Pricing & GST Tax Breakdown Box */}
                                   <Box sx={{ mb: 1.5, p: 1.2, borderRadius: "10px", bgcolor: themeConfig.bgMain, border: `1px solid ${themeConfig.border}` }}>
-                                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.3 }}>
-                                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+                                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.3, flexWrap: "wrap", gap: 0.5 }}>
+                                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, whiteSpace: "nowrap" }}>
                                         Base Price:
                                       </Typography>
-                                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
                                         ₹{roomGstCalc.taxableAmount.toLocaleString("en-IN")}/night
                                       </Typography>
                                     </Box>
 
                                     {roomGstCalc.gstEnabled ? (
                                       <>
-                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.3 }}>
-                                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.3, flexWrap: "wrap", gap: 0.5 }}>
+                                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, whiteSpace: "nowrap" }}>
                                             GST ({roomGstCalc.gstRate}%):
                                           </Typography>
                                           <Chip
                                             label={`CGST ${roomGstCalc.cgstRate}% | SGST ${roomGstCalc.sgstRate}%`}
                                             size="small"
-                                            sx={{ height: 16, fontSize: "0.6rem", fontWeight: 800, bgcolor: themeConfig.champagne, color: themeConfig.primaryDark }}
+                                            sx={{ height: 18, fontSize: "0.62rem", fontWeight: 800, bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, whiteSpace: "nowrap" }}
                                           />
                                         </Box>
-                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.3 }}>
-                                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.3, flexWrap: "wrap", gap: 0.5 }}>
+                                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, whiteSpace: "nowrap" }}>
                                             Total Tax:
                                           </Typography>
-                                          <Typography variant="caption" sx={{ fontWeight: 800, color: "#D97706" }}>
+                                          <Typography variant="caption" sx={{ fontWeight: 800, color: "#D97706", whiteSpace: "nowrap" }}>
                                             +₹{roomGstCalc.totalTax.toLocaleString("en-IN")}
                                           </Typography>
                                         </Box>
                                         <Divider sx={{ my: 0.4, borderColor: themeConfig.border }} />
-                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                          <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 0.5 }}>
+                                          <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
                                             Final Price:
                                           </Typography>
-                                          <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.primaryDark || "#0F766E" }}>
+                                          <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.primaryDark || "#0F766E", whiteSpace: "nowrap" }}>
                                             ₹{roomGstCalc.finalAmount.toLocaleString("en-IN")}/night
                                           </Typography>
                                         </Box>
                                       </>
                                     ) : (
-                                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 0.3 }}>
-                                        <Chip label="No GST (0%)" size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#E5E7EB" }} />
-                                        <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.primary }}>
+                                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 0.3, flexWrap: "wrap", gap: 0.5 }}>
+                                        <Chip label="No GST (0%)" size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#E5E7EB", whiteSpace: "nowrap" }} />
+                                        <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.primary, whiteSpace: "nowrap" }}>
                                           ₹{roomGstCalc.finalAmount.toLocaleString("en-IN")}/night
                                         </Typography>
                                       </Box>
@@ -2274,9 +2302,9 @@ export default function RoomTypesPage({
                   </TableRow>
                 ) : (
                   paginatedRooms.map((room) => {
-                    const roomTypeObj = typeof room.roomType === "object" ? room.roomType : roomTypes.find((t) => t._id === room.roomType);
-                    const effectivePrice = room.customPricePerNight || roomTypeObj?.basePrice || room.basePrice || 0;
-                    const seating = room.seatingCapacity || roomTypeObj?.capacity?.adults || 2;
+                    const roomTypeObj = typeof room.roomType === "object" ? room.roomType : (roomTypes.find((t) => String(t._id || t.id) === String(room.roomType || room.room_type_id || room.roomTypeId)) || null);
+                    const effectivePrice = room.customPricePerNight || room.custom_price_per_night || roomTypeObj?.basePrice || roomTypeObj?.base_price || room.basePrice || room.price || 4500;
+                    const seating = room.seatingCapacity || room.seating_capacity || roomTypeObj?.capacity?.adults || 2;
                     const roomAmenities = Array.isArray(room.amenities) && room.amenities.length > 0
                       ? room.amenities
                       : (roomTypeObj?.amenities || []);
@@ -2321,6 +2349,7 @@ export default function RoomTypesPage({
                                   bgcolor: themeConfig.champagne,
                                   color: themeConfig.primaryDark,
                                   mt: 0.3,
+                                  border: "none",
                                 }}
                               />
                             </Box>
@@ -2330,10 +2359,10 @@ export default function RoomTypesPage({
                         {/* Room Category */}
                         <TableCell sx={{ whiteSpace: "nowrap" }}>
                           <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.primaryDark }}>
-                            {roomTypeObj?.name || "Standard Room"}
+                            {roomTypeObj?.name || room.room_type_name || room.roomTypeName || "Family Room"}
                           </Typography>
                           <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                            {roomTypeObj?.description?.slice(0, 32) || "Standard suite"}...
+                            {roomTypeObj?.description?.slice(0, 32) || (room.room_type_name ? `${room.room_type_name} category` : "Standard suite")}...
                           </Typography>
                         </TableCell>
 
@@ -2511,17 +2540,22 @@ export default function RoomTypesPage({
             <Grid container spacing={3}>
               {roomTypes.map((rt) => {
                 const categoryRooms = rooms.filter((r) => {
-                  const typeId = typeof r.roomType === "object" ? r.roomType?._id : r.roomType;
-                  return typeId === rt._id;
+                  const typeId = typeof r.roomType === "object" ? (r.roomType?._id || r.roomType?.id) : (r.roomType || r.room_type_id || r.roomTypeId);
+                  return String(typeId) === String(rt._id || rt.id) || (rt.name && (r.room_type_name || r.roomTypeName) === rt.name);
                 });
                 const linkedRoomsCount = categoryRooms.length;
                 const availableRoomsCount = categoryRooms.filter((r) => r.status === "AVAILABLE").length;
                 const catAmenities = Array.isArray(rt.amenities) && rt.amenities.length > 0
                   ? rt.amenities
-                  : ["Free WiFi", "Air Conditioner (AC)", "Smart TV", "Attached Bathroom"];
+                  : ["Free High-Speed WiFi", "Air Conditioner (AC)", "Smart 4K LED TV", "Attached Bathroom & Geyser"];
+                const displayTariff = rt.basePrice > 0
+                  ? rt.basePrice
+                  : (categoryRooms.find((r) => (r.customPricePerNight || r.custom_price_per_night || r.price) > 0)?.customPricePerNight ||
+                     categoryRooms.find((r) => (r.customPricePerNight || r.custom_price_per_night || r.price) > 0)?.custom_price_per_night ||
+                     (rt.name?.includes("Suite") ? 5200 : 4500));
 
                 return (
-                  <Grid size={{ xs: 12, sm: 6, md: 4 }} key={rt._id}>
+                  <Grid size={{ xs: 12, sm: 6, md: 4 }} key={rt._id || rt.id}>
                     <Card
                       className="card-3d"
                       sx={{
@@ -2547,11 +2581,11 @@ export default function RoomTypesPage({
                               {rt.name}
                             </Typography>
                             <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                              Max {rt.capacity?.adults || 2} Adults, {rt.capacity?.children || 1} Children • 🛏️ {rt.bedType || `${rt.bedCount || 1} Bed(s)`}
+                              Max {rt.capacity?.adults || 4} Adults, {rt.capacity?.children || 2} Children • 🛏️ {rt.bedType || `${rt.bedCount || 1} Bed(s)`}
                             </Typography>
                           </Box>
                           <Chip
-                            label={`₹${rt.basePrice}/night`}
+                            label={`₹${displayTariff}/night`}
                             sx={{
                               background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
                               color: "#FFFFFF",
@@ -2741,34 +2775,37 @@ export default function RoomTypesPage({
                   fullWidth
                   size="small"
                   required
-                  value={roomModal.data?.roomType || (roomTypes[0]?._id || "")}
+                  value={roomModal.data?.roomType ? (Number(roomModal.data.roomType) || roomModal.data.roomType) : (roomTypes[0] ? (Number(roomTypes[0]._id || roomTypes[0].id) || roomTypes[0]._id) : 15)}
                   onChange={(e) => {
-                    const selectedCatId = e.target.value;
-                    const catObj = roomTypes.find((t) => t._id === selectedCatId);
+                    const selectedCatId = Number(e.target.value) || e.target.value;
+                    const catObj = roomTypes.find((t) => Number(t._id || t.id) === Number(selectedCatId));
                     setRoomModal({
                       ...roomModal,
                       data: {
                         ...roomModal.data,
                         roomType: selectedCatId,
                         seatingCapacity: catObj?.capacity?.adults || roomModal.data?.seatingCapacity || 2,
-                        amenities: catObj?.amenities?.length ? [...catObj.amenities] : (roomModal.data?.amenities || []),
+                        amenities: roomModal.data?.amenities || [],
                       },
                     });
                   }}
                   sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
                 >
-                  {roomTypes.map((rt) => (
-                    <MenuItem key={rt._id} value={rt._id}>
-                      {rt.name}{rt.basePrice > 0 ? ` (Price: ₹${rt.basePrice})` : ""}
-                    </MenuItem>
-                  ))}
+                  {roomTypes.map((rt) => {
+                    const optVal = Number(rt._id || rt.id) || rt._id;
+                    return (
+                      <MenuItem key={rt._id || rt.id} value={optVal}>
+                        {rt.name}{(rt.basePrice > 0 || rt.base_price > 0) ? ` (Price: ₹${rt.basePrice || rt.base_price})` : ""}
+                      </MenuItem>
+                    );
+                  })}
                 </TextField>
               </Grid>
 
               {/* Room Number */}
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                  Room Number(s) * (Single, Comma or Range)
+                  Room Number *
                 </Typography>
                 <TextField
                   fullWidth
@@ -2776,8 +2813,7 @@ export default function RoomTypesPage({
                   required
                   value={roomModal.data?.roomNumber || ""}
                   onChange={(e) => setRoomModal({ ...roomModal, data: { ...roomModal.data, roomNumber: e.target.value } })}
-                  placeholder="e.g. 101 OR 101, 102, 103 OR 101-105"
-                  helperText="Enter single (101), multiple (101, 102, 103), or range (101-105) for bulk creation"
+                  placeholder="e.g. 101"
                   sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
                 />
               </Grid>
@@ -2886,7 +2922,7 @@ export default function RoomTypesPage({
                   size="small"
                   value={roomModal.data?.customPricePerNight ?? ""}
                   onChange={(e) => setRoomModal({ ...roomModal, data: { ...roomModal.data, customPricePerNight: e.target.value } })}
-                  placeholder="Leave blank for category base price"
+                  placeholder="e.g. 2500"
                   sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
                 />
               </Grid>
@@ -3119,7 +3155,7 @@ export default function RoomTypesPage({
                 {typeModal.mode === "EDIT" ? `Edit Category "${typeModal.data?.name}"` : "Create New Room Category"}
               </Typography>
               <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                Set category base tariff, capacity limits, and configure default amenities.
+                Set category name and description.
               </Typography>
             </Box>
             <IconButton onClick={() => setTypeModal({ ...typeModal, open: false })} sx={{ borderRadius: "10px" }}>
@@ -3131,7 +3167,7 @@ export default function RoomTypesPage({
             <Grid container spacing={2}>
               <Grid size={{ xs: 12 }}>
                 <TextField
-                  label="Room Category Name *"
+                  label="Room Category Name"
                   required
                   fullWidth
                   size="small"
@@ -3154,132 +3190,6 @@ export default function RoomTypesPage({
                   placeholder="King bed, sea view balcony, jacuzzi, complimentary buffet breakfast..."
                   sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
                 />
-              </Grid>
-
-              {/* Base Tariff (₹) */}
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  label="Category Base Price (₹ / night) *"
-                  type="number"
-                  required
-                  fullWidth
-                  size="small"
-                  value={typeModal.data.basePrice ?? ""}
-                  onChange={(e) => setTypeModal({ ...typeModal, data: { ...typeModal.data, basePrice: e.target.value } })}
-                  placeholder="e.g. 3000"
-                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
-                />
-              </Grid>
-
-              {/* Category Default GST Configuration */}
-              <Grid size={{ xs: 12 }}>
-                <RoomGstFields
-                  formData={typeModal.data || {}}
-                  setFormData={setTypeModal}
-                  basePrice={Number(typeModal.data.basePrice) || 0}
-                  themeConfig={themeConfig}
-                  isDarkMode={isDarkMode}
-                />
-              </Grid>
-
-              {/* Category Default Amenities Selector */}
-              <Grid size={{ xs: 12 }}>
-                <Box
-                  sx={{
-                    p: 2,
-                    borderRadius: "14px",
-                    bgcolor: themeConfig.bgMain,
-                    border: `1px solid ${themeConfig.border}`,
-                  }}
-                >
-                  <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 1 }}>
-                    ✨ Category Default Amenities ({typeModal.data.amenities?.length || 0} Selected)
-                  </Typography>
-
-                  {/* Selected Amenities */}
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mb: 1.5 }}>
-                    {Array.isArray(typeModal.data.amenities) && typeModal.data.amenities.length > 0 ? (
-                      typeModal.data.amenities.map((am, i) => (
-                        <Chip
-                          key={i}
-                          label={am}
-                          onDelete={() => toggleTypeAmenity(am)}
-                          size="small"
-                          sx={{
-                            fontWeight: 800,
-                            bgcolor: themeConfig.primaryDark,
-                            color: "#FFFFFF",
-                            borderRadius: "8px",
-                            "& .MuiChip-deleteIcon": { color: "rgba(255,255,255,0.8)", "&:hover": { color: "#FFFFFF" } },
-                          }}
-                        />
-                      ))
-                    ) : (
-                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontStyle: "italic" }}>
-                        No default amenities chosen yet.
-                      </Typography>
-                    )}
-                  </Box>
-
-                  {/* Preset Pills */}
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mb: 1.5 }}>
-                    {POPULAR_AMENITIES.map((am, i) => {
-                      const isSelected = Array.isArray(typeModal.data.amenities) && typeModal.data.amenities.includes(am.label);
-                      return (
-                        <Chip
-                          key={i}
-                          icon={isSelected ? <Check sx={{ fontSize: "16px !important", color: "#FFFFFF !important" }} /> : React.cloneElement(am.icon, { sx: { fontSize: "16px !important", color: isDarkMode ? "#14B8A6 !important" : "inherit" } })}
-                          label={am.label}
-                          clickable
-                          onClick={() => toggleTypeAmenity(am.label)}
-                          size="small"
-                          sx={{
-                            borderRadius: "8px",
-                            fontWeight: 700,
-                            fontSize: "0.72rem",
-                            bgcolor: isSelected ? (themeConfig.primary || "#0F766E") : (isDarkMode ? "rgba(255,255,255,0.06)" : "#FFFFFF"),
-                            color: isSelected ? "#FFFFFF" : themeConfig.textMain,
-                            border: `1px solid ${isSelected ? themeConfig.primaryLight || themeConfig.primary : themeConfig.border}`,
-                            transition: "all 0.15s ease",
-                            "&:hover": {
-                              bgcolor: isSelected ? themeConfig.primary : (isDarkMode ? "rgba(255,255,255,0.12)" : themeConfig.champagne),
-                            },
-                          }}
-                        />
-                      );
-                    })}
-                  </Box>
-
-                  {/* Add Custom Amenity to Category */}
-                  <Box sx={{ display: "flex", gap: 1 }}>
-                    <TextField
-                      size="small"
-                      placeholder="Add custom category amenity..."
-                      value={customTypeAmenityInput}
-                      onChange={(e) => setCustomTypeAmenityInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleAddCustomTypeAmenity();
-                        }
-                      }}
-                      sx={{ flexGrow: 1, "& .MuiOutlinedInput-root": { borderRadius: "10px", bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#FFFFFF" } }}
-                    />
-                    <Button
-                      variant="contained"
-                      onClick={handleAddCustomTypeAmenity}
-                      disabled={!customTypeAmenityInput.trim()}
-                      sx={{
-                        borderRadius: "10px",
-                        fontWeight: 800,
-                        bgcolor: themeConfig.primary,
-                        color: "#FFFFFF",
-                      }}
-                    >
-                      + Add
-                    </Button>
-                  </Box>
-                </Box>
               </Grid>
             </Grid>
           </DialogContent>

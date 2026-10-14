@@ -70,6 +70,7 @@ import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
 import { formatTime12Hour, getTurnaroundWindow } from "@/shared/utils/timeUtils";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
+import { createSafeGuestModalData, removeCircularReferences } from "@/shared/utils/guestModalUtils";
 
 export default function ReceptionistOverviewPage({
   user,
@@ -105,6 +106,8 @@ export default function ReceptionistOverviewPage({
   // Pagination for Recent Check-Ins Table
   const [guestPage, setGuestPage] = useState(0);
   const [guestRowsPerPage, setGuestRowsPerPage] = useState(5);
+  // Filter for Recent Front Desk Table: "TODAY_ALL" (Default: In & Out) | "TODAY_CHECKIN" | "TODAY_CHECKOUT" | "IN_HOUSE" | "ALL"
+  const [recentFilter, setRecentFilter] = useState("TODAY_ALL");
 
   // Selected Guest Modal State
   const [selectedGuestModal, setSelectedGuestModal] = useState({
@@ -149,8 +152,8 @@ export default function ReceptionistOverviewPage({
         await apiRequest(API_ENDPOINTS.RECEPTIONIST.CHECKOUT(bookingId), {
           method: "POST",
           body: {
-            settlementPaymentAmount: Number(checkoutModal.settlementAmount) || 0,
-            paymentMethod: checkoutModal.paymentMethod,
+            paid_amount: Number(checkoutModal.settlementAmount) || 0,
+            notes: `Checked out via ${checkoutModal.paymentMethod}`,
           },
         });
         toast.success("Guest checked out successfully! Room marked for cleaning.");
@@ -201,8 +204,8 @@ export default function ReceptionistOverviewPage({
   const handleQuickRoomStatusChange = async (room, nextStatus = "AVAILABLE") => {
     if (!room?._id) return;
     try {
-      await apiRequest(API_ENDPOINTS.RECEPTIONIST.UPDATE_ROOM_STATUS(room._id), {
-        method: "PUT",
+      await apiRequest(API_ENDPOINTS.RECEPTIONIST.UPDATE_ROOM_STATUS(room._id || room.id), {
+        method: "PATCH",
         body: { status: nextStatus },
       });
       toast.success(`Room ${room.roomNumber} updated to ${nextStatus}!`);
@@ -307,11 +310,72 @@ export default function ReceptionistOverviewPage({
               : b.roomNumber || (b.room?.roomNumber ? String(b.room.roomNumber) : "")
         ) : "") || "Not Assigned";
 
-      const checkInDateStr = g.checkInDate || (b?.checkInDate ? (typeof b.checkInDate === "string" ? b.checkInDate.split("T")[0] : new Date(b.checkInDate).toISOString().split("T")[0]) : "N/A");
-      const checkOutDateStr = g.checkOutDate || (b?.checkOutDate ? (typeof b.checkOutDate === "string" ? b.checkOutDate.split("T")[0] : new Date(b.checkOutDate).toISOString().split("T")[0]) : "N/A");
+      const rawIn =
+        g.checkInDate ||
+        g.check_in_date ||
+        g.checkIn ||
+        g.check_in ||
+        g.arrivalDate ||
+        g.arrival_date ||
+        (b ? (b.checkInDate || b.check_in_date || b.checkIn || b.check_in || b.createdAt || b.created_at) : null) ||
+        g.createdAt ||
+        g.created_at ||
+        (isCheckedIn ? new Date().toISOString() : null);
+
+      let checkInDateStr = "N/A";
+      if (rawIn) {
+        checkInDateStr = typeof rawIn === "string" && rawIn.includes("T") ? rawIn.split("T")[0] : (typeof rawIn === "string" ? rawIn : new Date(rawIn).toISOString().split("T")[0]);
+      } else if (isCheckedIn) {
+        checkInDateStr = new Date().toISOString().split("T")[0];
+      }
+
+      const rawOut =
+        g.checkOutDate ||
+        g.check_out_date ||
+        g.checkOut ||
+        g.check_out ||
+        g.departureDate ||
+        g.departure_date ||
+        (b ? (b.checkOutDate || b.check_out_date || b.checkOut || b.check_out) : null);
+
+      let checkOutDateStr = "N/A";
+      if (rawOut) {
+        checkOutDateStr = typeof rawOut === "string" && rawOut.includes("T") ? rawOut.split("T")[0] : (typeof rawOut === "string" ? rawOut : new Date(rawOut).toISOString().split("T")[0]);
+      } else if (checkInDateStr !== "N/A") {
+        const inD = new Date(checkInDateStr);
+        if (!isNaN(inD.getTime())) {
+          inD.setDate(inD.getDate() + Math.max(1, Number(g.numberOfNights || b?.numberOfNights || b?.nights || 1)));
+          checkOutDateStr = inD.toISOString().split("T")[0];
+        }
+      } else if (isCheckedIn) {
+        const inD = new Date();
+        inD.setDate(inD.getDate() + Math.max(1, Number(g.numberOfNights || b?.numberOfNights || b?.nights || 1)));
+        checkOutDateStr = inD.toISOString().split("T")[0];
+      }
+
+      const bTotal = Number(b?.totalAmount ?? b?.total_amount ?? b?.total ?? b?.grandTotal ?? 0);
+      const bPaid = Number(b?.paidAmount ?? b?.paid_amount ?? b?.advancePaymentAmount ?? b?.advance_paid ?? 0);
+      const bDue = Number(b?.dueAmount ?? b?.due_amount ?? b?.due ?? Math.max(0, bTotal - bPaid));
+      const bNights = Math.max(1, Number(b?.numberOfNights || b?.nights || 1));
+      const bBase = Number(b?.baseAmount ?? b?.base_amount ?? (bTotal > 0 ? Math.round((bTotal / 1.18) * 100) / 100 : 0));
+      const bGst = Number(b?.gstAmount ?? b?.gst_amount ?? (bTotal > bBase ? Math.round((bTotal - bBase) * 100) / 100 : Math.round(((bBase * 0.18)) * 100) / 100));
+      const bPrice = Number(b?.pricePerNight || b?.price_per_night || b?.price || b?.customPricePerNight || b?.room?.customPricePerNight || (bBase > 0 ? Math.round((bBase / bNights) * 100) / 100 : 3500));
+      const bRoomType = b?.roomType || b?.roomTypeName || b?.room?.roomType?.name || "Standard Room";
+
+      const cleanB = b ? { ...b } : null;
+      if (cleanB) {
+        delete cleanB.guest;
+        delete cleanB.booking;
+        delete cleanB.activeBooking;
+      }
+      const cleanG = { ...g, roomAssigned: roomNum, checkInDate: checkInDateStr, checkOutDate: checkOutDateStr };
+      delete cleanG.guest;
+      delete cleanG.booking;
+      delete cleanG.activeBooking;
 
       list.push({
         _id: g._id || g.id,
+        ...(cleanB || {}),
         name: g.fullName || g.name || "Guest",
         phone: g.mobileNumber || g.phone || "N/A",
         email: g.email || "",
@@ -324,9 +388,18 @@ export default function ReceptionistOverviewPage({
         checkInDate: checkInDateStr,
         checkOutDate: checkOutDateStr,
         accompanyingGuests: g.accompanyingGuests || b?.accompanyingGuests || [],
-        dueAmount: b ? Math.max(0, (b.totalAmount || 0) - (b.paidAmount || 0)) : 0,
-        booking: b || null,
-        guest: { ...g, roomAssigned: roomNum, checkInDate: checkInDateStr, checkOutDate: checkOutDateStr },
+        totalAmount: bTotal > 0 ? bTotal : (bPaid + bDue),
+        paidAmount: bPaid,
+        dueAmount: bDue,
+        baseAmount: bBase,
+        gstAmount: bGst,
+        gstRate: Number(b?.gstRate ?? b?.gst_rate ?? 18),
+        pricePerNight: bPrice,
+        numberOfNights: bNights,
+        roomType: bRoomType,
+        booking: cleanB,
+        activeBooking: cleanB,
+        guest: cleanG,
       });
     });
 
@@ -347,11 +420,69 @@ export default function ReceptionistOverviewPage({
               ? b.rooms.map((r) => r.roomNumber).join(", ")
               : b.roomNumber || (b.room?.roomNumber ? String(b.room.roomNumber) : "Not Assigned");
 
-        const checkInDateStr = b.checkInDate ? (typeof b.checkInDate === "string" ? b.checkInDate.split("T")[0] : new Date(b.checkInDate).toISOString().split("T")[0]) : "N/A";
-        const checkOutDateStr = b.checkOutDate ? (typeof b.checkOutDate === "string" ? b.checkOutDate.split("T")[0] : new Date(b.checkOutDate).toISOString().split("T")[0]) : "N/A";
+        const rawIn =
+          b.checkInDate ||
+          b.check_in_date ||
+          b.checkIn ||
+          b.check_in ||
+          b.arrivalDate ||
+          b.arrival_date ||
+          b.createdAt ||
+          b.created_at ||
+          (b.status === "CHECKED_IN" || b.status === "IN-HOUSE" ? new Date().toISOString() : null);
+
+        let checkInDateStr = "N/A";
+        if (rawIn) {
+          checkInDateStr = typeof rawIn === "string" && rawIn.includes("T") ? rawIn.split("T")[0] : (typeof rawIn === "string" ? rawIn : new Date(rawIn).toISOString().split("T")[0]);
+        } else if (b.status === "CHECKED_IN" || b.status === "IN-HOUSE") {
+          checkInDateStr = new Date().toISOString().split("T")[0];
+        }
+
+        const rawOut =
+          b.checkOutDate ||
+          b.check_out_date ||
+          b.checkOut ||
+          b.check_out ||
+          b.departureDate ||
+          b.departure_date;
+
+        let checkOutDateStr = "N/A";
+        if (rawOut) {
+          checkOutDateStr = typeof rawOut === "string" && rawOut.includes("T") ? rawOut.split("T")[0] : (typeof rawOut === "string" ? rawOut : new Date(rawOut).toISOString().split("T")[0]);
+        } else if (checkInDateStr !== "N/A") {
+          const inD = new Date(checkInDateStr);
+          if (!isNaN(inD.getTime())) {
+            inD.setDate(inD.getDate() + Math.max(1, Number(b?.numberOfNights || b?.nights || 1)));
+            checkOutDateStr = inD.toISOString().split("T")[0];
+          }
+        } else if (b.status === "CHECKED_IN" || b.status === "IN-HOUSE") {
+          const inD = new Date();
+          inD.setDate(inD.getDate() + Math.max(1, Number(b?.numberOfNights || b?.nights || 1)));
+          checkOutDateStr = inD.toISOString().split("T")[0];
+        }
+
+        const bTotal = Number(b?.totalAmount ?? b?.total_amount ?? b?.total ?? b?.grandTotal ?? 0);
+        const bPaid = Number(b?.paidAmount ?? b?.paid_amount ?? b?.advancePaymentAmount ?? b?.advance_paid ?? 0);
+        const bDue = Number(b?.dueAmount ?? b?.due_amount ?? b?.due ?? Math.max(0, bTotal - bPaid));
+        const bNights = Math.max(1, Number(b?.numberOfNights || b?.nights || 1));
+        const bBase = Number(b?.baseAmount ?? b?.base_amount ?? (bTotal > 0 ? Math.round((bTotal / 1.18) * 100) / 100 : 0));
+        const bGst = Number(b?.gstAmount ?? b?.gst_amount ?? (bTotal > bBase ? Math.round((bTotal - bBase) * 100) / 100 : Math.round(((bBase * 0.18)) * 100) / 100));
+        const bPrice = Number(b?.pricePerNight || b?.price_per_night || b?.price || b?.customPricePerNight || b?.room?.customPricePerNight || (bBase > 0 ? Math.round((bBase / bNights) * 100) / 100 : 3500));
+        const bRoomType = b?.roomType || b?.roomTypeName || b?.room?.roomType?.name || "Standard Room";
+
+        const cleanB = { ...b };
+        delete cleanB.guest;
+        delete cleanB.booking;
+        delete cleanB.activeBooking;
+
+        const cleanG = { ...gObj, roomAssigned: roomNum, checkInDate: checkInDateStr, checkOutDate: checkOutDateStr };
+        delete cleanG.guest;
+        delete cleanG.booking;
+        delete cleanG.activeBooking;
 
         list.push({
           _id: gObj._id || gId,
+          ...cleanB,
           name: gObj.fullName || gObj.name || b.guestName || "Guest",
           phone: gPhone || "N/A",
           email: gObj.email || b.guestEmail || "",
@@ -364,9 +495,18 @@ export default function ReceptionistOverviewPage({
           checkInDate: checkInDateStr,
           checkOutDate: checkOutDateStr,
           accompanyingGuests: b.accompanyingGuests || gObj.accompanyingGuests || [],
-          dueAmount: Math.max(0, (b.totalAmount || 0) - (b.paidAmount || 0)),
-          booking: b,
-          guest: { ...gObj, roomAssigned: roomNum, checkInDate: checkInDateStr, checkOutDate: checkOutDateStr },
+          totalAmount: bTotal > 0 ? bTotal : (bPaid + bDue),
+          paidAmount: bPaid,
+          dueAmount: bDue,
+          baseAmount: bBase,
+          gstAmount: bGst,
+          gstRate: Number(b?.gstRate ?? b?.gst_rate ?? 18),
+          pricePerNight: bPrice,
+          numberOfNights: bNights,
+          roomType: bRoomType,
+          booking: cleanB,
+          activeBooking: cleanB,
+          guest: cleanG,
         });
       }
     });
@@ -486,7 +626,8 @@ export default function ReceptionistOverviewPage({
       });
     });
 
-    return Array.from(catMap.values());
+    // Only return categories that have rooms allotted (totalRooms > 0)
+    return Array.from(catMap.values()).filter((cat) => cat.totalRooms > 0);
   }, [rooms, roomTypes]);
 
   const inTimeFormatted = formatTime12Hour(hotelSettings?.checkInTime || "14:00");
@@ -494,11 +635,39 @@ export default function ReceptionistOverviewPage({
   const timezoneStr = hotelSettings?.timezone || "Asia/Kolkata";
   const turnaroundStr = getTurnaroundWindow(hotelSettings?.checkInTime, hotelSettings?.checkOutTime);
 
-  // Active bookings for recent table
-  const activeRecentBookings = useMemo(() => {
+  // All formatted bookings for recent table
+  // Helper to determine if a date is Today
+  const isTodayDate = (dateVal) => {
+    if (!dateVal || dateVal === "N/A") return false;
+    const now = new Date();
+    const todayY = now.getFullYear();
+    const todayM = now.getMonth();
+    const todayD = now.getDate();
+
+    if (typeof dateVal === "string" && /^\d{4}-\d{2}-\d{2}/.test(dateVal)) {
+      const [y, m, d] = dateVal.split("T")[0].split("-").map(Number);
+      if (y === todayY && m - 1 === todayM && d === todayD) return true;
+    }
+    if (typeof dateVal === "string" && /^\d{2}-\d{2}-\d{4}$/.test(dateVal)) {
+      const [d, m, y] = dateVal.split("-").map(Number);
+      if (y === todayY && m - 1 === todayM && d === todayD) return true;
+    }
+    const dObj = new Date(dateVal);
+    if (!isNaN(dObj.getTime())) {
+      return (
+        dObj.getDate() === todayD &&
+        dObj.getMonth() === todayM &&
+        dObj.getFullYear() === todayY
+      );
+    }
+    return false;
+  };
+
+  // All formatted bookings for recent table
+  const allFormattedBookings = useMemo(() => {
     if (!bookings || bookings.length === 0) return [];
     return bookings.map((b) => {
-      const g = typeof b.guest === "object" ? b.guest : {};
+      const g = typeof b.guest === "object" && b.guest ? b.guest : {};
       const roomsList = Array.isArray(b.roomNumbers) && b.roomNumbers.length > 0
         ? b.roomNumbers.map(String)
         : Array.isArray(b.rooms) && b.rooms.length > 0 && typeof b.rooms[0] === "object" && b.rooms[0]?.roomNumber
@@ -507,18 +676,252 @@ export default function ReceptionistOverviewPage({
             ? String(b.roomNumber).split(",").map((s) => s.trim()).filter(Boolean)
             : [b.room?.roomNumber || "101"];
 
+      const rawCheckIn =
+        b.checkInDate ||
+        b.check_in_date ||
+        b.checkIn ||
+        b.check_in ||
+        b.arrivalDate ||
+        b.arrival_date ||
+        b.createdAt ||
+        b.created_at ||
+        (b.status === "CHECKED_IN" || b.status === "IN-HOUSE" ? new Date().toISOString() : null);
+
+      let rawCheckOut =
+        b.checkOutDate ||
+        b.check_out_date ||
+        b.checkOut ||
+        b.check_out ||
+        b.departureDate ||
+        b.departure_date;
+
+      if (!rawCheckOut && rawCheckIn) {
+        const d = new Date(rawCheckIn);
+        if (!isNaN(d.getTime())) {
+          const nights = Math.max(1, Number(b.numberOfNights || b.nights || 1));
+          d.setDate(d.getDate() + nights);
+          rawCheckOut = d.toISOString();
+        }
+      } else if (!rawCheckOut && (b.status === "CHECKED_IN" || b.status === "IN-HOUSE")) {
+        const d = new Date();
+        d.setDate(d.getDate() + Math.max(1, Number(b.numberOfNights || b.nights || 1)));
+        rawCheckOut = d.toISOString();
+      }
+
+      const statusNormalized = b.status === "CHECKED_IN" ? "IN-HOUSE" : b.status === "CHECKED_OUT" ? "DEPARTED" : b.status || "IN-HOUSE";
+
+      const bTotal = Number(b.totalAmount ?? b.total_amount ?? b.total ?? b.grandTotal ?? 0);
+      const bPaid = Number(b.paidAmount ?? b.paid_amount ?? b.advancePaymentAmount ?? b.advance_paid ?? 0);
+      const bDue = Number(b.dueAmount ?? b.due_amount ?? b.due ?? Math.max(0, bTotal - bPaid));
+      const bNights = Math.max(1, Number(b.numberOfNights || b.nights || 1));
+      const bBase = Number(b.baseAmount ?? b.base_amount ?? (bTotal > 0 ? Math.round((bTotal / 1.18) * 100) / 100 : 0));
+      const bGst = Number(b.gstAmount ?? b.gst_amount ?? (bTotal > bBase ? Math.round((bTotal - bBase) * 100) / 100 : Math.round(((bBase * 0.18)) * 100) / 100));
+      const bPrice = Number(b.pricePerNight || b.price_per_night || b.price || b.customPricePerNight || b.room?.customPricePerNight || (bBase > 0 ? Math.round((bBase / bNights) * 100) / 100 : 3500));
+      const bRoomType = b.roomType || b.roomTypeName || b.room?.roomType?.name || "Standard Room";
+
       return {
         _id: b._id,
-        name: g?.fullName || g?.name || b.guestName || "Resident Guest",
+        ...b,
+        booking: b,
+        activeBooking: b,
+        guest: g,
+        guestId: g?._id || b.guest?._id || (typeof b.guest === "string" ? b.guest : null),
+        name: g?.fullName || g?.name || b.guestName || b.primary_guest_name || b.primaryGuestName || "Resident Guest",
         email: g?.email || b.email || "guest@hotel.com",
-        phone: g?.mobileNumber || g?.phone || b.mobileNumber || "N/A",
+        phone: g?.mobileNumber || g?.phone || b.mobileNumber || b.mobile_number || b.guestPhone || "N/A",
         roomAssigned: roomsList.length > 1 ? roomsList.join(", ") : roomsList[0],
         roomNumbers: roomsList,
-        checkInDate: b.checkInDate ? new Date(b.checkInDate).toLocaleDateString() : "Today",
-        status: b.status === "CHECKED_IN" ? "IN-HOUSE" : b.status === "CHECKED_OUT" ? "DEPARTED" : b.status || "IN-HOUSE",
+        checkInDateRaw: rawCheckIn,
+        checkInDate: formatDDMMYYYY(rawCheckIn || new Date()),
+        checkOutDateRaw: rawCheckOut,
+        checkOutDate: formatDDMMYYYY(rawCheckOut || new Date(Date.now() + 86400000)),
+        totalAmount: bTotal > 0 ? bTotal : (bPaid + bDue),
+        paidAmount: bPaid,
+        dueAmount: bDue,
+        baseAmount: bBase,
+        gstAmount: bGst,
+        gstRate: Number(b.gstRate ?? b.gst_rate ?? 18),
+        pricePerNight: bPrice,
+        numberOfNights: bNights,
+        roomType: bRoomType,
+        status: statusNormalized,
+        rawStatus: b.status,
       };
     });
   }, [bookings]);
+
+  // Active bookings filtered by selected mode ("TODAY_ALL" | "TODAY_CHECKIN" | "TODAY_CHECKOUT" | "IN_HOUSE" | "ALL")
+  const activeRecentBookings = useMemo(() => {
+    if (recentFilter === "TODAY_ALL") {
+      const todayFromBookings = allFormattedBookings.filter((b) => {
+        return (
+          isTodayDate(b.checkInDateRaw) ||
+          isTodayDate(b.checkInDate) ||
+          isTodayDate(b.checkOutDateRaw) ||
+          isTodayDate(b.checkOutDate) ||
+          b.status === "IN-HOUSE" ||
+          b.rawStatus === "CHECKED_IN"
+        );
+      });
+      const seenBookingIds = new Set(todayFromBookings.map((b) => String(b._id)));
+
+      const extraTodayGuests = (inHouseGuestsList || [])
+        .filter(
+          (g) => !seenBookingIds.has(String(g.booking?._id || g._id))
+        )
+        .map((g) => {
+          const cleanB = (g.booking && g.booking !== g) ? { ...g.booking } : null;
+          if (cleanB) { delete cleanB.guest; delete cleanB.booking; delete cleanB.activeBooking; }
+          const cleanG = (g.guest && g.guest !== g) ? { ...g.guest } : null;
+          if (cleanG) { delete cleanG.guest; delete cleanG.booking; delete cleanG.activeBooking; }
+          const rawIn = g.checkInDateRaw || g.checkInDate || g.check_in_date || g.checkIn || g.createdAt || new Date().toISOString();
+          let rawOut = g.checkOutDateRaw || g.checkOutDate || g.check_out_date || g.checkOut;
+          if (!rawOut || rawOut === "N/A") {
+            const inD = new Date(rawIn);
+            if (!isNaN(inD.getTime())) {
+              inD.setDate(inD.getDate() + Math.max(1, Number(g.numberOfNights || 1)));
+              rawOut = inD.toISOString();
+            } else {
+              rawOut = new Date(Date.now() + 86400000).toISOString();
+            }
+          }
+          return {
+            _id: g._id,
+            ...(cleanB || {}),
+            ...g,
+            booking: cleanB,
+            activeBooking: cleanB,
+            guest: cleanG,
+            guestId: g._id,
+            name: g.name || g.fullName || cleanB?.primary_guest_name || "Guest",
+            email: g.email || "",
+            phone: g.phone || g.mobileNumber || cleanB?.mobile_number || "N/A",
+            roomAssigned: g.roomAssigned || "101",
+            roomNumbers: [g.roomAssigned || "101"],
+            checkInDateRaw: rawIn,
+            checkInDate: formatDDMMYYYY(rawIn || new Date()),
+            checkOutDateRaw: rawOut,
+            checkOutDate: formatDDMMYYYY(rawOut || new Date(Date.now() + 86400000)),
+            totalAmount: g.totalAmount || (g.booking ? g.booking.totalAmount || g.booking.total_amount : 0),
+            paidAmount: g.paidAmount || (g.booking ? g.booking.paidAmount || g.booking.paid_amount : 0),
+            baseAmount: g.baseAmount || (g.booking ? g.booking.baseAmount || g.booking.base_amount : 0),
+            gstAmount: g.gstAmount || (g.booking ? g.booking.gstAmount || g.booking.gst_amount : 0),
+            pricePerNight: g.pricePerNight || (g.booking ? g.booking.pricePerNight || g.booking.price : 0),
+            numberOfNights: g.numberOfNights || (g.booking ? g.booking.numberOfNights || g.booking.nights : 1),
+            roomType: g.roomType || (g.booking ? g.booking.roomType || g.booking.roomTypeName : "Standard Room"),
+            dueAmount: g.dueAmount || 0,
+            status: "IN-HOUSE",
+            rawStatus: "CHECKED_IN",
+          };
+        });
+
+      return [...todayFromBookings, ...extraTodayGuests];
+    }
+
+    if (recentFilter === "IN_HOUSE") {
+      const inHouseFromBookings = allFormattedBookings.filter(
+        (b) => b.status === "IN-HOUSE" || b.rawStatus === "CHECKED_IN"
+      );
+      const seenBookingIds = new Set(inHouseFromBookings.map((b) => String(b._id)));
+
+      const extraInHouse = (inHouseGuestsList || [])
+        .filter((g) => !seenBookingIds.has(String(g.booking?._id || g._id)))
+        .map((g) => {
+          const cleanB = (g.booking && g.booking !== g) ? { ...g.booking } : null;
+          if (cleanB) { delete cleanB.guest; delete cleanB.booking; delete cleanB.activeBooking; }
+          const cleanG = (g.guest && g.guest !== g) ? { ...g.guest } : null;
+          if (cleanG) { delete cleanG.guest; delete cleanG.booking; delete cleanG.activeBooking; }
+          const rawIn = g.checkInDateRaw || g.checkInDate || g.check_in_date || g.checkIn || g.createdAt || new Date().toISOString();
+          let rawOut = g.checkOutDateRaw || g.checkOutDate || g.check_out_date || g.checkOut;
+          if (!rawOut || rawOut === "N/A") {
+            const inD = new Date(rawIn);
+            if (!isNaN(inD.getTime())) {
+              inD.setDate(inD.getDate() + Math.max(1, Number(g.numberOfNights || 1)));
+              rawOut = inD.toISOString();
+            } else {
+              rawOut = new Date(Date.now() + 86400000).toISOString();
+            }
+          }
+          return {
+            _id: g._id,
+            ...(cleanB || {}),
+            ...g,
+            booking: cleanB,
+            activeBooking: cleanB,
+            guest: cleanG,
+            guestId: g._id,
+            name: g.name || g.fullName || cleanB?.primary_guest_name || "Guest",
+            email: g.email || "",
+            phone: g.phone || g.mobileNumber || cleanB?.mobile_number || "N/A",
+            roomAssigned: g.roomAssigned || "101",
+            roomNumbers: [g.roomAssigned || "101"],
+            checkInDateRaw: rawIn,
+            checkInDate: formatDDMMYYYY(rawIn || new Date()),
+            checkOutDateRaw: rawOut,
+            checkOutDate: formatDDMMYYYY(rawOut || new Date(Date.now() + 86400000)),
+            totalAmount: g.totalAmount || (g.booking ? g.booking.totalAmount || g.booking.total_amount : 0),
+            paidAmount: g.paidAmount || (g.booking ? g.booking.paidAmount || g.booking.paid_amount : 0),
+            baseAmount: g.baseAmount || (g.booking ? g.booking.baseAmount || g.booking.base_amount : 0),
+            gstAmount: g.gstAmount || (g.booking ? g.booking.gstAmount || g.booking.gst_amount : 0),
+            pricePerNight: g.pricePerNight || (g.booking ? g.booking.pricePerNight || g.booking.price : 0),
+            numberOfNights: g.numberOfNights || (g.booking ? g.booking.numberOfNights || g.booking.nights : 1),
+            roomType: g.roomType || (g.booking ? g.booking.roomType || g.booking.roomTypeName : "Standard Room"),
+            dueAmount: g.dueAmount || 0,
+            status: "IN-HOUSE",
+            rawStatus: "CHECKED_IN",
+          };
+        });
+
+      return [...inHouseFromBookings, ...extraInHouse];
+    }
+
+    if (recentFilter === "TODAY_CHECKIN") {
+      return allFormattedBookings.filter((b) => isTodayDate(b.checkInDateRaw) || isTodayDate(b.checkInDate));
+    }
+
+    // "ALL"
+    return allFormattedBookings;
+  }, [allFormattedBookings, inHouseGuestsList, recentFilter]);
+
+  const countTodayAll = useMemo(() => {
+    const fromBookings = allFormattedBookings.filter(
+      (b) =>
+        isTodayDate(b.checkInDateRaw) ||
+        isTodayDate(b.checkInDate) ||
+        isTodayDate(b.checkOutDateRaw) ||
+        isTodayDate(b.checkOutDate) ||
+        b.status === "IN-HOUSE" ||
+        b.rawStatus === "CHECKED_IN"
+    );
+    const seenBookingIds = new Set(fromBookings.map((b) => String(b._id)));
+    const extraTodayGuests = (inHouseGuestsList || []).filter(
+      (g) => !seenBookingIds.has(String(g.booking?._id || g._id))
+    );
+    return fromBookings.length + extraTodayGuests.length;
+  }, [allFormattedBookings, inHouseGuestsList]);
+
+  const countTodayCheckout = useMemo(() => {
+    const fromBookings = allFormattedBookings.filter(
+      (b) => isTodayDate(b.checkOutDateRaw) || isTodayDate(b.checkOutDate)
+    ).length;
+    const fromGuests = (inHouseGuestsList || []).filter(
+      (g) => isTodayDate(g.checkOutDate) || isTodayDate(g.guest?.checkOutDate)
+    ).length;
+    return Math.max(fromBookings, fromGuests);
+  }, [allFormattedBookings, inHouseGuestsList]);
+
+  const countInHouse = useMemo(() => {
+    const fromBookings = allFormattedBookings.filter(
+      (b) => b.status === "IN-HOUSE" || b.rawStatus === "CHECKED_IN"
+    ).length;
+    return Math.max(fromBookings, (inHouseGuestsList || []).length);
+  }, [allFormattedBookings, inHouseGuestsList]);
+
+  const countTodayCheckIn = useMemo(() => {
+    return allFormattedBookings.filter((b) => isTodayDate(b.checkInDateRaw) || isTodayDate(b.checkInDate)).length;
+  }, [allFormattedBookings]);
+
+  const countAll = allFormattedBookings.length;
 
   return (
     <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
@@ -679,7 +1082,8 @@ export default function ReceptionistOverviewPage({
             xs: "1fr",
             sm: "repeat(2, 1fr)",
             md: "repeat(3, 1fr)",
-            lg: "repeat(5, 1fr)",
+            lg: "repeat(auto-fit, minmax(210px, 1fr))",
+            xl: "repeat(5, 1fr)",
           },
           gap: 2,
           mb: 4,
@@ -810,10 +1214,12 @@ export default function ReceptionistOverviewPage({
                 display: "grid",
                 gridTemplateColumns: {
                   xs: "1fr",
+                  sm: "1fr",
                   md: "repeat(2, 1fr)",
-                  lg: "repeat(3, 1fr)",
+                  lg: "repeat(auto-fit, minmax(310px, 1fr))",
+                  xl: "repeat(3, 1fr)",
                 },
-                gap: 3,
+                gap: { xs: 2, sm: 2.5 },
               }}
             >
               {categoryStats.map((cat) => {
@@ -828,7 +1234,7 @@ export default function ReceptionistOverviewPage({
                     className="card-3d"
                     onClick={() => onNavigateTab && onNavigateTab(1, cat._id)}
                     sx={{
-                      p: 3,
+                      p: { xs: 2, sm: 2.2, md: 2.5 },
                       borderRadius: "20px",
                       border: `2px solid ${hasAvailable ? themeConfig.primaryGlow || "#0B8EE033" : themeConfig.border}`,
                       bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
@@ -852,53 +1258,94 @@ export default function ReceptionistOverviewPage({
                     }}
                   >
                     <div>
-                      {/* Header */}
-                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 1.5 }}>
-                        <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.2, minWidth: 0 }}>
+                      {/* Top Row: Avatar + Category Name on left, Price on right */}
+                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.2, mb: 1.2 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, minWidth: 0 }}>
                           <Avatar
                             sx={{
                               bgcolor: themeConfig.champagne,
                               color: themeConfig.primaryDark,
-                              width: 40,
-                              height: 40,
+                              width: 42,
+                              height: 42,
                               borderRadius: "12px",
                               flexShrink: 0,
                             }}
                           >
                             {getCategoryIcon(cat.name)}
                           </Avatar>
-                          <Box sx={{ minWidth: 0 }}>
-                            <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, lineHeight: 1.2, fontSize: "1.05rem" }}>
-                              {cat.name}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 800, display: "block", mt: 0.3 }}>
-                              👥 Max {adultsCount} Guests {kidsCount > 0 ? `(+ ${kidsCount} Kids)` : ""}
-                            </Typography>
-                            <Box sx={{ mt: 0.5 }}>
-                              <Chip
-                                icon={<Bed sx={{ fontSize: 13, color: `${themeConfig.primaryDark} !important` }} />}
-                                label={`${cat.bedCount} Bed (${cat.bedType})`}
-                                size="small"
-                                sx={{
-                                  bgcolor: themeConfig.champagne,
-                                  color: themeConfig.primaryDark,
-                                  fontWeight: 800,
-                                  fontSize: "0.68rem",
-                                  height: 22,
-                                }}
-                              />
-                            </Box>
-                          </Box>
+                          <Typography
+                            variant="h6"
+                            noWrap
+                            title={cat.name}
+                            sx={{
+                              fontWeight: 900,
+                              color: themeConfig.textMain,
+                              lineHeight: 1.2,
+                              fontSize: { xs: "1rem", sm: "1.05rem" },
+                            }}
+                          >
+                            {cat.name}
+                          </Typography>
                         </Box>
 
                         <Box sx={{ textAlign: "right", flexShrink: 0, whiteSpace: "nowrap" }}>
-                          <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.primary, lineHeight: 1 }}>
+                          <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.primary, lineHeight: 1, fontSize: { xs: "1.15rem", sm: "1.25rem" } }}>
                             ₹{Number(cat.basePrice || 0).toLocaleString()}
                           </Typography>
-                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block" }}>
+                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block", mt: 0.3, fontSize: "0.72rem" }}>
                             / night
                           </Typography>
                         </Box>
+                      </Box>
+
+                      {/* Specs Row: Guests & Bed across full card width */}
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          flexWrap: "wrap",
+                          gap: 0.8,
+                          mb: 1.5,
+                          px: 0.2,
+                        }}
+                      >
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: themeConfig.textMuted,
+                            fontWeight: 800,
+                            fontSize: "0.75rem",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 0.5,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          👥 Max {adultsCount} Guests {kidsCount > 0 ? `(+ ${kidsCount} Kids)` : ""}
+                        </Typography>
+
+                        <Chip
+                          icon={<Bed sx={{ fontSize: 13, color: `${themeConfig.primaryDark} !important` }} />}
+                          label={
+                            cat.bedType
+                              ? String(cat.bedType).toLowerCase().includes("bed")
+                                ? cat.bedType
+                                : `${cat.bedType} Bed`
+                              : `${cat.bedCount} Bed`
+                          }
+                          size="small"
+                          sx={{
+                            bgcolor: themeConfig.champagne,
+                            color: themeConfig.primaryDark,
+                            fontWeight: 800,
+                            fontSize: "0.7rem",
+                            height: 23,
+                            border: "none",
+                            flexShrink: 0,
+                            "& .MuiChip-label": { px: 0.8, whiteSpace: "nowrap" },
+                          }}
+                        />
                       </Box>
 
                       {/* 3 Status Units */}
@@ -1003,22 +1450,100 @@ export default function ReceptionistOverviewPage({
               </div>
             </Box>
 
-            <Button
-              size="small"
-              endIcon={<ArrowForward fontSize="small" />}
-              onClick={() => onNavigateTab && onNavigateTab(2)}
-              sx={{
-                fontWeight: 800,
-                fontSize: "0.8rem",
-                borderRadius: "10px",
-                color: themeConfig.primaryDark,
-                width: { xs: "100%", sm: "auto" },
-                whiteSpace: "nowrap",
-                "&:hover": { bgcolor: themeConfig.champagne },
-              }}
-            >
-              View In-House Folios
-            </Button>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, flexWrap: "wrap", width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "flex-start", sm: "flex-end" } }}>
+              {/* Quick Filter Pill Group */}
+              <Box
+                sx={{
+                  display: "inline-flex",
+                  p: 0.5,
+                  bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9",
+                  borderRadius: "12px",
+                  border: `1px solid ${themeConfig.border}`,
+                  gap: 0.5,
+                }}
+              >
+                <Button
+                  size="small"
+                  onClick={() => {
+                    setRecentFilter("TODAY_ALL");
+                    setGuestPage(0);
+                  }}
+                  sx={{
+                    fontWeight: 800,
+                    fontSize: "0.75rem",
+                    borderRadius: "9px",
+                    px: 1.4,
+                    py: 0.35,
+                    textTransform: "none",
+                    bgcolor: recentFilter === "TODAY_ALL" ? `${themeConfig.primary} !important` : "transparent",
+                    color: recentFilter === "TODAY_ALL" ? "#FFFFFF !important" : themeConfig.textMuted,
+                    boxShadow: recentFilter === "TODAY_ALL" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
+                    "&:hover": { bgcolor: recentFilter === "TODAY_ALL" ? themeConfig.primary : "rgba(0,0,0,0.04)" },
+                  }}
+                >
+                  Today & In-House ({countTodayAll})
+                </Button>
+                <Button
+                  size="small"
+                  onClick={() => {
+                    setRecentFilter("IN_HOUSE");
+                    setGuestPage(0);
+                  }}
+                  sx={{
+                    fontWeight: 800,
+                    fontSize: "0.75rem",
+                    borderRadius: "9px",
+                    px: 1.4,
+                    py: 0.35,
+                    textTransform: "none",
+                    bgcolor: recentFilter === "IN_HOUSE" ? `${themeConfig.primary} !important` : "transparent",
+                    color: recentFilter === "IN_HOUSE" ? "#FFFFFF !important" : themeConfig.textMuted,
+                    boxShadow: recentFilter === "IN_HOUSE" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
+                    "&:hover": { bgcolor: recentFilter === "IN_HOUSE" ? themeConfig.primary : "rgba(0,0,0,0.04)" },
+                  }}
+                >
+                  Active In-House ({countInHouse})
+                </Button>
+                <Button
+                  size="small"
+                  onClick={() => {
+                    setRecentFilter("ALL");
+                    setGuestPage(0);
+                  }}
+                  sx={{
+                    fontWeight: 800,
+                    fontSize: "0.75rem",
+                    borderRadius: "9px",
+                    px: 1.4,
+                    py: 0.35,
+                    textTransform: "none",
+                    bgcolor: recentFilter === "ALL" ? `${themeConfig.primary} !important` : "transparent",
+                    color: recentFilter === "ALL" ? "#FFFFFF !important" : themeConfig.textMuted,
+                    boxShadow: recentFilter === "ALL" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
+                    "&:hover": { bgcolor: recentFilter === "ALL" ? themeConfig.primary : "rgba(0,0,0,0.04)" },
+                  }}
+                >
+                  All ({countAll})
+                </Button>
+              </Box>
+
+              <Button
+                size="small"
+                endIcon={<ArrowForward fontSize="small" />}
+                onClick={() => onNavigateTab && onNavigateTab(2)}
+                sx={{
+                  fontWeight: 800,
+                  fontSize: "0.8rem",
+                  borderRadius: "10px",
+                  color: themeConfig.primaryDark,
+                  width: { xs: "100%", sm: "auto" },
+                  whiteSpace: "nowrap",
+                  "&:hover": { bgcolor: themeConfig.champagne },
+                }}
+              >
+                View In-House Folios
+              </Button>
+            </Box>
           </Box>
 
           <TableContainer
@@ -1037,6 +1562,7 @@ export default function ReceptionistOverviewPage({
                   <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Assigned Room</TableCell>
                   <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Contact</TableCell>
                   <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Check-In Date</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Check-Out Date</TableCell>
                   <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Status</TableCell>
                   <TableCell align="center" sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Action</TableCell>
                 </TableRow>
@@ -1044,8 +1570,16 @@ export default function ReceptionistOverviewPage({
               <TableBody>
                 {activeRecentBookings.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} align="center" sx={{ py: 3, color: themeConfig.textMuted, fontWeight: 700 }}>
-                      No active check-ins or in-house guest folios found.
+                    <TableCell colSpan={7} align="center" sx={{ py: 3.5, color: themeConfig.textMuted, fontWeight: 700 }}>
+                      {recentFilter === "TODAY_ALL"
+                        ? "No check-ins, check-outs, or active in-house guests for today."
+                        : recentFilter === "TODAY_CHECKOUT"
+                          ? "No guests scheduled for check-out today."
+                          : recentFilter === "IN_HOUSE"
+                            ? "No active in-house guests currently staying in the hotel."
+                            : recentFilter === "TODAY_CHECKIN"
+                              ? "No check-ins recorded for today."
+                              : "No guest check-ins or folios found."}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -1057,8 +1591,8 @@ export default function ReceptionistOverviewPage({
                         onClick={() => {
                           setSelectedGuestModal({
                             open: true,
-                            guest: g,
-                            guestId: g.guest?._id || g.guestId || g._id || (typeof g.guest === "string" ? g.guest : null),
+                            guest: createSafeGuestModalData(g),
+                            guestId: g._id || g.id || g.bookingId || g.guest?._id || g.guestId || (typeof g.guest === "string" ? g.guest : null),
                           });
                         }}
                         sx={{
@@ -1119,9 +1653,38 @@ export default function ReceptionistOverviewPage({
                           </Typography>
                         </TableCell>
                         <TableCell sx={{ color: themeConfig.textMuted }}>
-                          <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                            {g.checkInDate}
-                          </Typography>
+                          {isTodayDate(g.checkInDateRaw || g.checkInDate) ? (
+                            <Chip
+                              label={(!g.checkInDate || g.checkInDate === "N/A") ? formatDDMMYYYY(new Date()) : g.checkInDate}
+                              size="small"
+                              sx={{
+                                fontWeight: 800,
+                                fontSize: "0.72rem",
+                                borderRadius: "6px",
+                                bgcolor: "rgba(16, 185, 129, 0.12)",
+                                color: "#059669",
+                                border: "1px solid rgba(16, 185, 129, 0.3)",
+                              }}
+                            />
+                          ) : (
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain }}>
+                              {(!g.checkInDate || g.checkInDate === "N/A") ? formatDDMMYYYY(new Date()) : g.checkInDate}
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell sx={{ color: themeConfig.textMuted }}>
+                          <Chip
+                            label={(!g.checkOutDate || g.checkOutDate === "N/A") ? formatDDMMYYYY(new Date(Date.now() + 86400000)) : g.checkOutDate}
+                            size="small"
+                            sx={{
+                              fontWeight: 800,
+                              fontSize: "0.72rem",
+                              borderRadius: "6px",
+                              bgcolor: isTodayDate(g.checkOutDateRaw || g.checkOutDate) ? "rgba(239, 68, 68, 0.1)" : "transparent",
+                              color: isTodayDate(g.checkOutDateRaw || g.checkOutDate) ? "#EF4444" : themeConfig.textMain,
+                              border: isTodayDate(g.checkOutDateRaw || g.checkOutDate) ? "1px solid rgba(239, 68, 68, 0.3)" : `1px solid ${themeConfig.border}`,
+                            }}
+                          />
                         </TableCell>
                         <TableCell>
                           <StatusChip status={g.status || "IN-HOUSE"} size="small" />
@@ -1520,8 +2083,8 @@ export default function ReceptionistOverviewPage({
                                     setTelemetryModal({ open: false, type: null });
                                     setSelectedGuestModal({
                                       open: true,
-                                      guest: guest || { name: gName, mobileNumber: gPhone, roomAssigned: room.roomNumber, booking },
-                                      guestId: guest?._id || guest?.id,
+                                      guest: createSafeGuestModalData({ guest, booking, name: gName, phone: gPhone, roomAssigned: room.roomNumber }),
+                                      guestId: booking?._id || booking?.id || guest?._id || guest?.id,
                                     });
                                   }}
                                   sx={{
@@ -1761,8 +2324,8 @@ export default function ReceptionistOverviewPage({
                               setTelemetryModal({ open: false, type: null });
                               setSelectedGuestModal({
                                 open: true,
-                                guest: g.guest || g,
-                                guestId: g._id,
+                                guest: createSafeGuestModalData(g),
+                                guestId: g._id || g.id || g.bookingId,
                               });
                             }}
                           >
@@ -1850,8 +2413,8 @@ export default function ReceptionistOverviewPage({
                                     setTelemetryModal({ open: false, type: null });
                                     setSelectedGuestModal({
                                       open: true,
-                                      guest: g.guest || g,
-                                      guestId: g._id,
+                                      guest: createSafeGuestModalData(g),
+                                      guestId: g._id || g.id || g.bookingId,
                                     });
                                   }}
                                   sx={{

@@ -46,7 +46,6 @@ import {
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
-import { downloadGovtIdReportPDF } from "@/shared/utils/pdfGenerator";
 
 export default function GovtIdCompliancePage({
   guests = [],
@@ -182,23 +181,6 @@ export default function GovtIdCompliancePage({
             Export CSV
           </Button>
 
-          <Button
-            variant="contained"
-            startIcon={<Download />}
-            onClick={() => downloadGovtIdReportPDF(filteredGuests, hotelSettings)}
-            className="btn-3d"
-            sx={{
-              borderRadius: "12px",
-              background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-              color: "#FFFFFF",
-              fontWeight: 800,
-              textTransform: "none",
-              px: 2.5,
-              boxShadow: `0 6px 16px ${themeConfig.primaryGlow}`,
-            }}
-          >
-            Download Police Manifest (PDF)
-          </Button>
         </Box>
       </Box>
 

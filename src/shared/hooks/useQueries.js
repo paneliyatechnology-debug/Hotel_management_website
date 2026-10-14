@@ -115,7 +115,7 @@ export function useReceptionistRooms(options = {}) {
   return useQuery({
     queryKey: ["receptionist", "rooms"],
     queryFn: async () => {
-      const res = await apiRequest(API_ENDPOINTS.RECEPTIONIST.AVAILABLE_ROOMS);
+      const res = await apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOMS);
       return res?.data || res || [];
     },
     staleTime: 20 * 1000, // Frequent status updates
@@ -126,14 +126,19 @@ export function useReceptionistRooms(options = {}) {
 export function useBookingRoomOptions(params = {}, options = {}) {
   return useQuery({
     queryKey: ["receptionist", "booking-room-options", params],
-    queryFn: async () => {
       const searchParams = new URLSearchParams();
-      if (params.checkInDate || params.checkIn) searchParams.append("checkInDate", params.checkInDate || params.checkIn);
-      if (params.checkOutDate || params.checkOut) searchParams.append("checkOutDate", params.checkOutDate || params.checkOut);
-      if (params.roomType) searchParams.append("roomType", params.roomType);
+      if (params.checkInDate || params.checkIn || params.check_in_date) {
+        searchParams.append("check_in_date", params.check_in_date || params.checkInDate || params.checkIn);
+      }
+      if (params.checkOutDate || params.checkOut || params.check_out_date) {
+        searchParams.append("check_out_date", params.check_out_date || params.checkOutDate || params.checkOut);
+      }
+      if (params.roomType || params.room_type || params.room_type_id) {
+        searchParams.append("room_type_id", params.room_type_id || params.roomType || params.room_type);
+      }
       const queryStr = searchParams.toString();
 
-      const availEndpoint = `${API_ENDPOINTS.RECEPTIONIST.AVAILABLE_ROOMS}${queryStr ? "?" + queryStr : ""}`;
+      const availEndpoint = `${API_ENDPOINTS.RECEPTIONIST.ROOMS}?status=AVAILABLE${queryStr ? "&" + queryStr : ""}`;
       const typesEndpoint = API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES;
 
       const [roomsRes, typesRes] = await Promise.all([

@@ -5,6 +5,7 @@ import { Box } from "@mui/material";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { toast } from "@/shared/utils/toast";
+import { getActiveHotelId } from "@/shared/utils/cookieAuth";
 import dynamic from "next/dynamic";
 import { CircularProgress } from "@mui/material";
 import { useSocket } from "@/shared/context/SocketContext";
@@ -71,7 +72,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       customPricePerNight: "",
       status: "AVAILABLE",
       notes: "",
-      amenities: defaultCat?.amenities?.length ? [...defaultCat.amenities] : ["Free WiFi", "Air Conditioner (AC)", "Smart LED TV", "Attached Bathroom"],
+      amenities: [],
       gstEnabled: defaultCat?.gstEnabled !== false,
       gstRate: catGstRate,
       cgstRate: defaultCat?.cgstRate ?? catGstRate / 2,
@@ -154,6 +155,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
           endpointsToFetch.push(
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(res.data)),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
             apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || [])),
             apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || [])),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
@@ -182,6 +184,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         // Route 4: ROOMS & CATEGORIES MASTER
         else if (tabIndex === 4) {
           endpointsToFetch.push(
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(res.data)),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || []))
           );
@@ -221,7 +224,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
     await loadTabData(activeNav, true);
   };
 
-  // Real-Time Socket Auto-Sync across all operational mutations
+  // Real-Time Socket Auto-Sync across all operational mutations & subscription changes
   useSocket(
     [
       "ROOM_UPDATED",
@@ -232,8 +235,18 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       "GUEST_UPDATED",
       "DASHBOARD_SYNC",
       "HANDOVER_SETTLED",
+      "HOTEL_STATUS_UPDATED",
+      "SUBSCRIPTION_UPDATED",
+      "HOTEL_UPDATED",
     ],
-    () => {
+    (payload) => {
+      if (payload?.subscription || payload?.hotel?.subscription) {
+        const newSub = payload.subscription || payload.hotel.subscription;
+        setDashboardData((prev) => ({
+          ...prev,
+          subscription: newSub,
+        }));
+      }
       fetchAllData(true);
     }
   );
@@ -332,12 +345,21 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
     }
 
     try {
+      const effectiveHotelId =
+        user?.hotel_id ||
+        user?.hotelId ||
+        user?.hotel?.id ||
+        getActiveHotelId();
+
       const payload = {
+        hotel_id: effectiveHotelId ? Number(effectiveHotelId) : undefined,
         name: staffModal.data.name,
         email: staffModal.data.email,
         phone: cleanPhone,
         role: staffModal.data.role || "RECEPTIONIST",
-        shift: staffModal.data.shift || "Morning (07:00 - 15:00)",
+        is_active: true,
+        must_change_password: true,
+        password: staffModal.data.password || "StaffPassword@123",
       };
 
       if (staffModal.mode === "EDIT" && staffModal.data._id) {
@@ -369,12 +391,13 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
 
   const handleToggleStaffStatus = async (staff) => {
     const nextStatus = staff.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+    const isActive = nextStatus === "ACTIVE";
     try {
-      await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.UPDATE_RECEPTIONIST_STATUS(staff._id), {
-        method: "PUT",
-        body: { status: nextStatus },
+      await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.UPDATE_RECEPTIONIST_STATUS(staff._id || staff.id), {
+        method: "PATCH",
+        body: { is_active: isActive, is_disabled: !isActive },
       });
-      setStaffList(staffList.map((s) => (s._id === staff._id ? { ...s, status: nextStatus } : s)));
+      setStaffList(staffList.map((s) => ((s._id === staff._id || s.id === staff.id) ? { ...s, status: nextStatus, is_active: isActive, is_disabled: !isActive } : s)));
       showToast(`Staff member '${staff.name}' is now ${nextStatus}.`);
     } catch (err) {
       showToast(err.message || "Failed to update staff status", "error");
@@ -410,6 +433,15 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       return;
     }
 
+    if (roomModal.mode !== "EDIT") {
+      const planUpper = (dashboardData?.subscription?.plan || user?.hotel?.subscription?.plan || "TRIAL").toString().toUpperCase();
+      const isTrial = planUpper === "TRIAL" || planUpper === "FREE" || dashboardData?.subscription?.status === "TRIAL" || user?.hotel?.subscription?.status === "TRIAL";
+      if (isTrial && rooms.length >= 5) {
+        showToast("Trial Plan allows a maximum of 5 rooms. Upgrade to Premium Plan for unlimited rooms.", "warning");
+        return;
+      }
+    }
+
     try {
       const rawInput = String(roomModal.data.roomNumber).trim();
       let roomNumbersList = [];
@@ -429,23 +461,30 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         roomNumbersList = [rawInput];
       }
 
+      const selectedRoomTypeId = Number(
+        typeof roomModal.data.roomType === "object"
+          ? (roomModal.data.roomType._id || roomModal.data.roomType.id)
+          : (roomModal.data.roomType || roomModal.data.room_type_id)
+      );
+
       if (roomModal.mode === "EDIT" && roomModal.data._id) {
         const payload = {
-          roomNumber: roomNumbersList[0] || rawInput,
-          roomType: roomModal.data.roomType,
+          room_number: roomNumbersList[0] || rawInput,
+          room_type_id: selectedRoomTypeId,
           floor: Number(roomModal.data.floor) || 1,
-          seatingCapacity: Number(roomModal.data.seatingCapacity) || 2,
-          bedCount: Number(roomModal.data.bedCount) || 1,
-          bedType: roomModal.data.bedType || "1 King Size Bed",
-          customPricePerNight: roomModal.data.customPricePerNight ? Number(roomModal.data.customPricePerNight) : undefined,
+          seating_capacity: Number(roomModal.data.seatingCapacity || roomModal.data.seating_capacity) || 2,
+          bed_count: Number(roomModal.data.bedCount || roomModal.data.bed_count) || 1,
+          bed_type: roomModal.data.bedType || roomModal.data.bed_type || "1 King Size Bed",
+          custom_price_per_night: roomModal.data.customPricePerNight ? Number(roomModal.data.customPricePerNight) : undefined,
           status: roomModal.data.status || "AVAILABLE",
           notes: roomModal.data.notes || "",
-          amenities: roomModal.data.amenities || [],
-          gstEnabled: roomModal.data.gstEnabled !== false,
-          gstRate: Number(roomModal.data.gstRate) || 0,
-          cgstRate: Number(roomModal.data.cgstRate) || (Number(roomModal.data.gstRate) || 0) / 2,
-          sgstRate: Number(roomModal.data.sgstRate) || (Number(roomModal.data.gstRate) || 0) / 2,
-          taxInclusive: Boolean(roomModal.data.taxInclusive),
+          amenities: Array.isArray(roomModal.data.amenities) ? roomModal.data.amenities.join(", ") : (roomModal.data.amenities || ""),
+          gst_enabled: roomModal.data.gstEnabled !== false,
+          gst_rate: Number(roomModal.data.gstRate || roomModal.data.gst_rate) || 0,
+          cgst_rate: Number(roomModal.data.cgstRate || roomModal.data.cgst_rate) || 0,
+          sgst_rate: Number(roomModal.data.sgstRate || roomModal.data.sgst_rate) || 0,
+          tax_inclusive: Boolean(roomModal.data.taxInclusive || roomModal.data.tax_inclusive),
+          is_active: true,
         };
         const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.UPDATE_ROOM(roomModal.data._id), {
           method: "PUT",
@@ -453,29 +492,37 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         });
         if (res.data) {
           setRooms(rooms.map((r) => (r._id === roomModal.data._id ? res.data : r)));
-          showToast(`Room ${res.data.roomNumber} updated successfully!`);
+          showToast(`Room ${res.data.room_number || res.data.roomNumber} updated successfully!`);
         }
       } else {
         const createdRooms = [];
         const errors = [];
 
+        const effectiveHotelId =
+          user?.hotel_id ||
+          user?.hotelId ||
+          user?.hotel?.id ||
+          getActiveHotelId();
+
         for (const numStr of roomNumbersList) {
           const payload = {
-            roomNumber: numStr,
-            roomType: roomModal.data.roomType,
+            hotel_id: effectiveHotelId ? Number(effectiveHotelId) : undefined,
+            room_number: String(numStr),
+            room_type_id: selectedRoomTypeId,
             floor: Number(roomModal.data.floor) || 1,
-            seatingCapacity: Number(roomModal.data.seatingCapacity) || 2,
-            bedCount: Number(roomModal.data.bedCount) || 1,
-            bedType: roomModal.data.bedType || "1 King Size Bed",
-            customPricePerNight: roomModal.data.customPricePerNight ? Number(roomModal.data.customPricePerNight) : undefined,
+            seating_capacity: Number(roomModal.data.seatingCapacity || roomModal.data.seating_capacity) || 2,
+            bed_count: Number(roomModal.data.bedCount || roomModal.data.bed_count) || 1,
+            bed_type: roomModal.data.bedType || roomModal.data.bed_type || "1 King Size Bed",
+            custom_price_per_night: roomModal.data.customPricePerNight ? Number(roomModal.data.customPricePerNight) : undefined,
             status: roomModal.data.status || "AVAILABLE",
             notes: roomModal.data.notes || "",
-            amenities: roomModal.data.amenities || [],
-            gstEnabled: roomModal.data.gstEnabled !== false,
-            gstRate: Number(roomModal.data.gstRate) || 0,
-            cgstRate: Number(roomModal.data.cgstRate) || (Number(roomModal.data.gstRate) || 0) / 2,
-            sgstRate: Number(roomModal.data.sgstRate) || (Number(roomModal.data.gstRate) || 0) / 2,
-            taxInclusive: Boolean(roomModal.data.taxInclusive),
+            amenities: Array.isArray(roomModal.data.amenities) ? roomModal.data.amenities.join(", ") : (roomModal.data.amenities || ""),
+            gst_enabled: roomModal.data.gstEnabled !== false,
+            gst_rate: Number(roomModal.data.gstRate || roomModal.data.gst_rate) || 0,
+            cgst_rate: Number(roomModal.data.cgstRate || roomModal.data.cgst_rate) || 0,
+            sgst_rate: Number(roomModal.data.sgstRate || roomModal.data.sgst_rate) || 0,
+            tax_inclusive: Boolean(roomModal.data.taxInclusive || roomModal.data.tax_inclusive),
+            is_active: true,
           };
 
           try {
@@ -549,11 +596,11 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
 
   const handleUpdateRoomStatus = async (room, newStatus) => {
     try {
-      await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.UPDATE_ROOM_STATUS(room._id), {
-        method: "PUT",
+      await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.UPDATE_ROOM_STATUS(room._id || room.id), {
+        method: "PATCH",
         body: { status: newStatus },
       });
-      setRooms(rooms.map((r) => (r._id === room._id ? { ...r, status: newStatus } : r)));
+      setRooms(rooms.map((r) => ((r._id === room._id || r.id === room.id) ? { ...r, status: newStatus } : r)));
       showToast(`Room ${room.roomNumber} status set to ${newStatus}.`);
     } catch (err) {
       showToast(err.message || "Failed to update room status", "error");
@@ -582,22 +629,27 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
     }
 
     try {
+      const effectiveHotelId =
+        user?.hotel_id ||
+        user?.hotelId ||
+        user?.hotel?.id ||
+        getActiveHotelId();
+
       const payload = {
+        hotel_id: effectiveHotelId ? Number(effectiveHotelId) : undefined,
         name: inputName,
         description: typeModal.data.description || "",
-        basePrice: Number(typeModal.data.basePrice) || 0,
-        capacity: {
-          adults: Number(typeModal.data.maxAdults) || 2,
-          children: Number(typeModal.data.maxChildren) || 0,
-        },
-        bedCount: Number(typeModal.data.bedCount) || 1,
-        bedType: typeModal.data.bedType || "1 King Size Bed",
+        base_price: Number(typeModal.data.basePrice || typeModal.data.base_price) || 0,
+        max_adults: Number(typeModal.data.maxAdults || typeModal.data.max_adults) || 2,
+        max_children: Number(typeModal.data.maxChildren || typeModal.data.max_children) || 0,
+        bed_count: Number(typeModal.data.bedCount || typeModal.data.bed_count) || 1,
+        bed_type: typeModal.data.bedType || typeModal.data.bed_type || "1 King Size Bed",
         amenities: typeModal.data.amenities || [],
-        gstEnabled: typeModal.data.gstEnabled !== false,
-        gstRate: Number(typeModal.data.gstRate) || 0,
-        cgstRate: Number(typeModal.data.cgstRate) || (Number(typeModal.data.gstRate) || 0) / 2,
-        sgstRate: Number(typeModal.data.sgstRate) || (Number(typeModal.data.gstRate) || 0) / 2,
-        taxInclusive: Boolean(typeModal.data.taxInclusive),
+        gst_enabled: typeModal.data.gstEnabled !== false,
+        gst_rate: Number(typeModal.data.gstRate || typeModal.data.gst_rate) || 0,
+        cgst_rate: Number(typeModal.data.cgstRate || typeModal.data.cgst_rate) || 0,
+        sgst_rate: Number(typeModal.data.sgstRate || typeModal.data.sgst_rate) || 0,
+        tax_inclusive: Boolean(typeModal.data.taxInclusive || typeModal.data.tax_inclusive),
       };
 
       if (typeModal.mode === "EDIT" && typeModal.data._id) {
@@ -682,6 +734,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
           user={user}
           dashboardData={dashboardData}
           rooms={rooms}
+          roomTypes={roomTypes}
           guests={guests}
           bookings={bookings}
           hotelSettings={hotelSettings}
@@ -716,6 +769,8 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
           viewGuestModal={viewGuestModal}
           setViewGuestModal={setViewGuestModal}
           hotelSettings={hotelSettings}
+          onDeleteGuest={handleDeleteGuest}
+          onRefresh={fetchAllData}
         />
       )}
 

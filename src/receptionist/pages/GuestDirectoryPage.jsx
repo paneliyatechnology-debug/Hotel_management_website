@@ -42,10 +42,10 @@ import { useSocket } from "@/shared/context/SocketContext";
 import { formatTime12Hour } from "@/shared/utils/timeUtils";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
-import { downloadGuestDirectoryPDF, downloadGovtIdReportPDF } from "@/shared/utils/pdfGenerator";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
 import { apiRequest, API_ENDPOINTS } from "@/config/api";
 import { toast } from "@/shared/utils/toast";
+import { createSafeGuestModalData } from "@/shared/utils/guestModalUtils";
 
 const GuestDetailsModal = dynamic(() => import("@/shared/components/GuestDetailsModal"));
 
@@ -89,6 +89,30 @@ export default function GuestDirectoryPage({
     return () => clearTimeout(timer);
   }, [search]);
 
+  const formatDDMMYYYY = (val) => {
+    if (!val || val === "N/A") return "N/A";
+    if (typeof val === "string" && /^\d{2}-\d{2}-\d{4}$/.test(val)) return val;
+    if (typeof val === "string" && /^\d{4}-\d{2}-\d{2}/.test(val)) {
+      const [y, m, d] = val.split("T")[0].split("-");
+      return `${d}-${m}-${y}`;
+    }
+    if (typeof val === "string" && val.includes("/")) {
+      const parts = val.split("/");
+      if (parts.length === 3) {
+        const m = parts[0].padStart(2, "0");
+        const d = parts[1].padStart(2, "0");
+        const y = parts[2];
+        return `${d}-${m}-${y}`;
+      }
+    }
+    const dateObj = new Date(val);
+    if (isNaN(dateObj.getTime())) return String(val);
+    const day = String(dateObj.getDate()).padStart(2, "0");
+    const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+    const year = dateObj.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
   const fetchGuests = useCallback(async () => {
     setLoading(true);
     try {
@@ -103,13 +127,14 @@ export default function GuestDirectoryPage({
       const endpoint = `${API_ENDPOINTS.RECEPTIONIST.GUESTS}?${params.toString()}`;
       const res = await apiRequest(endpoint);
 
-      if (res?.success && Array.isArray(res.data)) {
-        setGuests(res.data);
-      } else if (Array.isArray(res)) {
-        setGuests(res);
-      } else {
-        setGuests([]);
-      }
+      const rawList =
+        (Array.isArray(res?.data) ? res.data : null) ||
+        (Array.isArray(res?.data?.guests) ? res.data.guests : null) ||
+        (Array.isArray(res?.data?.bookings) ? res.data.bookings : null) ||
+        (Array.isArray(res?.guests) ? res.guests : null) ||
+        (Array.isArray(res?.bookings) ? res.bookings : null) ||
+        (Array.isArray(res) ? res : []);
+      setGuests(rawList);
     } catch (err) {
       console.warn("Could not fetch receptionist guest list:", err);
       toast.show("Error loading guest directory", "error");
@@ -134,7 +159,8 @@ export default function GuestDirectoryPage({
   const handleRowClick = (guest) => {
     setSelectedGuestForModal({
       open: true,
-      guest: guest,
+      guest: createSafeGuestModalData(guest),
+      guestId: guest._id || guest.id || guest.guestId || guest.bookingId,
     });
   };
 
@@ -143,7 +169,7 @@ export default function GuestDirectoryPage({
   }, [guests, page, rowsPerPage]);
 
   return (
-    <Box sx={{ p: { xs: 2.5, md: 3.5 }, display: "flex", flexDirection: "column", gap: 3.5, pb: 6 }}>
+    <Box sx={{ p: { xs: 1.5, sm: 2, md: 2.5 }, display: "flex", flexDirection: "column", gap: 3, pb: 6 }}>
       {/* 1. Header Banner */}
       <Paper
         elevation={0}
@@ -182,24 +208,6 @@ export default function GuestDirectoryPage({
         </Box>
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
-          <Button
-            variant="contained"
-            startIcon={<Download />}
-            onClick={() => downloadGuestDirectoryPDF(guests, hotelSettings)}
-            sx={{
-              bgcolor: "#FFFFFF",
-              color: "#0F766E",
-              fontWeight: 800,
-              borderRadius: "12px",
-              px: 2.2,
-              py: 1,
-              textTransform: "none",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-              "&:hover": { bgcolor: "#F0FDFA" },
-            }}
-          >
-            Export Register PDF
-          </Button>
           <Button
             variant="outlined"
             startIcon={<Refresh />}
@@ -406,24 +414,109 @@ export default function GuestDirectoryPage({
           />
         ) : (
           <>
-            <TableContainer>
-              <Table sx={{ minWidth: 750 }}>
+            <TableContainer sx={{ width: "100%", overflowX: "hidden" }}>
+              <Table size="small" sx={{ width: "100%", tableLayout: "fixed" }}>
                 <TableHead sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC" }}>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textSecondary }}>Guest Name &amp; Contact</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textSecondary }}>Allocated Room</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textSecondary }}>Check-In / Out</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textSecondary }}>Stay Status</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textSecondary }}>Payment Status</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textSecondary }}>Govt ID</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textSecondary }}>Action</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textSecondary, py: 1.2, px: 1, width: "24%", whiteSpace: "nowrap" }}>Guest Name &amp; Contact</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textSecondary, py: 1.2, px: 1, width: "15%", whiteSpace: "nowrap" }}>Allocated Room</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textSecondary, py: 1.2, px: 1, width: "27%", whiteSpace: "nowrap" }}>Check-In / Out</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textSecondary, py: 1.2, px: 1, width: "14%", whiteSpace: "nowrap" }}>Stay Status</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textSecondary, py: 1.2, px: 1, width: "12%", whiteSpace: "nowrap" }}> Status</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textSecondary, py: 1.2, px: 1, width: "8%", whiteSpace: "nowrap" }}>Action</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {paginatedGuests.map((g) => {
-                    const guestName = g.fullName || g.name || "Guest";
-                    const roomNum = g.roomAssigned || g.roomNumber || "Not Assigned";
+                    const guestName =
+                      g.fullName ||
+                      g.name ||
+                      g.primary_guest_name ||
+                      g.primaryGuestName ||
+                      g.guestName ||
+                      (typeof g.guest === "object" ? (g.guest?.fullName || g.guest?.name) : "") ||
+                      "Guest";
+
+                    const guestPhone =
+                      g.phone ||
+                      g.mobileNumber ||
+                      g.mobile_number ||
+                      g.guestPhone ||
+                      (typeof g.guest === "object" ? (g.guest?.phone || g.guest?.mobileNumber || g.guest?.mobile_number) : "") ||
+                      "N/A";
+
+                    const roomNum =
+                      g.roomAssigned ||
+                      g.roomNumber ||
+                      (Array.isArray(g.room_numbers) && g.room_numbers.length > 0
+                        ? g.room_numbers.join(", ")
+                        : Array.isArray(g.roomNumbers) && g.roomNumbers.length > 0
+                          ? g.roomNumbers.join(", ")
+                          : g.room_number ||
+                          (g.room?.roomNumber ? String(g.room.roomNumber) : "") ||
+                          (Array.isArray(g.rooms) && g.rooms.length > 0 && typeof g.rooms[0] === "object"
+                            ? g.rooms.map((r) => r.roomNumber || r.room_number).join(", ")
+                            : (g.room_id ? String(g.room_id) : "Not Assigned")));
+
                     const isOccupied = g.status === "IN-HOUSE" || g.status === "CHECKED_IN";
+
+                    const rawCheckIn =
+                      g.checkInDate ||
+                      g.check_in_date ||
+                      g.checkIn ||
+                      g.check_in ||
+                      g.arrivalDate ||
+                      g.arrival_date ||
+                      g.createdAt ||
+                      g.created_at ||
+                      (isOccupied ? new Date().toISOString() : null);
+
+                    const formattedCheckIn = rawCheckIn ? formatDDMMYYYY(rawCheckIn) : (isOccupied ? formatDDMMYYYY(new Date()) : "N/A");
+
+                    let rawCheckOut =
+                      g.actualCheckOut ||
+                      g.actual_check_out ||
+                      g.checkOutDate ||
+                      g.check_out_date ||
+                      g.checkOut ||
+                      g.check_out ||
+                      g.departureDate ||
+                      g.departure_date;
+
+                    if (!rawCheckOut && rawCheckIn) {
+                      const d = new Date(rawCheckIn);
+                      if (!isNaN(d.getTime())) {
+                        const nights = Math.max(1, Number(g.numberOfNights || g.nights || 1));
+                        d.setDate(d.getDate() + nights);
+                        rawCheckOut = d.toISOString();
+                      }
+                    } else if (!rawCheckOut && isOccupied) {
+                      const d = new Date();
+                      d.setDate(d.getDate() + Math.max(1, Number(g.numberOfNights || g.nights || 1)));
+                      rawCheckOut = d.toISOString();
+                    }
+
+                    const formattedCheckOut = rawCheckOut ? formatDDMMYYYY(rawCheckOut) : (isOccupied ? formatDDMMYYYY(new Date(Date.now() + 86400000)) : "Scheduled");
+
+                    const inTime = g.checkInTime || g.check_in_time || (rawCheckIn ? (() => {
+                      const d = new Date(rawCheckIn);
+                      if (!isNaN(d.getTime())) {
+                        const h = String(d.getHours()).padStart(2, "0");
+                        const m = String(d.getMinutes()).padStart(2, "0");
+                        return `${h}:${m}`;
+                      }
+                      return "14:00";
+                    })() : "14:00");
+
+                    const outTime = g.checkOutTime || g.check_out_time || (rawCheckOut ? (() => {
+                      const d = new Date(rawCheckOut);
+                      if (!isNaN(d.getTime())) {
+                        const h = String(d.getHours()).padStart(2, "0");
+                        const m = String(d.getMinutes()).padStart(2, "0");
+                        return `${h}:${m}`;
+                      }
+                      return "12:00";
+                    })() : "12:00");
 
                     return (
                       <TableRow
@@ -435,123 +528,88 @@ export default function GuestDirectoryPage({
                           "&:hover": { bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#F0FDFA" },
                         }}
                       >
-                        <TableCell>
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                        <TableCell sx={{ py: 1, px: 1, width: "24%" }}>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                             <Avatar
                               sx={{
-                                width: 38,
-                                height: 38,
+                                width: 32,
+                                height: 32,
                                 bgcolor: isOccupied ? themeConfig.primary : "#94A3B8",
                                 color: "#FFFFFF",
                                 fontWeight: 800,
-                                fontSize: "0.9rem",
+                                fontSize: "0.8rem",
+                                flexShrink: 0,
                               }}
                             >
                               {guestName.charAt(0).toUpperCase()}
                             </Avatar>
-                            <Box>
-                              <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                            <Box sx={{ minWidth: 0, overflow: "hidden" }}>
+                              <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.82rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                 {guestName}
                               </Typography>
-                              <Typography variant="caption" sx={{ color: themeConfig.textSecondary, display: "flex", alignItems: "center", gap: 0.5 }}>
-                                <Phone sx={{ fontSize: 13 }} /> {g.phone || g.mobileNumber || "N/A"}
+                              <Typography variant="caption" sx={{ color: themeConfig.textSecondary, display: "flex", alignItems: "center", gap: 0.4, fontSize: "0.72rem", whiteSpace: "nowrap" }}>
+                                <Phone sx={{ fontSize: 11 }} /> {guestPhone}
                               </Typography>
                             </Box>
                           </Box>
                         </TableCell>
 
-                        <TableCell>
-                          <Typography variant="body2" sx={{ fontWeight: 800, color: isOccupied ? themeConfig.primary : themeConfig.textMain }}>
+                        <TableCell sx={{ py: 1, px: 1, width: "15%", whiteSpace: "nowrap" }}>
+                          <Typography variant="body2" sx={{ fontWeight: 800, color: isOccupied ? themeConfig.primary : themeConfig.textMain, fontSize: "0.82rem" }}>
                             Room #{roomNum}
                           </Typography>
-                          <Typography variant="caption" sx={{ color: themeConfig.textSecondary }}>
+                          <Typography variant="caption" sx={{ color: themeConfig.textSecondary, fontSize: "0.72rem" }}>
                             Visits: {g.totalVisits || 1}
                           </Typography>
                         </TableCell>
 
-                        <TableCell>
-                          <Typography variant="body2" sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.82rem" }}>
-                            📥 {g.checkInDate || "N/A"} ({formatTime12Hour(g.checkInTime || "14:00")})
+                        <TableCell sx={{ py: 1, px: 1, width: "27%", whiteSpace: "nowrap" }}>
+                          <Typography variant="body2" sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.78rem", lineHeight: 1.3 }}>
+                            📥 {formattedCheckIn} ({formatTime12Hour(inTime)})
                           </Typography>
-                          <Typography variant="caption" sx={{ color: themeConfig.textSecondary, fontSize: "0.78rem", display: "block" }}>
-                            📤 {(() => {
-                              if (g.actualCheckOut) {
-                                const d = new Date(g.actualCheckOut);
-                                if (!isNaN(d.getTime())) {
-                                  return d.toLocaleDateString("en-IN");
-                                }
-                              }
-                              return g.checkOutDate || "Scheduled";
-                            })()} ({(() => {
-                              if (g.actualCheckOut) {
-                                const d = new Date(g.actualCheckOut);
-                                if (!isNaN(d.getTime())) {
-                                  const h = String(d.getHours()).padStart(2, "0");
-                                  const m = String(d.getMinutes()).padStart(2, "0");
-                                  return formatTime12Hour(`${h}:${m}`);
-                                }
-                              }
-                              return formatTime12Hour(g.checkOutTime || "12:00");
-                            })()})
+                          <Typography variant="caption" sx={{ color: themeConfig.textSecondary, fontSize: "0.74rem", display: "block", lineHeight: 1.3, mt: 0.2 }}>
+                            📤 {formattedCheckOut} ({formatTime12Hour(outTime)})
                           </Typography>
                         </TableCell>
 
-                        <TableCell>
-                          <StatusChip status={g.status || "REGISTERED"} />
+                        <TableCell sx={{ py: 1, px: 1, width: "14%", whiteSpace: "nowrap" }}>
+                          <StatusChip status={g.status || "REGISTERED"} size="small" />
                         </TableCell>
 
-                        <TableCell>
+                        <TableCell sx={{ py: 1, px: 1, width: "12%", whiteSpace: "nowrap" }}>
                           <Chip
                             label={g.paymentStatus || "PENDING"}
                             size="small"
                             sx={{
                               fontWeight: 800,
-                              fontSize: "0.72rem",
+                              fontSize: "0.7rem",
+                              height: 22,
                               bgcolor:
                                 g.paymentStatus === "PAID"
                                   ? "#DCFCE7"
                                   : g.paymentStatus === "PARTIAL"
-                                  ? "#FEF3C7"
-                                  : "#FEE2E2",
+                                    ? "#FEF3C7"
+                                    : "#FEE2E2",
                               color:
                                 g.paymentStatus === "PAID"
                                   ? "#15803D"
                                   : g.paymentStatus === "PARTIAL"
-                                  ? "#B45309"
-                                  : "#DC2626",
+                                    ? "#B45309"
+                                    : "#DC2626",
                             }}
                           />
                         </TableCell>
 
-                        <TableCell>
-                          <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain, display: "block" }}>
-                            {g.idType || g.govtIdType || "AADHAAR"}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: themeConfig.textSecondary, fontFamily: "monospace" }}>
-                            {g.idNumber || g.govtIdNumber || "Verified"}
-                          </Typography>
-                        </TableCell>
-
-                        <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.8 }}>
-                            <Tooltip title="View Complete Stay Dossier &amp; Folio">
-                              <IconButton
-                                size="small"
-                                onClick={() => handleRowClick(g)}
-                                sx={{ color: themeConfig.primary, "&:hover": { bgcolor: themeConfig.champagne } }}
-                              >
-                                <Visibility fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-
+                        <TableCell align="right" sx={{ py: 1, px: 1, width: "8%", whiteSpace: "nowrap" }} onClick={(e) => e.stopPropagation()}>
+                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
                             {g.phone && (
                               <Tooltip title="Send WhatsApp Notification">
                                 <IconButton
                                   size="small"
                                   onClick={() => sendCheckInWhatsApp(g, hotelSettings)}
-                                  sx={{ color: "#25D366", "&:hover": { bgcolor: "#DCFCE7" } }}
+                                  sx={{ color: "#25D366", p: 0.5, "&:hover": { bgcolor: "#DCFCE7" } }}
                                 >
-                                  <WhatsApp fontSize="small" />
+                                  <WhatsApp sx={{ fontSize: 18 }} />
                                 </IconButton>
                               </Tooltip>
                             )}
@@ -584,6 +642,7 @@ export default function GuestDirectoryPage({
       {selectedGuestForModal.open && (
         <GuestDetailsModal
           open={selectedGuestForModal.open}
+          guestId={selectedGuestForModal.guest?._id || selectedGuestForModal.guest?.id}
           guestData={selectedGuestForModal.guest}
           onClose={() => setSelectedGuestForModal({ open: false, guest: null })}
           hotelSettings={hotelSettings}

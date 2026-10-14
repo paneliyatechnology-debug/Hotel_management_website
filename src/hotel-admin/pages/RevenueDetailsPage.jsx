@@ -51,7 +51,6 @@ import {
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import EmptyState from "@/shared/components/EmptyState";
-import { downloadRevenueDetailsReportPDF, downloadPaymentReceiptPDF } from "@/shared/utils/pdfGenerator";
 
 export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, initialFilter = "THIS_WEEK" }) {
   const { themeConfig, isDarkMode } = useAppTheme();
@@ -85,10 +84,10 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
     try {
       let query = `?filter=${filterType}&page=${page + 1}&limit=${rowsPerPage}`;
       if (filterType === "CUSTOM" && startDate && endDate) {
-        query += `&startDate=${startDate}&endDate=${endDate}`;
+        query += `&start_date=${startDate}&end_date=${endDate}`;
       }
       if (search) query += `&search=${encodeURIComponent(search)}`;
-      if (paymentMethod !== "ALL") query += `&paymentMethod=${paymentMethod}`;
+      if (paymentMethod !== "ALL") query += `&payment_method=${paymentMethod}`;
       if (paymentStatus !== "ALL") query += `&status=${paymentStatus}`;
 
       const endpoint = `${API_ENDPOINTS.HOTEL_ADMIN.REVENUE_DETAILS}${query}`;
@@ -187,33 +186,6 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
           </Box>
 
           <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, alignItems: "center", gap: 1.2, width: { xs: "100%", sm: "auto" } }}>
-            <Button
-              variant="contained"
-              startIcon={<Download />}
-              onClick={() => {
-                downloadRevenueDetailsReportPDF(
-                  revenueData || {},
-                  hotelSettings?.hotel || {},
-                  dateRangeLabel
-                );
-              }}
-              sx={{
-                width: { xs: "100%", sm: "auto" },
-                borderRadius: "12px",
-                fontWeight: 800,
-                fontSize: "0.82rem",
-                px: 2.2,
-                py: 0.9,
-                justifyContent: "center",
-                whiteSpace: "nowrap",
-                bgcolor: "#10B981",
-                color: "#FFFFFF",
-                boxShadow: "0 4px 12px rgba(16, 185, 129, 0.25)",
-                "&:hover": { bgcolor: "#059669", boxShadow: "0 6px 16px rgba(16, 185, 129, 0.35)" },
-              }}
-            >
-              Download Statement PDF
-            </Button>
 
             <Button
               variant="contained"
@@ -980,23 +952,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
               </Box>
             </Box>
           </DialogContent>
-          <DialogActions sx={{ p: 2, display: "flex", justifyContent: "space-between", alignItems: "stretch", flexDirection: { xs: "column-reverse", sm: "row" }, gap: 1.5 }}>
-            <Button
-              startIcon={<Download />}
-              onClick={() => downloadPaymentReceiptPDF(selectedTxn, hotelSettings?.hotel || {})}
-              variant="outlined"
-              sx={{
-                width: { xs: "100%", sm: "auto" },
-                borderRadius: "10px",
-                fontWeight: 800,
-                borderColor: themeConfig.border,
-                color: themeConfig.textMain,
-                justifyContent: "center",
-                "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
-              }}
-            >
-              Download PDF Receipt
-            </Button>
+          <DialogActions sx={{ p: 2, display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
             <Button
               onClick={() => setSelectedTxn(null)}
               variant="contained"

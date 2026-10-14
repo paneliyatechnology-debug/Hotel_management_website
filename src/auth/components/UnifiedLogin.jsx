@@ -30,6 +30,7 @@ import {
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { toast } from "@/shared/utils/toast";
+import { setAuthCookies, clearAuthCookies } from "@/shared/utils/cookieAuth";
 
 export default function UnifiedLogin({ onLoginSuccess }) {
   const { themeConfig } = useAppTheme();
@@ -152,15 +153,16 @@ export default function UnifiedLogin({ onLoginSuccess }) {
       });
 
       if (res.success && res.data) {
-        const token = res.accessToken || res.token || res.data?.token;
+        const token = res.accessToken || res.token || res.data?.accessToken || res.data?.token;
+        const refreshToken = res.refreshToken || res.data?.refreshToken;
         const user = res.data?.user || (res.data?.role ? res.data : null);
 
         if (token) {
           localStorage.setItem("token", token);
         }
 
-        if (res.refreshToken) {
-          localStorage.setItem("refreshToken", res.refreshToken);
+        if (refreshToken) {
+          localStorage.setItem("refreshToken", refreshToken);
         }
 
         if (user) {
@@ -168,6 +170,7 @@ export default function UnifiedLogin({ onLoginSuccess }) {
             localStorage.removeItem("token");
             localStorage.removeItem("refreshToken");
             localStorage.removeItem("user");
+            clearAuthCookies();
             const errStr = "Access Denied. Super Admin accounts must log in through the Super Admin Portal.";
             toast.error(errStr);
             setError(errStr);
@@ -176,6 +179,7 @@ export default function UnifiedLogin({ onLoginSuccess }) {
           }
 
           localStorage.setItem("user", JSON.stringify(user));
+          setAuthCookies({ accessToken: token, refreshToken, user });
 
           if (user.mustChangePassword) {
             setTempUser(user);
@@ -198,7 +202,7 @@ export default function UnifiedLogin({ onLoginSuccess }) {
     }
   };
 
-  // Step 1: Request 6-digit OTP
+  // Request Password Reset Link via Email
   const handleSendOtp = async () => {
     setForgotError("");
     setForgotMsg("");
@@ -218,10 +222,14 @@ export default function UnifiedLogin({ onLoginSuccess }) {
         body: { email: emailTrimmed },
       });
 
-      const msg = res.message || "6-digit OTP has been sent to your email.";
+      const msg = res?.message || "A password reset link has been sent to your email. Please check your inbox or spam folder.";
       toast.success(msg);
-      setForgotMsg(msg);
-      setForgotStep(2);
+      setLoginSuccessMsg(msg);
+      setForgotOpen(false);
+      setForgotEmail("");
+      setForgotError("");
+      setForgotMsg("");
+      setForgotStep(1);
     } catch (err) {
       toast.error(err.message || "Could not process password reset request.");
       setForgotError(err.message || "Could not process password reset request.");
@@ -505,252 +513,57 @@ export default function UnifiedLogin({ onLoginSuccess }) {
         </CardContent>
       </Card>
 
-      {/* Forgot Password with 3-Step Wizard: 1. Email -> 2. Verify OTP -> 3. New Password */}
+      {/* Forgot Password Dialog */}
       <Dialog open={forgotOpen} onClose={() => setForgotOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle component="div" sx={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 1 }}>
           <KeyIcon sx={{ color: themeConfig.primary }} />
-          {forgotStep === 1 && "Password Recovery (Step 1/3)"}
-          {forgotStep === 2 && "Enter OTP Code (Step 2/3)"}
-          {forgotStep === 3 && "Set New Password (Step 3/3)"}
+          Reset Password
         </DialogTitle>
         <DialogContent>
-          {forgotStep === 1 && (
-            /* STEP 1: Enter Email to Receive OTP */
-            <Box sx={{ mt: 0.5 }}>
-              <Typography variant="body2" sx={{ color: themeConfig.textMuted, mb: 2 }}>
-                Enter your registered email address. We will send you a 6-digit verification OTP code.
-              </Typography>
+          <Box sx={{ mt: 0.5 }}>
+            <Typography variant="body2" sx={{ color: themeConfig.textMuted, mb: 2 }}>
+              Enter your registered email address. We will send a password reset link directly to your email inbox.
+            </Typography>
 
-              {forgotError && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                  {forgotError}
-                </Alert>
-              )}
+            {forgotError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {forgotError}
+              </Alert>
+            )}
 
-              <TextField
-                autoFocus
-                label="Registered Email Address"
-                type="email"
-                fullWidth
-                required
-                value={forgotEmail}
-                onChange={(e) => setForgotEmail(e.target.value)}
-                placeholder="e.g. admin@grandroyale.com"
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <EmailIcon sx={{ color: "#94a3b8", fontSize: 20 }} />
-                      </InputAdornment>
-                    ),
-                  },
-                }}
-              />
-            </Box>
-          )}
-
-          {forgotStep === 2 && (
-            /* STEP 2: Enter & Verify 6-digit OTP in 6 individual boxes */
-            <Box sx={{ mt: 0.5 }}>
-              <Typography variant="body2" sx={{ color: themeConfig.textMuted, mb: 1 }}>
-                Enter the 6-digit OTP code sent to <strong>{forgotEmail}</strong>:
-              </Typography>
-              <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 600, display: "block", mb: 2 }}>
-                (You can also paste the full OTP directly here via Ctrl+V)
-              </Typography>
-
-              {forgotMsg && (
-                <Alert severity="success" sx={{ mb: 2 }}>
-                  {forgotMsg}
-                </Alert>
-              )}
-
-              {forgotError && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                  {forgotError}
-                </Alert>
-              )}
-
-              {/* 6 Individual Square OTP Input Boxes */}
-              <Box
-                onPaste={handleOtpPaste}
-                sx={{
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  gap: { xs: 1, sm: 1.4 },
-                  my: 2.5,
-                }}
-              >
-                {[0, 1, 2, 3, 4, 5].map((idx) => (
-                  <input
-                    key={idx}
-                    ref={(el) => (otpInputRefs.current[idx] = el)}
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={1}
-                    value={otpDigits[idx]}
-                    onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
-                    onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                    onPaste={handleOtpPaste}
-                    onFocus={(e) => e.target.select()}
-                    placeholder="•"
-                    style={{
-                      width: 44,
-                      height: 52,
-                      textAlign: "center",
-                      fontSize: "1.4rem",
-                      fontWeight: "900",
-                      borderRadius: "12px",
-                      border: `2px solid ${otpDigits[idx] ? (themeConfig.primary || "#C5A059") : "#CBD5E1"}`,
-                      backgroundColor: otpDigits[idx] ? "rgba(197, 160, 89, 0.08)" : "#F8FAFC",
-                      color: "#0F172A",
-                      outline: "none",
-                      transition: "all 0.15s ease",
-                      boxShadow: otpDigits[idx] ? "0 2px 8px rgba(197, 160, 89, 0.25)" : "none",
-                      boxSizing: "border-box",
-                    }}
-                  />
-                ))}
-              </Box>
-
-              <Box sx={{ display: "flex", justifyContent: "space-between", mt: 1 }}>
-                <Button
-                  size="small"
-                  onClick={() => {
-                    setForgotStep(1);
-                    setForgotError("");
-                    setForgotMsg("");
-                    setOtpDigits(["", "", "", "", "", ""]);
-                    setForgotOtp("");
-                  }}
-                  sx={{ color: themeConfig.textMuted, fontSize: "0.75rem", textTransform: "none", fontWeight: 700 }}
-                >
-                  ← Change Email
-                </Button>
-                <Button
-                  size="small"
-                  onClick={handleSendOtp}
-                  disabled={forgotLoading}
-                  sx={{ color: themeConfig.primary, fontSize: "0.75rem", textTransform: "none", fontWeight: 700 }}
-                >
-                  Resend OTP
-                </Button>
-              </Box>
-            </Box>
-          )}
-
-          {forgotStep === 3 && (
-            /* STEP 3: Enter New Password & Submit */
-            <Box sx={{ mt: 0.5 }}>
-              <Typography variant="body2" sx={{ color: themeConfig.textMuted, mb: 2 }}>
-                OTP verified successfully! Please set your new permanent password below:
-              </Typography>
-
-              {forgotMsg && (
-                <Alert severity="success" sx={{ mb: 2 }}>
-                  {forgotMsg}
-                </Alert>
-              )}
-
-              {forgotError && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                  {forgotError}
-                </Alert>
-              )}
-
-              <TextField
-                autoFocus
-                label="New Permanent Password"
-                type={showForgotPass ? "text" : "password"}
-                fullWidth
-                required
-                value={forgotNewPassword}
-                onChange={(e) => setForgotNewPassword(e.target.value)}
-                placeholder="Minimum 6 characters"
-                sx={{ mb: 2 }}
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <LockIcon sx={{ color: "#94a3b8", fontSize: 20 }} />
-                      </InputAdornment>
-                    ),
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton onClick={() => setShowForgotPass(!showForgotPass)} edge="end">
-                          {showForgotPass ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  },
-                }}
-              />
-
-              <TextField
-                label="Confirm New Password"
-                type={showForgotConfirmPass ? "text" : "password"}
-                fullWidth
-                required
-                value={forgotConfirmPassword}
-                onChange={(e) => setForgotConfirmPassword(e.target.value)}
-                placeholder="Re-enter password"
-                sx={{ mb: 1 }}
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <LockIcon sx={{ color: "#94a3b8", fontSize: 20 }} />
-                      </InputAdornment>
-                    ),
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton onClick={() => setShowForgotConfirmPass(!showForgotConfirmPass)} edge="end">
-                          {showForgotConfirmPass ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  },
-                }}
-              />
-            </Box>
-          )}
+            <TextField
+              autoFocus
+              label="Registered Email Address"
+              type="email"
+              fullWidth
+              required
+              value={forgotEmail}
+              onChange={(e) => setForgotEmail(e.target.value)}
+              placeholder="e.g. admin@grandroyale.com"
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <EmailIcon sx={{ color: "#94a3b8", fontSize: 20 }} />
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
+          </Box>
         </DialogContent>
         <DialogActions sx={{ p: 2.5, pt: 1 }}>
           <Button onClick={() => setForgotOpen(false)} color="inherit" sx={{ fontWeight: 700 }}>
             Cancel
           </Button>
-          {forgotStep === 1 && (
-            <Button
-              onClick={handleSendOtp}
-              variant="contained"
-              disabled={forgotLoading}
-              sx={{ bgcolor: themeConfig.primary, "&:hover": { bgcolor: themeConfig.primaryDark }, fontWeight: 800, textTransform: "none", px: 2.5 }}
-            >
-              {forgotLoading ? <CircularProgress size={20} color="inherit" /> : "Send 6-Digit OTP"}
-            </Button>
-          )}
-          {forgotStep === 2 && (
-            <Button
-              onClick={handleVerifyOtp}
-              variant="contained"
-              disabled={forgotLoading}
-              sx={{ bgcolor: themeConfig.primary, "&:hover": { bgcolor: themeConfig.primaryDark }, fontWeight: 800, textTransform: "none", px: 2.5 }}
-            >
-              {forgotLoading ? <CircularProgress size={20} color="inherit" /> : "Verify OTP"}
-            </Button>
-          )}
-          {forgotStep === 3 && (
-            <Button
-              onClick={handleResetWithOtp}
-              variant="contained"
-              disabled={forgotLoading}
-              sx={{ bgcolor: "#10B981", "&:hover": { bgcolor: "#059669" }, fontWeight: 800, textTransform: "none", px: 2.5 }}
-            >
-              {forgotLoading ? <CircularProgress size={20} color="inherit" /> : "Change Password"}
-            </Button>
-          )}
+          <Button
+            onClick={handleSendOtp}
+            variant="contained"
+            disabled={forgotLoading}
+            sx={{ bgcolor: themeConfig.primary, "&:hover": { bgcolor: themeConfig.primaryDark }, fontWeight: 800, textTransform: "none", px: 2.5 }}
+          >
+            {forgotLoading ? <CircularProgress size={20} color="inherit" /> : "Send Reset Link"}
+          </Button>
         </DialogActions>
       </Dialog>
 

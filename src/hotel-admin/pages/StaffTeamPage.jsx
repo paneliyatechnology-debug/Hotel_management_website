@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -54,6 +54,14 @@ import { usePresence } from "@/shared/context/SocketContext";
 import PresenceBadge from "@/shared/components/PresenceBadge";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
+import { formatTime12Hour } from "@/shared/utils/timeUtils";
+
+export const DEFAULT_SHIFTS = [
+  { value: "Morning (07:00 - 15:00)", label: "Morning Shift (07:00 AM - 03:00 PM)" },
+  { value: "Evening (15:00 - 23:00)", label: "Evening Shift (03:00 PM - 11:00 PM)" },
+  { value: "Night (23:00 - 07:00)", label: "Night Shift (11:00 PM - 07:00 AM)" },
+  { value: "General (09:00 - 18:00)", label: "General Shift (09:00 AM - 06:00 PM)" },
+];
 
 export const HOTEL_STAFF_ROLES = [
   { value: "RECEPTIONIST", label: "Front Desk Receptionist (RECEPTIONIST)", shortLabel: "Receptionist", color: "#0B8EE0", bg: "rgba(11, 142, 224, 0.12)", border: "rgba(11, 142, 224, 0.3)" },
@@ -115,6 +123,83 @@ export default function StaffTeamPage({
     if (staffRoleFilter === "ALL") return matchSearch;
     return matchSearch && (s.role || "").toUpperCase().includes(staffRoleFilter.toUpperCase());
   });
+
+  const [customShifts, setCustomShifts] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("grand_royale_hotel_shifts");
+        if (saved) return JSON.parse(saved);
+      } catch (e) { }
+    }
+    return [];
+  });
+
+  const [isCustomShiftOpen, setIsCustomShiftOpen] = useState(false);
+  const [customShiftName, setCustomShiftName] = useState("");
+  const [customShiftStart, setCustomShiftStart] = useState("09:00");
+  const [customShiftEnd, setCustomShiftEnd] = useState("17:00");
+
+  const allShifts = useMemo(() => {
+    const list = [...DEFAULT_SHIFTS];
+
+    customShifts.forEach((cs) => {
+      if (!list.some((s) => s.value === cs.value)) {
+        list.push({ ...cs, isCustom: true });
+      }
+    });
+
+    (staffList || []).forEach((staff) => {
+      if (staff.shift && !list.some((s) => s.value === staff.shift)) {
+        list.push({ value: staff.shift, label: staff.shift, isCustom: true });
+      }
+    });
+
+    if (staffModal?.data?.shift && !list.some((s) => s.value === staffModal.data.shift)) {
+      list.push({ value: staffModal.data.shift, label: staffModal.data.shift, isCustom: true });
+    }
+
+    return list;
+  }, [customShifts, staffList, staffModal?.data?.shift]);
+
+  const handleApplyCustomShift = () => {
+    const title = customShiftName.trim() || "Custom Shift";
+    const start12 = formatTime12Hour(customShiftStart);
+    const end12 = formatTime12Hour(customShiftEnd);
+    const shiftValue = `${title} (${customShiftStart} - ${customShiftEnd})`;
+    const shiftLabel = `${title} (${start12} - ${end12})`;
+
+    const newShiftObj = { value: shiftValue, label: shiftLabel, isCustom: true };
+    const updated = [...customShifts.filter((s) => s.value !== shiftValue), newShiftObj];
+    setCustomShifts(updated);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("grand_royale_hotel_shifts", JSON.stringify(updated));
+      } catch (e) { }
+    }
+
+    setStaffModal((prev) => ({
+      ...prev,
+      data: { ...prev.data, shift: shiftValue },
+    }));
+    setIsCustomShiftOpen(false);
+    setCustomShiftName("");
+  };
+
+  const handleDeleteCustomShift = (val) => {
+    const updated = customShifts.filter((s) => s.value !== val);
+    setCustomShifts(updated);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("grand_royale_hotel_shifts", JSON.stringify(updated));
+      } catch (e) { }
+    }
+    if (staffModal?.data?.shift === val) {
+      setStaffModal((prev) => ({
+        ...prev,
+        data: { ...prev.data, shift: "Morning (07:00 - 15:00)" },
+      }));
+    }
+  };
 
   const paginatedStaff = filteredStaff.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
@@ -331,7 +416,8 @@ export default function StaffTeamPage({
           borderRadius: "20px",
           border: `1px solid ${themeConfig.border}`,
           boxShadow: "0 10px 30px -5px rgba(12, 39, 59, 0.08), inset 0 1px 1px #FFFFFF",
-          overflowX: "auto",
+          width: "100%",
+          overflowX: "hidden",
           overflowY: "auto",
           maxHeight: { xs: "520px", md: "calc(100vh - 280px)" },
           mb: 4,
@@ -341,22 +427,20 @@ export default function StaffTeamPage({
           "&::-webkit-scrollbar-thumb:hover": { background: themeConfig.primary },
         }}
       >
-        <Table stickyHeader sx={{ minWidth: 980 }}>
+        <Table stickyHeader size="small" sx={{ width: "100%", tableLayout: { xs: "auto", md: "fixed" } }}>
           <TableHead>
             <TableRow sx={{ bgcolor: themeConfig.champagne }}>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.6, whiteSpace: "nowrap" }}>Staff Profile</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Role / Position</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Contact Phone</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Govt ID Proof</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Shift Schedule</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Status</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Actions</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.5, width: { xs: "auto", md: "35%" }, whiteSpace: "nowrap" }}>Staff Profile</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.5, width: { xs: "auto", md: "20%" }, whiteSpace: "nowrap" }}>Role / Position</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.5, width: { xs: "auto", md: "20%" }, whiteSpace: "nowrap" }}>Contact Phone</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.5, width: { xs: "auto", md: "13%" }, whiteSpace: "nowrap" }}>Status</TableCell>
+              <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.5, width: { xs: "auto", md: "12%" }, whiteSpace: "nowrap" }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {filteredStaff.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} sx={{ py: 6, textAlign: "center" }}>
+                <TableCell colSpan={5} sx={{ py: 6, textAlign: "center" }}>
                   <EmptyState
                     title="No Staff Members Found"
                     description={staffList.length === 0 ? "No staff profiles created yet. Click '+ Add Staff Member' to onboard your first team member." : "No staff members match your filter criteria."}
@@ -376,7 +460,7 @@ export default function StaffTeamPage({
                   }}
                 >
                   {/* Profile & Name */}
-                  <TableCell sx={{ whiteSpace: "nowrap" }}>
+                  <TableCell sx={{ py: 1.5, width: { xs: "auto", md: "28%" }, whiteSpace: "nowrap" }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1.8 }}>
                       <Avatar
                         sx={{
@@ -398,16 +482,13 @@ export default function StaffTeamPage({
                           </Typography>
                           <PresenceBadge isOnline={isUserOnline(staff._id || staff.id)} size="small" />
                         </Box>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "flex", alignItems: "center", gap: 0.5 }}>
-                          <Email sx={{ fontSize: 12, color: themeConfig.primary }} />
-                          {staff.email}
-                        </Typography>
+
                       </Box>
                     </Box>
                   </TableCell>
 
                   {/* Role Chip */}
-                  <TableCell sx={{ whiteSpace: "nowrap" }}>
+                  <TableCell sx={{ py: 1.5, width: { xs: "auto", md: "16%" }, whiteSpace: "nowrap" }}>
                     {(() => {
                       const meta = getRoleMeta(staff.role);
                       return (
@@ -428,7 +509,7 @@ export default function StaffTeamPage({
                   </TableCell>
 
                   {/* Contact Phone */}
-                  <TableCell sx={{ whiteSpace: "nowrap" }}>
+                  <TableCell sx={{ py: 1.5, width: { xs: "auto", md: "16%" }, whiteSpace: "nowrap" }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       <Phone fontSize="small" sx={{ color: themeConfig.primaryDark, fontSize: 16 }} />
                       <Typography variant="body2" sx={{ fontWeight: 700, color: themeConfig.textMain }}>
@@ -437,35 +518,12 @@ export default function StaffTeamPage({
                     </Box>
                   </TableCell>
 
-                  {/* Govt ID */}
-                  <TableCell sx={{ whiteSpace: "nowrap" }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <Security fontSize="small" sx={{ color: themeConfig.primary }} />
-                      <Box>
-                        <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "block" }}>
-                          {staff.idType || "Aadhaar Card"}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem" }}>
-                          {staff.idNumber || "XXXX-XXXX-4512"}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </TableCell>
 
-                  {/* Shift */}
-                  <TableCell sx={{ whiteSpace: "nowrap" }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
-                      <AccessTime fontSize="small" sx={{ color: themeConfig.primaryDark, fontSize: 15 }} />
-                      <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain }}>
-                        {staff.shift || "Morning (07:00 - 15:00)"}
-                      </Typography>
-                    </Box>
-                  </TableCell>
 
                   {/* Status & Active Toggle */}
-                  <TableCell sx={{ whiteSpace: "nowrap" }}>
+                  <TableCell sx={{ py: 1.5, width: { xs: "auto", md: "12%" }, whiteSpace: "nowrap" }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <StatusChip status={staff.status || "ACTIVE"} size="small" />
+
                       {onToggleStaffStatus && (
                         <Tooltip title={staff.status === "ACTIVE" || !staff.status ? "Deactivate Staff Member" : "Activate Staff Member"}>
                           <Switch
@@ -487,7 +545,7 @@ export default function StaffTeamPage({
                   </TableCell>
 
                   {/* Actions */}
-                  <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
+                  <TableCell align="right" sx={{ py: 1.5, width: { xs: "auto", md: "10%" }, whiteSpace: "nowrap" }}>
                     <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1 }}>
                       <Tooltip title="View Staff Dossier">
                         <IconButton
@@ -705,22 +763,143 @@ export default function StaffTeamPage({
               </Grid>
 
               <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                  Duty Shift Roster
-                </Typography>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.8 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain }}>
+                    Duty Shift Roster *
+                  </Typography>
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={() => setIsCustomShiftOpen((prev) => !prev)}
+                    startIcon={<Add sx={{ fontSize: 13 }} />}
+                    sx={{
+                      fontSize: "0.72rem",
+                      fontWeight: 800,
+                      textTransform: "none",
+                      p: 0,
+                      minWidth: "auto",
+                      color: themeConfig.primary,
+                      "&:hover": { bgcolor: "transparent", textDecoration: "underline" },
+                    }}
+                  >
+                    {isCustomShiftOpen ? "Close Custom" : "+ Custom Shift"}
+                  </Button>
+                </Box>
                 <TextField
                   select
                   fullWidth
                   size="small"
                   value={staffModal.data?.shift || "Morning (07:00 - 15:00)"}
-                  onChange={(e) => setStaffModal({ ...staffModal, data: { ...staffModal.data, shift: e.target.value } })}
+                  onChange={(e) => {
+                    if (e.target.value === "__NEW_CUSTOM__") {
+                      setIsCustomShiftOpen(true);
+                    } else {
+                      setStaffModal({ ...staffModal, data: { ...staffModal.data, shift: e.target.value } });
+                    }
+                  }}
                   sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
                 >
-                  <MenuItem value="Morning (07:00 - 15:00)">Morning Shift (07:00 AM - 03:00 PM)</MenuItem>
-                  <MenuItem value="Evening (15:00 - 23:00)">Evening Shift (03:00 PM - 11:00 PM)</MenuItem>
-                  <MenuItem value="Night (23:00 - 07:00)">Night Shift (11:00 PM - 07:00 AM)</MenuItem>
-                  <MenuItem value="General (09:00 - 18:00)">General Shift (09:00 AM - 06:00 PM)</MenuItem>
+                  {allShifts.map((s) => (
+                    <MenuItem key={s.value} value={s.value}>
+                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", gap: 1 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <AccessTime sx={{ fontSize: 14, color: themeConfig.primary }} />
+                          <Typography variant="body2" sx={{ fontWeight: 700, fontSize: "0.82rem" }}>
+                            {s.label}
+                          </Typography>
+                        </Box>
+                        {s.isCustom && (
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteCustomShift(s.value);
+                            }}
+                            sx={{ p: 0.2, color: "#EF4444", "&:hover": { bgcolor: "rgba(239,68,68,0.1)" } }}
+                          >
+                            <Delete sx={{ fontSize: 13 }} />
+                          </IconButton>
+                        )}
+                      </Box>
+                    </MenuItem>
+                  ))}
+                  <MenuItem value="__NEW_CUSTOM__" sx={{ color: themeConfig.primary, fontWeight: 800, borderTop: `1px dashed ${themeConfig.border}`, py: 1 }}>
+                    <Add sx={{ fontSize: 15, mr: 0.8 }} /> + Create Custom Shift Timing...
+                  </MenuItem>
                 </TextField>
+
+                {isCustomShiftOpen && (
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      mt: 1.2,
+                      p: 1.5,
+                      borderRadius: "14px",
+                      bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne,
+                      border: `1px solid ${themeConfig.border}`,
+                    }}
+                  >
+                    <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.primaryDark, display: "block", mb: 1 }}>
+                      ⏱️ Dynamic Shift Timing Builder
+                    </Typography>
+                    <Grid container spacing={1.2} sx={{ alignItems: "center" }}>
+                      <Grid size={{ xs: 12 }}>
+                        <TextField
+                          size="small"
+                          fullWidth
+                          placeholder="Shift Name (e.g. Afternoon, Night Guard)"
+                          value={customShiftName}
+                          onChange={(e) => setCustomShiftName(e.target.value)}
+                          sx={{ "& .MuiOutlinedInput-root": { borderRadius: "10px", bgcolor: themeConfig.bgCard || "#FFFFFF", fontSize: "0.8rem" } }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 6 }}>
+                        <TextField
+                          type="time"
+                          size="small"
+                          fullWidth
+                          label="Start Time"
+                          slotProps={{ inputLabel: { shrink: true } }}
+                          value={customShiftStart}
+                          onChange={(e) => setCustomShiftStart(e.target.value)}
+                          sx={{ "& .MuiOutlinedInput-root": { borderRadius: "10px", bgcolor: themeConfig.bgCard || "#FFFFFF", fontSize: "0.8rem" } }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 6 }}>
+                        <TextField
+                          type="time"
+                          size="small"
+                          fullWidth
+                          label="End Time"
+                          slotProps={{ inputLabel: { shrink: true } }}
+                          value={customShiftEnd}
+                          onChange={(e) => setCustomShiftEnd(e.target.value)}
+                          sx={{ "& .MuiOutlinedInput-root": { borderRadius: "10px", bgcolor: themeConfig.bgCard || "#FFFFFF", fontSize: "0.8rem" } }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12 }}>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          fullWidth
+                          onClick={handleApplyCustomShift}
+                          sx={{
+                            borderRadius: "10px",
+                            fontWeight: 800,
+                            py: 0.8,
+                            fontSize: "0.78rem",
+                            bgcolor: themeConfig.primary,
+                            color: "#FFFFFF",
+                            textTransform: "none",
+                            "&:hover": { bgcolor: themeConfig.primaryDark },
+                          }}
+                        >
+                          Save &amp; Apply Shift
+                        </Button>
+                      </Grid>
+                    </Grid>
+                  </Paper>
+                )}
               </Grid>
             </Grid>
           </DialogContent>

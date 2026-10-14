@@ -63,6 +63,7 @@ import StatCard from "@/shared/components/StatCard";
 import { formatTime12Hour, calculateOverstayFee } from "@/shared/utils/timeUtils";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
 import { toast } from "@/shared/utils/toast";
+import { createSafeGuestModalData } from "@/shared/utils/guestModalUtils";
 
 const GuestDetailsModal = dynamic(() => import("@/shared/components/GuestDetailsModal"));
 
@@ -463,7 +464,6 @@ export default function InHouseFoliosPage({
           >
             <Tab value="CHECKED_IN" label={`Active In-House (${inHouseBookings.length})`} />
             <Tab value="ALL" label={`Today's Active Folios (${activeOperationalBookings.length})`} />
-            <Tab value="CONFIRMED" label={`Reserved (${confirmedBookings.length})`} />
             <Tab value="CHECKED_OUT" label={`Checked-Out (${checkedOutBookings.length})`} />
           </Tabs>
 
@@ -510,7 +510,7 @@ export default function InHouseFoliosPage({
           sx={{
             borderRadius: "16px",
             border: `1px solid ${themeConfig.border}`,
-            overflowX: "auto",
+            overflowX: "hidden",
             overflowY: "auto",
             maxHeight: "560px",
             "&::-webkit-scrollbar": { height: "7px", width: "7px" },
@@ -519,15 +519,15 @@ export default function InHouseFoliosPage({
             "&::-webkit-scrollbar-thumb:hover": { background: themeConfig.primary },
           }}
         >
-          <Table stickyHeader size="small" sx={{ width: "100%", tableLayout: "auto" }}>
+          <Table stickyHeader size="small" sx={{ width: "100%", tableLayout: "fixed" }}>
             <TableHead>
-              <TableRow sx={{ "& th": { bgcolor: themeConfig.champagne, color: themeConfig.textMain, fontWeight: 800, py: 1, px: 1.5 } }}>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>Guest</TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>Room</TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>Schedule</TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>Balance</TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>Status</TableCell>
-                <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>Actions</TableCell>
+              <TableRow sx={{ "& th": { bgcolor: themeConfig.champagne, color: themeConfig.textMain, fontWeight: 800, py: 1, px: 1.5, fontSize: "0.8rem" } }}>
+                <TableCell sx={{ width: "22%" }}>Guest</TableCell>
+                <TableCell sx={{ width: "16%" }}>Room</TableCell>
+                <TableCell sx={{ width: "23%" }}>Schedule</TableCell>
+                <TableCell sx={{ width: "13%" }}>Balance</TableCell>
+                <TableCell sx={{ width: "12%" }}>Status</TableCell>
+                <TableCell align="right" sx={{ width: "14%", pr: 2 }}>Actions</TableCell>
               </TableRow>
             </TableHead>
 
@@ -576,17 +576,10 @@ export default function InHouseFoliosPage({
                               "&:hover": { opacity: 0.8 },
                             }}
                             onClick={() => {
-                              const targetGuest = b.guest || {
-                                name: b.guestName || b.guest?.name,
-                                mobileNumber: b.guestPhone || b.guest?.mobileNumber,
-                                email: b.guestEmail || b.guest?.email,
-                                roomAssigned: roomsList.join(", "),
-                                booking: b,
-                              };
                               setSelectedGuestModal({
                                 open: true,
-                                guest: targetGuest,
-                                guestId: b.guest?._id || b.guest?.id || (typeof b.guest === "string" ? b.guest : null),
+                                guest: createSafeGuestModalData(b),
+                                guestId: b._id || b.id || b.bookingId || b.guest?._id || b.guest?.id,
                               });
                             }}
                           >
@@ -809,31 +802,8 @@ export default function InHouseFoliosPage({
                               </IconButton>
                             </Tooltip>
 
-                            {/* 3. View / Download Invoice */}
-                            {/* <Tooltip title="View & Print Tax Invoice">
-                              <IconButton
-                                size="small"
-                                onClick={() => onOpenInvoice(b)}
-                                sx={{
-                                  color: themeConfig.primary,
-                                  bgcolor: isDarkMode ? "rgba(11, 142, 224, 0.12)" : themeConfig.champagne,
-                                  border: `1px solid ${themeConfig.border}`,
-                                  borderRadius: "10px",
-                                  p: 0.8,
-                                  transition: "all 0.18s ease",
-                                  "&:hover": {
-                                    background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                                    color: "#FFFFFF",
-                                    transform: "translateY(-2px)",
-                                    boxShadow: `0 4px 10px ${themeConfig.primaryGlow}`,
-                                  },
-                                }}
-                              >
-                                <Receipt sx={{ fontSize: 18 }} />
-                              </IconButton>
-                            </Tooltip> */}
 
-                            {/* 4. Check-Out Guest */}
+                            {/* 3. Check-Out Guest */}
                             {b.status === "CHECKED_IN" && (
                               <Tooltip title="Check-Out Guest & Release Room">
                                 <IconButton

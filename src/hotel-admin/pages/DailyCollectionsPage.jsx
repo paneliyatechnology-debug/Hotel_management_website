@@ -52,9 +52,8 @@ import {
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useSocket } from "@/shared/context/SocketContext";
-import EmptyState from "@/shared/components/EmptyState";
-import { downloadDailyLedgerPDF, downloadHandoverVoucherPDF } from "@/shared/utils/pdfGenerator";
 import { toast } from "@/shared/utils/toast";
+import EmptyState from "@/shared/components/EmptyState";
 
 export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOverview }) {
   const { themeConfig, isDarkMode } = useAppTheme();
@@ -244,27 +243,65 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
   };
 
   return (
-    <Box sx={{ px: { xs: 1.5, sm: 3, md: 3.5 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 }, display: "flex", flexDirection: "column", gap: 3 }}>
+    <Box
+      sx={{
+        width: "100%",
+        maxWidth: "100%",
+        overflowX: "hidden",
+        px: { xs: 0, sm: 0.5 },
+        py: { xs: 0.5, sm: 1 },
+        pb: { xs: 10, sm: 4 },
+        display: "flex",
+        flexDirection: "column",
+        gap: { xs: 2, sm: 2.5, md: 3 },
+      }}
+    >
       {/* Header */}
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: { xs: "stretch", sm: "center" }, flexDirection: { xs: "column", sm: "row" }, gap: 2 }}>
-        <div>
-          <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5, fontSize: { xs: "1.3rem", sm: "1.6rem" } }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: { xs: "flex-start", lg: "center" },
+          flexDirection: { xs: "column", lg: "row" },
+          gap: 2,
+          width: "100%",
+        }}
+      >
+        <Box sx={{ minWidth: 0 }}>
+          <Typography
+            variant="h5"
+            sx={{
+              fontWeight: 900,
+              color: themeConfig.textMain,
+              letterSpacing: -0.5,
+              fontSize: { xs: "1.25rem", sm: "1.5rem", md: "1.65rem" },
+              wordBreak: "break-word",
+            }}
+          >
             Daily Collections &amp; Cash Drawer
           </Typography>
           <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontSize: { xs: "0.78rem", sm: "0.85rem" } }}>
             Real-time collection ledger &amp; shift handover reconciliation
           </Typography>
-        </div>
+        </Box>
 
-        <Box sx={{ display: "flex", gap: 1.2, flexWrap: "wrap", alignItems: "center", width: { xs: "100%", sm: "auto" }, flexDirection: { xs: "column", sm: "row" } }}>
-          <Box sx={{ display: "flex", gap: 1, width: { xs: "100%", sm: "auto" } }}>
+        <Box
+          sx={{
+            display: "flex",
+            gap: 1.2,
+            flexWrap: "wrap",
+            alignItems: "center",
+            width: { xs: "100%", lg: "auto" },
+            justifyContent: { xs: "flex-start", sm: "flex-end" },
+          }}
+        >
+          <Box sx={{ display: "flex", gap: 1, width: { xs: "100%", sm: "auto" }, flexWrap: "wrap" }}>
             <Button
               variant="outlined"
               startIcon={<Refresh />}
               onClick={fetchDailyData}
               sx={{
-                flex: 1,
-                width: { xs: "50%", sm: "auto" },
+                flex: { xs: 1, sm: "initial" },
                 borderRadius: "12px",
                 borderColor: themeConfig.border,
                 bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#FFFFFF",
@@ -273,34 +310,10 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
                 fontSize: { xs: "0.75rem", sm: "0.82rem" },
                 textTransform: "none",
                 whiteSpace: "nowrap",
-                justifyContent: "center",
+                px: 2,
               }}
             >
               Refresh
-            </Button>
-
-            <Button
-              variant="outlined"
-              startIcon={<Download />}
-              onClick={() => {
-                downloadDailyLedgerPDF(data?.payments || [], telemetry, hotelSettings || user?.hotel || {});
-                showToast("Treasury Statement PDF generated successfully!", "success");
-              }}
-              sx={{
-                flex: 1,
-                width: { xs: "50%", sm: "auto" },
-                borderRadius: "12px",
-                borderColor: themeConfig.border,
-                bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#FFFFFF",
-                color: themeConfig.textMain,
-                fontWeight: 700,
-                fontSize: { xs: "0.75rem", sm: "0.82rem" },
-                textTransform: "none",
-                whiteSpace: "nowrap",
-                justifyContent: "center",
-              }}
-            >
-              Export PDF
             </Button>
           </Box>
 
@@ -358,16 +371,19 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
           gridTemplateColumns: {
             xs: "1fr",
             sm: "repeat(2, 1fr)",
-            md: "repeat(4, 1fr)",
+            lg: "repeat(4, 1fr)",
           },
-          gap: 2,
+          gap: { xs: 1.5, sm: 2 },
+          width: "100%",
         }}
       >
         {/* CARD 1: Cash in Counter Drawer */}
         <Paper
           elevation={0}
           sx={{
-            p: 2.2,
+            p: { xs: 1.8, sm: 2, md: 2.2 },
+            minWidth: 0,
+            overflow: "hidden",
             borderRadius: "18px",
             bgcolor: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "#FFFFFF",
             border: `1.5px solid ${telemetry.cashInDrawer > 0 ? "rgba(245, 158, 11, 0.35)" : themeConfig.border}`,
@@ -379,12 +395,12 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
             justifyContent: "space-between",
           }}
         >
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Avatar sx={{ width: 34, height: 34, bgcolor: telemetry.cashInDrawer > 0 ? "rgba(245, 158, 11, 0.15)" : "rgba(16, 185, 129, 0.15)", color: telemetry.cashInDrawer > 0 ? "#F59E0B" : "#10B981" }}>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1, flexWrap: "wrap", gap: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+              <Avatar sx={{ width: 34, height: 34, bgcolor: telemetry.cashInDrawer > 0 ? "rgba(245, 158, 11, 0.15)" : "rgba(16, 185, 129, 0.15)", color: telemetry.cashInDrawer > 0 ? "#F59E0B" : "#10B981", flexShrink: 0 }}>
                 {telemetry.cashInDrawer > 0 ? <LockOpen sx={{ fontSize: 18 }} /> : <Lock sx={{ fontSize: 18 }} />}
               </Avatar>
-              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", fontSize: "0.72rem" }}>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", fontSize: "0.72rem", whiteSpace: "nowrap" }}>
                 Cash in Drawer
               </Typography>
             </Box>
@@ -400,10 +416,10 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
               }}
             />
           </Box>
-          <Typography variant="h4" sx={{ fontWeight: 900, color: telemetry.cashInDrawer > 0 ? (isDarkMode ? "#FBBF24" : "#D97706") : themeConfig.textMain, letterSpacing: -0.5, my: 0.5, fontSize: { xs: "1.4rem", sm: "1.8rem" } }}>
+          <Typography variant="h4" sx={{ fontWeight: 900, color: telemetry.cashInDrawer > 0 ? (isDarkMode ? "#FBBF24" : "#D97706") : themeConfig.textMain, letterSpacing: -0.5, my: 0.5, fontSize: { xs: "1.35rem", sm: "1.6rem", xl: "1.8rem" }, wordBreak: "break-word" }}>
             ₹{formatRupee(telemetry.cashInDrawer)}
           </Typography>
-          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem" }}>
+          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", lineHeight: 1.3 }}>
             Unsettled cash awaiting admin vault handover
           </Typography>
         </Paper>
@@ -412,7 +428,9 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
         <Paper
           elevation={0}
           sx={{
-            p: 2.2,
+            p: { xs: 1.8, sm: 2, md: 2.2 },
+            minWidth: 0,
+            overflow: "hidden",
             borderRadius: "18px",
             bgcolor: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "#FFFFFF",
             border: `1.5px solid ${themeConfig.border}`,
@@ -422,12 +440,12 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
             justifyContent: "space-between",
           }}
         >
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Avatar sx={{ width: 34, height: 34, bgcolor: "rgba(59, 130, 246, 0.12)", color: "#3B82F6" }}>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1, flexWrap: "wrap", gap: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+              <Avatar sx={{ width: 34, height: 34, bgcolor: "rgba(59, 130, 246, 0.12)", color: "#3B82F6", flexShrink: 0 }}>
                 <TrendingUp sx={{ fontSize: 18 }} />
               </Avatar>
-              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", fontSize: "0.72rem" }}>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", fontSize: "0.72rem", whiteSpace: "nowrap" }}>
                 Today&apos;s Gross
               </Typography>
             </Box>
@@ -443,10 +461,10 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
               }}
             />
           </Box>
-          <Typography variant="h4" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5, my: 0.5, fontSize: { xs: "1.4rem", sm: "1.8rem" } }}>
+          <Typography variant="h4" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5, my: 0.5, fontSize: { xs: "1.35rem", sm: "1.6rem", xl: "1.8rem" }, wordBreak: "break-word" }}>
             ₹{formatRupee(telemetry.todayGross)}
           </Typography>
-          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem" }}>
+          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", lineHeight: 1.3 }}>
             Cash (₹{formatRupee(telemetry.todayCash)}) + Digital (₹{formatRupee((Number(telemetry.todayUpi) || 0) + (Number(telemetry.todayCard) || 0) + (Number(telemetry.todayBank) || 0))})
           </Typography>
         </Paper>
@@ -455,7 +473,9 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
         <Paper
           elevation={0}
           sx={{
-            p: 2.2,
+            p: { xs: 1.8, sm: 2, md: 2.2 },
+            minWidth: 0,
+            overflow: "hidden",
             borderRadius: "18px",
             bgcolor: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "#FFFFFF",
             border: `1.5px solid ${themeConfig.border}`,
@@ -465,12 +485,12 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
             justifyContent: "space-between",
           }}
         >
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Avatar sx={{ width: 34, height: 34, bgcolor: "rgba(139, 92, 246, 0.12)", color: "#8B5CF6" }}>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1, flexWrap: "wrap", gap: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+              <Avatar sx={{ width: 34, height: 34, bgcolor: "rgba(139, 92, 246, 0.12)", color: "#8B5CF6", flexShrink: 0 }}>
                 <QrCode2 sx={{ fontSize: 18 }} />
               </Avatar>
-              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", fontSize: "0.72rem" }}>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", fontSize: "0.72rem", whiteSpace: "nowrap" }}>
                 Digital Total
               </Typography>
             </Box>
@@ -486,10 +506,10 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
               }}
             />
           </Box>
-          <Typography variant="h4" sx={{ fontWeight: 900, color: isDarkMode ? "#A78BFA" : "#7C3AED", letterSpacing: -0.5, my: 0.5, fontSize: { xs: "1.4rem", sm: "1.8rem" } }}>
+          <Typography variant="h4" sx={{ fontWeight: 900, color: isDarkMode ? "#A78BFA" : "#7C3AED", letterSpacing: -0.5, my: 0.5, fontSize: { xs: "1.35rem", sm: "1.6rem", xl: "1.8rem" }, wordBreak: "break-word" }}>
             ₹{formatRupee((Number(telemetry.todayUpi) || 0) + (Number(telemetry.todayCard) || 0) + (Number(telemetry.todayBank) || 0))}
           </Typography>
-          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem" }}>
+          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", lineHeight: 1.3 }}>
             UPI: ₹{formatRupee(telemetry.todayUpi)} • Card: ₹{formatRupee(telemetry.todayCard)}
           </Typography>
         </Paper>
@@ -498,7 +518,9 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
         <Paper
           elevation={0}
           sx={{
-            p: 2.2,
+            p: { xs: 1.8, sm: 2, md: 2.2 },
+            minWidth: 0,
+            overflow: "hidden",
             borderRadius: "18px",
             bgcolor: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "#FFFFFF",
             border: `1.5px solid ${themeConfig.border}`,
@@ -508,12 +530,12 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
             justifyContent: "space-between",
           }}
         >
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Avatar sx={{ width: 34, height: 34, bgcolor: "rgba(16, 185, 129, 0.12)", color: "#10B981" }}>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1, flexWrap: "wrap", gap: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+              <Avatar sx={{ width: 34, height: 34, bgcolor: "rgba(16, 185, 129, 0.12)", color: "#10B981", flexShrink: 0 }}>
                 <AccountBalance sx={{ fontSize: 18 }} />
               </Avatar>
-              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", fontSize: "0.72rem" }}>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", fontSize: "0.72rem", whiteSpace: "nowrap" }}>
                 In Admin Vault
               </Typography>
             </Box>
@@ -529,10 +551,10 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
               }}
             />
           </Box>
-          <Typography variant="h4" sx={{ fontWeight: 900, color: "#10B981", letterSpacing: -0.5, my: 0.5, fontSize: { xs: "1.4rem", sm: "1.8rem" } }}>
+          <Typography variant="h4" sx={{ fontWeight: 900, color: "#10B981", letterSpacing: -0.5, my: 0.5, fontSize: { xs: "1.35rem", sm: "1.6rem", xl: "1.8rem" }, wordBreak: "break-word" }}>
             ₹{formatRupee(telemetry.totalVaultSettled)}
           </Typography>
-          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem" }}>
+          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", lineHeight: 1.3 }}>
             Historical verified vault deposits
           </Typography>
         </Paper>
@@ -702,22 +724,20 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
           <>
             <TableContainer
               sx={{
-                overflowX: "auto",
-                "&::-webkit-scrollbar": { height: "7px", width: "7px" },
-                "&::-webkit-scrollbar-track": { background: "rgba(0,0,0,0.02)" },
-                "&::-webkit-scrollbar-thumb": { background: themeConfig.border, borderRadius: "6px" },
+                width: "100%",
+                overflowX: "hidden",
               }}
             >
-              <Table size="small" stickyHeader sx={{ minWidth: 960 }}>
+              <Table size="small" stickyHeader sx={{ width: "100%", tableLayout: { xs: "auto", md: "fixed" } }}>
                 <TableHead sx={{ bgcolor: themeConfig.champagne }}>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 800, py: 1.2, whiteSpace: "nowrap" }}>Time &amp; Receipt #</TableCell>
-                    <TableCell sx={{ fontWeight: 800, py: 1.2, whiteSpace: "nowrap" }}>Guest &amp; Room</TableCell>
-                    <TableCell sx={{ fontWeight: 800, py: 1.2, whiteSpace: "nowrap" }}>Payment Method</TableCell>
-                    <TableCell sx={{ fontWeight: 800, py: 1.2, whiteSpace: "nowrap" }}>Stage / Reason</TableCell>
-                    <TableCell sx={{ fontWeight: 800, py: 1.2, whiteSpace: "nowrap" }}>Amount (₹)</TableCell>
-                    <TableCell sx={{ fontWeight: 800, py: 1.2, whiteSpace: "nowrap" }}>Collector</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 800, py: 1.2, whiteSpace: "nowrap" }}>Status</TableCell>
+                    <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "14%" }, whiteSpace: "nowrap" }}>Time &amp; Receipt #</TableCell>
+                    <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "24%" }, whiteSpace: "nowrap" }}>Guest &amp; Room</TableCell>
+                    <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "13%" }, whiteSpace: "nowrap" }}>Payment Method</TableCell>
+                    <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "17%" }, whiteSpace: "nowrap" }}>Stage / Reason</TableCell>
+                    <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "12%" }, whiteSpace: "nowrap" }}>Amount (₹)</TableCell>
+                    <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "10%" }, whiteSpace: "nowrap" }}>Collector</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "10%" }, whiteSpace: "nowrap" }}>Status</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -765,7 +785,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
                               <MeetingRoom sx={{ fontSize: 14, color: themeConfig.primary }} />
                               Rm {g.roomNumber}
                             </Box>
-                            <Box sx={{ maxWidth: 220, overflow: "hidden" }}>
+                            <Box sx={{ minWidth: 0, flex: 1, overflow: "hidden" }}>
                               <Typography
                                 variant="body2"
                                 sx={{
@@ -848,7 +868,8 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
                         {/* Column 7: Status */}
                         <TableCell align="right" sx={{ py: 1.1, whiteSpace: "nowrap" }}>
                           <Chip
-                            label={isSettled ? "Deposited in Vault" : "In Counter Drawer"}
+                            label={isSettled ? "Deposited" : "In Drawer"}
+                            title={isSettled ? "Deposited in Vault" : "In Counter Drawer"}
                             size="small"
                             sx={{
                               fontWeight: 800,
@@ -927,21 +948,19 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
 
           <TableContainer
             sx={{
-              overflowX: "auto",
-              "&::-webkit-scrollbar": { height: "7px", width: "7px" },
-              "&::-webkit-scrollbar-track": { background: "rgba(0,0,0,0.02)" },
-              "&::-webkit-scrollbar-thumb": { background: themeConfig.border, borderRadius: "6px" },
+              width: "100%",
+              overflowX: "hidden",
             }}
           >
-            <Table size="small" stickyHeader sx={{ minWidth: 800 }}>
+            <Table size="small" stickyHeader sx={{ width: "100%", tableLayout: { xs: "auto", md: "fixed" } }}>
               <TableHead sx={{ bgcolor: themeConfig.champagne }}>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 800, py: 1.2, whiteSpace: "nowrap" }}>Handover Code &amp; Date</TableCell>
-                  <TableCell sx={{ fontWeight: 800, py: 1.2, whiteSpace: "nowrap" }}>Cash Collected</TableCell>
-                  <TableCell sx={{ fontWeight: 800, py: 1.2, whiteSpace: "nowrap" }}>Digital Payments</TableCell>
-                  <TableCell sx={{ fontWeight: 800, py: 1.2, whiteSpace: "nowrap" }}>Total Settled</TableCell>
-                  <TableCell sx={{ fontWeight: 800, py: 1.2, whiteSpace: "nowrap" }}>Settled By</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800, py: 1.2, whiteSpace: "nowrap" }}>Action</TableCell>
+                  <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "24%" }, whiteSpace: "nowrap" }}>Handover Code &amp; Date</TableCell>
+                  <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "15%" }, whiteSpace: "nowrap" }}>Cash Collected</TableCell>
+                  <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "15%" }, whiteSpace: "nowrap" }}>Digital Payments</TableCell>
+                  <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "16%" }, whiteSpace: "nowrap" }}>Total Settled</TableCell>
+                  <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "15%" }, whiteSpace: "nowrap" }}>Settled By</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "15%" }, whiteSpace: "nowrap" }}>Action</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -1178,32 +1197,10 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
               </Button>
               <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexDirection: { xs: "column", sm: "row" }, width: { xs: "100%", sm: "auto" } }}>
                 <Button
-                  variant="outlined"
-                  startIcon={<Download sx={{ fontSize: 18 }} />}
-                  onClick={() => {
-                    downloadHandoverVoucherPDF(voucherModal.record, hotelSettings || user?.hotel || {});
-                    showToast("Handover slip PDF downloaded!", "success");
-                  }}
-                  sx={{
-                    width: { xs: "100%", sm: "auto" },
-                    borderRadius: "10px",
-                    borderColor: themeConfig.border,
-                    color: themeConfig.textMain,
-                    fontWeight: 700,
-                    fontSize: "0.82rem",
-                    whiteSpace: "nowrap",
-                    px: 1.8,
-                    justifyContent: "center",
-                    "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne },
-                  }}
-                >
-                  Download PDF
-                </Button>
-                <Button
                   variant="contained"
                   startIcon={<Print sx={{ fontSize: 18 }} />}
                   onClick={() => {
-                    downloadHandoverVoucherPDF(voucherModal.record, hotelSettings || user?.hotel || {});
+                    window.print();
                   }}
                   className="btn-3d"
                   sx={{
@@ -1218,7 +1215,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
                     boxShadow: `0 4px 12px ${themeConfig.primaryGlow}`,
                   }}
                 >
-                  Print / Save
+                  Print Slip
                 </Button>
               </Box>
             </DialogActions>

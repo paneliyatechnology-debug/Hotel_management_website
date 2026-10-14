@@ -18,6 +18,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
+import { setAuthCookies } from "@/shared/utils/cookieAuth";
 
 export default function RegisterHotelPage() {
   const [activeStep, setActiveStep] = useState(1);
@@ -92,14 +93,24 @@ export default function RegisterHotelPage() {
     setError("");
 
     if (activeStep === 1) {
-      if (!formData.hotelName || !formData.email || !formData.phone) {
-        setError("Please fill all required fields in Step 1 (*): Hotel Name, Email Address, and Phone Number.");
+      if (!formData.hotelName || !formData.ownerName || !formData.email || !formData.phone) {
+        setError("Please fill all required fields in Step 1 (*): Hotel Name, Owner Name, Email, and Phone Number.");
+        return;
+      }
+      const rawPhone = String(formData.phone || "").replace(/\D/g, "");
+      if (rawPhone.length < 10) {
+        setError("Please enter a valid 10-digit mobile number.");
         return;
       }
       setActiveStep(2);
     } else if (activeStep === 2) {
-      if (!formData.ownerName) {
-        setError("Please fill Owner Name in Step 2 (*).");
+      if (!formData.address) {
+        setError("Please provide the complete property address in Step 2 (*).");
+        return;
+      }
+      const cleanPin = String(formData.pincode || "").replace(/\D/g, "");
+      if (cleanPin.length !== 6) {
+        setError("Please provide a valid 6-digit Indian postal pincode (e.g. 380015).");
         return;
       }
       setActiveStep(3);
@@ -124,6 +135,21 @@ export default function RegisterHotelPage() {
       return;
     }
 
+    const cleanPincode = String(formData.pincode || "380015").replace(/\D/g, "");
+    if (cleanPincode.length !== 6) {
+      setError("Please provide a valid 6-digit Indian postal pincode (e.g. 380015).");
+      setActiveStep(2);
+      return;
+    }
+
+    const rawPhoneDigits = String(formData.phone || "").replace(/\D/g, "");
+    const cleanPhone = rawPhoneDigits.slice(-10);
+    if (cleanPhone.length !== 10) {
+      setError("Please enter a valid 10-digit Indian mobile number.");
+      setActiveStep(1);
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -132,26 +158,47 @@ export default function RegisterHotelPage() {
       const stateVal = formData.state || (locParts[1] ? locParts[1].trim() : "Gujarat");
 
       const payload = {
-        name: formData.hotelName,
-        ownerName: formData.ownerName,
+        name: formData.hotelName.trim(),
+        ownerName: formData.ownerName.trim(),
         ownerEmail: formData.email.toLowerCase().trim(),
-        ownerPhone: formData.phone,
-        address: formData.address || (formData.location !== "Select location" ? formData.location : "123 Ocean Drive"),
-        city: cityVal,
-        state: stateVal,
+        ownerPhone: cleanPhone,
+        address: (formData.address || (formData.location !== "Select location" ? formData.location : "123 Ocean Drive")).trim(),
+        city: cityVal.trim(),
+        state: stateVal.trim(),
         country: formData.country || "India",
-        pincode: formData.pincode || "380015",
-        gstNumber: formData.gstNumber || "",
-        panNumber: formData.panNumber || "",
+        pincode: cleanPincode,
         totalRooms: Number(formData.roomCount) || 20,
         hotelType: formData.hotelType !== "Select hotel type" ? formData.hotelType : "Luxury Boutique Hotel",
-        website: formData.website || "",
+        website: (formData.website || "").trim(),
       };
+
+      // Only attach GSTIN if valid 15-char format
+      const gstTrimmed = (formData.gstNumber || "").trim().toUpperCase();
+      if (/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(gstTrimmed)) {
+        payload.gstNumber = gstTrimmed;
+      }
+
+      // Only attach PAN if valid 10-char format
+      const panTrimmed = (formData.panNumber || "").trim().toUpperCase();
+      if (/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(panTrimmed)) {
+        payload.panNumber = panTrimmed;
+      }
 
       const res = await apiRequest(API_ENDPOINTS.HOTELS.REGISTER, {
         method: "POST",
         body: payload,
       });
+
+      if (res?.data?.auth?.accessToken) {
+        localStorage.setItem("token", res.data.auth.accessToken);
+        if (res.data.admin) {
+          localStorage.setItem("user", JSON.stringify(res.data.admin));
+        }
+        setAuthCookies({
+          accessToken: res.data.auth.accessToken,
+          user: res.data.admin,
+        });
+      }
 
       if (res?.credentials || res?.data?.generatedPassword) {
         setRegisteredCredentials({
@@ -584,16 +631,29 @@ export default function RegisterHotelPage() {
 
                           <div>
                             <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                              Pincode / Postal Code *
+                              Pincode / Postal Code * (6 Digits)
                             </label>
                             <input
                               type="text"
                               required
+                              maxLength={6}
                               placeholder="380015"
                               value={formData.pincode}
-                              onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
-                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-[#00C2A8] outline-none bg-[#F8FAFC]"
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                                setFormData({ ...formData, pincode: val });
+                              }}
+                              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-medium focus:ring-2 outline-none transition-all ${
+                                formData.pincode && formData.pincode.length !== 6
+                                  ? "border-amber-400 focus:ring-amber-400 bg-amber-50/40 text-amber-900"
+                                  : "border-slate-200 focus:ring-[#00C2A8] bg-[#F8FAFC]"
+                              }`}
                             />
+                            {formData.pincode && formData.pincode.length !== 6 && (
+                              <p className="text-[10px] text-amber-600 mt-1 font-semibold">
+                                Must be exactly 6 numeric digits ({formData.pincode.length}/6 entered)
+                              </p>
+                            )}
                           </div>
 
                           <div>

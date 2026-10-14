@@ -33,15 +33,16 @@ import {
   BookmarkBorder,
   Download,
   WhatsApp,
+  Delete,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { formatTime12Hour } from "@/shared/utils/timeUtils";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
-import { downloadGuestDirectoryPDF, downloadGovtIdReportPDF } from "@/shared/utils/pdfGenerator";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
 import { toast } from "@/shared/utils/toast";
+import { createSafeGuestModalData } from "@/shared/utils/guestModalUtils";
 
 export default function GuestDirectoryPage({
   guests = [],
@@ -54,6 +55,8 @@ export default function GuestDirectoryPage({
   viewGuestModal = { open: false, guest: null },
   setViewGuestModal,
   hotelSettings = { checkInTime: "14:00", checkOutTime: "12:00", timezone: "Asia/Kolkata" },
+  onDeleteGuest,
+  onRefresh,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
   const [page, setPage] = useState(0);
@@ -144,8 +147,9 @@ export default function GuestDirectoryPage({
   ).length;
 
   const handleOpenGuestModal = (guest) => {
-    setActiveGuestDetail({ open: true, guest });
-    setViewGuestModal?.({ open: true, guest });
+    const safeGuest = createSafeGuestModalData(guest);
+    setActiveGuestDetail({ open: true, guest: safeGuest });
+    setViewGuestModal?.({ open: true, guest: safeGuest });
   };
 
   const handleSendWhatsApp = (guest) => {
@@ -214,53 +218,6 @@ export default function GuestDirectoryPage({
           </Box>
 
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, alignItems: { xs: "stretch", sm: "flex-end" }, width: { xs: "100%", sm: "auto" } }}>
-            <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 1, width: { xs: "100%", sm: "auto" } }}>
-              <Button
-                startIcon={<Download />}
-                variant="contained"
-                onClick={() => downloadGuestDirectoryPDF(filteredGuests.length > 0 ? filteredGuests : guests, hotelSettings?.hotel || {})}
-                sx={{
-                  width: { xs: "100%", sm: "auto" },
-                  bgcolor: "rgba(255,255,255,0.2)",
-                  color: "#FFFFFF",
-                  fontWeight: 800,
-                  fontSize: { xs: "0.75rem", sm: "0.8rem" },
-                  borderRadius: "12px",
-                  whiteSpace: "nowrap",
-                  justifyContent: "center",
-                  backdropFilter: "blur(8px)",
-                  border: "1px solid rgba(255,255,255,0.3)",
-                  py: 0.8,
-                  px: 2,
-                  "&:hover": { bgcolor: "rgba(255,255,255,0.35)" },
-                }}
-              >
-                Export Directory PDF
-              </Button>
-
-              <Button
-                startIcon={<Download />}
-                variant="contained"
-                onClick={() => downloadGovtIdReportPDF(filteredGuests.length > 0 ? filteredGuests : guests, hotelSettings?.hotel || {})}
-                sx={{
-                  width: { xs: "100%", sm: "auto" },
-                  bgcolor: "rgba(255,255,255,0.2)",
-                  color: "#FFFFFF",
-                  fontWeight: 800,
-                  fontSize: { xs: "0.75rem", sm: "0.8rem" },
-                  borderRadius: "12px",
-                  whiteSpace: "nowrap",
-                  justifyContent: "center",
-                  backdropFilter: "blur(8px)",
-                  border: "1px solid rgba(255,255,255,0.3)",
-                  py: 0.8,
-                  px: 2,
-                  "&:hover": { bgcolor: "rgba(255,255,255,0.35)" },
-                }}
-              >
-                Police Manifest PDF
-              </Button>
-            </Box>
 
             <Box
               sx={{
@@ -436,31 +393,26 @@ export default function GuestDirectoryPage({
           borderRadius: "20px",
           border: `1px solid ${themeConfig.border}`,
           bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          width: "100%",
           overflowX: "auto",
-          WebkitOverflowScrolling: "touch",
-          maxWidth: "100%",
         }}
       >
-        <Table sx={{ minWidth: 900 }}>
+        <Table size="small" sx={{ width: "100%", tableLayout: { xs: "auto", md: "fixed" } }}>
           <TableHead sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne }}>
             <TableRow>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8, whiteSpace: "nowrap" }}>GUEST NAME</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8, whiteSpace: "nowrap" }}>MOBILE</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8, whiteSpace: "nowrap" }}>BOOKING ID</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8, whiteSpace: "nowrap" }}>ROOM</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8, whiteSpace: "nowrap" }}>CHECK-IN</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8, whiteSpace: "nowrap" }}>CHECK-OUT</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8, whiteSpace: "nowrap" }}>GUESTS</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8, whiteSpace: "nowrap" }}>PAYMENT STATUS</TableCell>
-              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8, whiteSpace: "nowrap" }}>BOOKING STATUS</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.8, whiteSpace: "nowrap" }}>ACTION</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.5, width: { xs: "auto", md: "25%" }, whiteSpace: "nowrap" }}>GUEST &amp; IDENTITY</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.5, width: { xs: "auto", md: "15%" }, whiteSpace: "nowrap" }}>BOOKING ID</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.5, width: { xs: "auto", md: "15%" }, whiteSpace: "nowrap" }}>ROOM &amp; GUESTS</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.5, width: { xs: "auto", md: "22%" }, whiteSpace: "nowrap" }}>STAY TIMELINE</TableCell>
+              <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.5, width: { xs: "auto", md: "11%" }, whiteSpace: "nowrap" }}>STATUS</TableCell>
+              <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.5, width: { xs: "auto", md: "12%" }, whiteSpace: "nowrap" }}>ACTION</TableCell>
             </TableRow>
           </TableHead>
 
           <TableBody>
             {filteredGuests.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} sx={{ py: 6, textAlign: "center" }}>
+                <TableCell colSpan={6} sx={{ py: 6, textAlign: "center" }}>
                   <EmptyState
                     title="No Guest Records Found"
                     description="No matching guests found. Check your search query or filters."
@@ -472,7 +424,6 @@ export default function GuestDirectoryPage({
                 .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                 .map((guest) => {
                   const gName = guest.name || guest.fullName || "Resident Guest";
-                  const gPhone = guest.phone || guest.mobileNumber || "Not Provided";
                   const gBookingId = guest.bookingNumber || guest.bookingId || (guest._id ? `BK-${guest._id.slice(-4).toUpperCase()}` : "BK-1021");
                   const gRoom =
                     guest.roomAssigned && guest.roomAssigned !== "Not Assigned"
@@ -490,116 +441,156 @@ export default function GuestDirectoryPage({
                     (guest.mobileNumber && b.guestPhone && b.guestPhone === guest.mobileNumber)
                   );
 
-                  const liveDue = guest.dueAmount !== undefined ? Number(guest.dueAmount) : (matchingBooking?.dueAmount !== undefined ? Number(matchingBooking.dueAmount) : (guest.balanceAmount !== undefined ? Number(guest.balanceAmount) : null));
-                  const livePaid = guest.paidAmount !== undefined ? Number(guest.paidAmount) : (matchingBooking?.paidAmount !== undefined ? Number(matchingBooking.paidAmount) : (guest.advanceAmount !== undefined ? Number(guest.advanceAmount) : 0));
-                  const liveTotal = guest.totalAmount !== undefined ? Number(guest.totalAmount) : (matchingBooking?.totalAmount !== undefined ? Number(matchingBooking.totalAmount) : (guest.totalBilled || 0));
-
-                  let gPaymentStatus = (guest.paymentStatus || matchingBooking?.paymentStatus || "").toUpperCase();
-                  if (gPaymentStatus === "PARTIALLY_PAID") gPaymentStatus = "PARTIAL";
-                  if (!gPaymentStatus || gPaymentStatus === "PENDING") {
-                    if (liveDue !== null && liveDue <= 0 && (livePaid > 0 || liveTotal > 0)) {
-                      gPaymentStatus = "PAID";
-                    } else if (livePaid > 0) {
-                      gPaymentStatus = "PARTIAL";
-                    } else {
-                      gPaymentStatus = "PENDING";
-                    }
-                  }
                   const gBookingStatus = (guest.status || guest.bookingStatus || "CHECKED_IN").toUpperCase();
 
                   return (
                     <TableRow
                       key={guest._id || guest.id || Math.random()}
                       hover
-                      onClick={() => handleOpenGuestModal(guest)}
+                      onClick={() => handleOpenGuestModal(matchingBooking ? { ...matchingBooking, ...guest, booking: matchingBooking, activeBooking: matchingBooking } : guest)}
                       sx={{
                         cursor: "pointer",
                         "&:hover": { bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(11, 142, 224, 0.04)" },
                         transition: "background 0.15s ease",
                       }}
                     >
-                      {/* 1. Guest Name */}
-                      <TableCell sx={{ py: 2 }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                      {/* 1. Guest & Identity */}
+                      <TableCell sx={{ py: 1.5, width: { xs: "auto", md: "25%" } }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, minWidth: 0 }}>
                           <Avatar
+                            src={guest.photo || guest.avatar || guest.image || matchingBooking?.photo || matchingBooking?.guest_photo || undefined}
                             sx={{
-                              width: 38,
-                              height: 38,
-                              borderRadius: "12px",
+                              width: 34,
+                              height: 34,
+                              borderRadius: "10px",
                               bgcolor: isDarkMode ? "rgba(255,255,255,0.1)" : themeConfig.champagne,
                               color: themeConfig.primary,
                               fontWeight: 800,
-                              fontSize: "0.95rem",
+                              fontSize: "0.85rem",
                               border: `1px solid ${themeConfig.border}`,
+                              flexShrink: 0,
                             }}
                           >
                             {gName.charAt(0).toUpperCase()}
                           </Avatar>
-                          <Box>
-                            <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                          <Box sx={{ minWidth: 0, flex: 1, overflow: "hidden" }}>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontWeight: 800,
+                                color: themeConfig.textMain,
+                                fontSize: "0.85rem",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
                               {gName}
                             </Typography>
-                            <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "flex", alignItems: "center", gap: 0.5 }}>
-                              <BadgeOutlined sx={{ fontSize: 12 }} />
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: themeConfig.textMuted,
+                                fontSize: "0.72rem",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 0.4,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              <BadgeOutlined sx={{ fontSize: 11, flexShrink: 0 }} />
                               {guest.idType || guest.govtIdType || "ID"}: {guest.idNumber || guest.govtIdNumber || "Verified"}
                             </Typography>
                           </Box>
                         </Box>
                       </TableCell>
 
-                      {/* 2. Mobile */}
-                      <TableCell sx={{ py: 2 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 0.5 }}>
-                          <Phone sx={{ fontSize: 13, color: themeConfig.primary }} />
-                          {gPhone}
-                        </Typography>
-                      </TableCell>
-
-                      {/* 3. Booking ID */}
-                      <TableCell sx={{ py: 2 }}>
+                      {/* 2. Booking ID (Contact number removed as requested) */}
+                      <TableCell sx={{ py: 1.5, width: { xs: "auto", md: "15%" } }}>
                         <Chip
-                          icon={<BookmarkBorder sx={{ fontSize: "14px !important" }} />}
+                          icon={<BookmarkBorder sx={{ fontSize: "12px !important" }} />}
                           label={gBookingId}
                           size="small"
                           sx={{
                             fontWeight: 800,
-                            borderRadius: "8px",
+                            borderRadius: "6px",
+                            height: 22,
+                            fontSize: "0.72rem",
                             bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9",
                             color: themeConfig.textMain,
                           }}
                         />
                       </TableCell>
 
-                      {/* 4. Room */}
-                      <TableCell sx={{ py: 2 }}>
-                        <Chip
-                          icon={<MeetingRoom sx={{ fontSize: "14px !important" }} />}
-                          label={`Room ${gRoom}`}
-                          size="small"
+                      {/* 3. Room & Guests */}
+                      <TableCell sx={{ py: 1.5, width: { xs: "auto", md: "15%" } }}>
+                        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.4, alignItems: "flex-start" }}>
+                          <Box
+                            sx={{
+                              px: 0.8,
+                              py: 0.25,
+                              borderRadius: "7px",
+                              bgcolor: isDarkMode ? "rgba(11, 142, 224, 0.15)" : themeConfig.champagne,
+                              color: themeConfig.primaryDark,
+                              fontWeight: 800,
+                              fontSize: "0.75rem",
+                              border: `1px solid ${themeConfig.border}`,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 0.4,
+                            }}
+                          >
+                            <MeetingRoom sx={{ fontSize: 13, color: themeConfig.primary }} />
+                            Rm {gRoom}
+                          </Box>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: themeConfig.textMuted,
+                              fontWeight: 700,
+                              fontSize: "0.72rem",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 0.4,
+                            }}
+                          >
+                            <People sx={{ fontSize: 12 }} />
+                            {gPax} {gPax > 1 ? "Guests" : "Guest"}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+
+                      {/* 4. Stay Timeline */}
+                      <TableCell sx={{ py: 1.5, width: { xs: "auto", md: "22%" } }}>
+                        <Typography
+                          variant="body2"
                           sx={{
-                            fontWeight: 800,
-                            borderRadius: "8px",
-                            bgcolor: isDarkMode ? "rgba(11, 142, 224, 0.15)" : themeConfig.champagne,
-                            color: themeConfig.primaryDark,
-                            border: `1px solid ${themeConfig.border}`,
+                            fontWeight: 700,
+                            color: themeConfig.textMain,
+                            fontSize: "0.8rem",
+                            display: "block",
+                            whiteSpace: "nowrap",
                           }}
-                        />
-                      </TableCell>
-
-                      {/* 5. Check-In */}
-                      <TableCell sx={{ py: 2 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.82rem" }}>
-                          📥 {gCheckIn}
+                        >
+                          📥 {gCheckIn}{" "}
+                          <Typography component="span" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem" }}>
+                            ({formatTime12Hour(guest.checkInTime || matchingBooking?.checkInTime || "14:00")})
+                          </Typography>
                         </Typography>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.75rem", display: "block" }}>
-                          {formatTime12Hour(guest.checkInTime || matchingBooking?.checkInTime || "14:00")}
-                        </Typography>
-                      </TableCell>
-
-                      {/* 6. Check-Out */}
-                      <TableCell sx={{ py: 2 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.82rem" }}>
-                          📤 {(() => {
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: themeConfig.textMuted,
+                            fontSize: "0.75rem",
+                            display: "block",
+                            whiteSpace: "nowrap",
+                            mt: 0.2,
+                          }}
+                        >
+                          📤{" "}
+                          {(() => {
                             const rawOut = guest.actualCheckOut || matchingBooking?.actualCheckOut;
                             if (rawOut) {
                               const d = new Date(rawOut);
@@ -608,91 +599,45 @@ export default function GuestDirectoryPage({
                               }
                             }
                             return gCheckOut;
-                          })()}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.75rem", display: "block" }}>
-                          {(() => {
-                            const rawOut = guest.actualCheckOut || matchingBooking?.actualCheckOut;
-                            if (rawOut) {
-                              const d = new Date(rawOut);
-                              if (!isNaN(d.getTime())) {
-                                const h = String(d.getHours()).padStart(2, "0");
-                                const m = String(d.getMinutes()).padStart(2, "0");
-                                return formatTime12Hour(`${h}:${m}`);
+                          })()}{" "}
+                          <Typography component="span" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem" }}>
+                            ({(() => {
+                              const rawOut = guest.actualCheckOut || matchingBooking?.actualCheckOut;
+                              if (rawOut) {
+                                const d = new Date(rawOut);
+                                if (!isNaN(d.getTime())) {
+                                  const h = String(d.getHours()).padStart(2, "0");
+                                  const m = String(d.getMinutes()).padStart(2, "0");
+                                  return formatTime12Hour(`${h}:${m}`);
+                                }
                               }
-                            }
-                            return formatTime12Hour(guest.checkOutTime || matchingBooking?.checkOutTime || "12:00");
-                          })()}
+                              return formatTime12Hour(guest.checkOutTime || matchingBooking?.checkOutTime || "12:00");
+                            })()})
+                          </Typography>
                         </Typography>
                       </TableCell>
 
-                      {/* 7. Guests */}
-                      <TableCell sx={{ py: 2 }}>
-                        <Chip
-                          icon={<People sx={{ fontSize: "14px !important" }} />}
-                          label={`${gPax} Guest${gPax > 1 ? "s" : ""}`}
-                          size="small"
-                          sx={{
-                            fontWeight: 700,
-                            borderRadius: "8px",
-                            bgcolor: isDarkMode ? "rgba(255,255,255,0.05)" : "#F8FAFC",
-                          }}
-                        />
-                      </TableCell>
-
-                      {/* 8. Payment Status */}
-                      <TableCell sx={{ py: 2 }}>
-                        <Chip
-                          label={gPaymentStatus}
-                          size="small"
-                          sx={{
-                            fontWeight: 800,
-                            fontSize: "0.72rem",
-                            borderRadius: "8px",
-                            bgcolor:
-                              gPaymentStatus === "PAID"
-                                ? "rgba(16, 185, 129, 0.15)"
-                                : gPaymentStatus === "PARTIAL"
-                                ? "rgba(245, 158, 11, 0.15)"
-                                : "rgba(239, 68, 68, 0.15)",
-                            color:
-                              gPaymentStatus === "PAID"
-                                ? "#10B981"
-                                : gPaymentStatus === "PARTIAL"
-                                ? "#F59E0B"
-                                : "#EF4444",
-                            border: "1px solid",
-                            borderColor:
-                              gPaymentStatus === "PAID"
-                                ? "rgba(16, 185, 129, 0.3)"
-                                : gPaymentStatus === "PARTIAL"
-                                ? "rgba(245, 158, 11, 0.3)"
-                                : "rgba(239, 68, 68, 0.3)",
-                          }}
-                        />
-                      </TableCell>
-
-                      {/* 9. Booking Status */}
-                      <TableCell sx={{ py: 2 }}>
+                      {/* 5. Booking Status */}
+                      <TableCell sx={{ py: 1.5, width: { xs: "auto", md: "11%" } }}>
                         <StatusChip status={gBookingStatus} size="small" />
                       </TableCell>
 
-                      {/* 10. Actions */}
-                      <TableCell align="right" sx={{ py: 2 }}>
-                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1 }}>
+                      {/* 6. Actions */}
+                      <TableCell align="right" sx={{ py: 1.5, width: { xs: "auto", md: "12%" } }}>
+                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.8 }}>
                           <Tooltip title="View Complete Guest Dossier">
                             <IconButton
                               size="small"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleOpenGuestModal(guest);
+                                handleOpenGuestModal(matchingBooking ? { ...matchingBooking, ...guest, booking: matchingBooking, activeBooking: matchingBooking } : guest);
                               }}
                               sx={{
-                                width: 32,
-                                height: 32,
+                                width: 30,
+                                height: 30,
                                 color: themeConfig.primaryDark,
                                 bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : themeConfig.champagne,
-                                borderRadius: "10px",
+                                borderRadius: "8px",
                                 border: `1px solid ${themeConfig.border}`,
                                 "&:hover": {
                                   borderColor: themeConfig.primary,
@@ -700,7 +645,7 @@ export default function GuestDirectoryPage({
                                 },
                               }}
                             >
-                              <Visibility fontSize="small" />
+                              <Visibility sx={{ fontSize: 15 }} />
                             </IconButton>
                           </Tooltip>
 
@@ -712,18 +657,45 @@ export default function GuestDirectoryPage({
                                 handleSendWhatsApp(guest);
                               }}
                               sx={{
-                                width: 32,
-                                height: 32,
+                                width: 30,
+                                height: 30,
                                 color: "#25D366",
                                 bgcolor: "rgba(37, 211, 102, 0.12)",
-                                borderRadius: "10px",
+                                borderRadius: "8px",
                                 border: "1px solid rgba(37, 211, 102, 0.3)",
                                 "&:hover": { bgcolor: "#25D366", color: "#FFFFFF" },
                               }}
                             >
-                              <WhatsApp sx={{ fontSize: 16 }} />
+                              <WhatsApp sx={{ fontSize: 15 }} />
                             </IconButton>
                           </Tooltip>
+
+                          {onDeleteGuest && (
+                            <Tooltip title="Delete Guest Record">
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDeleteGuest(guest);
+                                }}
+                                sx={{
+                                  width: 30,
+                                  height: 30,
+                                  color: "#EF4444",
+                                  bgcolor: isDarkMode ? "rgba(239, 68, 68, 0.1)" : "rgba(239, 68, 68, 0.08)",
+                                  borderRadius: "8px",
+                                  border: "1px solid rgba(239, 68, 68, 0.25)",
+                                  "&:hover": {
+                                    bgcolor: "#EF4444",
+                                    color: "#FFFFFF",
+                                    borderColor: "#DC2626",
+                                  },
+                                }}
+                              >
+                                <Delete sx={{ fontSize: 15 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
                         </Box>
                       </TableCell>
                     </TableRow>

@@ -23,10 +23,6 @@ const nextConfig = {
         source: "/api/signature-sync",
         destination: "http://127.0.0.1:3001/api/signature-sync",
       },
-      {
-        source: "/api/:path*",
-        destination: `${BACKEND_URL}/api/:path*`,
-      },
     ];
   },
 };

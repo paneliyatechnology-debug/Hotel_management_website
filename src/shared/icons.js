@@ -177,4 +177,5 @@ export {
   DoneAll,
   FileDownload,
   BookmarkBorder,
+  RestartAlt,
 } from "@mui/icons-material";

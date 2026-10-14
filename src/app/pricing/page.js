@@ -103,8 +103,9 @@ export default function PricingPage() {
               );
             }
 
-            const monthlyList = dynamicPlans?.monthly || [];
-            const annualList = dynamicPlans?.annual || [];
+            const allList = Array.isArray(dynamicPlans) ? dynamicPlans : (dynamicPlans?.plans || dynamicPlans?.all || []);
+            const monthlyList = dynamicPlans?.monthly?.length ? dynamicPlans.monthly : allList.filter((p) => p.billingCycle === "MONTHLY");
+            const annualList = dynamicPlans?.annual?.length ? dynamicPlans.annual : allList.filter((p) => p.billingCycle === "ANNUAL");
             const plans = isYearly ? annualList : monthlyList;
 
             if (!plans || plans.length === 0) {

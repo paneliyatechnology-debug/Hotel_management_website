@@ -1,16 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { KeyRound, CheckCircle2, ArrowLeft, Loader2 } from "lucide-react";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 
 export default function ForgotPasswordPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+
+  useEffect(() => {
+    if (sent) {
+      const timer = setTimeout(() => {
+        router.push("/login");
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [sent, router]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

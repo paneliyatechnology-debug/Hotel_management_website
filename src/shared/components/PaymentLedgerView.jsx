@@ -50,7 +50,6 @@ import {
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { apiRequest, API_ENDPOINTS } from "@/config/api";
 import EmptyState from "@/shared/components/EmptyState";
-import { downloadPaymentReceiptPDF, downloadDailyLedgerPDF } from "@/shared/utils/pdfGenerator";
 
 export default function PaymentLedgerView({
   user,
@@ -197,12 +196,14 @@ export default function PaymentLedgerView({
       const res = await apiRequest(endpoint, {
         method: "POST",
         body: {
-          bookingId: collectData.bookingId,
+          booking_id: collectData.bookingId,
           amount: Number(collectData.amount),
-          paymentMethod: collectData.paymentMethod,
-          paymentType: collectData.paymentType,
-          transactionId: collectData.transactionId,
-          paymentReference: collectData.paymentReference,
+          payment_mode: collectData.paymentMethod || "CASH",
+          payment_method: collectData.paymentMethod || "CASH",
+          payment_type: collectData.paymentType,
+          transaction_id: collectData.transactionId,
+          payment_reference: collectData.paymentReference,
+          notes: collectData.note,
           note: collectData.note,
         },
       });

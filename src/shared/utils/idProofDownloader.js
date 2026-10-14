@@ -133,24 +133,45 @@ export async function downloadSingleImage(url, filename) {
 export async function downloadAllGuestIdImages({ guest = {}, activeBooking = null, accompanyingGuests = [] }, onToast = null) {
   const imagesToDownload = [];
 
-  const primaryName = sanitizeFilename(guest.fullName || guest.name || activeBooking?.guestName || "Primary_Guest");
+  const primaryName = sanitizeFilename(guest.fullName || guest.name || activeBooking?.primary_guest_name || activeBooking?.guestName || "Primary_Guest");
   const primaryFront =
+    activeBooking?.front_image ||
+    activeBooking?.frontImage ||
+    activeBooking?.id_proof_front ||
+    activeBooking?.idProof?.frontImage ||
+    guest.front_image ||
+    guest.frontImage ||
     guest.idProof?.frontImage ||
     guest.idProof?.frontImageUrl ||
-    guest.frontImage ||
     guest.frontImageUrl ||
     guest.idProofImage ||
-    activeBooking?.idProof?.frontImage ||
-    activeBooking?.frontImage;
+    (Array.isArray(activeBooking?.images) && activeBooking.images[0]) ||
+    (Array.isArray(guest?.images) && guest.images[0]);
 
   const primaryBack =
+    activeBooking?.back_image ||
+    activeBooking?.backImage ||
+    activeBooking?.id_proof_back ||
+    activeBooking?.idProof?.backImage ||
+    guest.back_image ||
+    guest.backImage ||
     guest.idProof?.backImage ||
     guest.idProof?.backImageUrl ||
-    guest.backImage ||
     guest.backImageUrl ||
     guest.idProofBackImage ||
-    activeBooking?.idProof?.backImage ||
-    activeBooking?.backImage;
+    (Array.isArray(activeBooking?.images) && activeBooking.images.length > 1 && activeBooking.images[1]) ||
+    (Array.isArray(guest?.images) && guest.images.length > 1 && guest.images[1]);
+
+  const primarySignature =
+    activeBooking?.signature ||
+    activeBooking?.guest_signature ||
+    activeBooking?.guestSignature ||
+    activeBooking?.signatures?.[0] ||
+    guest.signature ||
+    guest.guest_signature ||
+    guest.guestSignature ||
+    guest.idProof?.signature ||
+    guest.signatures?.[0];
 
   if (primaryFront) {
     imagesToDownload.push({
@@ -167,6 +188,15 @@ export async function downloadAllGuestIdImages({ guest = {}, activeBooking = nul
       filename: `${primaryName}_Back_ID`,
       person: primaryName,
       type: "Back ID",
+    });
+  }
+
+  if (primarySignature) {
+    imagesToDownload.push({
+      url: primarySignature,
+      filename: `${primaryName}_Digital_Signature`,
+      person: primaryName,
+      type: "Digital Signature",
     });
   }
 

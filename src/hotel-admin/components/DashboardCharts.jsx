@@ -12,6 +12,13 @@ import {
   ButtonGroup,
   Tooltip,
   Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  InputAdornment,
+  IconButton,
 } from "@mui/material";
 import {
   TrendingUp,
@@ -25,8 +32,12 @@ import {
   CurrencyRupee,
   CheckCircle,
   Schedule,
+  Edit,
+  Close,
+  RestartAlt,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
+import { toast } from "@/shared/utils/toast";
 
 /**
  * 1. OCCUPANCY RADIAL DONUT CHART (Custom High-End SVG)
@@ -51,8 +62,8 @@ export function OccupancyDonutChart({ rooms = [] }) {
   ];
 
   // Calculate SVG arc paths
-  const size = 220;
-  const strokeWidth = 24;
+  const size = 175;
+  const strokeWidth = 20;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
 
@@ -85,19 +96,21 @@ export function OccupancyDonutChart({ rooms = [] }) {
         flexDirection: "column",
       }}
     >
-      <CardContent sx={{ p: 3, flex: 1, display: "flex", flexDirection: "column" }}>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-          <Box>
-            <Typography variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 1 }}>
-              <HotelIcon sx={{ color: "#3B82F6", fontSize: 22 }} />
-              Live Room Occupancy
-            </Typography>
-            <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
+      <CardContent sx={{ p: 2.5, flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: { xs: "flex-start", sm: "center" }, mb: 1.5, gap: 1, flexWrap: "wrap" }}>
+          <Box sx={{ minWidth: 0, flex: "1 1 auto" }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+              <HotelIcon sx={{ color: "#3B82F6", fontSize: 20, flexShrink: 0 }} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: { xs: "0.92rem", sm: "0.98rem" }, lineHeight: 1.2 }}>
+                Live Room Occupancy
+              </Typography>
+            </Box>
+            <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.75rem", display: "block", mt: 0.3 }}>
               Real-time room status breakdown
             </Typography>
           </Box>
           <Chip
-            icon={<CheckCircle sx={{ fontSize: "14px !important", color: "#10B981" }} />}
+            icon={<CheckCircle sx={{ fontSize: "13px !important", color: "#10B981" }} />}
             label={`${occRate}% Occupied`}
             size="small"
             sx={{
@@ -105,12 +118,16 @@ export function OccupancyDonutChart({ rooms = [] }) {
               bgcolor: "rgba(16, 185, 129, 0.12)",
               color: "#10B981",
               border: "1px solid rgba(16, 185, 129, 0.25)",
+              fontSize: "0.72rem",
+              height: 24,
+              flexShrink: 0,
+              alignSelf: { xs: "flex-start", sm: "center" },
             }}
           />
         </Box>
 
         {/* Circular Donut Visual */}
-        <Box sx={{ position: "relative", display: "flex", justifyContent: "center", alignItems: "center", my: "auto", py: 1 }}>
+        <Box sx={{ position: "relative", display: "flex", justifyContent: "center", alignItems: "center", my: 1, py: 0.5 }}>
           <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(-90deg)" }}>
             <defs>
               <linearGradient id="donutOccupied" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -178,17 +195,15 @@ export function OccupancyDonutChart({ rooms = [] }) {
               pointerEvents: "none",
             }}
           >
-            <Typography variant="h3" sx={{ fontWeight: 900, color: themeConfig.textMain, lineHeight: 1 }}>
+            <Typography variant="h4" sx={{ fontWeight: 900, color: themeConfig.textMain, lineHeight: 1 }}>
               {hoveredSegment
                 ? segments.find((s) => s.label === hoveredSegment)?.count
                 : `${occRate}%`}
             </Typography>
-            <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMuted, textTransform: "uppercase", mt: 0.5, letterSpacing: "0.05em" }}>
-              {hoveredSegment
-                ? hoveredSegment
-                : "Occupancy"}
+            <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", mt: 0.3, letterSpacing: "0.05em", fontSize: "0.68rem" }}>
+              {hoveredSegment || "Occupancy"}
             </Typography>
-            <Typography variant="caption" sx={{ fontSize: "0.68rem", color: themeConfig.primary, fontWeight: 800 }}>
+            <Typography variant="caption" sx={{ fontSize: "0.68rem", color: themeConfig.primary, fontWeight: 800, mt: 0.1 }}>
               {total} Total Rooms
             </Typography>
           </Box>
@@ -198,23 +213,27 @@ export function OccupancyDonutChart({ rooms = [] }) {
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: { xs: "repeat(2, 1fr)" },
-            gap: 1.5,
-            mt: 2,
+            gridTemplateColumns: "repeat(2, 1fr)",
+            gap: 1,
+            mt: 1.5,
           }}
         >
           {segments.map((s) => {
             const pct = Math.round((s.count / total) * 100);
+            const isHovered = hoveredSegment === s.label;
             return (
               <Box
                 key={s.label}
                 onMouseEnter={() => setHoveredSegment(s.label)}
                 onMouseLeave={() => setHoveredSegment(null)}
                 sx={{
-                  p: 1.2,
-                  borderRadius: "12px",
-                  bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
-                  border: hoveredSegment === s.label ? `1px solid ${s.color}` : `1px solid transparent`,
+                  px: 1.2,
+                  py: 0.9,
+                  borderRadius: "10px",
+                  bgcolor: isHovered
+                    ? (isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)")
+                    : (isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC"),
+                  border: isHovered ? `1px solid ${s.color}` : `1px solid ${themeConfig.border}`,
                   transition: "all 0.2s ease",
                   cursor: "pointer",
                   display: "flex",
@@ -222,17 +241,17 @@ export function OccupancyDonutChart({ rooms = [] }) {
                   justifyContent: "space-between",
                 }}
               >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: s.color, boxShadow: `0 0 8px ${s.color}` }} />
-                  <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, minWidth: 0 }}>
+                  <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: s.color, boxShadow: `0 0 6px ${s.color}`, flexShrink: 0 }} />
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.75rem", whiteSpace: "nowrap" }}>
                     {s.label}
                   </Typography>
                 </Box>
-                <Box sx={{ textAlign: "right" }}>
-                  <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+                <Box sx={{ textAlign: "right", ml: 0.5, flexShrink: 0 }}>
+                  <Typography component="span" variant="caption" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "0.8rem" }}>
                     {s.count}
                   </Typography>
-                  <Typography variant="caption" sx={{ fontSize: "0.65rem", color: themeConfig.textMuted, ml: 0.5 }}>
+                  <Typography component="span" variant="caption" sx={{ fontSize: "0.65rem", color: themeConfig.textMuted, ml: 0.4 }}>
                     ({pct}%)
                   </Typography>
                 </Box>
@@ -262,33 +281,50 @@ export function RevenueWaveChart({ dashboardData, isDarkMode }) {
     if (Array.isArray(weeklyBreakdown) && weeklyBreakdown.length > 0) {
       return weeklyBreakdown.map((item, idx) => {
         const amt = Number(item.amount || 0);
+        let weekday = item.dayName;
+        if (!weekday && item.date) {
+          const dObj = new Date(item.date);
+          if (!isNaN(dObj.getTime())) {
+            weekday = dObj.toLocaleDateString("en-US", { weekday: "short" });
+          }
+        }
+        if (!weekday) weekday = item.day ? item.day.slice(0, 3) : `D${idx + 1}`;
+
         return {
-          day: item.formattedDate || (item.day ? item.day.slice(0, 3) : `Day ${idx + 1}`),
-          dayFull: item.day || item.formattedDate,
+          day: item.formattedDate || item.day || `Day ${idx + 1}`,
+          dayName: weekday,
+          dayFull: item.weekdayFull || item.day || item.formattedDate,
           total: amt,
-          upi: Number(item.upiAmount ?? Math.round(amt * 0.7)),
-          cash: Number(item.cashAmount ?? Math.round(amt * 0.3)),
+          upi: Number(item.upiAmount ?? 0),
+          cash: Number(item.cashAmount ?? amt),
           index: idx,
         };
       });
     }
 
-    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Yesterday", "Today"];
+    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     return days.map((day, idx) => {
-      if (idx === 6) {
-        return { day, dayFull: "Today", total: todayRev, upi: Math.round(todayRev * 0.7), cash: Math.round(todayRev * 0.3), index: idx };
-      }
-      if (idx === 5) {
-        return { day, dayFull: "Yesterday", total: yesterdayRev, upi: Math.round(yesterdayRev * 0.7), cash: Math.round(yesterdayRev * 0.3), index: idx };
-      }
-      return { day, dayFull: day, total: 0, upi: 0, cash: 0, index: idx };
+      const dObj = new Date();
+      dObj.setDate(dObj.getDate() - (6 - idx));
+      const formatted = dObj.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+      const weekday = dObj.toLocaleDateString("en-US", { weekday: "short" });
+      const total = idx === 6 ? todayRev : idx === 5 ? yesterdayRev : 0;
+      return {
+        day: formatted,
+        dayName: weekday,
+        dayFull: dObj.toLocaleDateString("en-US", { weekday: "long" }),
+        total,
+        upi: 0,
+        cash: total,
+        index: idx,
+      };
     });
   }, [weeklyBreakdown, todayRev, yesterdayRev]);
 
   // SVG Chart Geometry
   const width = 500;
-  const height = 180;
-  const padding = { top: 20, right: 20, bottom: 30, left: 30 };
+  const height = 195;
+  const padding = { top: 20, right: 20, bottom: 42, left: 30 };
 
   const maxVal = Math.max(...revenueData.map((d) => d.total)) * 1.15 || 1000;
   const minVal = 0;
@@ -323,9 +359,10 @@ export function RevenueWaveChart({ dashboardData, isDarkMode }) {
   const areaPath = points.length > 0 ? `${linePath} L ${points[points.length - 1].x} ${height - padding.bottom} L ${points[0].x} ${height - padding.bottom} Z` : "";
 
   const totalWeek = Number(dashboardData?.weeklyRevenue?.totalThisWeek ?? revenueData.reduce((acc, cur) => acc + cur.total, 0));
-  const upiTotal = revenueData.reduce((acc, cur) => acc + cur.upi, 0);
+  const upiTotal = Number(dashboardData?.weeklyRevenue?.totalUpi ?? revenueData.reduce((acc, cur) => acc + cur.upi, 0));
+  const cashTotal = Number(dashboardData?.weeklyRevenue?.totalCash ?? revenueData.reduce((acc, cur) => acc + cur.cash, 0));
   const upiPercent = totalWeek > 0 ? Math.round((upiTotal / totalWeek) * 100) : 0;
-  const cashPercent = totalWeek > 0 ? 100 - upiPercent : 0;
+  const cashPercent = totalWeek > 0 ? Math.round((cashTotal / totalWeek) * 100) : 0;
 
   return (
     <Card
@@ -446,16 +483,26 @@ export function RevenueWaveChart({ dashboardData, isDarkMode }) {
                     filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.2))",
                   }}
                 />
-                {/* X-axis Day Label */}
+                {/* X-axis Date & Day Labels */}
                 <text
                   x={pt.x}
-                  y={height - 8}
+                  y={height - 20}
                   textAnchor="middle"
-                  fill={activePoint?.day === pt.day ? themeConfig.primary : themeConfig.textMuted}
-                  fontSize="10.5"
-                  fontWeight={activePoint?.day === pt.day ? "800" : "600"}
+                  fill={activePoint?.day === pt.day ? themeConfig.primary : themeConfig.textMain}
+                  fontSize="10"
+                  fontWeight={activePoint?.day === pt.day ? "900" : "700"}
                 >
                   {pt.day}
+                </text>
+                <text
+                  x={pt.x}
+                  y={height - 6}
+                  textAnchor="middle"
+                  fill={activePoint?.day === pt.day ? themeConfig.primary : themeConfig.textMuted}
+                  fontSize="9.5"
+                  fontWeight="700"
+                >
+                  {pt.dayName}
                 </text>
               </g>
             ))}
@@ -515,12 +562,25 @@ export function RevenueWaveChart({ dashboardData, isDarkMode }) {
 /**
  * 3. DAILY REVENUE TARGET SPEEDOMETER / RADIAL GAUGE
  */
-export function DailyTargetGauge({ currentRevenue = 0, targetRevenue = 0 }) {
+export function DailyTargetGauge({ currentRevenue = 0, targetRevenue = 0, onUpdateTarget }) {
   const { themeConfig, isDarkMode } = useAppTheme();
 
-  const safeTarget = Number(targetRevenue) || 0;
+  const defaultCapacityTarget = Number(targetRevenue) || 0;
+  const [targetModalOpen, setTargetModalOpen] = useState(false);
+  const [manualTargetInput, setManualTargetInput] = useState("");
+  const [customTarget, setCustomTarget] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("HOTEL_DAILY_REVENUE_TARGET");
+      if (saved && !isNaN(Number(saved)) && Number(saved) > 0) {
+        return Number(saved);
+      }
+    }
+    return null;
+  });
+
+  const effectiveTarget = customTarget !== null ? customTarget : defaultCapacityTarget;
   const safeCurrent = Number(currentRevenue) || 0;
-  const percentage = safeTarget > 0 ? Math.min(100, Math.round((safeCurrent / safeTarget) * 100)) : (safeCurrent > 0 ? 100 : 0);
+  const percentage = effectiveTarget > 0 ? Math.min(100, Math.round((safeCurrent / effectiveTarget) * 100)) : (safeCurrent > 0 ? 100 : 0);
 
   // 180-degree semi-circle gauge
   const size = 180;
@@ -528,6 +588,31 @@ export function DailyTargetGauge({ currentRevenue = 0, targetRevenue = 0 }) {
   const radius = (size - strokeWidth) / 2;
   const arcLength = Math.PI * radius; // Half circumference
   const strokeDash = (percentage / 100) * arcLength;
+
+  const handleSaveManualTarget = () => {
+    const val = Number(manualTargetInput);
+    if (isNaN(val) || val <= 0) {
+      toast.error("Please enter a valid positive target amount");
+      return;
+    }
+    setCustomTarget(val);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("HOTEL_DAILY_REVENUE_TARGET", String(val));
+    }
+    if (onUpdateTarget) onUpdateTarget(val);
+    toast.success(`Daily revenue target set to ₹${val.toLocaleString("en-IN")}/day!`);
+    setTargetModalOpen(false);
+  };
+
+  const handleResetToAuto = () => {
+    setCustomTarget(null);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("HOTEL_DAILY_REVENUE_TARGET");
+    }
+    if (onUpdateTarget) onUpdateTarget(defaultCapacityTarget);
+    toast.success("Reset to automatic full capacity target!");
+    setTargetModalOpen(false);
+  };
 
   return (
     <Card
@@ -545,25 +630,91 @@ export function DailyTargetGauge({ currentRevenue = 0, targetRevenue = 0 }) {
         flexDirection: "column",
       }}
     >
-      <CardContent sx={{ p: 3, flex: 1, display: "flex", flexDirection: "column" }}>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-          <Typography variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 1 }}>
-            <Speed sx={{ color: "#F59E0B", fontSize: 22 }} />
-            Daily Revenue Goal
-          </Typography>
+      <CardContent sx={{ p: { xs: 2, sm: 2.5 }, flex: 1, display: "flex", flexDirection: "column" }}>
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1, flexWrap: "wrap", gap: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+            <Speed sx={{ color: "#F59E0B", fontSize: 22, flexShrink: 0 }} />
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 800,
+                color: themeConfig.textMain,
+                fontSize: { xs: "0.95rem", sm: "1.05rem", md: "1.1rem" },
+                whiteSpace: "nowrap",
+                letterSpacing: "-0.01em",
+              }}
+            >
+              Daily Revenue Goal
+            </Typography>
+          </Box>
           <Chip
             size="small"
-            label={percentage >= 100 ? "🎯 Target Achieved" : safeTarget > 0 ? "⚡ In Progress" : "📊 Realtime Tracker"}
+            label={percentage >= 100 ? "🎯 Target Achieved" : effectiveTarget > 0 ? "⚡ In Progress" : "📊 Realtime Tracker"}
             sx={{
               fontWeight: 800,
               bgcolor: percentage >= 100 ? "rgba(16, 185, 129, 0.15)" : "rgba(245, 158, 11, 0.15)",
               color: percentage >= 100 ? "#10B981" : "#F59E0B",
+              flexShrink: 0,
             }}
           />
         </Box>
-        <Typography variant="caption" sx={{ color: themeConfig.textMuted, mb: 1 }}>
-          {safeTarget > 0 ? `Target: ₹${safeTarget.toLocaleString("en-IN")} / Day` : "Full Occupancy Capacity Tracking"}
-        </Typography>
+
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5, flexWrap: "wrap", gap: 0.5 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, flexWrap: "wrap" }}>
+            <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+              Target: <strong style={{ color: themeConfig.textMain }}>₹{effectiveTarget.toLocaleString("en-IN")}</strong> / Day
+            </Typography>
+            {customTarget !== null ? (
+              <Chip
+                label="Manual Target"
+                size="small"
+                sx={{
+                  height: 20,
+                  fontSize: "0.65rem",
+                  fontWeight: 800,
+                  bgcolor: "rgba(59, 130, 246, 0.12)",
+                  color: "#3B82F6",
+                  border: "1px solid rgba(59, 130, 246, 0.25)",
+                }}
+              />
+            ) : (
+              <Chip
+                label="Auto Capacity"
+                size="small"
+                sx={{
+                  height: 20,
+                  fontSize: "0.65rem",
+                  fontWeight: 800,
+                  bgcolor: "rgba(16, 185, 129, 0.12)",
+                  color: "#10B981",
+                  border: "1px solid rgba(16, 185, 129, 0.25)",
+                }}
+              />
+            )}
+          </Box>
+          <Button
+            size="small"
+            startIcon={<Edit sx={{ fontSize: "13px !important" }} />}
+            onClick={() => {
+              setManualTargetInput(String(effectiveTarget));
+              setTargetModalOpen(true);
+            }}
+            sx={{
+              fontWeight: 800,
+              fontSize: "0.72rem",
+              borderRadius: "8px",
+              py: 0.2,
+              px: 1,
+              textTransform: "none",
+              color: themeConfig.primary,
+              bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9",
+              border: `1px solid ${themeConfig.border}`,
+              "&:hover": { bgcolor: isDarkMode ? "rgba(255,255,255,0.12)" : "#E2E8F0" },
+            }}
+          >
+            Set Target
+          </Button>
+        </Box>
 
         {/* Semi Circle Gauge SVG */}
         <Box sx={{ position: "relative", display: "flex", justifyContent: "center", alignItems: "center", my: "auto" }}>
@@ -624,13 +775,134 @@ export function DailyTargetGauge({ currentRevenue = 0, targetRevenue = 0 }) {
         {/* Bottom target remaining indicator */}
         <Box sx={{ p: 1.2, borderRadius: "12px", bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)", display: "flex", justifyContent: "space-between", alignItems: "center", mt: 1 }}>
           <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-            {safeTarget > 0 ? "Remaining to Goal:" : "Current Collections:"}
+            {effectiveTarget > 0 ? "Remaining to Goal:" : "Current Collections:"}
           </Typography>
           <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-            ₹{safeTarget > 0 ? Math.max(0, safeTarget - safeCurrent).toLocaleString("en-IN") : safeCurrent.toLocaleString("en-IN")}
+            ₹{effectiveTarget > 0 ? Math.max(0, effectiveTarget - safeCurrent).toLocaleString("en-IN") : safeCurrent.toLocaleString("en-IN")}
           </Typography>
         </Box>
       </CardContent>
+
+      {/* Manual Target Set Modal */}
+      <Dialog
+        open={targetModalOpen}
+        onClose={() => setTargetModalOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: "20px",
+            bgcolor: isDarkMode ? "#1E293B" : "#FFFFFF",
+            border: `1px solid ${themeConfig.border}`,
+            p: 1,
+          },
+        }}
+      >
+        <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pb: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Speed sx={{ color: "#F59E0B", fontSize: 22 }} />
+            <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "1.05rem" }}>
+              Set Daily Revenue Target
+            </Typography>
+          </Box>
+          <IconButton size="small" onClick={() => setTargetModalOpen(false)} sx={{ color: themeConfig.textMuted }}>
+            <Close fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+
+        <DialogContent sx={{ pt: 1 }}>
+          <Typography variant="body2" sx={{ color: themeConfig.textMuted, mb: 2, fontSize: "0.82rem" }}>
+            Enter your custom daily revenue goal or pick a quick preset:
+          </Typography>
+
+          <TextField
+            fullWidth
+            type="number"
+            label="Daily Target Amount (₹)"
+            value={manualTargetInput}
+            onChange={(e) => setManualTargetInput(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <CurrencyRupee sx={{ fontSize: 18 }} />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ mb: 2 }}
+          />
+
+          <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, display: "block", mb: 1 }}>
+            QUICK PRESETS:
+          </Typography>
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mb: 1 }}>
+            {[25000, 50000, 75000, 100000].map((preset) => (
+              <Chip
+                key={preset}
+                label={`₹${preset.toLocaleString("en-IN")}`}
+                clickable
+                onClick={() => setManualTargetInput(String(preset))}
+                sx={{
+                  fontWeight: 800,
+                  fontSize: "0.75rem",
+                  borderRadius: "8px",
+                  bgcolor: Number(manualTargetInput) === preset ? themeConfig.primary : (isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9"),
+                  color: Number(manualTargetInput) === preset ? "#FFFFFF" : themeConfig.textMain,
+                }}
+              />
+            ))}
+            {defaultCapacityTarget > 0 && (
+              <Chip
+                label={`Auto Capacity (₹${defaultCapacityTarget.toLocaleString("en-IN")})`}
+                clickable
+                onClick={() => setManualTargetInput(String(defaultCapacityTarget))}
+                sx={{
+                  fontWeight: 800,
+                  fontSize: "0.75rem",
+                  borderRadius: "8px",
+                  bgcolor: Number(manualTargetInput) === defaultCapacityTarget ? themeConfig.primary : (isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9"),
+                  color: Number(manualTargetInput) === defaultCapacityTarget ? "#FFFFFF" : themeConfig.textMain,
+                }}
+              />
+            )}
+          </Box>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, pb: 2, display: "flex", justifyContent: "space-between" }}>
+          <Button
+            size="small"
+            startIcon={<RestartAlt />}
+            onClick={handleResetToAuto}
+            sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "none" }}
+          >
+            Reset to Auto
+          </Button>
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <Button
+              size="small"
+              onClick={() => setTargetModalOpen(false)}
+              sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "none" }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              size="small"
+              onClick={handleSaveManualTarget}
+              sx={{
+                fontWeight: 800,
+                bgcolor: "#F59E0B",
+                color: "#FFFFFF",
+                borderRadius: "10px",
+                px: 2,
+                textTransform: "none",
+                "&:hover": { bgcolor: "#D97706" },
+              }}
+            >
+              Save Target
+            </Button>
+          </Box>
+        </DialogActions>
+      </Dialog>
     </Card>
   );
 }
@@ -641,6 +913,20 @@ export function DailyTargetGauge({ currentRevenue = 0, targetRevenue = 0 }) {
 export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
   const { themeConfig, isDarkMode } = useAppTheme();
   const [viewType, setViewType] = useState("HOURLY"); // Default to Hourly view
+  const [hourlyDateFilter, setHourlyDateFilter] = useState("TODAY"); // "TODAY" | "ALL"
+
+  // Calendar day comparator
+  const isSameCalendarDay = (d1, d2) => {
+    if (!d1 || !d2) return false;
+    const a = new Date(d1);
+    const b = new Date(d2);
+    if (isNaN(a.getTime()) || isNaN(b.getTime())) return false;
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
+    );
+  };
 
   // Helper to extract exact check-in hour (0-23) from booking object
   const getBookingCheckInHour = (b) => {
@@ -702,43 +988,52 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
     return 11; // Default check-out time 11:00 AM (11:00)
   };
 
+  // Trailing 7 days for Weekly View
   const weeklyData = useMemo(() => {
-    const days = [
-      { label: "Mon", dayFull: "Monday", dayIdx: 1 },
-      { label: "Tue", dayFull: "Tuesday", dayIdx: 2 },
-      { label: "Wed", dayFull: "Wednesday", dayIdx: 3 },
-      { label: "Thu", dayFull: "Thursday", dayIdx: 4 },
-      { label: "Fri", dayFull: "Friday", dayIdx: 5 },
-      { label: "Sat", dayFull: "Saturday", dayIdx: 6 },
-      { label: "Sun", dayFull: "Sunday", dayIdx: 0 },
-    ];
+    const today = new Date();
+    const result = [];
 
-    return days.map((d) => {
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+
       let checkins = 0;
       let checkouts = 0;
 
       bookings.forEach((b) => {
-        if (b.checkInDate || b.createdAt) {
-          const dt = new Date(b.checkInDate || b.createdAt);
-          if (dt.getDay() === d.dayIdx) checkins++;
-        }
-        if (b.checkOutDate) {
-          const dt = new Date(b.checkOutDate);
-          if (dt.getDay() === d.dayIdx) checkouts++;
-        }
+        const inDate = b.actualCheckIn || b.checkInDate || b.createdAt;
+        if (inDate && isSameCalendarDay(inDate, d)) checkins++;
+
+        const outDate = b.actualCheckOut || b.checkOutDate;
+        if (outDate && isSameCalendarDay(outDate, d)) checkouts++;
       });
 
-      return {
-        ...d,
+      const dayLabel = d.toLocaleDateString("en-US", { weekday: "short" });
+      const dateFormatted = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+
+      result.push({
+        label: dayLabel,
+        formattedDate: dateFormatted,
+        dayFull: `${d.toLocaleDateString("en-US", { weekday: "long" })}, ${dateFormatted}`,
         checkins,
         checkouts,
         total: checkins + checkouts,
-        isPeak: checkins + checkouts > 4,
-      };
-    });
+        isPeak: false,
+      });
+    }
+
+    const maxWeekly = Math.max(...result.map((r) => r.total));
+    return result.map((r) => ({
+      ...r,
+      isPeak: maxWeekly > 0 && r.total === maxWeekly && maxWeekly >= 2,
+    }));
   }, [bookings]);
 
+  // Hourly slots for Today or All
   const hourlyData = useMemo(() => {
+    const today = new Date();
+    const currentHour = today.getHours();
+
     const slots = [
       { label: "6 AM", range: "6:00 AM - 8:00 AM", startH: 6, endH: 8 },
       { label: "8 AM", range: "8:00 AM - 10:00 AM", startH: 8, endH: 10 },
@@ -751,20 +1046,51 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
       { label: "10 PM", range: "10:00 PM - 12:00 AM", startH: 22, endH: 24 },
     ];
 
-    return slots.map((s) => {
+    const result = slots.map((s) => {
       let checkins = 0;
       let checkouts = 0;
 
       bookings.forEach((b) => {
-        const inHour = getBookingCheckInHour(b);
-        if (inHour >= s.startH && inHour < s.endH) {
-          checkins++;
+        // 1. Check-In matching
+        let isCheckInMatch = false;
+        if (hourlyDateFilter === "ALL") {
+          isCheckInMatch = true;
+        } else {
+          // Strictly Today's Check-ins
+          const inDate = b.actualCheckIn || (b.createdAt && (b.status === "CHECKED_IN" || b.status === "CONFIRMED" || b.status === "CHECKED_OUT") ? b.createdAt : b.checkInDate);
+          if (inDate && isSameCalendarDay(inDate, today)) {
+            isCheckInMatch = true;
+          }
         }
-        const outHour = getBookingCheckOutHour(b);
-        if (outHour >= s.startH && outHour < s.endH) {
-          checkouts++;
+
+        if (isCheckInMatch) {
+          const inHour = getBookingCheckInHour(b);
+          if (inHour >= s.startH && inHour < s.endH) {
+            checkins++;
+          }
+        }
+
+        // 2. Check-Out matching
+        let isCheckOutMatch = false;
+        if (hourlyDateFilter === "ALL") {
+          isCheckOutMatch = true;
+        } else {
+          // Strictly Today's Check-outs
+          const outDate = b.actualCheckOut || b.checkOutDate;
+          if (outDate && isSameCalendarDay(outDate, today)) {
+            isCheckOutMatch = true;
+          }
+        }
+
+        if (isCheckOutMatch) {
+          const outHour = getBookingCheckOutHour(b);
+          if (outHour >= s.startH && outHour < s.endH) {
+            checkouts++;
+          }
         }
       });
+
+      const isCurrentSlot = hourlyDateFilter === "TODAY" && currentHour >= s.startH && currentHour < s.endH;
 
       return {
         ...s,
@@ -772,10 +1098,17 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
         checkins,
         checkouts,
         total: checkins + checkouts,
-        isPeak: checkins + checkouts > 2,
+        isCurrentSlot,
+        isPeak: false,
       };
     });
-  }, [bookings]);
+
+    const maxHourly = Math.max(...result.map((r) => r.total));
+    return result.map((r) => ({
+      ...r,
+      isPeak: maxHourly > 0 && r.total === maxHourly && maxHourly >= 2,
+    }));
+  }, [bookings, hourlyDateFilter]);
 
   const currentData = viewType === "HOURLY" ? hourlyData : weeklyData;
   const maxVal = Math.max(...currentData.map((d) => Math.max(d.checkins, d.checkouts)), 1);
@@ -809,12 +1142,14 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
             </Typography>
             <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
               {viewType === "HOURLY"
-                ? "Guest check-in vs check-out rush by hour (કલાક મુજબ ટ્રાફિક)"
-                : "7-Day guest check-in vs check-out volume"}
+                ? hourlyDateFilter === "TODAY"
+                  ? `Today (${new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}) • Real-time hourly traffic`
+                  : "All days guest check-in vs check-out rush by hour"
+                : "Last 7 Days guest check-in vs check-out volume"}
             </Typography>
           </Box>
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
             {/* View Switcher Toggle Button */}
             <Box sx={{ display: "flex", bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : themeConfig.champagne, p: 0.3, borderRadius: "10px", border: `1px solid ${themeConfig.border}` }}>
               <Button
@@ -832,7 +1167,7 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
                   minWidth: "auto",
                 }}
               >
-                Hourly (કલાક)
+                Hourly
               </Button>
               <Button
                 size="small"
@@ -853,6 +1188,46 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
               </Button>
             </Box>
 
+            {/* In Hourly view: Filter Today vs All */}
+            {viewType === "HOURLY" && (
+              <Box sx={{ display: "flex", bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9", p: 0.3, borderRadius: "8px", border: `1px solid ${themeConfig.border}` }}>
+                <Button
+                  size="small"
+                  onClick={() => setHourlyDateFilter("TODAY")}
+                  sx={{
+                    py: 0.2,
+                    px: 0.9,
+                    fontSize: "0.68rem",
+                    fontWeight: 800,
+                    borderRadius: "6px",
+                    bgcolor: hourlyDateFilter === "TODAY" ? themeConfig.primary : "transparent",
+                    color: hourlyDateFilter === "TODAY" ? "#FFFFFF" : themeConfig.textMuted,
+                    textTransform: "none",
+                    minWidth: "auto",
+                  }}
+                >
+                  Today
+                </Button>
+                <Button
+                  size="small"
+                  onClick={() => setHourlyDateFilter("ALL")}
+                  sx={{
+                    py: 0.2,
+                    px: 0.9,
+                    fontSize: "0.68rem",
+                    fontWeight: 800,
+                    borderRadius: "6px",
+                    bgcolor: hourlyDateFilter === "ALL" ? themeConfig.primary : "transparent",
+                    color: hourlyDateFilter === "ALL" ? "#FFFFFF" : themeConfig.textMuted,
+                    textTransform: "none",
+                    minWidth: "auto",
+                  }}
+                >
+                  All
+                </Button>
+              </Box>
+            )}
+
             {/* In / Out Legend */}
             <Box sx={{ display: "flex", gap: 1, ml: 0.5 }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
@@ -870,8 +1245,11 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
         {/* Bars Container */}
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", height: 160, pt: 2, pb: 1, my: "auto" }}>
           {currentData.map((d, i) => {
-            const inHeight = Math.max(8, (d.checkins / maxVal) * 110);
-            const outHeight = Math.max(8, (d.checkouts / maxVal) * 110);
+            const hasIn = d.checkins > 0;
+            const hasOut = d.checkouts > 0;
+            const inHeight = hasIn ? Math.max(14, (d.checkins / maxVal) * 110) : 3;
+            const outHeight = hasOut ? Math.max(14, (d.checkouts / maxVal) * 110) : 3;
+
             return (
               <Tooltip
                 key={i}
@@ -885,13 +1263,18 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
                     alignItems: "center",
                     flex: 1,
                     cursor: "pointer",
-                    "&:hover .bar-in": { transform: "scaleY(1.08)" },
-                    "&:hover .bar-out": { transform: "scaleY(1.08)" },
+                    position: "relative",
+                    "&:hover .bar-in": { transform: hasIn ? "scaleY(1.08)" : "none" },
+                    "&:hover .bar-out": { transform: hasOut ? "scaleY(1.08)" : "none" },
                   }}
                 >
                   {d.isPeak ? (
                     <Typography sx={{ fontSize: "0.65rem", fontWeight: 800, color: "#EF4444", mb: 0.5, lineHeight: 1 }}>
                       🔥
+                    </Typography>
+                  ) : d.isCurrentSlot ? (
+                    <Typography sx={{ fontSize: "0.55rem", fontWeight: 900, color: themeConfig.primary, mb: 0.5, lineHeight: 1, bgcolor: "rgba(59, 130, 246, 0.12)", px: 0.5, py: 0.1, borderRadius: "4px" }}>
+                      NOW
                     </Typography>
                   ) : (
                     <Box sx={{ height: "13px" }} />
@@ -905,9 +1288,9 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
                       sx={{
                         width: viewType === "WEEKLY" ? 12 : 8,
                         height: `${inHeight}px`,
-                        borderRadius: "4px 4px 0 0",
-                        bgcolor: "#3B82F6",
-                        background: "linear-gradient(180deg, #60A5FA 0%, #2563EB 100%)",
+                        borderRadius: hasIn ? "4px 4px 0 0" : "2px",
+                        bgcolor: hasIn ? "#3B82F6" : (isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)"),
+                        background: hasIn ? "linear-gradient(180deg, #60A5FA 0%, #2563EB 100%)" : "none",
                         transition: "transform 0.2s ease",
                         transformOrigin: "bottom",
                         position: "relative",
@@ -919,16 +1302,25 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
                       sx={{
                         width: viewType === "WEEKLY" ? 12 : 8,
                         height: `${outHeight}px`,
-                        borderRadius: "4px 4px 0 0",
-                        bgcolor: "#EC4899",
-                        background: "linear-gradient(180deg, #F472B6 0%, #DB2777 100%)",
+                        borderRadius: hasOut ? "4px 4px 0 0" : "2px",
+                        bgcolor: hasOut ? "#EC4899" : (isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)"),
+                        background: hasOut ? "linear-gradient(180deg, #F472B6 0%, #DB2777 100%)" : "none",
                         transition: "transform 0.2s ease",
                         transformOrigin: "bottom",
                         position: "relative",
                       }}
                     />
                   </Box>
-                  <Typography variant="caption" sx={{ fontSize: "0.7rem", fontWeight: 800, color: themeConfig.textMain, mt: 1 }}>
+
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontSize: "0.7rem",
+                      fontWeight: d.isCurrentSlot ? 900 : 800,
+                      color: d.isCurrentSlot ? themeConfig.primary : themeConfig.textMain,
+                      mt: 1,
+                    }}
+                  >
                     {d.label}
                   </Typography>
                 </Box>
@@ -940,15 +1332,18 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
         {/* Footer Summary Strip */}
         <Box sx={{ p: 1.2, borderRadius: "12px", bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : themeConfig.champagne, display: "flex", justifyContent: "space-between", alignItems: "center", mt: 1, border: `1px solid ${themeConfig.border}` }}>
           <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.75rem", fontWeight: 700 }}>
-            {viewType === "HOURLY" ? "Hourly Traffic Summary:" : "Weekly Total Flow:"}
+            {viewType === "HOURLY"
+              ? hourlyDateFilter === "TODAY" ? "Today's Traffic Summary:" : "All Time Hourly Summary:"
+              : "Last 7 Days Total Flow:"}
           </Typography>
           <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.primaryDark, fontSize: "0.75rem" }}>
             {viewType === "HOURLY"
               ? (() => {
                   const peak = hourlyData.reduce((max, cur) => (cur.total > max.total ? cur : max), { total: 0, label: "", range: "" });
-                  return peak.total > 0
-                    ? `Peak Rush at ${peak.label} (${peak.range || peak.label}) • ${totalIn} In / ${totalOut} Out`
-                    : `${totalIn} Check-Ins • ${totalOut} Check-Outs (Live Flow)`;
+                  if (peak.total > 0) {
+                    return `Peak at ${peak.label} (${peak.range || peak.label}) • ${totalIn} In / ${totalOut} Out`;
+                  }
+                  return `${totalIn} Check-Ins • ${totalOut} Check-Outs (Live Tracker)`;
                 })()
               : `${totalIn} Check-Ins • ${totalOut} Check-Outs (${totalIn + totalOut} Total)`}
           </Typography>

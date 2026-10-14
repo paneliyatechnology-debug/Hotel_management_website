@@ -11,6 +11,7 @@ import HotelAdminLayout from "@/hotel-admin/layout/HotelAdminLayout";
 import ReceptionistLayout from "@/receptionist/layout/ReceptionistLayout";
 import SuperAdminLayout from "@/super-admin/layout/SuperAdminLayout";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
+import { clearAuthCookies, getCookie, setAuthCookies } from "@/shared/utils/cookieAuth";
 
 const DashboardLoadingFallback = () => (
   <div className="flex items-center justify-center min-h-[400px] text-slate-500 text-xs animate-pulse font-sans">
@@ -52,8 +53,15 @@ function HotelWebAppContent() {
     if (typeof window === "undefined") return null;
     try {
       const stored = localStorage.getItem("user");
-      const token = localStorage.getItem("token");
-      return stored && token ? JSON.parse(stored) : null;
+      const token = localStorage.getItem("token") || getCookie("accessToken") || getCookie("token");
+      if (stored && token) return JSON.parse(stored);
+      const cookieUser = getCookie("user");
+      if (cookieUser && token) {
+        localStorage.setItem("user", JSON.stringify(cookieUser));
+        if (!localStorage.getItem("token")) localStorage.setItem("token", token);
+        return cookieUser;
+      }
+      return null;
     } catch {
       return null;
     }
@@ -269,6 +277,7 @@ function HotelWebAppContent() {
       localStorage.removeItem("token");
       localStorage.removeItem("refreshToken");
       localStorage.removeItem("user");
+      clearAuthCookies();
     } catch {}
     setUser(null);
     setLockout({ locked: false, type: "EXPIRED", reason: "" });
@@ -278,13 +287,14 @@ function HotelWebAppContent() {
   };
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("token") || getCookie("accessToken") || getCookie("token");
     if (token) {
       apiRequest(API_ENDPOINTS.AUTH.ME)
         .then((res) => {
           if (res?.data) {
             setUser(res.data);
             localStorage.setItem("user", JSON.stringify(res.data));
+            setAuthCookies({ user: res.data });
             checkUserLockout(res.data);
           }
         })

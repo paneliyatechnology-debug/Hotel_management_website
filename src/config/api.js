@@ -377,17 +377,75 @@ export function deepDualCase(obj) {
   if (result.custom_price_per_night && !result.price) result.price = result.custom_price_per_night;
 
   // ID Proof and Document image parity
-  if (Array.isArray(result.images) && result.images.length > 0) {
-    if (!result.front_image && result.images[0]) result.front_image = result.images[0];
-    if (!result.frontImage && result.images[0]) result.frontImage = result.images[0];
-    if (!result.back_image && result.images[1]) result.back_image = result.images[1];
-    if (!result.backImage && result.images[1]) result.backImage = result.images[1];
+  let parsedImages = result.images;
+  if (typeof parsedImages === "string") {
+    const t = parsedImages.trim();
+    if ((t.startsWith("[") && t.endsWith("]")) || (t.startsWith("{") && t.endsWith("}"))) {
+      try { parsedImages = JSON.parse(t); } catch {}
+    } else if (t.includes(",")) {
+      parsedImages = t.split(",").map((s) => s.trim());
+    } else if (t && (t.startsWith("http") || t.startsWith("/") || t.startsWith("data:") || t.includes("/"))) {
+      parsedImages = [t];
+    }
   }
-  if (Array.isArray(result.signatures) && result.signatures.length > 0) {
-    if (!result.signature && result.signatures[0]) result.signature = result.signatures[0];
-    if (!result.guest_signature && result.signatures[0]) result.guest_signature = result.signatures[0];
-    if (!result.guestSignature && result.signatures[0]) result.guestSignature = result.signatures[0];
+  if (Array.isArray(parsedImages) && parsedImages.length > 0) {
+    result.images = parsedImages;
+    const img0 = typeof parsedImages[0] === "object" ? (parsedImages[0]?.url || parsedImages[0]?.secure_url || parsedImages[0]?.path || parsedImages[0]?.src) : parsedImages[0];
+    const img1 = typeof parsedImages[1] === "object" ? (parsedImages[1]?.url || parsedImages[1]?.secure_url || parsedImages[1]?.path || parsedImages[1]?.src) : parsedImages[1];
+    if (!result.front_image && img0) result.front_image = img0;
+    if (!result.frontImage && img0) result.frontImage = img0;
+    if (!result.back_image && img1) result.back_image = img1;
+    if (!result.backImage && img1) result.backImage = img1;
   }
+
+  let parsedSignatures = result.signatures;
+  if (typeof parsedSignatures === "string") {
+    const t = parsedSignatures.trim();
+    if ((t.startsWith("[") && t.endsWith("]")) || (t.startsWith("{") && t.endsWith("}"))) {
+      try { parsedSignatures = JSON.parse(t); } catch {}
+    } else if (t && (t.startsWith("http") || t.startsWith("/") || t.startsWith("data:") || t.includes("/"))) {
+      parsedSignatures = [t];
+    }
+  }
+  if (Array.isArray(parsedSignatures) && parsedSignatures.length > 0) {
+    result.signatures = parsedSignatures;
+    const sig0 = typeof parsedSignatures[0] === "object" ? (parsedSignatures[0]?.url || parsedSignatures[0]?.path || parsedSignatures[0]?.signature) : parsedSignatures[0];
+    if (!result.signature && sig0) result.signature = sig0;
+    if (!result.guest_signature && sig0) result.guest_signature = sig0;
+    if (!result.guestSignature && sig0) result.guestSignature = sig0;
+  }
+
+  // Check additional id proof field keys from SQL/Knex models
+  if (result.id_proof_image && !result.frontImage) {
+    result.frontImage = result.id_proof_image;
+    result.front_image = result.id_proof_image;
+  }
+  if (result.id_proof_url && !result.frontImage) {
+    result.frontImage = result.id_proof_url;
+    result.front_image = result.id_proof_url;
+  }
+  if (result.id_proof_front && !result.frontImage) {
+    result.frontImage = result.id_proof_front;
+    result.front_image = result.id_proof_front;
+  }
+  if (result.id_proof_back_image && !result.backImage) {
+    result.backImage = result.id_proof_back_image;
+    result.back_image = result.id_proof_back_image;
+  }
+  if (result.id_proof_back_url && !result.backImage) {
+    result.backImage = result.id_proof_back_url;
+    result.back_image = result.id_proof_back_url;
+  }
+  if (result.id_proof_back && !result.backImage) {
+    result.backImage = result.id_proof_back;
+    result.back_image = result.id_proof_back;
+  }
+  if (result.signature_url && !result.signature) {
+    result.signature = result.signature_url;
+    result.guest_signature = result.signature_url;
+    result.guestSignature = result.signature_url;
+  }
+
   if (result.front_image && !result.frontImage) result.frontImage = result.front_image;
   if (result.frontImage && !result.front_image) result.front_image = result.frontImage;
   if (result.back_image && !result.backImage) result.backImage = result.back_image;

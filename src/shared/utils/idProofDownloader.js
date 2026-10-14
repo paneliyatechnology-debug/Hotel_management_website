@@ -138,13 +138,22 @@ export async function downloadAllGuestIdImages({ guest = {}, activeBooking = nul
     activeBooking?.front_image ||
     activeBooking?.frontImage ||
     activeBooking?.id_proof_front ||
+    activeBooking?.id_proof_image ||
+    activeBooking?.id_proof_url ||
     activeBooking?.idProof?.frontImage ||
+    activeBooking?.idProof?.frontImageUrl ||
+    activeBooking?.idProof?.url ||
     guest.front_image ||
     guest.frontImage ||
     guest.idProof?.frontImage ||
     guest.idProof?.frontImageUrl ||
+    guest.idProof?.url ||
     guest.frontImageUrl ||
     guest.idProofImage ||
+    guest.id_proof_image ||
+    guest.id_proof_url ||
+    guest.govt_id_front ||
+    activeBooking?.govt_id_front ||
     (Array.isArray(activeBooking?.images) && activeBooking.images[0]) ||
     (Array.isArray(guest?.images) && guest.images[0]);
 
@@ -152,13 +161,20 @@ export async function downloadAllGuestIdImages({ guest = {}, activeBooking = nul
     activeBooking?.back_image ||
     activeBooking?.backImage ||
     activeBooking?.id_proof_back ||
+    activeBooking?.id_proof_back_image ||
+    activeBooking?.id_proof_back_url ||
     activeBooking?.idProof?.backImage ||
+    activeBooking?.idProof?.backImageUrl ||
     guest.back_image ||
     guest.backImage ||
     guest.idProof?.backImage ||
     guest.idProof?.backImageUrl ||
     guest.backImageUrl ||
     guest.idProofBackImage ||
+    guest.id_proof_back_image ||
+    guest.id_proof_back_url ||
+    guest.govt_id_back ||
+    activeBooking?.govt_id_back ||
     (Array.isArray(activeBooking?.images) && activeBooking.images.length > 1 && activeBooking.images[1]) ||
     (Array.isArray(guest?.images) && guest.images.length > 1 && guest.images[1]);
 
@@ -166,10 +182,14 @@ export async function downloadAllGuestIdImages({ guest = {}, activeBooking = nul
     activeBooking?.signature ||
     activeBooking?.guest_signature ||
     activeBooking?.guestSignature ||
+    activeBooking?.signature_url ||
+    activeBooking?.signatureUrl ||
     activeBooking?.signatures?.[0] ||
     guest.signature ||
     guest.guest_signature ||
     guest.guestSignature ||
+    guest.signature_url ||
+    guest.signatureUrl ||
     guest.idProof?.signature ||
     guest.signatures?.[0];
 

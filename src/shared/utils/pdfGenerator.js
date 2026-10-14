@@ -1916,8 +1916,47 @@ export function downloadGuestFolioPDF(data = {}, hotel = {}) {
     null;
 
   // Check if any actual ID images exist
-  const primaryFront = guest.idProof?.frontImage || guest.idProof?.frontImageUrl || guest.frontImage || guest.frontImageUrl || guest.idProofImage || booking.idProof?.frontImage || booking.idProofImage;
-  const primaryBack = guest.idProof?.backImage || guest.idProof?.backImageUrl || guest.backImage || guest.backImageUrl || guest.idProofBackImage || booking.idProof?.backImage || booking.idProofBackImage;
+  const primaryFront =
+    guest.idProof?.frontImage ||
+    guest.idProof?.frontImageUrl ||
+    guest.idProof?.url ||
+    guest.frontImage ||
+    guest.front_image ||
+    guest.frontImageUrl ||
+    guest.idProofImage ||
+    guest.id_proof_image ||
+    guest.id_proof_url ||
+    guest.govt_id_front ||
+    booking.idProof?.frontImage ||
+    booking.idProof?.url ||
+    booking.frontImage ||
+    booking.front_image ||
+    booking.idProofImage ||
+    booking.id_proof_image ||
+    booking.id_proof_url ||
+    booking.govt_id_front ||
+    (Array.isArray(booking.images) && booking.images[0]) ||
+    (Array.isArray(guest.images) && guest.images[0]);
+
+  const primaryBack =
+    guest.idProof?.backImage ||
+    guest.idProof?.backImageUrl ||
+    guest.backImage ||
+    guest.back_image ||
+    guest.backImageUrl ||
+    guest.idProofBackImage ||
+    guest.id_proof_back_image ||
+    guest.id_proof_back_url ||
+    guest.govt_id_back ||
+    booking.idProof?.backImage ||
+    booking.backImage ||
+    booking.back_image ||
+    booking.idProofBackImage ||
+    booking.id_proof_back_image ||
+    booking.id_proof_back_url ||
+    booking.govt_id_back ||
+    (Array.isArray(booking.images) && booking.images.length > 1 && booking.images[1]) ||
+    (Array.isArray(guest.images) && guest.images.length > 1 && guest.images[1]);
   const hasAnyIdImages = Boolean(primaryFront || primaryBack || guestSignature || accompanying.some((m) => m.frontImage || m.frontImageUrl || m.backImage || m.backImageUrl || m.idProofImage || m.idProof?.frontImage || m.idProof?.backImage));
 
   const allIdCards = [
@@ -2501,8 +2540,47 @@ export function downloadGuestIdProofPDF(data = {}, hotel = {}) {
   const dateStr = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
   const timeStr = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 
-  const primaryFront = guest.idProof?.frontImage || guest.idProof?.frontImageUrl || guest.frontImage || guest.idProofImage || booking.idProof?.frontImage || booking.idProofImage;
-  const primaryBack = guest.idProof?.backImage || guest.idProof?.backImageUrl || guest.backImage || guest.idProofBackImage || booking.idProof?.backImage || booking.idProofBackImage;
+  const primaryFront =
+    guest.idProof?.frontImage ||
+    guest.idProof?.frontImageUrl ||
+    guest.idProof?.url ||
+    guest.frontImage ||
+    guest.front_image ||
+    guest.frontImageUrl ||
+    guest.idProofImage ||
+    guest.id_proof_image ||
+    guest.id_proof_url ||
+    guest.govt_id_front ||
+    booking.idProof?.frontImage ||
+    booking.idProof?.url ||
+    booking.frontImage ||
+    booking.front_image ||
+    booking.idProofImage ||
+    booking.id_proof_image ||
+    booking.id_proof_url ||
+    booking.govt_id_front ||
+    (Array.isArray(booking.images) && booking.images[0]) ||
+    (Array.isArray(guest.images) && guest.images[0]);
+
+  const primaryBack =
+    guest.idProof?.backImage ||
+    guest.idProof?.backImageUrl ||
+    guest.backImage ||
+    guest.back_image ||
+    guest.backImageUrl ||
+    guest.idProofBackImage ||
+    guest.id_proof_back_image ||
+    guest.id_proof_back_url ||
+    guest.govt_id_back ||
+    booking.idProof?.backImage ||
+    booking.backImage ||
+    booking.back_image ||
+    booking.idProofBackImage ||
+    booking.id_proof_back_image ||
+    booking.id_proof_back_url ||
+    booking.govt_id_back ||
+    (Array.isArray(booking.images) && booking.images.length > 1 && booking.images[1]) ||
+    (Array.isArray(guest.images) && guest.images.length > 1 && guest.images[1]);
 
   const allMembers = [
     {

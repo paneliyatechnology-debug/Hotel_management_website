@@ -58,7 +58,7 @@ import {
   Security,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
-import { API_ENDPOINTS, apiRequest } from "@/config/api";
+import { API_BASE_URL, API_ENDPOINTS, apiRequest } from "@/config/api";
 import StatusChip from "@/shared/components/StatusChip";
 import { downloadAllGuestIdImages, downloadSingleImage, sanitizeFilename } from "@/shared/utils/idProofDownloader";
 import { downloadGuestFolioPDF } from "@/shared/utils/pdfGenerator";
@@ -71,12 +71,61 @@ import { removeCircularReferences } from "@/shared/utils/guestModalUtils";
  * Normalizes an image or document URL/data-URI safely
  */
 function normalizeImageSrc(val) {
-  if (!val || typeof val !== "string") return null;
-  const trimmed = val.trim();
+  if (!val) return null;
+
+  // 1. If val is an object or array, extract image URL string
+  if (typeof val === "object") {
+    if (Array.isArray(val)) {
+      if (val.length === 0) return null;
+      for (const item of val) {
+        const res = normalizeImageSrc(item);
+        if (res) return res;
+      }
+      return null;
+    }
+    const extracted =
+      val.url ||
+      val.secure_url ||
+      val.path ||
+      val.location ||
+      val.src ||
+      val.fileUrl ||
+      val.uri ||
+      val.frontImage ||
+      val.front_image ||
+      val.image ||
+      val.signature ||
+      val.data;
+    if (extracted && extracted !== val) {
+      return normalizeImageSrc(extracted);
+    }
+    return null;
+  }
+
+  if (typeof val !== "string") return null;
+  let trimmed = val.trim();
   if (!trimmed || trimmed === "null" || trimmed === "undefined" || trimmed === "[object Object]") return null;
+
+  // 2. Parse JSON string if encoded as JSON array or object
+  if ((trimmed.startsWith("[") && trimmed.endsWith("]")) || (trimmed.startsWith("{") && trimmed.endsWith("}"))) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      const res = normalizeImageSrc(parsed);
+      if (res) return res;
+    } catch {}
+  }
+
+  // 3. Remove enclosing quotes if double-encoded
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    trimmed = trimmed.slice(1, -1).trim();
+  }
+
+  // 4. Absolute HTTP/HTTPS, Blob, or Data URLs
   if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("blob:") || trimmed.startsWith("data:")) {
     return trimmed;
   }
+
+  // 5. Raw Base64 payloads with known image signatures
   if (trimmed.startsWith("/9j/")) {
     return `data:image/jpeg;base64,${trimmed}`;
   }
@@ -89,12 +138,28 @@ function normalizeImageSrc(val) {
   if (trimmed.startsWith("UklGR")) {
     return `data:image/webp;base64,${trimmed}`;
   }
-  if (trimmed.startsWith("/")) {
-    return `https://accomplished-smile-dev.up.railway.app${trimmed}`;
+
+  // 6. Relative server upload paths
+  const baseApi = (typeof API_BASE_URL === "string" && API_BASE_URL.trim())
+    ? API_BASE_URL.replace(/\/$/, "")
+    : "https://accomplished-smile-dev.up.railway.app";
+
+  if (trimmed.startsWith("/") || trimmed.startsWith("uploads/") || trimmed.startsWith("api/")) {
+    const cleanPath = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+    return `${baseApi}${cleanPath}`;
   }
-  if (trimmed.length > 100 && !trimmed.includes(" ")) {
+
+  // 7. Pure base64 string
+  if (trimmed.length > 60 && !trimmed.includes(" ") && !trimmed.includes("/") && !trimmed.includes("?") && !trimmed.includes("&")) {
     return `data:image/png;base64,${trimmed}`;
   }
+
+  // 8. File name with image extension
+  if (/\.(jpg|jpeg|png|webp|gif|svg)$/i.test(trimmed)) {
+    const cleanPath = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+    return `${baseApi}${cleanPath}`;
+  }
+
   return trimmed;
 }
 
@@ -152,15 +217,16 @@ export default function GuestDetailsModal({
       const b = cleanBookingObj(
         guestData?.booking ||
         guestData?.activeBooking ||
-        (guestData?.roomNumber || guestData?.room_id || guestData?.front_image || guestData?.frontImage ? guestData : null)
+        (guestData?.roomNumber || guestData?.room_id || guestData?.front_image || guestData?.frontImage || guestData?.images ? guestData : null)
       );
       setDetails({
+        ...(guestData || {}),
         guest: g,
         activeBooking: b,
-        roomsDetail: [],
-        paymentDetails: null,
-        paymentHistory: [],
-        timeline: [],
+        roomsDetail: guestData?.roomsDetail || [],
+        paymentDetails: guestData?.paymentDetails || null,
+        paymentHistory: guestData?.paymentHistory || [],
+        timeline: guestData?.timeline || [],
       });
       return;
     }
@@ -173,11 +239,12 @@ export default function GuestDetailsModal({
           const apiData = res.data;
           const resolvedBooking =
             cleanBookingObj(
+              apiData.booking ||
               apiData.activeBooking ||
-              (apiData.room_id || apiData.roomNumber || apiData.check_in_date || apiData.front_image || apiData.frontImage ? apiData : null) ||
+              (apiData.room_id || apiData.roomNumber || apiData.check_in_date || apiData.front_image || apiData.frontImage || apiData.images ? apiData : null) ||
               guestData?.booking ||
               guestData?.activeBooking ||
-              (guestData?.roomNumber || guestData?.front_image ? guestData : null)
+              (guestData?.roomNumber || guestData?.front_image || guestData?.frontImage || guestData?.images ? guestData : null)
             );
 
           const resolvedGuest =
@@ -190,7 +257,22 @@ export default function GuestDetailsModal({
               {}
             );
 
+          // Preserve photos from guestData if API data omitted them
+          if (guestData?.frontImage && !resolvedBooking?.frontImage && !resolvedGuest?.frontImage) {
+            resolvedGuest.frontImage = guestData.frontImage;
+            if (resolvedBooking) resolvedBooking.frontImage = guestData.frontImage;
+          }
+          if (guestData?.backImage && !resolvedBooking?.backImage && !resolvedGuest?.backImage) {
+            resolvedGuest.backImage = guestData.backImage;
+            if (resolvedBooking) resolvedBooking.backImage = guestData.backImage;
+          }
+          if (guestData?.signature && !resolvedBooking?.signature && !resolvedGuest?.signature) {
+            resolvedGuest.signature = guestData.signature;
+            if (resolvedBooking) resolvedBooking.signature = guestData.signature;
+          }
+
           setDetails({
+            ...(guestData || {}),
             ...apiData,
             guest: resolvedGuest,
             activeBooking: resolvedBooking,
@@ -201,16 +283,17 @@ export default function GuestDetailsModal({
             cleanBookingObj(
               guestData?.booking ||
               guestData?.activeBooking ||
-              (guestData?.roomNumber || guestData?.room_id || guestData?.front_image ? guestData : null)
+              (guestData?.roomNumber || guestData?.room_id || guestData?.front_image || guestData?.frontImage || guestData?.images ? guestData : null)
             );
           const resolvedGuest = cleanGuestObj(guestData?.guest || guestData);
           setDetails({
+            ...(guestData || {}),
             guest: resolvedGuest,
             activeBooking: resolvedBooking,
-            roomsDetail: [],
-            paymentDetails: null,
-            paymentHistory: [],
-            timeline: [],
+            roomsDetail: guestData?.roomsDetail || [],
+            paymentDetails: guestData?.paymentDetails || null,
+            paymentHistory: guestData?.paymentHistory || [],
+            timeline: guestData?.timeline || [],
           });
         }
       })
@@ -220,32 +303,52 @@ export default function GuestDetailsModal({
           cleanBookingObj(
             guestData?.booking ||
             guestData?.activeBooking ||
-            (guestData?.roomNumber || guestData?.room_id || guestData?.front_image || guestData?.frontImage ? guestData : null)
+            (guestData?.roomNumber || guestData?.room_id || guestData?.front_image || guestData?.frontImage || guestData?.images ? guestData : null)
           );
         const resolvedGuest = cleanGuestObj(guestData?.guest || guestData);
         setDetails({
+          ...(guestData || {}),
           guest: resolvedGuest,
           activeBooking: resolvedBooking,
-          roomsDetail: [],
-          paymentDetails: null,
-          paymentHistory: [],
-          timeline: [],
+          roomsDetail: guestData?.roomsDetail || [],
+          paymentDetails: guestData?.paymentDetails || null,
+          paymentHistory: guestData?.paymentHistory || [],
+          timeline: guestData?.timeline || [],
         });
       })
       .finally(() => setLoading(false));
   }, [open, targetId, guestData]);
 
   const guest = useMemo(() => {
-    const raw = details?.guest || guestData?.guest || guestData || {};
-    return cleanGuestObj(raw);
+    const raw = details?.guest || guestData?.guest || details || guestData || {};
+    const cleaned = cleanGuestObj(raw);
+    if (!cleaned.frontImage && (guestData?.frontImage || details?.frontImage)) {
+      cleaned.frontImage = guestData?.frontImage || details?.frontImage;
+    }
+    if (!cleaned.backImage && (guestData?.backImage || details?.backImage)) {
+      cleaned.backImage = guestData?.backImage || details?.backImage;
+    }
+    if (!cleaned.signature && (guestData?.signature || details?.signature)) {
+      cleaned.signature = guestData?.signature || details?.signature;
+    }
+    return cleaned;
   }, [details, guestData]);
 
   const activeBooking = useMemo(() => {
-    const fromProps = guestData?.booking || guestData?.activeBooking || (guestData?.roomNumber || guestData?.room_id || guestData?.front_image || guestData?.frontImage ? guestData : null);
-    const fromDetails = details?.activeBooking || (details?.roomNumber || details?.room_id || details?.front_image || details?.frontImage ? details : null);
+    const fromProps =
+      guestData?.booking ||
+      guestData?.activeBooking ||
+      (guestData?.roomNumber || guestData?.room_id || guestData?.front_image || guestData?.frontImage || guestData?.images ? guestData : null);
+    const fromDetails =
+      details?.activeBooking ||
+      details?.booking ||
+      (details?.roomNumber || details?.room_id || details?.front_image || details?.frontImage || details?.images ? details : null);
     const merged = {
       ...(fromProps || {}),
       ...(fromDetails || {}),
+      ...(guestData?.frontImage ? { frontImage: guestData.frontImage } : {}),
+      ...(guestData?.backImage ? { backImage: guestData.backImage } : {}),
+      ...(guestData?.signature ? { signature: guestData.signature } : {}),
     };
     return cleanBookingObj(merged) || {};
   }, [details, guestData]);
@@ -646,136 +749,157 @@ export default function GuestDetailsModal({
     null
   );
 
+  // Helper to extract photos from any candidate object with maximum field flexibility
+  const resolvePhotoSrc = (type) => {
+    const candidates = [
+      activeBooking,
+      details?.activeBooking,
+      details?.booking,
+      details?.data,
+      details,
+      guest,
+      guestData?.guest,
+      guestData?.booking,
+      guestData?.activeBooking,
+      guestData,
+    ];
+
+    if (type === "front") {
+      for (const c of candidates) {
+        if (!c || typeof c !== "object") continue;
+        const src =
+          c.frontImage ||
+          c.front_image ||
+          c.frontImageUrl ||
+          c.front_image_url ||
+          c.frontPhoto ||
+          c.front_photo ||
+          c.idProof?.frontImage ||
+          c.idProof?.front_image ||
+          c.idProof?.frontImageUrl ||
+          c.idProof?.front_image_url ||
+          c.idProof?.url ||
+          c.idProof?.image ||
+          c.idProof?.path ||
+          c.id_proof_front ||
+          c.idProofFront ||
+          c.id_proof_front_image ||
+          c.idProofFrontImage ||
+          c.id_proof_front_url ||
+          c.idProofFrontUrl ||
+          c.id_proof_image ||
+          c.idProofImage ||
+          c.id_proof_url ||
+          c.idProofUrl ||
+          c.id_card_front ||
+          c.idCardFront ||
+          c.id_card_image ||
+          c.idCardImage ||
+          c.govt_id_front ||
+          c.govtIdFront ||
+          c.govt_id_image ||
+          c.govtIdImage ||
+          c.govt_id_url ||
+          c.govtIdUrl ||
+          c.govt_id_photo ||
+          c.govtIdPhoto ||
+          c.idPhoto ||
+          c.id_photo ||
+          (Array.isArray(c.images) && c.images[0]) ||
+          (typeof c.images === "string" && c.images) ||
+          (Array.isArray(c.documents) && (c.documents[0]?.url || c.documents[0]?.path || c.documents[0])) ||
+          (typeof c.documents === "string" && c.documents) ||
+          (Array.isArray(c.photos) && c.photos[0]) ||
+          (c.id_proof && typeof c.id_proof === "string" ? c.id_proof : null) ||
+          (c.idProof && typeof c.idProof === "string" ? c.idProof : null);
+
+        const normalized = normalizeImageSrc(src);
+        if (normalized) return normalized;
+      }
+      return null;
+    }
+
+    if (type === "back") {
+      for (const c of candidates) {
+        if (!c || typeof c !== "object") continue;
+        const src =
+          c.backImage ||
+          c.back_image ||
+          c.backImageUrl ||
+          c.back_image_url ||
+          c.backPhoto ||
+          c.back_photo ||
+          c.idProof?.backImage ||
+          c.idProof?.back_image ||
+          c.idProof?.backImageUrl ||
+          c.idProof?.back_image_url ||
+          c.id_proof_back ||
+          c.idProofBack ||
+          c.id_proof_back_image ||
+          c.idProofBackImage ||
+          c.id_proof_back_url ||
+          c.idProofBackUrl ||
+          c.id_card_back ||
+          c.idCardBack ||
+          c.govt_id_back ||
+          c.govtIdBack ||
+          c.govt_id_photo_back ||
+          c.govtIdPhotoBack ||
+          (Array.isArray(c.images) && c.images.length > 1 && c.images[1]) ||
+          (Array.isArray(c.documents) && c.documents.length > 1 && (c.documents[1]?.url || c.documents[1]?.path || c.documents[1]));
+
+        const normalized = normalizeImageSrc(src);
+        if (normalized) return normalized;
+      }
+      return null;
+    }
+
+    if (type === "signature") {
+      for (const c of candidates) {
+        if (!c || typeof c !== "object") continue;
+        const src =
+          c.signature ||
+          c.signature_url ||
+          c.signatureUrl ||
+          c.signatureImage ||
+          c.signature_image ||
+          c.guest_signature ||
+          c.guestSignature ||
+          c.guest_signature_url ||
+          c.guestSignatureUrl ||
+          c.guest_signature_image ||
+          c.guestSignatureImage ||
+          c.digital_signature ||
+          c.digitalSignature ||
+          c.digital_signature_url ||
+          c.digitalSignatureUrl ||
+          c.e_signature ||
+          c.eSignature ||
+          c.e_signature_url ||
+          c.eSignatureUrl ||
+          c.idProof?.signature ||
+          c.idProof?.signatureUrl ||
+          c.idProof?.guestSignature ||
+          (Array.isArray(c.signatures) && c.signatures[0]) ||
+          (typeof c.signatures === "string" && c.signatures);
+
+        const normalized = normalizeImageSrc(src);
+        if (normalized) return normalized;
+      }
+      return null;
+    }
+
+    return null;
+  };
+
   // Aadhaar / Govt ID Front Photo
-  const frontIdPhoto = normalizeImageSrc(
-    activeBooking?.front_image ||
-    activeBooking?.frontImage ||
-    activeBooking?.id_proof_front ||
-    activeBooking?.id_proof_image ||
-    activeBooking?.id_proof_url ||
-    activeBooking?.idProof?.frontImage ||
-    activeBooking?.idProof?.frontImageUrl ||
-    details?.front_image ||
-    details?.frontImage ||
-    details?.id_proof_front ||
-    details?.id_proof_image ||
-    details?.id_proof_url ||
-    details?.idProof?.frontImage ||
-    guest?.front_image ||
-    guest?.frontImage ||
-    guest?.frontImageUrl ||
-    guest?.id_proof_front ||
-    guest?.id_proof_image ||
-    guest?.id_proof_url ||
-    guest?.idProof?.frontImage ||
-    guest?.idProof?.frontImageUrl ||
-    guest?.idProofImage ||
-    guestData?.front_image ||
-    guestData?.frontImage ||
-    guestData?.id_proof_front ||
-    guestData?.id_proof_image ||
-    guestData?.id_proof_url ||
-    guestData?.idProof?.frontImage ||
-    guestData?.booking?.front_image ||
-    guestData?.booking?.frontImage ||
-    guestData?.booking?.id_proof_front ||
-    guestData?.booking?.id_proof_image ||
-    guestData?.booking?.id_proof_url ||
-    (Array.isArray(activeBooking?.images) && activeBooking.images[0]) ||
-    (Array.isArray(details?.images) && details.images[0]) ||
-    (Array.isArray(guest?.images) && guest.images[0]) ||
-    (Array.isArray(guestData?.images) && guestData.images[0]) ||
-    (Array.isArray(guestData?.booking?.images) && guestData.booking.images[0]) ||
-    (Array.isArray(activeBooking?.documents) && (activeBooking.documents[0]?.url || activeBooking.documents[0])) ||
-    null
-  );
+  const frontIdPhoto = resolvePhotoSrc("front");
 
   // Aadhaar / Govt ID Back Photo
-  const backIdPhoto = normalizeImageSrc(
-    activeBooking?.back_image ||
-    activeBooking?.backImage ||
-    activeBooking?.id_proof_back ||
-    activeBooking?.id_proof_back_image ||
-    activeBooking?.id_proof_back_url ||
-    activeBooking?.idProof?.backImage ||
-    activeBooking?.idProof?.backImageUrl ||
-    details?.back_image ||
-    details?.backImage ||
-    details?.id_proof_back ||
-    details?.id_proof_back_image ||
-    details?.id_proof_back_url ||
-    details?.idProof?.backImage ||
-    guest?.back_image ||
-    guest?.backImage ||
-    guest?.backImageUrl ||
-    guest?.id_proof_back ||
-    guest?.id_proof_back_image ||
-    guest?.id_proof_back_url ||
-    guest?.idProof?.backImage ||
-    guest?.idProof?.backImageUrl ||
-    guest?.idProofBackImage ||
-    guestData?.back_image ||
-    guestData?.backImage ||
-    guestData?.id_proof_back ||
-    guestData?.id_proof_back_image ||
-    guestData?.id_proof_back_url ||
-    guestData?.idProof?.backImage ||
-    guestData?.booking?.back_image ||
-    guestData?.booking?.backImage ||
-    guestData?.booking?.id_proof_back ||
-    guestData?.booking?.id_proof_back_image ||
-    (Array.isArray(activeBooking?.images) && activeBooking.images.length > 1 && activeBooking.images[1]) ||
-    (Array.isArray(details?.images) && details.images.length > 1 && details.images[1]) ||
-    (Array.isArray(guest?.images) && guest.images.length > 1 && guest.images[1]) ||
-    (Array.isArray(guestData?.images) && guestData.images.length > 1 && guestData.images[1]) ||
-    (Array.isArray(guestData?.booking?.images) && guestData.booking.images.length > 1 && guestData.booking.images[1]) ||
-    (Array.isArray(activeBooking?.documents) && activeBooking.documents.length > 1 && (activeBooking.documents[1]?.url || activeBooking.documents[1])) ||
-    null
-  );
+  const backIdPhoto = resolvePhotoSrc("back");
 
   // Digital Signature Photo
-  const signaturePhoto = normalizeImageSrc(
-    activeBooking?.signature ||
-    activeBooking?.guest_signature ||
-    activeBooking?.guestSignature ||
-    activeBooking?.signatureUrl ||
-    activeBooking?.signature_url ||
-    (Array.isArray(activeBooking?.signatures) && activeBooking.signatures[0]) ||
-    details?.signature ||
-    details?.guest_signature ||
-    details?.guestSignature ||
-    details?.signatureUrl ||
-    details?.signature_url ||
-    (Array.isArray(details?.signatures) && details.signatures[0]) ||
-    guest?.signature ||
-    guest?.guest_signature ||
-    guest?.guestSignature ||
-    guest?.signatureUrl ||
-    guest?.signature_url ||
-    (Array.isArray(guest?.signatures) && guest.signatures[0]) ||
-    guest?.idProof?.signature ||
-    guest?.idProof?.signatureUrl ||
-    guest?.idProof?.guestSignature ||
-    activeBooking?.idProof?.signature ||
-    activeBooking?.idProof?.signatureUrl ||
-    activeBooking?.guest?.signature ||
-    activeBooking?.guest?.guest_signature ||
-    activeBooking?.guest?.guestSignature ||
-    guestData?.signature ||
-    guestData?.guest_signature ||
-    guestData?.guestSignature ||
-    guestData?.signatureUrl ||
-    guestData?.signature_url ||
-    (Array.isArray(guestData?.signatures) && guestData.signatures[0]) ||
-    guestData?.booking?.signature ||
-    guestData?.booking?.guest_signature ||
-    guestData?.booking?.guestSignature ||
-    (Array.isArray(guestData?.booking?.signatures) && guestData.booking.signatures[0]) ||
-    guestData?.activeBooking?.signature ||
-    guestData?.activeBooking?.guest_signature ||
-    guestData?.activeBooking?.guestSignature ||
-    null
-  );
+  const signaturePhoto = resolvePhotoSrc("signature");
 
   // Govt ID Type & Document Number
   const govtIdType =

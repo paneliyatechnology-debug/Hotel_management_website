@@ -13,7 +13,8 @@ export default function FloatingTabBar() {
     pathname?.startsWith("/admin") ||
     pathname?.startsWith("/receptionist") ||
     pathname?.startsWith("/login") ||
-    pathname?.startsWith("/forgot-password")
+    pathname?.startsWith("/forgot-password") ||
+    pathname?.startsWith("/reset-password")
   ) {
     return null;
   }

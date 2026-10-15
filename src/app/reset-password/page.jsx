@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, useParams } from "next/navigation";
 import Link from "next/link";
 import {
   Box,
@@ -24,13 +24,54 @@ import {
   ArrowBack as ArrowBackIcon,
   Key as KeyIcon,
   VpnKey as VpnKeyIcon,
+  Refresh as RefreshIcon,
 } from "@mui/icons-material";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
-import { toast } from "react-toastify";
+import { showToast } from "@/shared/utils/toast";
+
+/**
+ * Cleanly extracts an auth reset token even if the user pastes a full URL from their email
+ */
+function extractCleanToken(input) {
+  if (!input || typeof input !== "string") return "";
+  let clean = input.trim();
+
+  // If the user pasted a full URL or relative link
+  if (clean.includes("http://") || clean.includes("https://") || clean.includes("/reset-password")) {
+    try {
+      const parsedUrl = new URL(clean.startsWith("http") ? clean : `https://myownpms.com${clean.startsWith("/") ? "" : "/"}${clean}`);
+      const fromParam =
+        parsedUrl.searchParams.get("token") ||
+        parsedUrl.searchParams.get("resetToken") ||
+        parsedUrl.searchParams.get("reset_token") ||
+        parsedUrl.searchParams.get("t") ||
+        parsedUrl.searchParams.get("code");
+      if (fromParam) return fromParam.trim();
+
+      const parts = parsedUrl.pathname.split("/").filter(Boolean);
+      const lastPart = parts[parts.length - 1];
+      if (lastPart && lastPart !== "reset-password") {
+        return lastPart.trim();
+      }
+    } catch {}
+  }
+
+  // Strip query string if user pasted something like ?token=123
+  if (clean.startsWith("?")) {
+    try {
+      const sp = new URLSearchParams(clean);
+      const fromParam = sp.get("token") || sp.get("resetToken") || sp.get("reset_token") || sp.get("t") || sp.get("code");
+      if (fromParam) return fromParam.trim();
+    } catch {}
+  }
+
+  return clean;
+}
 
 function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const params = useParams();
 
   const [token, setToken] = useState("");
   const [password, setPassword] = useState("");
@@ -42,37 +83,56 @@ function ResetPasswordForm() {
   const [successMsg, setSuccessMsg] = useState("");
 
   useEffect(() => {
-    // 1. Try searchParams ?token=...
-    const qToken = searchParams?.get("token") || searchParams?.get("resetToken");
-    if (qToken) {
-      setToken(qToken);
+    // 1. Next.js Dynamic Route Parameter: /reset-password/[token]
+    const routeToken = params?.token ? decodeURIComponent(String(params.token)) : "";
+    if (routeToken && routeToken !== "undefined") {
+      setToken(extractCleanToken(routeToken));
       return;
     }
 
-    // 2. Fallback: Parse from window.location if SSR hydration missed it
-    if (typeof window !== "undefined") {
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlToken = urlParams.get("token") || urlParams.get("resetToken");
-      if (urlToken) {
-        setToken(urlToken);
-        return;
-      }
-
-      // 3. Fallback: Check pathname e.g. /reset-password/<token>
-      const pathParts = window.location.pathname.split("/").filter(Boolean);
-      if (pathParts.length >= 2 && pathParts[0] === "reset-password") {
-        setToken(pathParts[1]);
-      }
+    // 2. Query Parameters: ?token=... or ?resetToken=... or ?reset_token=...
+    const qToken =
+      searchParams?.get("token") ||
+      searchParams?.get("resetToken") ||
+      searchParams?.get("reset_token") ||
+      searchParams?.get("t") ||
+      searchParams?.get("code");
+    if (qToken) {
+      setToken(extractCleanToken(qToken));
+      return;
     }
-  }, [searchParams]);
+
+    // 3. Fallback: Parse from window.location if SSR hydration missed it
+    if (typeof window !== "undefined") {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlToken =
+          urlParams.get("token") ||
+          urlParams.get("resetToken") ||
+          urlParams.get("reset_token") ||
+          urlParams.get("t") ||
+          urlParams.get("code");
+        if (urlToken) {
+          setToken(extractCleanToken(urlToken));
+          return;
+        }
+
+        const pathParts = window.location.pathname.split("/").filter(Boolean);
+        const resetIdx = pathParts.indexOf("reset-password");
+        if (resetIdx !== -1 && pathParts.length > resetIdx + 1) {
+          setToken(extractCleanToken(pathParts[resetIdx + 1]));
+        }
+      } catch {}
+    }
+  }, [params, searchParams]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setSuccessMsg("");
 
-    const trimmedToken = (token || "").trim();
-    if (!trimmedToken) {
+    const cleanToken = extractCleanToken(token);
+    if (!cleanToken) {
       setError("Reset token is missing. Please open the link received in your email or paste the token.");
       return;
     }
@@ -90,18 +150,19 @@ function ResetPasswordForm() {
     setLoading(true);
 
     try {
-      // User payload requirement:
-      // { "token": "{{resetToken}}", "password": "..." }
+      // Backend expects { "token": "...", "password": "..." }
       const res = await apiRequest(API_ENDPOINTS.AUTH.RESET_PASSWORD, {
         method: "POST",
         body: {
-          token: trimmedToken,
+          token: cleanToken,
           password: password,
+          newPassword: password,
+          confirmPassword: confirmPassword,
         },
       });
 
       const successText = res?.message || "Password reset successfully! Redirecting to login...";
-      toast.success(successText);
+      showToast(successText, "success");
       setSuccessMsg(successText);
 
       // Redirect to login page after brief pause
@@ -109,13 +170,15 @@ function ResetPasswordForm() {
         router.push("/login");
       }, 1500);
     } catch (err) {
-      const errMsg = err?.message || "Failed to reset password. The link may have expired.";
-      toast.error(errMsg);
+      const errMsg = err?.message || "Failed to reset password. The link or token may have expired.";
+      showToast(errMsg, "error");
       setError(errMsg);
     } finally {
       setLoading(false);
     }
   };
+
+  const isExpired = error && (error.toLowerCase().includes("expired") || error.toLowerCase().includes("invalid"));
 
   return (
     <Box
@@ -183,7 +246,7 @@ function ResetPasswordForm() {
             <Box sx={{ display: "flex", justifyContent: "center", mb: 2.5 }}>
               <Chip
                 icon={<CheckCircleIcon sx={{ fontSize: "16px !important", color: "#059669 !important" }} />}
-                label="Reset Token Verified"
+                label="Reset Token Detected"
                 size="small"
                 sx={{
                   bgcolor: "rgba(16, 185, 129, 0.12)",
@@ -196,8 +259,8 @@ function ResetPasswordForm() {
               />
             </Box>
           ) : (
-            <Alert severity="warning" sx={{ mb: 2.5, borderRadius: "12px", fontSize: "0.8rem" }}>
-              No reset token detected in the link. Please paste the token manually or click the link in your email.
+            <Alert severity="info" sx={{ mb: 2.5, borderRadius: "12px", fontSize: "0.8rem" }}>
+              Please paste the reset token from your email link below.
             </Alert>
           )}
 
@@ -214,21 +277,44 @@ function ResetPasswordForm() {
 
           {/* Error Message */}
           {error && (
-            <Alert severity="error" sx={{ mb: 2.5, borderRadius: "12px", fontSize: "0.82rem" }}>
-              {error}
-            </Alert>
+            <Box sx={{ mb: 2.5 }}>
+              <Alert severity="error" sx={{ borderRadius: "12px", fontSize: "0.82rem" }}>
+                {error}
+              </Alert>
+              {isExpired && (
+                <Box sx={{ mt: 1.5, textAlign: "center" }}>
+                  <Link
+                    href="/forgot-password"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      fontSize: "0.82rem",
+                      fontWeight: 800,
+                      color: "#0F766E",
+                      textDecoration: "none",
+                    }}
+                  >
+                    <RefreshIcon sx={{ fontSize: 16 }} /> Request a New Reset Link
+                  </Link>
+                </Box>
+              )}
+            </Box>
           )}
 
           <form onSubmit={handleSubmit}>
-            {/* Manual token input only if token was missing from URL */}
-            {!searchParams?.get("token") && !token && (
+            {/* Manual token input only if token was missing or user wants to edit it */}
+            {(!token || !searchParams?.get("token")) && (
               <TextField
                 label="Reset Token"
                 fullWidth
                 required
                 value={token}
-                onChange={(e) => setToken(e.target.value)}
-                placeholder="Paste token from email"
+                onChange={(e) => {
+                  setToken(extractCleanToken(e.target.value));
+                  if (error) setError("");
+                }}
+                placeholder="Paste token or reset link from email"
                 sx={{ mb: 2 }}
                 slotProps={{
                   input: {
@@ -249,7 +335,10 @@ function ResetPasswordForm() {
               fullWidth
               required
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (error) setError("");
+              }}
               placeholder="Minimum 6 characters"
               sx={{ mb: 2 }}
               slotProps={{
@@ -277,7 +366,10 @@ function ResetPasswordForm() {
               fullWidth
               required
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                if (error) setError("");
+              }}
               placeholder="Re-enter new password"
               sx={{ mb: 2.5 }}
               slotProps={{
@@ -319,7 +411,7 @@ function ResetPasswordForm() {
             </Button>
 
             {/* Back to Login Link */}
-            <Box sx={{ textAlign: "center", mt: 3 }}>
+            <Box sx={{ textAlign: "center", mt: 3, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <Link
                 href="/login"
                 style={{
@@ -333,6 +425,18 @@ function ResetPasswordForm() {
                 }}
               >
                 <ArrowBackIcon sx={{ fontSize: 16 }} /> Back to Sign In
+              </Link>
+
+              <Link
+                href="/forgot-password"
+                style={{
+                  color: "#0F766E",
+                  fontSize: "0.82rem",
+                  fontWeight: 700,
+                  textDecoration: "none",
+                }}
+              >
+                Resend link?
               </Link>
             </Box>
           </form>

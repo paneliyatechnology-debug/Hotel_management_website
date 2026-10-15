@@ -997,7 +997,6 @@ export default function HotelOverviewPage({
                   <Card
                     key={cat._id || cat.name}
                     className="card-3d"
-                    onClick={() => onTabChange && onTabChange(1)}
                     sx={{
                       p: { xs: 2, sm: 2.2, md: 2.5 },
                       borderRadius: "20px",
@@ -1013,17 +1012,12 @@ export default function HotelOverviewPage({
                       boxShadow: isSelected
                         ? "0 12px 28px -6px rgba(13, 148, 136, 0.25), inset 0 1px 1px #FFFFFF"
                         : (isDarkMode ? "none" : "0 8px 24px rgba(12, 39, 59, 0.06), inset 0 1px 1px #FFFFFF"),
-                      cursor: "pointer",
+                      cursor: "default",
+                      userSelect: "none",
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: "space-between",
                       gap: 2,
-                      transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
-                      "&:hover": {
-                        transform: "translateY(-5px)",
-                        borderColor: "#0D9488",
-                        boxShadow: "0 16px 32px -4px rgba(13, 148, 136, 0.25)",
-                      },
                     }}
                   >
                     <div>
@@ -1185,11 +1179,11 @@ export default function HotelOverviewPage({
                           fontWeight: 800,
                           color: "#0F766E",
                           fontSize: "0.8rem",
-                          cursor: "pointer",
-                          "&:hover": { textDecoration: "underline" },
+                          cursor: "default",
+                          userSelect: "none",
                         }}
                       >
-                        View {cat.totalRooms} Rooms &rarr;
+                        Total {cat.totalRooms} {cat.totalRooms === 1 ? "Room" : "Rooms"}
                       </Typography>
                     </Box>
                   </Card>

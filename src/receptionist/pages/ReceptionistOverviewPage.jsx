@@ -126,10 +126,17 @@ export default function ReceptionistOverviewPage({
   });
 
   const handleOpenCheckoutModal = (item) => {
-    const due = item.dueAmount || 0;
+    const rawTotal = Number(item.totalAmount ?? item.total_amount ?? item.booking?.totalAmount ?? item.booking?.total_amount ?? 0);
+    const rawPaid = Number(item.paidAmount ?? item.paid_amount ?? item.booking?.paidAmount ?? item.booking?.paid_amount ?? 0);
+    const due = Number(item.dueAmount ?? item.due_amount ?? item.booking?.dueAmount ?? item.booking?.due_amount ?? Math.max(0, rawTotal - rawPaid));
     setCheckoutModal({
       open: true,
-      item,
+      item: {
+        ...item,
+        totalAmount: rawTotal,
+        paidAmount: rawPaid,
+        dueAmount: due,
+      },
       paymentMethod: due > 0 ? "UPI" : "CASH",
       settlementAmount: due,
       isSubmitting: false,
@@ -140,19 +147,28 @@ export default function ReceptionistOverviewPage({
     if (!checkoutModal.item) return;
     const item = checkoutModal.item;
     const bookingId = item.booking?._id || item.booking?.id || item._id;
+    const rawTotal = Number(item.totalAmount ?? item.total_amount ?? item.booking?.totalAmount ?? item.booking?.total_amount ?? 0);
+    const rawPaid = Number(item.paidAmount ?? item.paid_amount ?? item.booking?.paidAmount ?? item.booking?.paid_amount ?? 0);
+    const itemDue = Number(item.dueAmount ?? item.due_amount ?? item.booking?.dueAmount ?? item.booking?.due_amount ?? Math.max(0, rawTotal - rawPaid));
+    const settleAmt = checkoutModal.settlementAmount !== undefined && checkoutModal.settlementAmount !== ""
+      ? Number(checkoutModal.settlementAmount)
+      : itemDue;
+    const finalAmount = (!settleAmt && itemDue > 0) ? itemDue : settleAmt;
 
     setCheckoutModal((prev) => ({ ...prev, isSubmitting: true }));
     try {
       if (onCheckOut) {
-        await onCheckOut(item.booking || bookingId, {
+        await onCheckOut(item.booking || item, {
           paymentMethod: checkoutModal.paymentMethod,
-          settlementPaymentAmount: Number(checkoutModal.settlementAmount) || 0,
+          settlementPaymentAmount: finalAmount,
         });
       } else {
         await apiRequest(API_ENDPOINTS.RECEPTIONIST.CHECKOUT(bookingId), {
           method: "POST",
           body: {
-            paid_amount: Number(checkoutModal.settlementAmount) || 0,
+            paid_amount: finalAmount,
+            due_amount: itemDue,
+            settlement_payment_amount: finalAmount,
             notes: `Checked out via ${checkoutModal.paymentMethod}`,
           },
         });
@@ -557,12 +573,15 @@ export default function ReceptionistOverviewPage({
   const categoryStats = useMemo(() => {
     const catMap = new Map();
 
-    roomTypes.forEach((rt) => {
-      catMap.set(rt._id, {
-        _id: rt._id,
+    (roomTypes || []).forEach((rt) => {
+      const id = String(rt._id || rt.id || "");
+      if (!id) return;
+      catMap.set(id, {
+        _id: id,
+        id: id,
         name: rt.name,
         description: rt.description || "",
-        basePrice: rt.basePrice || 0,
+        basePrice: rt.basePrice || rt.price || 0,
         bedCount: rt.bedCount || 1,
         bedType: rt.bedType || "1 King Bed",
         capacity: rt.capacity || { adults: 2, children: 1 },
@@ -577,14 +596,30 @@ export default function ReceptionistOverviewPage({
       });
     });
 
-    rooms.forEach((r) => {
-      const rtObj = typeof r.roomType === "object" ? r.roomType : null;
-      const rtId = rtObj?._id || r.roomType || "UNCATEGORIZED";
-      const rtName = rtObj?.name || r.type || "Standard Room";
+    (rooms || []).forEach((r) => {
+      const rtObj = typeof r.roomType === "object" ? r.roomType : (typeof r.room_type === "object" ? r.room_type : null);
+      const rtId = String(
+        rtObj?._id || rtObj?.id || r.roomTypeId || r.room_type_id || r.roomType || r.room_type || ""
+      );
+      const rtName = rtObj?.name || r.roomTypeName || r.room_type_name || r.type || "Standard Room";
 
-      if (!catMap.has(rtId)) {
-        catMap.set(rtId, {
-          _id: rtId,
+      let item = null;
+      if (rtId && catMap.has(rtId)) {
+        item = catMap.get(rtId);
+      } else {
+        for (const cat of catMap.values()) {
+          if (cat.name && rtName && cat.name.trim().toLowerCase() === rtName.trim().toLowerCase()) {
+            item = cat;
+            break;
+          }
+        }
+      }
+
+      if (!item) {
+        const fallbackId = rtId || rtName || `CAT_${catMap.size + 1}`;
+        item = {
+          _id: fallbackId,
+          id: fallbackId,
           name: rtName,
           description: "",
           basePrice: r.customPricePerNight || rtObj?.basePrice || r.basePrice || 0,
@@ -599,10 +634,10 @@ export default function ReceptionistOverviewPage({
           maintenance: 0,
           reserved: 0,
           rooms: [],
-        });
+        };
+        catMap.set(fallbackId, item);
       }
 
-      const item = catMap.get(rtId);
       item.totalRooms += 1;
       item.rooms.push(r);
 
@@ -611,17 +646,19 @@ export default function ReceptionistOverviewPage({
         item.basePrice = effectiveRoomPrice;
       }
 
-      if (r.status === "AVAILABLE") item.available += 1;
-      else if (r.status === "OCCUPIED") item.occupied += 1;
-      else if (r.status === "CLEANING") item.cleaning += 1;
-      else if (r.status === "RESERVED") item.reserved += 1;
-      else if (r.status === "MAINTENANCE" || r.status === "BLOCKED") item.maintenance += 1;
+      const st = String(r.status || "").toUpperCase();
+      if (st === "AVAILABLE") item.available += 1;
+      else if (st === "OCCUPIED" || st === "BOOKED") item.occupied += 1;
+      else if (st === "CLEANING") item.cleaning += 1;
+      else if (st === "RESERVED") item.reserved += 1;
+      else if (st === "MAINTENANCE" || st === "BLOCKED") item.maintenance += 1;
+      else item.available += 1;
     });
 
     catMap.forEach((cat) => {
       cat.rooms.sort((a, b) => {
-        const numA = parseInt(a.roomNumber, 10) || 0;
-        const numB = parseInt(b.roomNumber, 10) || 0;
+        const numA = parseInt(a.roomNumber || a.room_number, 10) || 0;
+        const numB = parseInt(b.roomNumber || b.room_number, 10) || 0;
         return numA - numB;
       });
     });
@@ -802,14 +839,14 @@ export default function ReceptionistOverviewPage({
             checkInDate: formatDDMMYYYY(rawIn || new Date()),
             checkOutDateRaw: rawOut,
             checkOutDate: formatDDMMYYYY(rawOut || new Date(Date.now() + 86400000)),
-            totalAmount: g.totalAmount || (g.booking ? g.booking.totalAmount || g.booking.total_amount : 0),
-            paidAmount: g.paidAmount || (g.booking ? g.booking.paidAmount || g.booking.paid_amount : 0),
-            baseAmount: g.baseAmount || (g.booking ? g.booking.baseAmount || g.booking.base_amount : 0),
-            gstAmount: g.gstAmount || (g.booking ? g.booking.gstAmount || g.booking.gst_amount : 0),
-            pricePerNight: g.pricePerNight || (g.booking ? g.booking.pricePerNight || g.booking.price : 0),
-            numberOfNights: g.numberOfNights || (g.booking ? g.booking.numberOfNights || g.booking.nights : 1),
-            roomType: g.roomType || (g.booking ? g.booking.roomType || g.booking.roomTypeName : "Standard Room"),
-            dueAmount: g.dueAmount || 0,
+            totalAmount: Number(g.totalAmount ?? g.total_amount ?? cleanB?.totalAmount ?? cleanB?.total_amount ?? 0),
+            paidAmount: Number(g.paidAmount ?? g.paid_amount ?? cleanB?.paidAmount ?? cleanB?.paid_amount ?? 0),
+            baseAmount: Number(g.baseAmount ?? g.base_amount ?? cleanB?.baseAmount ?? cleanB?.base_amount ?? 0),
+            gstAmount: Number(g.gstAmount ?? g.gst_amount ?? cleanB?.gstAmount ?? cleanB?.gst_amount ?? 0),
+            pricePerNight: Number(g.pricePerNight ?? g.price_per_night ?? cleanB?.pricePerNight ?? cleanB?.price ?? 0),
+            numberOfNights: Number(g.numberOfNights ?? g.nights ?? cleanB?.numberOfNights ?? cleanB?.nights ?? 1),
+            roomType: g.roomType || cleanB?.roomType || cleanB?.roomTypeName || "Standard Room",
+            dueAmount: Number(g.dueAmount ?? g.due_amount ?? cleanB?.dueAmount ?? cleanB?.due_amount ?? Math.max(0, Number(g.totalAmount ?? cleanB?.totalAmount ?? 0) - Number(g.paidAmount ?? cleanB?.paidAmount ?? 0))),
             status: "IN-HOUSE",
             rawStatus: "CHECKED_IN",
           };
@@ -859,14 +896,14 @@ export default function ReceptionistOverviewPage({
             checkInDate: formatDDMMYYYY(rawIn || new Date()),
             checkOutDateRaw: rawOut,
             checkOutDate: formatDDMMYYYY(rawOut || new Date(Date.now() + 86400000)),
-            totalAmount: g.totalAmount || (g.booking ? g.booking.totalAmount || g.booking.total_amount : 0),
-            paidAmount: g.paidAmount || (g.booking ? g.booking.paidAmount || g.booking.paid_amount : 0),
-            baseAmount: g.baseAmount || (g.booking ? g.booking.baseAmount || g.booking.base_amount : 0),
-            gstAmount: g.gstAmount || (g.booking ? g.booking.gstAmount || g.booking.gst_amount : 0),
-            pricePerNight: g.pricePerNight || (g.booking ? g.booking.pricePerNight || g.booking.price : 0),
-            numberOfNights: g.numberOfNights || (g.booking ? g.booking.numberOfNights || g.booking.nights : 1),
-            roomType: g.roomType || (g.booking ? g.booking.roomType || g.booking.roomTypeName : "Standard Room"),
-            dueAmount: g.dueAmount || 0,
+            totalAmount: Number(g.totalAmount ?? g.total_amount ?? cleanB?.totalAmount ?? cleanB?.total_amount ?? 0),
+            paidAmount: Number(g.paidAmount ?? g.paid_amount ?? cleanB?.paidAmount ?? cleanB?.paid_amount ?? 0),
+            baseAmount: Number(g.baseAmount ?? g.base_amount ?? cleanB?.baseAmount ?? cleanB?.base_amount ?? 0),
+            gstAmount: Number(g.gstAmount ?? g.gst_amount ?? cleanB?.gstAmount ?? cleanB?.gst_amount ?? 0),
+            pricePerNight: Number(g.pricePerNight ?? g.price_per_night ?? cleanB?.pricePerNight ?? cleanB?.price ?? 0),
+            numberOfNights: Number(g.numberOfNights ?? g.nights ?? cleanB?.numberOfNights ?? cleanB?.nights ?? 1),
+            roomType: g.roomType || cleanB?.roomType || cleanB?.roomTypeName || "Standard Room",
+            dueAmount: Number(g.dueAmount ?? g.due_amount ?? cleanB?.dueAmount ?? cleanB?.due_amount ?? Math.max(0, Number(g.totalAmount ?? cleanB?.totalAmount ?? 0) - Number(g.paidAmount ?? cleanB?.paidAmount ?? 0))),
             status: "IN-HOUSE",
             rawStatus: "CHECKED_IN",
           };
@@ -1230,9 +1267,9 @@ export default function ReceptionistOverviewPage({
 
                 return (
                   <Card
-                    key={cat._id}
+                    key={cat._id || cat.id}
                     className="card-3d"
-                    onClick={() => onNavigateTab && onNavigateTab(1, cat._id)}
+                    onClick={() => onNavigateTab && onNavigateTab(1, cat._id || cat.id || cat.name)}
                     sx={{
                       p: { xs: 2, sm: 2.2, md: 2.5 },
                       borderRadius: "20px",

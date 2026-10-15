@@ -130,7 +130,7 @@ export async function downloadSingleImage(url, filename) {
  * Downloads all ID proof images for the primary guest and accompanying members
  * bundled inside a single .ZIP file!
  */
-export async function downloadAllGuestIdImages({ guest = {}, activeBooking = null, accompanyingGuests = [] }, onToast = null) {
+export async function downloadAllGuestIdImages({ guest = {}, activeBooking = null, accompanyingGuests = [], allIdPhotos = [] }, onToast = null) {
   const imagesToDownload = [];
 
   const primaryName = sanitizeFilename(guest.fullName || guest.name || activeBooking?.primary_guest_name || activeBooking?.guestName || "Primary_Guest");
@@ -253,6 +253,19 @@ export async function downloadAllGuestIdImages({ guest = {}, activeBooking = nul
       });
     }
   });
+
+  if (Array.isArray(allIdPhotos) && allIdPhotos.length > 0) {
+    allIdPhotos.forEach((url, i) => {
+      if (url && !imagesToDownload.some((img) => img.url === url)) {
+        imagesToDownload.push({
+          url,
+          filename: `${primaryName}_ID_Doc_${i + 1}`,
+          person: primaryName,
+          type: `ID Document #${i + 1}`,
+        });
+      }
+    });
+  }
 
   if (imagesToDownload.length === 0) {
     if (onToast) {

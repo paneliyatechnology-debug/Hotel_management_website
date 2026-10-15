@@ -341,9 +341,10 @@ export default function RoomTypesPage({
   const { themeConfig, isDarkMode } = useAppTheme();
 
   // Active View Tabs:
-  // 0: Category-Wise Grouped View
+  // 0: Category-Wise Rooms Grouped View
   // 1: All Rooms Master Inventory Table
-  // 2: Room Categories & Tariffs Master
+  // 2: Room Categories & Amenities Master
+  // 3: Floor-Wise Rooms View (Last Tab)
   const [activeTab, setActiveTab] = useState(0);
 
   const [roomSearch, setRoomSearch] = useState("");
@@ -897,7 +898,7 @@ export default function RoomTypesPage({
           }}
         >
           <Tab
-            label={`🏢 Floor-Wise Rooms (${availableFloors.length} Floors)`}
+            label={`🏷️ Category-Wise Rooms (${roomTypes.length})`}
             sx={{
               fontWeight: 800,
               fontSize: "0.85rem",
@@ -914,7 +915,7 @@ export default function RoomTypesPage({
             }}
           />
           <Tab
-            label={`🏷️ Category-Wise Rooms (${roomTypes.length})`}
+            label={`🏨 Inventory Table (${rooms.length})`}
             sx={{
               fontWeight: 800,
               fontSize: "0.85rem",
@@ -931,7 +932,7 @@ export default function RoomTypesPage({
             }}
           />
           <Tab
-            label={`🏨 Inventory Table (${rooms.length})`}
+            label={`⚙️ Categories Master (${roomTypes.length})`}
             sx={{
               fontWeight: 800,
               fontSize: "0.85rem",
@@ -948,7 +949,7 @@ export default function RoomTypesPage({
             }}
           />
           <Tab
-            label={`⚙️ Categories Master (${roomTypes.length})`}
+            label={`🏢 Floor-Wise Rooms (${availableFloors.length} Floors)`}
             sx={{
               fontWeight: 800,
               fontSize: "0.85rem",
@@ -968,9 +969,9 @@ export default function RoomTypesPage({
       </Paper>
 
       {/* ========================================================================= */}
-      {/* TAB 0: FLOOR-WISE ROOMS VIEW                                              */}
+      {/* TAB 3: FLOOR-WISE ROOMS VIEW (LAST TAB)                                   */}
       {/* ========================================================================= */}
-      {activeTab === 0 && (
+      {activeTab === 3 && (
         <Box>
           {/* Search & Filter Strip */}
           <Paper
@@ -1552,9 +1553,9 @@ export default function RoomTypesPage({
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 1: CATEGORY-WISE GROUPED VIEW                                         */}
+      {/* TAB 0: CATEGORY-WISE GROUPED VIEW                                         */}
       {/* ========================================================================= */}
-      {activeTab === 1 && (
+      {activeTab === 0 && (
         <Box>
           {roomTypes.length === 0 ? (
             <Card
@@ -2064,9 +2065,9 @@ export default function RoomTypesPage({
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 2: ALL ROOMS MASTER INVENTORY TABLE                                   */}
+      {/* TAB 1: ALL ROOMS MASTER INVENTORY TABLE                                   */}
       {/* ========================================================================= */}
-      {activeTab === 2 && (
+      {activeTab === 1 && (
         <Box>
           {/* Filter & Search Strip */}
           <Paper
@@ -2516,9 +2517,9 @@ export default function RoomTypesPage({
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 3: ROOM CATEGORIES & AMENITIES MASTER                                */}
+      {/* TAB 2: ROOM CATEGORIES & AMENITIES MASTER                                */}
       {/* ========================================================================= */}
-      {activeTab === 3 && (
+      {activeTab === 2 && (
         <Box>
           {roomTypes.length === 0 ? (
             <Card

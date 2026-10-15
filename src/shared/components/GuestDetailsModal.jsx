@@ -93,8 +93,15 @@ function normalizeImageSrc(val) {
       val.uri ||
       val.frontImage ||
       val.front_image ||
+      val.id_proof_front ||
+      val.id_proof_image ||
+      val.id_proof_url ||
+      val.backImage ||
+      val.back_image ||
+      val.id_proof_back ||
       val.image ||
       val.signature ||
+      val.guest_signature ||
       val.data;
     if (extracted && extracted !== val) {
       return normalizeImageSrc(extracted);
@@ -105,6 +112,14 @@ function normalizeImageSrc(val) {
   if (typeof val !== "string") return null;
   let trimmed = val.trim();
   if (!trimmed || trimmed === "null" || trimmed === "undefined" || trimmed === "[object Object]") return null;
+
+  // Normalize Windows-style backslashes
+  trimmed = trimmed.replace(/\\/g, "/");
+
+  // Strip public/ prefix if multer/express saved with public/
+  if (trimmed.startsWith("public/")) {
+    trimmed = trimmed.replace(/^public\//, "");
+  }
 
   // 2. Parse JSON string if encoded as JSON array or object
   if ((trimmed.startsWith("[") && trimmed.endsWith("]")) || (trimmed.startsWith("{") && trimmed.endsWith("}"))) {
@@ -120,8 +135,25 @@ function normalizeImageSrc(val) {
     trimmed = trimmed.slice(1, -1).trim();
   }
 
+  // Handle comma-separated list of images
+  if (trimmed.includes(",") && !trimmed.startsWith("data:")) {
+    const firstPart = trimmed.split(",")[0].trim();
+    if (firstPart) {
+      return normalizeImageSrc(firstPart);
+    }
+  }
+
+  const baseApi = (typeof API_BASE_URL === "string" && API_BASE_URL.trim())
+    ? API_BASE_URL.replace(/\/$/, "")
+    : "https://accomplished-smile-dev.up.railway.app";
+
   // 4. Absolute HTTP/HTTPS, Blob, or Data URLs
   if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("blob:") || trimmed.startsWith("data:")) {
+    // If saved as localhost/127.0.0.1 during local dev testing, re-route to current backend baseApi
+    if (trimmed.startsWith("http://localhost:") || trimmed.startsWith("http://127.0.0.1:")) {
+      const pathPart = trimmed.replace(/^https?:\/\/[^/]+/, "");
+      return `${baseApi}${pathPart.startsWith("/") ? pathPart : `/${pathPart}`}`;
+    }
     return trimmed;
   }
 
@@ -140,11 +172,14 @@ function normalizeImageSrc(val) {
   }
 
   // 6. Relative server upload paths
-  const baseApi = (typeof API_BASE_URL === "string" && API_BASE_URL.trim())
-    ? API_BASE_URL.replace(/\/$/, "")
-    : "https://accomplished-smile-dev.up.railway.app";
-
-  if (trimmed.startsWith("/") || trimmed.startsWith("uploads/") || trimmed.startsWith("api/")) {
+  if (
+    trimmed.startsWith("/") ||
+    trimmed.startsWith("uploads/") ||
+    trimmed.startsWith("api/") ||
+    trimmed.startsWith("storage/") ||
+    trimmed.startsWith("images/") ||
+    trimmed.startsWith("id_proofs/")
+  ) {
     const cleanPath = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
     return `${baseApi}${cleanPath}`;
   }
@@ -193,6 +228,7 @@ export default function GuestDetailsModal({
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const targetId =
     guestId ||
@@ -257,23 +293,60 @@ export default function GuestDetailsModal({
               {}
             );
 
-          // Preserve photos from guestData if API data omitted them
-          if (guestData?.frontImage && !resolvedBooking?.frontImage && !resolvedGuest?.frontImage) {
-            resolvedGuest.frontImage = guestData.frontImage;
-            if (resolvedBooking) resolvedBooking.frontImage = guestData.frontImage;
+          // Preserve photos and ID proofs from guestData if API data omitted them
+          const preservedFront =
+            guestData?.frontImage ||
+            guestData?.front_image ||
+            guestData?.id_proof_front ||
+            guestData?.id_proof_image ||
+            guestData?.idProof?.frontImage ||
+            guestData?.idProof?.front_image ||
+            guestData?.govt_id_front;
+          const preservedBack =
+            guestData?.backImage ||
+            guestData?.back_image ||
+            guestData?.id_proof_back ||
+            guestData?.idProof?.backImage ||
+            guestData?.idProof?.back_image ||
+            guestData?.govt_id_back;
+          const preservedSignature =
+            guestData?.signature ||
+            guestData?.guest_signature ||
+            guestData?.guestSignature;
+          const preservedImages =
+            (Array.isArray(guestData?.images) && guestData.images.length > 0)
+              ? guestData.images
+              : (Array.isArray(apiData?.images) && apiData.images.length > 0)
+                ? apiData.images
+                : [];
+
+          if (preservedFront && !resolvedGuest.frontImage) {
+            resolvedGuest.frontImage = preservedFront;
+            resolvedGuest.front_image = preservedFront;
           }
-          if (guestData?.backImage && !resolvedBooking?.backImage && !resolvedGuest?.backImage) {
-            resolvedGuest.backImage = guestData.backImage;
-            if (resolvedBooking) resolvedBooking.backImage = guestData.backImage;
+          if (preservedFront && resolvedBooking && !resolvedBooking.frontImage) {
+            resolvedBooking.frontImage = preservedFront;
+            resolvedBooking.front_image = preservedFront;
           }
-          if (guestData?.signature && !resolvedBooking?.signature && !resolvedGuest?.signature) {
-            resolvedGuest.signature = guestData.signature;
-            if (resolvedBooking) resolvedBooking.signature = guestData.signature;
+          if (preservedBack && !resolvedGuest.backImage) {
+            resolvedGuest.backImage = preservedBack;
+            resolvedGuest.back_image = preservedBack;
+          }
+          if (preservedBack && resolvedBooking && !resolvedBooking.backImage) {
+            resolvedBooking.backImage = preservedBack;
+            resolvedBooking.back_image = preservedBack;
+          }
+          if (preservedSignature && !resolvedGuest.signature) {
+            resolvedGuest.signature = preservedSignature;
+          }
+          if (preservedSignature && resolvedBooking && !resolvedBooking.signature) {
+            resolvedBooking.signature = preservedSignature;
           }
 
           setDetails({
             ...(guestData || {}),
             ...apiData,
+            images: (Array.isArray(apiData.images) && apiData.images.length > 0) ? apiData.images : (preservedImages.length > 0 ? preservedImages : (guestData?.images || [])),
             guest: resolvedGuest,
             activeBooking: resolvedBooking,
           });
@@ -322,14 +395,48 @@ export default function GuestDetailsModal({
   const guest = useMemo(() => {
     const raw = details?.guest || guestData?.guest || details || guestData || {};
     const cleaned = cleanGuestObj(raw);
-    if (!cleaned.frontImage && (guestData?.frontImage || details?.frontImage)) {
-      cleaned.frontImage = guestData?.frontImage || details?.frontImage;
+    const front =
+      cleaned.frontImage ||
+      cleaned.front_image ||
+      guestData?.frontImage ||
+      guestData?.front_image ||
+      details?.frontImage ||
+      details?.front_image ||
+      guestData?.id_proof_front ||
+      guestData?.id_proof_image ||
+      details?.id_proof_front ||
+      details?.id_proof_image ||
+      guestData?.govt_id_front ||
+      details?.govt_id_front;
+    if (front) {
+      cleaned.frontImage = front;
+      cleaned.front_image = front;
     }
-    if (!cleaned.backImage && (guestData?.backImage || details?.backImage)) {
-      cleaned.backImage = guestData?.backImage || details?.backImage;
+    const back =
+      cleaned.backImage ||
+      cleaned.back_image ||
+      guestData?.backImage ||
+      guestData?.back_image ||
+      details?.backImage ||
+      details?.back_image ||
+      guestData?.id_proof_back ||
+      details?.id_proof_back ||
+      guestData?.govt_id_back ||
+      details?.govt_id_back;
+    if (back) {
+      cleaned.backImage = back;
+      cleaned.back_image = back;
     }
-    if (!cleaned.signature && (guestData?.signature || details?.signature)) {
-      cleaned.signature = guestData?.signature || details?.signature;
+    const sig =
+      cleaned.signature ||
+      cleaned.guest_signature ||
+      guestData?.signature ||
+      guestData?.guest_signature ||
+      details?.signature ||
+      details?.guest_signature;
+    if (sig) {
+      cleaned.signature = sig;
+      cleaned.guest_signature = sig;
     }
     return cleaned;
   }, [details, guestData]);
@@ -346,10 +453,50 @@ export default function GuestDetailsModal({
     const merged = {
       ...(fromProps || {}),
       ...(fromDetails || {}),
-      ...(guestData?.frontImage ? { frontImage: guestData.frontImage } : {}),
-      ...(guestData?.backImage ? { backImage: guestData.backImage } : {}),
-      ...(guestData?.signature ? { signature: guestData.signature } : {}),
     };
+    const front =
+      merged.frontImage ||
+      merged.front_image ||
+      guestData?.frontImage ||
+      guestData?.front_image ||
+      details?.frontImage ||
+      details?.front_image ||
+      guestData?.id_proof_front ||
+      details?.id_proof_front ||
+      guestData?.id_proof_image ||
+      details?.id_proof_image ||
+      guestData?.govt_id_front ||
+      details?.govt_id_front;
+    if (front) {
+      merged.frontImage = front;
+      merged.front_image = front;
+    }
+    const back =
+      merged.backImage ||
+      merged.back_image ||
+      guestData?.backImage ||
+      guestData?.back_image ||
+      details?.backImage ||
+      details?.back_image ||
+      guestData?.id_proof_back ||
+      details?.id_proof_back ||
+      guestData?.govt_id_back ||
+      details?.govt_id_back;
+    if (back) {
+      merged.backImage = back;
+      merged.back_image = back;
+    }
+    const sig =
+      merged.signature ||
+      merged.guest_signature ||
+      guestData?.signature ||
+      guestData?.guest_signature ||
+      details?.signature ||
+      details?.guest_signature;
+    if (sig) {
+      merged.signature = sig;
+      merged.guest_signature = sig;
+    }
     return cleanBookingObj(merged) || {};
   }, [details, guestData]);
 
@@ -892,14 +1039,254 @@ export default function GuestDetailsModal({
     return null;
   };
 
-  // Aadhaar / Govt ID Front Photo
-  const frontIdPhoto = resolvePhotoSrc("front");
+  // All Govt ID / KYC Document Photos (Unified Dynamic List)
+  const allIdPhotos = useMemo(() => {
+    const list = [];
+    const seen = new Set();
 
-  // Aadhaar / Govt ID Back Photo
-  const backIdPhoto = resolvePhotoSrc("back");
+    const addImg = (val) => {
+      if (!val) return;
+      if (Array.isArray(val)) {
+        val.forEach(addImg);
+        return;
+      }
+      if (typeof val === "object" && val !== null) {
+        // Deep search object properties for any image URLs
+        if (val.frontImage || val.front_image || val.front || val.frontImageUrl || val.front_image_url) {
+          addImg(val.frontImage || val.front_image || val.front || val.frontImageUrl || val.front_image_url);
+        }
+        if (val.backImage || val.back_image || val.back || val.backImageUrl || val.back_image_url) {
+          addImg(val.backImage || val.back_image || val.back || val.backImageUrl || val.back_image_url);
+        }
+        if (val.id_proof_front || val.idProofFront || val.id_proof_front_image) {
+          addImg(val.id_proof_front || val.idProofFront || val.id_proof_front_image);
+        }
+        if (val.id_proof_back || val.idProofBack || val.id_proof_back_image) {
+          addImg(val.id_proof_back || val.idProofBack || val.id_proof_back_image);
+        }
+        if (val.id_proof_image || val.idProofImage || val.id_proof_url || val.idProofUrl) {
+          addImg(val.id_proof_image || val.idProofImage || val.id_proof_url || val.idProofUrl);
+        }
+        if (val.govt_id_front || val.govtIdFront || val.govt_id_image || val.govtIdImage || val.govt_id_photo) {
+          addImg(val.govt_id_front || val.govtIdFront || val.govt_id_image || val.govtIdImage || val.govt_id_photo);
+        }
+        if (val.govt_id_back || val.govtIdBack || val.govt_id_photo_back) {
+          addImg(val.govt_id_back || val.govtIdBack || val.govt_id_photo_back);
+        }
+        if (val.id_card_front || val.idCardFront || val.id_card_image) {
+          addImg(val.id_card_front || val.idCardFront || val.id_card_image);
+        }
+        if (val.id_card_back || val.idCardBack) {
+          addImg(val.id_card_back || val.idCardBack);
+        }
+        if (val.url || val.secure_url || val.path || val.src || val.image || val.fileUrl || val.uri || val.data) {
+          addImg(val.url || val.secure_url || val.path || val.src || val.image || val.fileUrl || val.uri || val.data);
+        }
+        if (Array.isArray(val.images)) val.images.forEach(addImg);
+        if (Array.isArray(val.documents)) val.documents.forEach(addImg);
+        if (Array.isArray(val.photos)) val.photos.forEach(addImg);
+        return;
+      }
+      if (typeof val === "string") {
+        const trimmed = val.trim();
+        if ((trimmed.startsWith("[") && trimmed.endsWith("]")) || (trimmed.startsWith("{") && trimmed.endsWith("}"))) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            addImg(parsed);
+            return;
+          } catch {}
+        }
+        if (trimmed.includes(",") && !trimmed.startsWith("data:")) {
+          trimmed.split(",").forEach((item) => addImg(item.trim()));
+          return;
+        }
+        const normalized = normalizeImageSrc(trimmed);
+        if (normalized && !seen.has(normalized)) {
+          seen.add(normalized);
+          list.push(normalized);
+        }
+      }
+    };
 
-  // Digital Signature Photo
-  const signaturePhoto = resolvePhotoSrc("signature");
+    const candidateSources = [
+      activeBooking,
+      details?.activeBooking,
+      details?.booking,
+      details?.data,
+      details,
+      guest,
+      guestData?.guest,
+      guestData?.booking,
+      guestData?.activeBooking,
+      guestData,
+    ];
+
+    candidateSources.forEach((c) => {
+      if (!c || typeof c !== "object") return;
+      addImg(c.images);
+      addImg(c.documents);
+      addImg(c.photos);
+      addImg(c.idProof);
+      addImg(c.id_proof);
+      addImg(c.frontImage);
+      addImg(c.front_image);
+      addImg(c.frontImageUrl);
+      addImg(c.front_image_url);
+      addImg(c.frontPhoto);
+      addImg(c.front_photo);
+      addImg(c.backImage);
+      addImg(c.back_image);
+      addImg(c.backImageUrl);
+      addImg(c.back_image_url);
+      addImg(c.backPhoto);
+      addImg(c.back_photo);
+      addImg(c.id_proof_front);
+      addImg(c.idProofFront);
+      addImg(c.id_proof_front_image);
+      addImg(c.idProofFrontImage);
+      addImg(c.id_proof_front_url);
+      addImg(c.idProofFrontUrl);
+      addImg(c.id_proof_back);
+      addImg(c.idProofBack);
+      addImg(c.id_proof_back_image);
+      addImg(c.idProofBackImage);
+      addImg(c.id_proof_back_url);
+      addImg(c.idProofBackUrl);
+      addImg(c.id_proof_image);
+      addImg(c.idProofImage);
+      addImg(c.id_proof_url);
+      addImg(c.idProofUrl);
+      addImg(c.govt_id_front);
+      addImg(c.govtIdFront);
+      addImg(c.govt_id_back);
+      addImg(c.govtIdBack);
+      addImg(c.govt_id_image);
+      addImg(c.govtIdImage);
+      addImg(c.govt_id_url);
+      addImg(c.govtIdUrl);
+      addImg(c.govt_id_photo);
+      addImg(c.govtIdPhoto);
+      addImg(c.govt_id_photo_back);
+      addImg(c.govtIdPhotoBack);
+      addImg(c.id_card_front);
+      addImg(c.idCardFront);
+      addImg(c.id_card_back);
+      addImg(c.idCardBack);
+      addImg(c.id_card_image);
+      addImg(c.idCardImage);
+      addImg(c.idPhoto);
+      addImg(c.id_photo);
+    });
+
+    // Ensure resolvePhotoSrc primary front is placed first if not already present
+    const frontCandidate = resolvePhotoSrc("front");
+    if (frontCandidate && !seen.has(frontCandidate)) {
+      seen.add(frontCandidate);
+      list.unshift(frontCandidate);
+    }
+    const backCandidate = resolvePhotoSrc("back");
+    if (backCandidate && !seen.has(backCandidate)) {
+      seen.add(backCandidate);
+      list.push(backCandidate);
+    }
+
+    return list;
+  }, [details, activeBooking, guest, guestData]);
+
+  // All Guest Signatures (Unified Dynamic List)
+  const allSignatures = useMemo(() => {
+    const list = [];
+    const seen = new Set();
+
+    const addSig = (val) => {
+      if (!val) return;
+      if (Array.isArray(val)) {
+        val.forEach(addSig);
+        return;
+      }
+      if (typeof val === "object" && val !== null) {
+        addSig(
+          val.url ||
+          val.secure_url ||
+          val.signature ||
+          val.guest_signature ||
+          val.guestSignature ||
+          val.digital_signature ||
+          val.src ||
+          val.data
+        );
+        return;
+      }
+      if (typeof val === "string") {
+        const trimmed = val.trim();
+        if ((trimmed.startsWith("[") && trimmed.endsWith("]")) || (trimmed.startsWith("{") && trimmed.endsWith("}"))) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            addSig(parsed);
+            return;
+          } catch {}
+        }
+        if (trimmed.includes(",") && !trimmed.startsWith("data:")) {
+          trimmed.split(",").forEach((item) => addSig(item.trim()));
+          return;
+        }
+        const normalized = normalizeImageSrc(trimmed);
+        if (normalized && !seen.has(normalized)) {
+          seen.add(normalized);
+          list.push(normalized);
+        }
+      }
+    };
+
+    const candidateSources = [
+      activeBooking,
+      details?.activeBooking,
+      details?.booking,
+      details?.data,
+      details,
+      guest,
+      guestData?.guest,
+      guestData?.booking,
+      guestData?.activeBooking,
+      guestData,
+    ];
+
+    candidateSources.forEach((c) => {
+      if (!c || typeof c !== "object") return;
+      addSig(c.signatures);
+      addSig(c.signature);
+      addSig(c.signature_url);
+      addSig(c.signatureUrl);
+      addSig(c.signatureImage);
+      addSig(c.signature_image);
+      addSig(c.guest_signature);
+      addSig(c.guestSignature);
+      addSig(c.guest_signature_url);
+      addSig(c.guestSignatureUrl);
+      addSig(c.digital_signature);
+      addSig(c.digitalSignature);
+      addSig(c.e_signature);
+      addSig(c.eSignature);
+      addSig(c.idProof?.signature);
+      addSig(c.idProof?.signatureUrl);
+      addSig(c.idProof?.guestSignature);
+    });
+
+    const sigFallback = resolvePhotoSrc("signature");
+    if (sigFallback && !seen.has(sigFallback)) {
+      seen.add(sigFallback);
+      list.unshift(sigFallback);
+    }
+
+    return list;
+  }, [details, activeBooking, guest, guestData]);
+
+  // Aadhaar / Govt ID Photos fallback
+  const frontIdPhoto = allIdPhotos[0] || resolvePhotoSrc("front");
+  const backIdPhoto = allIdPhotos[1] || resolvePhotoSrc("back");
+
+  // Digital Signature Photo fallback
+  const signaturePhoto = allSignatures[0] || resolvePhotoSrc("signature");
 
   // Govt ID Type & Document Number
   const govtIdType =
@@ -1290,200 +1677,206 @@ export default function GuestDetailsModal({
                       </Grid>
                     </Grid>
 
-                    {/* ID Photos Preview */}
-                    <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", display: "block", mb: 1 }}>
-                      Uploaded ID Proof Photos (Aadhaar / KYC):
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <Paper
+                    {/* ID Photos Preview: Dynamic Unified List / Grid */}
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5, flexWrap: "wrap", gap: 1 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", display: "block" }}>
+                        Uploaded ID Proof Documents ({allIdPhotos.length}):
+                      </Typography>
+                      {allIdPhotos.length > 0 && (
+                        <Chip
+                          label={`${allIdPhotos.length} Document${allIdPhotos.length > 1 ? "s" : ""} Attached`}
+                          size="small"
                           sx={{
-                            p: 1.5,
-                            borderRadius: "12px",
-                            border: `1px solid ${themeConfig.border}`,
-                            textAlign: "center",
-                            bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
+                            fontWeight: 800,
+                            fontSize: "0.68rem",
+                            bgcolor: "rgba(11, 142, 224, 0.1)",
+                            color: "#0B8EE0",
                           }}
-                        >
-                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                              📄 Front ID Photo (Aadhaar Front)
-                            </Typography>
-                            {frontIdPhoto && (
-                              <Chip
-                                icon={<FileDownload sx={{ fontSize: "14px !important" }} />}
-                                label="Download"
-                                size="small"
-                                clickable
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const cleanName = sanitizeFilename(guest.fullName || guest.name || "Guest");
-                                  downloadSingleImage(frontIdPhoto, `${cleanName}_Front_ID`);
-                                }}
-                                sx={{
-                                  height: 20,
-                                  fontSize: "0.68rem",
-                                  fontWeight: 800,
-                                  bgcolor: "rgba(11, 142, 224, 0.1)",
-                                  color: "#0B8EE0",
-                                  "&:hover": { bgcolor: "rgba(11, 142, 224, 0.2)" },
-                                }}
-                              />
-                            )}
-                          </Box>
-                          {frontIdPhoto ? (
-                            <Box
-                              component="img"
-                              src={frontIdPhoto}
-                              alt="Front ID"
-                              onClick={() => setPreviewImage(frontIdPhoto)}
-                              sx={{
-                                width: "100%",
-                                height: 160,
-                                objectFit: "contain",
-                                bgcolor: isDarkMode ? "rgba(0,0,0,0.25)" : "#FFFFFF",
-                                border: `1px solid ${themeConfig.border}`,
-                                borderRadius: "8px",
-                                cursor: "pointer",
-                                transition: "transform 0.2s, box-shadow 0.2s",
-                                "&:hover": { transform: "scale(1.02)", opacity: 0.95, boxShadow: "0 6px 16px rgba(0,0,0,0.15)" },
-                              }}
-                            />
-                          ) : (
-                            <Box sx={{ py: 4, color: themeConfig.textMuted }}>
-                              <Typography variant="caption">No Front Photo Attached</Typography>
-                            </Box>
-                          )}
-                        </Paper>
-                      </Grid>
+                        />
+                      )}
+                    </Box>
 
-                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <Paper
-                          sx={{
-                            p: 1.5,
-                            borderRadius: "12px",
-                            border: `1px solid ${themeConfig.border}`,
-                            textAlign: "center",
-                            bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
-                          }}
-                        >
-                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                              📄 Back ID Photo (Aadhaar Back)
-                            </Typography>
-                            {backIdPhoto && (
-                              <Chip
-                                icon={<FileDownload sx={{ fontSize: "14px !important" }} />}
-                                label="Download"
-                                size="small"
-                                clickable
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const cleanName = sanitizeFilename(guest.fullName || guest.name || "Guest");
-                                  downloadSingleImage(backIdPhoto, `${cleanName}_Back_ID`);
+                    {allIdPhotos.length > 0 ? (
+                      <Grid container spacing={2}>
+                        {allIdPhotos.map((photoUrl, idx) => (
+                          <Grid key={idx} size={{ xs: 12, sm: allIdPhotos.length === 1 ? 12 : 6, md: allIdPhotos.length > 2 ? 4 : 6 }}>
+                            <Paper
+                              sx={{
+                                p: 1.5,
+                                borderRadius: "12px",
+                                border: `1px solid ${themeConfig.border}`,
+                                textAlign: "center",
+                                bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
+                                transition: "all 0.2s ease",
+                                "&:hover": { borderColor: themeConfig.primary, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" },
+                              }}
+                            >
+                              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                                  📄 {idx === 0 ? "Front ID (Primary KYC)" : idx === 1 ? "Back ID" : `Document #${idx + 1}`}
+                                </Typography>
+                                <Chip
+                                  icon={<FileDownload sx={{ fontSize: "14px !important" }} />}
+                                  label="Download"
+                                  size="small"
+                                  clickable
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const cleanName = sanitizeFilename(guest.fullName || guest.name || "Guest");
+                                    downloadSingleImage(photoUrl, `${cleanName}_${idx === 0 ? "Front_ID" : idx === 1 ? "Back_ID" : `ID_Doc_${idx + 1}`}`);
+                                  }}
+                                  sx={{
+                                    height: 20,
+                                    fontSize: "0.68rem",
+                                    fontWeight: 800,
+                                    bgcolor: "rgba(11, 142, 224, 0.1)",
+                                    color: "#0B8EE0",
+                                    "&:hover": { bgcolor: "rgba(11, 142, 224, 0.2)" },
+                                  }}
+                                />
+                              </Box>
+                              <Box
+                                component="img"
+                                src={photoUrl}
+                                alt={`ID Proof ${idx + 1}`}
+                                onClick={() => setPreviewImage(photoUrl)}
+                                onError={(e) => {
+                                  e.currentTarget.style.opacity = "0.6";
                                 }}
                                 sx={{
-                                  height: 20,
-                                  fontSize: "0.68rem",
-                                  fontWeight: 800,
-                                  bgcolor: "rgba(11, 142, 224, 0.1)",
-                                  color: "#0B8EE0",
-                                  "&:hover": { bgcolor: "rgba(11, 142, 224, 0.2)" },
+                                  width: "100%",
+                                  height: 160,
+                                  objectFit: "contain",
+                                  bgcolor: isDarkMode ? "rgba(0,0,0,0.25)" : "#FFFFFF",
+                                  border: `1px solid ${themeConfig.border}`,
+                                  borderRadius: "8px",
+                                  cursor: "pointer",
+                                  transition: "transform 0.2s, box-shadow 0.2s",
+                                  "&:hover": { transform: "scale(1.02)", opacity: 0.95, boxShadow: "0 6px 16px rgba(0,0,0,0.15)" },
                                 }}
                               />
-                            )}
-                          </Box>
-                          {backIdPhoto ? (
-                            <Box
-                              component="img"
-                              src={backIdPhoto}
-                              alt="Back ID"
-                              onClick={() => setPreviewImage(backIdPhoto)}
-                              sx={{
-                                width: "100%",
-                                height: 160,
-                                objectFit: "contain",
-                                bgcolor: isDarkMode ? "rgba(0,0,0,0.25)" : "#FFFFFF",
-                                border: `1px solid ${themeConfig.border}`,
-                                borderRadius: "8px",
-                                cursor: "pointer",
-                                transition: "transform 0.2s, box-shadow 0.2s",
-                                "&:hover": { transform: "scale(1.02)", opacity: 0.95, boxShadow: "0 6px 16px rgba(0,0,0,0.15)" },
-                              }}
-                            />
-                          ) : (
-                            <Box sx={{ py: 4, color: themeConfig.textMuted }}>
-                              <Typography variant="caption">No Back Photo Attached</Typography>
-                            </Box>
-                          )}
-                        </Paper>
+                            </Paper>
+                          </Grid>
+                        ))}
                       </Grid>
-                    </Grid>
+                    ) : (
+                      <Paper
+                        sx={{
+                          py: 4,
+                          px: 2,
+                          textAlign: "center",
+                          borderRadius: "12px",
+                          border: `1px dashed ${themeConfig.border}`,
+                          bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#F8FAFC",
+                        }}
+                      >
+                        <Box sx={{ color: themeConfig.textMuted, display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                          <BadgeOutlined sx={{ fontSize: 32, opacity: 0.4 }} />
+                          <Typography variant="body2" sx={{ fontWeight: 700, color: themeConfig.textMuted }}>
+                            No ID Proof Documents Attached
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem" }}>
+                            No government KYC photo proofs were uploaded during check-in for this booking.
+                          </Typography>
+                        </Box>
+                      </Paper>
+                    )}
 
                     {/* Digital Signature Card */}
                     <Box sx={{ mt: 2.5 }}>
-                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", display: "block", mb: 1 }}>
-                        Guest E-Signature Record:
-                      </Typography>
-                      <Paper
-                        sx={{
-                          p: 1.5,
-                          borderRadius: "12px",
-                          border: `1px solid ${themeConfig.border}`,
-                          bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
-                        }}
-                      >
-                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                          <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 0.5 }}>
-                            ✍️ Guest Digital Signature
-                          </Typography>
-                          {signaturePhoto && (
-                            <Chip
-                              icon={<FileDownload sx={{ fontSize: "14px !important" }} />}
-                              label="Download"
-                              size="small"
-                              clickable
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const cleanName = sanitizeFilename(guest.fullName || guest.name || "Guest");
-                                downloadSingleImage(signaturePhoto, `${cleanName}_Digital_Signature`);
-                              }}
-                              sx={{
-                                height: 20,
-                                fontSize: "0.68rem",
-                                fontWeight: 800,
-                                bgcolor: "rgba(16, 185, 129, 0.1)",
-                                color: "#10B981",
-                                "&:hover": { bgcolor: "rgba(16, 185, 129, 0.2)" },
-                              }}
-                            />
-                          )}
-                        </Box>
-                        {signaturePhoto ? (
-                          <Box
-                            component="img"
-                            src={signaturePhoto}
-                            alt="Guest Digital Signature"
-                            onClick={() => setPreviewImage(signaturePhoto)}
+                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1, flexWrap: "wrap", gap: 1 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase" }}>
+                          Guest E-Signature Record:
+                        </Typography>
+                        {allSignatures.length > 0 && (
+                          <Chip
+                            label={`${allSignatures.length} Signature${allSignatures.length > 1 ? "s" : ""} On File`}
+                            size="small"
                             sx={{
-                              width: "100%",
-                              height: 120,
-                              objectFit: "contain",
-                              bgcolor: isDarkMode ? "rgba(0,0,0,0.25)" : "#FFFFFF",
-                              border: `1px solid ${themeConfig.border}`,
-                              borderRadius: "8px",
-                              cursor: "pointer",
-                              p: 1,
-                              transition: "transform 0.2s, box-shadow 0.2s",
-                              "&:hover": { transform: "scale(1.02)", opacity: 0.95, boxShadow: "0 6px 16px rgba(0,0,0,0.15)" },
+                              fontWeight: 800,
+                              fontSize: "0.68rem",
+                              bgcolor: "rgba(16, 185, 129, 0.1)",
+                              color: "#10B981",
                             }}
                           />
-                        ) : (
-                          <Box sx={{ py: 3, textAlign: "center", color: themeConfig.textMuted }}>
-                            <Typography variant="caption" sx={{ fontStyle: "italic" }}>No Digital Signature Recorded</Typography>
-                          </Box>
                         )}
-                      </Paper>
+                      </Box>
+
+                      {allSignatures.length > 0 ? (
+                        <Grid container spacing={2}>
+                          {allSignatures.map((sigUrl, sIdx) => (
+                            <Grid key={sIdx} size={{ xs: 12, sm: allSignatures.length === 1 ? 12 : 6 }}>
+                              <Paper
+                                sx={{
+                                  p: 1.5,
+                                  borderRadius: "12px",
+                                  border: `1px solid ${themeConfig.border}`,
+                                  bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
+                                  transition: "all 0.2s ease",
+                                  "&:hover": { borderColor: "#10B981" },
+                                }}
+                              >
+                                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                                  <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 0.5 }}>
+                                    ✍️ {allSignatures.length > 1 ? `Guest Signature #${sIdx + 1}` : "Guest Digital Signature"}
+                                  </Typography>
+                                  <Chip
+                                    icon={<FileDownload sx={{ fontSize: "14px !important" }} />}
+                                    label="Download"
+                                    size="small"
+                                    clickable
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const cleanName = sanitizeFilename(guest.fullName || guest.name || "Guest");
+                                      downloadSingleImage(sigUrl, `${cleanName}_Signature_${sIdx + 1}`);
+                                    }}
+                                    sx={{
+                                      height: 20,
+                                      fontSize: "0.68rem",
+                                      fontWeight: 800,
+                                      bgcolor: "rgba(16, 185, 129, 0.1)",
+                                      color: "#10B981",
+                                      "&:hover": { bgcolor: "rgba(16, 185, 129, 0.2)" },
+                                    }}
+                                  />
+                                </Box>
+                                <Box
+                                  component="img"
+                                  src={sigUrl}
+                                  alt={`Guest Digital Signature ${sIdx + 1}`}
+                                  onClick={() => setPreviewImage(sigUrl)}
+                                  sx={{
+                                    width: "100%",
+                                    height: 120,
+                                    objectFit: "contain",
+                                    bgcolor: isDarkMode ? "rgba(0,0,0,0.25)" : "#FFFFFF",
+                                    border: `1px solid ${themeConfig.border}`,
+                                    borderRadius: "8px",
+                                    cursor: "pointer",
+                                    p: 1,
+                                    transition: "transform 0.2s, box-shadow 0.2s",
+                                    "&:hover": { transform: "scale(1.02)", opacity: 0.95, boxShadow: "0 6px 16px rgba(0,0,0,0.15)" },
+                                  }}
+                                />
+                              </Paper>
+                            </Grid>
+                          ))}
+                        </Grid>
+                      ) : (
+                        <Paper
+                          sx={{
+                            p: 2,
+                            borderRadius: "12px",
+                            border: `1px dashed ${themeConfig.border}`,
+                            bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#F8FAFC",
+                            textAlign: "center",
+                          }}
+                        >
+                          <Typography variant="caption" sx={{ fontStyle: "italic", color: themeConfig.textMuted }}>
+                            No Digital Signature Recorded
+                          </Typography>
+                        </Paper>
+                      )}
                     </Box>
                   </Paper>
 
@@ -2107,9 +2500,48 @@ export default function GuestDetailsModal({
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, flexWrap: "wrap", flexDirection: { xs: "column", sm: "row" }, width: { xs: "100%", sm: "auto" } }}>
             <Button
               size="small"
-              startIcon={<Receipt sx={{ fontSize: 18 }} />}
+              disabled={pdfLoading}
+              startIcon={pdfLoading ? <CircularProgress size={16} /> : <Receipt sx={{ fontSize: 18 }} />}
               variant="outlined"
-              onClick={() => {
+              onClick={async () => {
+                const bId =
+                  activeBooking?.id ||
+                  activeBooking?._id ||
+                  details?.activeBooking?.id ||
+                  details?.activeBooking?._id ||
+                  details?.id ||
+                  details?._id ||
+                  guestData?.booking?.id ||
+                  guestData?.booking?._id ||
+                  guestData?.id ||
+                  guestData?._id;
+
+                if (bId && !String(bId).startsWith("b-")) {
+                  setPdfLoading(true);
+                  try {
+                    toast.show("Generating Booking Folio PDF from server...", "info");
+                    const endpoint = API_ENDPOINTS.BOOKINGS.FOLIO_PDF(bId);
+                    const res = await apiRequest(endpoint);
+                    if (res?.success && res?.data?.url) {
+                      const pdfUrl = res.data.url;
+                      const a = document.createElement("a");
+                      a.href = pdfUrl;
+                      a.target = "_blank";
+                      a.download = res.data.file_name || `Folio_${bId}.pdf`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      toast.show("Folio PDF downloaded successfully!", "success");
+                      setPdfLoading(false);
+                      return;
+                    }
+                  } catch (err) {
+                    console.warn("Backend Folio PDF generation failed, falling back to local:", err);
+                  } finally {
+                    setPdfLoading(false);
+                  }
+                }
+
                 try {
                   downloadGuestFolioPDF(
                     {
@@ -2151,7 +2583,7 @@ export default function GuestDetailsModal({
                 "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne },
               }}
             >
-              Guest Folio PDF
+              {pdfLoading ? "Generating..." : "Guest Folio PDF"}
             </Button>
 
             <Button
@@ -2164,6 +2596,7 @@ export default function GuestDetailsModal({
                     guest,
                     activeBooking,
                     accompanyingGuests,
+                    allIdPhotos,
                   },
                   (msg, sev) => toast.show(msg, sev)
                 );

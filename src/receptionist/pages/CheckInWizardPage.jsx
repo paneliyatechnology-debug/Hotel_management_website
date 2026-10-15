@@ -245,6 +245,17 @@ export default function CheckInWizardPage({
   const [stepError, setStepError] = useState("");
   const [previewImageSrc, setPreviewImageSrc] = useState(null);
 
+  // Unified list of primary guest ID documents
+  const mainGuestDocs = useMemo(() => {
+    if (Array.isArray(checkInData.idImages) && checkInData.idImages.length > 0) {
+      return checkInData.idImages;
+    }
+    const fallback = [];
+    if (checkInData.frontImage) fallback.push(checkInData.frontImage);
+    if (checkInData.backImage && !fallback.includes(checkInData.backImage)) fallback.push(checkInData.backImage);
+    return fallback;
+  }, [checkInData.idImages, checkInData.frontImage, checkInData.backImage]);
+
   useEffect(() => {
     const initialTime = getCurrentLocalTime();
     const initialDate = getTodayLocalDate();
@@ -975,37 +986,62 @@ export default function CheckInWizardPage({
     });
   };
 
-  // Main Guest Image Upload
-  const handleMainGuestImageUpload = async (e, target) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Primary Guest Multi-Document Upload Handler (Supports Multi-Select)
+  const handleMainGuestMultiUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    // Fast local preview
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const b64 = event.target.result;
-      setCheckInData((prev) => ({
+    // Fast local previews
+    const newPreviews = await Promise.all(
+      files.map(
+        (file) =>
+          new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (evt) => resolve(evt.target.result);
+            reader.readAsDataURL(file);
+          })
+      )
+    );
+
+    setCheckInData((prev) => {
+      const current = prev.idImages || (prev.frontImage ? [prev.frontImage, ...(prev.backImage ? [prev.backImage] : [])] : []);
+      const merged = [...current, ...newPreviews];
+      return {
         ...prev,
-        [target === "front" ? "frontImage" : "backImage"]: b64,
-      }));
-      if (target === "front") {
-        setStepError("");
-      }
-    };
-    reader.readAsDataURL(file);
+        idImages: merged,
+        images: merged,
+        frontImage: merged[0] || "",
+        backImage: merged[1] || "",
+      };
+    });
 
-    // Direct background upload via Multer to Cloudinary
-    try {
-      const liveCloudUrl = await uploadToCloudinaryServer(file, "hotel_guest_documents/main");
-      if (liveCloudUrl && (liveCloudUrl.startsWith("http://") || liveCloudUrl.startsWith("https://"))) {
-        setCheckInData((prev) => ({
-          ...prev,
-          [target === "front" ? "frontImage" : "backImage"]: liveCloudUrl,
-        }));
+    setStepError("");
+    setFieldErrors((prev) => ({ ...prev, frontImage: false }));
+
+    // Keep high-fidelity base64 previews in idImages so backend Multer receives native Blobs
+    files.forEach(async (file) => {
+      try {
+        await uploadToCloudinaryServer(file, "hotel_guest_documents/main");
+      } catch (err) {
+        // Fallback silently
       }
-    } catch (err) {
-      console.warn("Cloudinary upload fallback to local preview:", err);
-    }
+    });
+
+    if (e.target) e.target.value = "";
+  };
+
+  const handleRemoveMainGuestDoc = (idxToRemove) => {
+    setCheckInData((prev) => {
+      const current = prev.idImages || (prev.frontImage ? [prev.frontImage, ...(prev.backImage ? [prev.backImage] : [])] : []);
+      const updated = current.filter((_, i) => i !== idxToRemove);
+      return {
+        ...prev,
+        idImages: updated,
+        images: updated,
+        frontImage: updated[0] || "",
+        backImage: updated[1] || "",
+      };
+    });
   };
 
   // Date and Time Check-in / Checkout Handlers
@@ -1281,7 +1317,7 @@ export default function CheckInWizardPage({
     if (activeStep === 0) {
       const isNameMissing = !checkInData.fullName?.trim();
       const isMobileMissing = !checkInData.mobile?.trim();
-      const isFrontIdMissing = !checkInData.frontImage;
+      const isFrontIdMissing = !checkInData.frontImage && mainGuestDocs.length === 0;
       const isSignatureMissing = !checkInData.signature || (typeof checkInData.signature === "string" && !checkInData.signature.trim());
 
       if (isNameMissing || isMobileMissing || isFrontIdMissing || isSignatureMissing) {
@@ -1303,7 +1339,7 @@ export default function CheckInWizardPage({
           return;
         }
         if (isFrontIdMissing) {
-          showErrorAlert("⚠️ ID Upload Required: Primary Guest ID photo (Front) is required before proceeding.");
+          showErrorAlert("⚠️ ID Upload Required: Primary Guest ID document photo is required before proceeding.");
           scrollToElement("main-guest-id-section");
           return;
         }
@@ -1729,322 +1765,194 @@ export default function CheckInWizardPage({
                 </Grid>
               </Grid>
 
-              {/* MAIN GUEST FRONT & BACK ID PHOTO UPLOAD */}
+              {/* PRIMARY GUEST MULTI-SELECT ID DOCUMENTS UPLOAD SECTION */}
               <Box
                 id="main-guest-id-section"
                 sx={{
                   mt: 2.5,
                   pt: 2,
-                  p: (fieldErrors.frontImage || (stepError && !checkInData.frontImage)) ? 1.5 : 0,
+                  p: (fieldErrors.frontImage || (stepError && !checkInData.frontImage && mainGuestDocs.length === 0)) ? 1.5 : 0,
                   borderRadius: "14px",
-                  borderTop: (fieldErrors.frontImage || (stepError && !checkInData.frontImage)) ? "none" : `1px dashed ${themeConfig.border}`,
-                  border: (fieldErrors.frontImage || (stepError && !checkInData.frontImage)) ? "2px solid #EF4444" : undefined,
-                  bgcolor: (fieldErrors.frontImage || (stepError && !checkInData.frontImage)) ? "rgba(239, 68, 68, 0.04)" : "transparent",
+                  borderTop: (fieldErrors.frontImage || (stepError && !checkInData.frontImage && mainGuestDocs.length === 0)) ? "none" : `1px dashed ${themeConfig.border}`,
+                  border: (fieldErrors.frontImage || (stepError && !checkInData.frontImage && mainGuestDocs.length === 0)) ? "2px solid #EF4444" : undefined,
+                  bgcolor: (fieldErrors.frontImage || (stepError && !checkInData.frontImage && mainGuestDocs.length === 0)) ? "rgba(239, 68, 68, 0.04)" : "transparent",
                   transition: "all 0.3s ease",
                 }}
               >
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
-                  <CloudUpload sx={{ fontSize: 18, color: themeConfig.primary }} />
-                  Primary Guest — ID Card Upload (Front & Back Photo)
-                </Typography>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5, flexWrap: "wrap", gap: 1 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 1 }}>
+                    <CloudUpload sx={{ fontSize: 18, color: themeConfig.primary }} />
+                    Primary Guest — ID Card / Documents Upload *
+                  </Typography>
 
-                <Grid container spacing={1.5}>
-                  {/* Front ID Upload Box */}
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <Box
-                      sx={{
-                        p: 1.5,
-                        borderRadius: "14px",
-                        border: `1.5px dashed ${checkInData.frontImage ? "#10B981" : themeConfig.border}`,
-                        bgcolor: checkInData.frontImage ? "rgba(16, 185, 129, 0.04)" : "#F8FAFC",
-                        textAlign: "center",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        gap: 1.5,
-                      }}
-                    >
-                      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                        📄 Front ID / Aadhaar Photo *
-                      </Typography>
-
-                      {checkInData.frontImage ? (
-                        <Box sx={{ position: "relative", width: "100%", height: 140, borderRadius: "10px", overflow: "hidden", border: "1px solid #10B981" }}>
-                          <Box component="img" src={checkInData.frontImage} alt="Primary Guest Front ID" sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                          <IconButton
-                            size="small"
-                            onClick={() => setCheckInData((prev) => ({ ...prev, frontImage: "" }))}
-                            sx={{ position: "absolute", top: 6, right: 6, bgcolor: "rgba(239,68,68,0.9)", color: "#FFF", "&:hover": { bgcolor: "#DC2626" } }}
-                          >
-                            <Close sx={{ fontSize: 16 }} />
-                          </IconButton>
-                          <Chip label="Front Photo Uploaded" size="small" sx={{ position: "absolute", bottom: 6, left: 6, bgcolor: "#10B981", color: "#FFF", fontWeight: 800, fontSize: "0.68rem" }} />
-                        </Box>
-                      ) : (
-                        <Button
-                          variant="contained"
-                          component="label"
-                          startIcon={<CloudUpload />}
-                          size="small"
-                          sx={{ borderRadius: "10px", fontWeight: 800, bgcolor: themeConfig.primary }}
-                        >
-                          Upload Front ID
-                          <input type="file" hidden accept="image/*" onChange={(e) => handleMainGuestImageUpload(e, "front")} />
-                        </Button>
-                      )}
-                    </Box>
-                  </Grid>
-
-                  {/* Back ID Upload Box */}
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <Box
-                      sx={{
-                        p: 1.5,
-                        borderRadius: "14px",
-                        border: `1.5px dashed ${checkInData.backImage ? "#10B981" : themeConfig.border}`,
-                        bgcolor: checkInData.backImage ? "rgba(16, 185, 129, 0.04)" : "#F8FAFC",
-                        textAlign: "center",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        gap: 1.5,
-                      }}
-                    >
-                      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                        📄 Back ID / Aadhaar Photo (Optional)
-                      </Typography>
-
-                      {checkInData.backImage ? (
-                        <Box sx={{ position: "relative", width: "100%", height: 140, borderRadius: "10px", overflow: "hidden", border: "1px solid #10B981" }}>
-                          <Box component="img" src={checkInData.backImage} alt="Primary Guest Back ID" sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                          <IconButton
-                            size="small"
-                            onClick={() => setCheckInData((prev) => ({ ...prev, backImage: "" }))}
-                            sx={{ position: "absolute", top: 6, right: 6, bgcolor: "rgba(239,68,68,0.9)", color: "#FFF", "&:hover": { bgcolor: "#DC2626" } }}
-                          >
-                            <Close sx={{ fontSize: 16 }} />
-                          </IconButton>
-                          <Chip label="Back Photo Uploaded" size="small" sx={{ position: "absolute", bottom: 6, left: 6, bgcolor: "#10B981", color: "#FFF", fontWeight: 800, fontSize: "0.68rem" }} />
-                        </Box>
-                      ) : (
-                        <Button
-                          variant="outlined"
-                          component="label"
-                          startIcon={<CloudUpload />}
-                          size="small"
-                          sx={{ borderRadius: "10px", fontWeight: 800, borderColor: themeConfig.border }}
-                        >
-                          Upload Back ID
-                          <input type="file" hidden accept="image/*" onChange={(e) => handleMainGuestImageUpload(e, "back")} />
-                        </Button>
-                      )}
-                    </Box>
-                  </Grid>
-                </Grid>
-              </Box>
-
-              {/* ACCOMPANYING MEMBER PHOTOS SECTION */}
-              <Box sx={{ mt: 3, pt: 2.5, borderTop: `1.5px dashed ${themeConfig.border}` }}>
-                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexWrap: "wrap", gap: 1 }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                    <Avatar sx={{ bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, width: 34, height: 34, fontWeight: 900 }}>
-                      <Group sx={{ fontSize: 20 }} />
-                    </Avatar>
-                    <div>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-                        Accompanying Member Documents ({checkInData.accompanyingGuests?.length || 0})
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                        Upload ID photos for additional accompanying guests
-                      </Typography>
-                    </div>
-                  </Box>
-
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    {checkInData.accompanyingGuests && checkInData.accompanyingGuests.length > 0 && (
-                      <Button
-                        variant="text"
-                        size="small"
-                        onClick={handleClearAllMemberDocs}
-                        sx={{ color: "#EF4444", fontWeight: 800, fontSize: "0.75rem", textTransform: "none" }}
-                      >
-                        Clear All ({checkInData.accompanyingGuests.length})
-                      </Button>
-                    )}
-
-                    <Button
-                      variant="contained"
-                      component="label"
-                      startIcon={<CloudUpload />}
-                      size="small"
-                      sx={{
-                        borderRadius: "10px",
-                        fontWeight: 800,
-                        bgcolor: themeConfig.primary,
-                        color: "#FFFFFF",
-                        px: 2,
-                        py: 0.8,
-                        boxShadow: `0 4px 12px ${themeConfig.primaryGlow}`,
-                        "&:hover": { bgcolor: themeConfig.primaryDark },
-                      }}
-                    >
-                      + Upload Member Documents
-                      <input
-                        type="file"
-                        hidden
-                        multiple
-                        accept="image/*"
-                        onChange={handleAddNewMemberWithFiles}
-                      />
-                    </Button>
-                  </Box>
-                </Box>
-
-                {/* Member Document Cards Grid (Single Document Image List) */}
-                {checkInData.accompanyingGuests && checkInData.accompanyingGuests.length > 0 ? (
-                  <Grid container spacing={2}>
-                    {checkInData.accompanyingGuests.map((member, index) => {
-                      const docImg = member.frontImage || (member.images && member.images[0]) || member.image || member.backImage || "";
-
-                      return (
-                        <Grid key={member.id || index} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-                          <Paper
-                            className="card-3d"
-                            sx={{
-                              p: 1.5,
-                              borderRadius: "14px",
-                              border: "1.5px solid #10B981",
-                              bgcolor: "#FFFFFF",
-                              boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
-                              transition: "all 0.25s ease",
-                              "&:hover": { transform: "translateY(-2px)", boxShadow: "0 6px 16px rgba(16, 185, 129, 0.2)" },
-                            }}
-                          >
-                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.2 }}>
-                              <Chip
-                                label={`Member #${index + 1}`}
-                                size="small"
-                                sx={{ fontWeight: 900, bgcolor: "rgba(16, 185, 129, 0.12)", color: "#059669", fontSize: "0.75rem" }}
-                              />
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                                {docImg && (
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => setPreviewImageSrc(docImg)}
-                                    title="View Full Document"
-                                    sx={{ color: "#0B8EE0", p: 0.4, "&:hover": { bgcolor: "rgba(11, 142, 224, 0.1)" } }}
-                                  >
-                                    <Visibility sx={{ fontSize: 16 }} />
-                                  </IconButton>
-                                )}
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleRemoveSingleMemberDoc(member.id)}
-                                  title="Delete Document"
-                                  sx={{ color: "#EF4444", p: 0.4, "&:hover": { bgcolor: "rgba(239, 68, 68, 0.1)" } }}
-                                >
-                                  <Close sx={{ fontSize: 16 }} />
-                                </IconButton>
-                              </Box>
-                            </Box>
-
-                            {/* Single Document Image Container */}
-                            <Box
-                              onClick={() => docImg && setPreviewImageSrc(docImg)}
-                              sx={{
-                                width: "100%",
-                                height: 135,
-                                bgcolor: "#F8FAFC",
-                                borderRadius: "10px",
-                                overflow: "hidden",
-                                position: "relative",
-                                border: "1px solid #CBD5E1",
-                                cursor: docImg ? "pointer" : "default",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                transition: "all 0.2s ease",
-                                "&:hover": docImg ? { borderColor: "#10B981" } : undefined,
-                              }}
-                            >
-                              {docImg ? (
-                                <>
-                                  <Box
-                                    component="img"
-                                    src={docImg}
-                                    alt={`Member #${index + 1} ID Document`}
-                                    sx={{
-                                      width: "100%",
-                                      height: "100%",
-                                      objectFit: "cover",
-                                      transition: "transform 0.25s ease",
-                                      "&:hover": { transform: "scale(1.03)" },
-                                    }}
-                                  />
-                                  <Chip
-                                    label="ID Document 📄"
-                                    size="small"
-                                    sx={{
-                                      position: "absolute",
-                                      bottom: 6,
-                                      left: 6,
-                                      bgcolor: "rgba(15, 23, 42, 0.82)",
-                                      color: "#FFFFFF",
-                                      fontSize: "0.62rem",
-                                      fontWeight: 800,
-                                      height: 20,
-                                      px: 0.4,
-                                    }}
-                                  />
-                                  <Chip
-                                    icon={<Visibility sx={{ fontSize: "11px !important", color: "#FFF !important" }} />}
-                                    label="View"
-                                    size="small"
-                                    sx={{
-                                      position: "absolute",
-                                      bottom: 6,
-                                      right: 6,
-                                      bgcolor: "rgba(11, 142, 224, 0.9)",
-                                      color: "#FFFFFF",
-                                      fontSize: "0.6rem",
-                                      fontWeight: 800,
-                                      height: 20,
-                                      px: 0.3,
-                                    }}
-                                  />
-                                </>
-                              ) : (
-                                <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5 }}>
-                                  <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 700 }}>
-                                    📄 Document Photo
-                                  </Typography>
-                                </Box>
-                              )}
-                            </Box>
-                          </Paper>
-                        </Grid>
-                      );
-                    })}
-                  </Grid>
-                ) : (
-                  <Box
+                  <Button
+                    variant="contained"
+                    component="label"
+                    startIcon={<CloudUpload />}
+                    size="small"
                     sx={{
-                      p: 2.5,
-                      textAlign: "center",
-                      borderRadius: "14px",
-                      border: `1.5px dashed ${themeConfig.border}`,
-                      bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#F8FAFC",
+                      borderRadius: "10px",
+                      fontWeight: 800,
+                      bgcolor: themeConfig.primary,
+                      fontSize: "0.8rem",
+                      px: 2,
+                      py: 0.6,
+                      "&:hover": { bgcolor: themeConfig.primaryDark },
                     }}
                   >
-                    <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                      📁 No member documents uploaded yet.
+                    + Upload ID Documents
+                    <input
+                      type="file"
+                      hidden
+                      multiple
+                      accept="image/*"
+                      onChange={handleMainGuestMultiUpload}
+                    />
+                  </Button>
+                </Box>
+
+                {mainGuestDocs.length === 0 ? (
+                  <Box
+                    component="label"
+                    sx={{
+                      p: 3,
+                      borderRadius: "14px",
+                      border: `2px dashed ${fieldErrors.frontImage ? "#EF4444" : themeConfig.border}`,
+                      bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#F8FAFC",
+                      textAlign: "center",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 1,
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      "&:hover": {
+                        borderColor: themeConfig.primary,
+                        bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F1F5F9",
+                      },
+                    }}
+                  >
+                    <input
+                      type="file"
+                      hidden
+                      multiple
+                      accept="image/*"
+                      onChange={handleMainGuestMultiUpload}
+                    />
+                    <Avatar sx={{ bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, width: 44, height: 44, mb: 0.5 }}>
+                      <CloudUpload sx={{ fontSize: 24 }} />
+                    </Avatar>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                      Click to Select & Upload Guest ID Documents
                     </Typography>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", mt: 0.5 }}>
-                      Click <strong>"+ Upload Member Documents"</strong> above to select multiple photos at once.
+                    <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
+                      Select one or multiple photos (Aadhaar, Passport, DL, Voter ID, Front & Back)
                     </Typography>
+                  </Box>
+                ) : (
+                  <Box sx={{ mt: 1.5 }}>
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          sm: "repeat(2, 1fr)",
+                          md: "repeat(3, 1fr)",
+                          lg: "repeat(4, 1fr)",
+                        },
+                        gap: 1.5,
+                      }}
+                    >
+                      {mainGuestDocs.map((imgSrc, idx) => (
+                        <Box
+                          key={idx}
+                          sx={{
+                            position: "relative",
+                            height: 140,
+                            borderRadius: "12px",
+                            overflow: "hidden",
+                            border: "1.5px solid #10B981",
+                            boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
+                            bgcolor: "#000",
+                          }}
+                        >
+                          <Box
+                            component="img"
+                            src={imgSrc}
+                            alt={`Guest Document #${idx + 1}`}
+                            onClick={() => setPreviewImageSrc(imgSrc)}
+                            sx={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                              cursor: "pointer",
+                              transition: "transform 0.2s ease",
+                              "&:hover": { transform: "scale(1.04)" },
+                            }}
+                          />
+
+                          {/* Delete Button */}
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveMainGuestDoc(idx);
+                            }}
+                            sx={{
+                              position: "absolute",
+                              top: 6,
+                              right: 6,
+                              bgcolor: "rgba(239,68,68,0.9)",
+                              color: "#FFF",
+                              width: 26,
+                              height: 26,
+                              "&:hover": { bgcolor: "#DC2626" },
+                            }}
+                          >
+                            <Close sx={{ fontSize: 16 }} />
+                          </IconButton>
+
+                          {/* Zoom Button */}
+                          <IconButton
+                            size="small"
+                            onClick={() => setPreviewImageSrc(imgSrc)}
+                            sx={{
+                              position: "absolute",
+                              top: 6,
+                              left: 6,
+                              bgcolor: "rgba(0,0,0,0.6)",
+                              color: "#FFF",
+                              width: 26,
+                              height: 26,
+                              "&:hover": { bgcolor: "rgba(0,0,0,0.85)" },
+                            }}
+                          >
+                            <Visibility sx={{ fontSize: 15 }} />
+                          </IconButton>
+
+                          {/* Label badge */}
+                          <Chip
+                            label={idx === 0 ? "Primary ID" : `Document #${idx + 1}`}
+                            size="small"
+                            sx={{
+                              position: "absolute",
+                              bottom: 6,
+                              left: 6,
+                              bgcolor: idx === 0 ? "#10B981" : "rgba(15, 23, 42, 0.85)",
+                              color: "#FFF",
+                              fontWeight: 800,
+                              fontSize: "0.68rem",
+                              height: 22,
+                            }}
+                          />
+                        </Box>
+                      ))}
+                    </Box>
                   </Box>
                 )}
               </Box>
+
+
 
               {/* DIGITAL SIGNATURE PAD SECTION */}
               <Box
@@ -2900,7 +2808,7 @@ export default function CheckInWizardPage({
           </Button>
 
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "stretch", sm: "flex-end" } }}>
-            {activeStep === 0 && !checkInData.frontImage && (
+            {activeStep === 0 && !checkInData.frontImage && mainGuestDocs.length === 0 && (
               <Chip
                 label="Primary ID Upload Required"
                 size="small"

@@ -1,41 +1,42 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { KeyRound, CheckCircle2, ArrowLeft, Loader2 } from "lucide-react";
+import { KeyRound, CheckCircle2, ArrowLeft, Loader2, AlertCircle, ExternalLink } from "lucide-react";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 
 export default function ForgotPasswordPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
-
-  useEffect(() => {
-    if (sent) {
-      const timer = setTimeout(() => {
-        router.push("/login");
-      }, 2500);
-      return () => clearTimeout(timer);
-    }
-  }, [sent, router]);
+  const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
     setLoading(true);
 
+    const cleanEmail = (email || "").trim().toLowerCase();
+    if (!cleanEmail) {
+      setError("Please enter your registered email address.");
+      setLoading(false);
+      return;
+    }
+
     try {
-      await apiRequest(API_ENDPOINTS.AUTH.FORGOT_PASSWORD, {
+      const res = await apiRequest(API_ENDPOINTS.AUTH.FORGOT_PASSWORD, {
         method: "POST",
-        body: { email },
+        body: { email: cleanEmail },
       });
+      const msg = res?.message || "A password reset link has been sent to your email. Please check your inbox or spam folder.";
+      setSuccessMessage(msg);
       setSent(true);
     } catch (err) {
-      console.warn("Forgot password attempt completed:", err.message);
-      setSent(true);
+      const msg = err?.message || "Could not process password reset request. Please check the email address and try again.";
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -59,17 +60,38 @@ export default function ForgotPasswordPage() {
               Enter your registered email address and we'll send you a password reset link.
             </p>
 
+            {error && (
+              <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{error}</span>
+              </div>
+            )}
+
             {sent ? (
-              <div className="text-center py-4">
-                <CheckCircle2 className="w-10 h-10 text-[#0F766E] mx-auto mb-2" />
-                <p className="text-xs font-semibold text-[#0F172A]">Reset link sent to {email}!</p>
-                <p className="text-[11px] text-[#64748B] mt-1">Please check your inbox or spam folder.</p>
-                <Link
-                  href="/login"
-                  className="mt-6 inline-flex items-center gap-1.5 text-xs font-bold text-[#0F766E] hover:underline"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" /> Back to Login
-                </Link>
+              <div className="text-center py-4 space-y-4">
+                <CheckCircle2 className="w-12 h-12 text-[#0F766E] mx-auto" />
+                <div>
+                  <p className="text-sm font-bold text-[#0F172A]">{successMessage}</p>
+                  <p className="text-xs text-[#64748B] mt-1.5">
+                    Click the link in the email or copy the token to create your new password.
+                  </p>
+                </div>
+
+                <div className="pt-2 flex flex-col gap-2.5">
+                  <Link
+                    href="/reset-password"
+                    className="w-full py-2.5 rounded-xl bg-[#0F766E] hover:bg-[#115E59] text-white font-bold text-xs transition-all shadow-md shadow-[#0F766E]/20 flex items-center justify-center gap-1.5"
+                  >
+                    Enter Reset Token <ExternalLink className="w-3.5 h-3.5" />
+                  </Link>
+
+                  <Link
+                    href="/login"
+                    className="inline-flex items-center justify-center gap-1.5 text-xs text-[#64748B] hover:text-[#0F766E] font-medium"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" /> Back to Login
+                  </Link>
+                </div>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -80,7 +102,10 @@ export default function ForgotPasswordPage() {
                     required
                     placeholder="Enter your registered email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (error) setError("");
+                    }}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-[#DDE8E6] text-xs focus:ring-2 focus:ring-[#0F766E] outline-none"
                   />
                 </div>
@@ -93,8 +118,15 @@ export default function ForgotPasswordPage() {
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send Reset Link"}
                 </button>
 
-                <div className="text-center pt-2">
-                  <Link href="/login" className="inline-flex items-center gap-1.5 text-xs text-[#64748B] hover:text-[#0F766E]">
+                <div className="pt-2 flex flex-col gap-2 text-center">
+                  <Link
+                    href="/reset-password"
+                    className="text-xs text-[#0F766E] hover:underline font-semibold"
+                  >
+                    Already have a reset token? Click here
+                  </Link>
+
+                  <Link href="/login" className="inline-flex items-center justify-center gap-1.5 text-xs text-[#64748B] hover:text-[#0F766E]">
                     <ArrowLeft className="w-3.5 h-3.5" /> Back to Login
                   </Link>
                 </div>

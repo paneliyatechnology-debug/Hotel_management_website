@@ -426,8 +426,22 @@ export default function AvailableRoomsPage({
   // Current selected category object (for Box drill-down)
   const activeCategory = useMemo(() => {
     if (!selectedCategory) return null;
-    return categoryStats.find((c) => c._id === selectedCategory) || null;
+    const sel = String(selectedCategory).trim().toLowerCase();
+    return (
+      categoryStats.find(
+        (c) =>
+          String(c._id || c.id || "").trim().toLowerCase() === sel ||
+          (c.name && c.name.trim().toLowerCase() === sel)
+      ) || null
+    );
   }, [selectedCategory, categoryStats]);
+
+  // Auto-reset invalid selectedCategory so user is never stuck in an empty state
+  useEffect(() => {
+    if (selectedCategory && categoryStats.length > 0 && !activeCategory) {
+      setSelectedCategory(null);
+    }
+  }, [selectedCategory, activeCategory, categoryStats]);
 
   // Distinct floors across all rooms
   const distinctFloors = useMemo(() => {
@@ -592,9 +606,13 @@ export default function AvailableRoomsPage({
       overstay = calculateOverstayFee(matchedBooking, hotelSettings, { selectedOption: "hourly" });
       const posChargesTotal = (matchedBooking.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
       lateFee = overstay?.lateFee || 0;
-      grandTotal = (matchedBooking.totalAmount || 0) + posChargesTotal + lateFee;
-      const paidTotal = matchedBooking.paidAmount || 0;
-      due = Math.max(0, grandTotal - paidTotal);
+      const bTotal = Number(matchedBooking.totalAmount ?? matchedBooking.total_amount ?? 0);
+      const paidTotal = Number(matchedBooking.paidAmount ?? matchedBooking.paid_amount ?? 0);
+      grandTotal = (bTotal > 0 ? bTotal : (paidTotal + Number(matchedBooking.dueAmount ?? matchedBooking.due_amount ?? 0))) + posChargesTotal + lateFee;
+      due = Number(matchedBooking.dueAmount ?? matchedBooking.due_amount ?? Math.max(0, grandTotal - paidTotal));
+      if (lateFee > 0 && due === Number(matchedBooking.dueAmount ?? matchedBooking.due_amount ?? 0)) {
+        due += lateFee;
+      }
     }
 
     setStatusDialog({
@@ -617,9 +635,13 @@ export default function AvailableRoomsPage({
     const overstay = calculateOverstayFee(statusDialog.booking, hotelSettings, { selectedOption: newOption });
     const posChargesTotal = (statusDialog.booking.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
     const lateFee = overstay?.lateFee || 0;
-    const grandTotal = (statusDialog.booking.totalAmount || 0) + posChargesTotal + lateFee;
-    const paidTotal = statusDialog.booking.paidAmount || 0;
-    const due = Math.max(0, grandTotal - paidTotal);
+    const bTotal = Number(statusDialog.booking.totalAmount ?? statusDialog.booking.total_amount ?? 0);
+    const paidTotal = Number(statusDialog.booking.paidAmount ?? statusDialog.booking.paid_amount ?? 0);
+    const grandTotal = (bTotal > 0 ? bTotal : (paidTotal + Number(statusDialog.booking.dueAmount ?? statusDialog.booking.due_amount ?? 0))) + posChargesTotal + lateFee;
+    let due = Number(statusDialog.booking.dueAmount ?? statusDialog.booking.due_amount ?? Math.max(0, grandTotal - paidTotal));
+    if (lateFee > 0 && due === Number(statusDialog.booking.dueAmount ?? statusDialog.booking.due_amount ?? 0)) {
+      due += lateFee;
+    }
 
     setStatusDialog((prev) => ({
       ...prev,
@@ -923,7 +945,7 @@ export default function AvailableRoomsPage({
       {/* ========================================================================= */}
       {/* INVENTORY VIEWS: CATEGORIES OVERVIEW vs CATEGORY ROOMS DRILLDOWN         */}
       {/* ========================================================================= */}
-      {selectedCategory === null ? (
+      {selectedCategory === null || !activeCategory ? (
         <>
           {/* 1. BOX VIEW (Grid of Category Cards) */}
           {viewMode === "BOX" && (
@@ -2013,6 +2035,45 @@ export default function AvailableRoomsPage({
       ) : (
         /* Category Rooms Drilldown */
         <Box>
+          {/* Category Header with Back Button */}
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1.5, mb: 2 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<ArrowBack />}
+                onClick={() => {
+                  setSelectedCategory(null);
+                  if (cameFromExternalRoute && onNavigateTab) {
+                    setCameFromExternalRoute(false);
+                    onNavigateTab(0);
+                  }
+                }}
+                sx={{
+                  borderRadius: "10px",
+                  fontWeight: 800,
+                  fontSize: "0.82rem",
+                  borderColor: themeConfig.border,
+                  color: themeConfig.textMain,
+                  bgcolor: themeConfig.bgCard || "#FFFFFF",
+                  px: 1.8,
+                  py: 0.6,
+                  "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
+                }}
+              >
+                Back to Categories
+              </Button>
+              <Typography variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                {activeCategory?.name || "Selected Category"}
+              </Typography>
+              <Chip
+                label={`${filteredCategoryRooms.length} ${filteredCategoryRooms.length === 1 ? "Room" : "Rooms"}`}
+                size="small"
+                sx={{ fontWeight: 700, bgcolor: themeConfig.champagne, color: themeConfig.primaryDark }}
+              />
+            </Box>
+          </Box>
+
           {/* Filters Bar */}
           <Card
             sx={{
@@ -2093,6 +2154,26 @@ export default function AvailableRoomsPage({
                 <EmptyState
                   title="No Rooms Found"
                   description="No rooms match the current search or filter criteria in this category."
+                  action={
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<ArrowBack />}
+                      onClick={() => {
+                        setSelectedFloor("ALL");
+                        setSelectedStatus("ALL");
+                        setRoomSearch("");
+                        setSelectedCategory(null);
+                        if (cameFromExternalRoute && onNavigateTab) {
+                          setCameFromExternalRoute(false);
+                          onNavigateTab(0);
+                        }
+                      }}
+                      sx={{ mt: 2, borderRadius: "10px", fontWeight: 700 }}
+                    >
+                      View All Categories
+                    </Button>
+                  }
                 />
               </Box>
             ) : (
@@ -2299,6 +2380,26 @@ export default function AvailableRoomsPage({
                 <EmptyState
                   title="No Rooms Found"
                   description="No rooms match the current search or filter criteria in this category."
+                  action={
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<ArrowBack />}
+                      onClick={() => {
+                        setSelectedFloor("ALL");
+                        setSelectedStatus("ALL");
+                        setRoomSearch("");
+                        setSelectedCategory(null);
+                        if (cameFromExternalRoute && onNavigateTab) {
+                          setCameFromExternalRoute(false);
+                          onNavigateTab(0);
+                        }
+                      }}
+                      sx={{ mt: 2, borderRadius: "10px", fontWeight: 700 }}
+                    >
+                      View All Categories
+                    </Button>
+                  }
                 />
               </Box>
             ) : (
@@ -2588,8 +2689,9 @@ export default function AvailableRoomsPage({
           `upi://pay?pa=${hotelUpi}&pn=${upiPayee}&am=${upiAmount}&cu=INR&tn=${upiNote}`
         )}`;
         const posChargesTotal = (statusDialog.booking?.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
-        const folioGrandTotal = (statusDialog.booking?.totalAmount || 0) + posChargesTotal + (statusDialog.lateFee || 0);
-        const paidAmount = statusDialog.booking?.paidAmount || 0;
+        const bTotal = Number(statusDialog.booking?.totalAmount ?? statusDialog.booking?.total_amount ?? 0);
+        const paidAmount = Number(statusDialog.booking?.paidAmount ?? statusDialog.booking?.paid_amount ?? 0);
+        const folioGrandTotal = (bTotal > 0 ? bTotal : (paidAmount + Number(statusDialog.booking?.dueAmount ?? statusDialog.booking?.due_amount ?? 0))) + posChargesTotal + (statusDialog.lateFee || 0);
 
         return (
           <Dialog

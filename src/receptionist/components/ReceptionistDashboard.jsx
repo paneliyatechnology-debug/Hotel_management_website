@@ -150,6 +150,89 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
   const [posChargeDialog, setPosChargeDialog] = useState({ open: false, booking: null, serviceType: "ROOM_SERVICE", amount: 650, description: "Breakfast & Sparkling Water" });
   const [invoiceModal, setInvoiceModal] = useState({ open: false, booking: null });
 
+  // Normalization Helpers for backend API data shapes
+  const extractRooms = (res) => {
+    const raw = res?.data?.rooms || res?.rooms || res?.data || res || [];
+    const list = Array.isArray(raw) ? raw : [];
+    return list.map((r) => {
+      const id = r.id || r._id;
+      const roomNumber = r.room_number || r.roomNumber || "";
+      const roomTypeId = r.room_type_id || r.roomTypeId || (typeof r.roomType === "object" ? r.roomType?.id || r.roomType?._id : r.roomType);
+      const roomTypeName = r.room_type_name || (typeof r.roomType === "object" ? r.roomType?.name : r.type || "");
+      const customPrice = Number(r.custom_price_per_night ?? r.customPricePerNight ?? r.basePrice ?? 0);
+      const status = String(r.status || "AVAILABLE").toUpperCase();
+      const floor = r.floor !== undefined ? r.floor : 1;
+      return {
+        ...r,
+        _id: String(id),
+        id: id,
+        roomNumber: String(roomNumber),
+        room_number: String(roomNumber),
+        roomTypeId: String(roomTypeId || ""),
+        room_type_id: roomTypeId,
+        roomTypeName,
+        room_type_name: roomTypeName,
+        type: roomTypeName,
+        customPricePerNight: customPrice,
+        custom_price_per_night: customPrice,
+        floor,
+        status,
+      };
+    });
+  };
+
+  const extractRoomTypes = (res) => {
+    const raw = res?.data?.roomTypes || res?.data?.room_types || res?.roomTypes || res?.data || res || [];
+    const list = Array.isArray(raw) ? raw : [];
+    return list.map((rt) => {
+      const id = String(rt.id || rt._id || "");
+      return {
+        ...rt,
+        _id: id,
+        id: rt.id || rt._id,
+        name: rt.name || "Standard Room",
+        basePrice: Number(rt.basePrice || rt.price || rt.custom_price_per_night || 0),
+      };
+    });
+  };
+
+  const extractBookings = (res) => {
+    const raw = res?.data?.bookings || res?.bookings || res?.data || res || [];
+    const list = Array.isArray(raw) ? raw : [];
+    return list.map((b) => {
+      const id = b.id || b._id;
+      const totalAmount = Number(b.totalAmount ?? b.total_amount ?? b.total ?? b.grandTotal ?? 0);
+      const paidAmount = Number(b.paidAmount ?? b.paid_amount ?? b.advancePaymentAmount ?? b.advance_paid ?? 0);
+      const dueAmount = Number(b.dueAmount ?? b.due_amount ?? b.due ?? Math.max(0, totalAmount - paidAmount));
+      const baseAmount = Number(b.baseAmount ?? b.base_amount ?? 0);
+      const gstAmount = Number(b.gstAmount ?? b.gst_amount ?? 0);
+      return {
+        ...b,
+        _id: String(id),
+        id: id,
+        totalAmount,
+        total_amount: totalAmount,
+        paidAmount,
+        paid_amount: paidAmount,
+        dueAmount,
+        due_amount: dueAmount,
+        baseAmount,
+        base_amount: baseAmount,
+        gstAmount,
+        gst_amount: gstAmount,
+        status: String(b.booking_status || b.status || "").toUpperCase(),
+        booking_status: String(b.booking_status || b.status || "").toUpperCase(),
+        guestName: b.primary_guest_name || b.guest_name || b.guestName || (b.guest?.name || b.guest?.fullName || ""),
+        primary_guest_name: b.primary_guest_name || b.guest_name || b.guestName || "",
+      };
+    });
+  };
+
+  const extractGuests = (res) => {
+    const raw = res?.data?.guests || res?.guests || res?.data || res || [];
+    return Array.isArray(raw) ? raw : [];
+  };
+
   // On-Demand Tab-Specific Data Loading
   const loadTabData = async (tabIndex, forceRefresh = false) => {
     if (!forceRefresh && fetchedTabs[tabIndex]) return;
@@ -161,44 +244,35 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
       const skipCache = { skipCache: true };
 
       if (forceRefresh) {
-        // When forceRefresh is true (e.g. check-in, check-out, socket events),
-        // fetch ALL key datasets at once so every view/tab stays 100% live in real-time!
         endpointsToFetch.push(
           apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD, skipCache).then((res) => res?.data && setDashboardData(res.data)),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOMS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES, skipCache).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || [])),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || []))
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOMS, skipCache).then((res) => setRooms(extractRooms(res))),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES, skipCache).then((res) => setRoomTypes(extractRoomTypes(res))),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, skipCache).then((res) => setBookings(extractBookings(res))),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS, skipCache).then((res) => setGuests(extractGuests(res)))
         );
       } else {
-        // Route 0: OVERVIEW & DASHBOARD
         if (tabIndex === 0) {
           endpointsToFetch.push(
             apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD, skipCache).then((res) => res?.data && setDashboardData(res.data)),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOMS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES, skipCache).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || [])),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || []))
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOMS, skipCache).then((res) => setRooms(extractRooms(res))),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES, skipCache).then((res) => setRoomTypes(extractRoomTypes(res))),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, skipCache).then((res) => setBookings(extractBookings(res))),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS, skipCache).then((res) => setGuests(extractGuests(res)))
           );
-        }
-        // Route 1: AVAILABLE ROOMS & CATEGORIES (Receptionist Booking Page)
-        else if (tabIndex === 1) {
+        } else if (tabIndex === 1) {
           endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOMS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES, skipCache).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || []))
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOMS, skipCache).then((res) => setRooms(extractRooms(res))),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES, skipCache).then((res) => setRoomTypes(extractRoomTypes(res))),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, skipCache).then((res) => setBookings(extractBookings(res)))
           );
-        }
-        // Route 2: IN-HOUSE FOLIOS & GUEST DIRECTORY
-        else if (tabIndex === 2) {
+        } else if (tabIndex === 2) {
           endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || [])),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || [])),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOMS, skipCache).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || []))
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, skipCache).then((res) => setBookings(extractBookings(res))),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS, skipCache).then((res) => setGuests(extractGuests(res))),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOMS, skipCache).then((res) => setRooms(extractRooms(res)))
           );
-        }
-        // Route 3: MORE OPERATIONS
-        else if (tabIndex === 3) {
+        } else if (tabIndex === 3) {
           endpointsToFetch.push(
             apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD, skipCache).then((res) => res?.data && setDashboardData(res.data))
           );
@@ -330,8 +404,9 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         paid_amount: Number(checkInData.paid !== undefined ? checkInData.paid : checkInData.total || 0),
         notes: checkInData.paymentNote || `${checkInData.paymentMethod || "CASH"} settlement at check-in`,
         // Document & Signature photos (converted to binary Blobs and sent via FormData)
-        front_image: checkInData.frontImage || checkInData.idProofImage || "",
-        back_image: checkInData.backImage || checkInData.idProofBackImage || "",
+        front_image: checkInData.frontImage || (checkInData.idImages && checkInData.idImages[0]) || checkInData.idProofImage || "",
+        back_image: checkInData.backImage || (checkInData.idImages && checkInData.idImages[1]) || checkInData.idProofBackImage || "",
+        images: checkInData.idImages || (checkInData.frontImage ? [checkInData.frontImage, ...(checkInData.backImage ? [checkInData.backImage] : [])] : []),
         signature: checkInData.signature || checkInData.guestSignature || "",
         // Dual-access properties for local UI rendering
         guestId: checkInData.guestId,
@@ -362,17 +437,6 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         console.warn("Could not mark room status to OCCUPIED via API:", e);
       }
 
-      // If backend created booking without actual_check_in, ensure it is set
-      if (createdBookingId) {
-        try {
-          await apiRequest(API_ENDPOINTS.BOOKINGS.BY_ID(createdBookingId), {
-            method: "PUT",
-            body: { actual_check_in: new Date().toISOString() },
-          });
-        } catch (e) {
-          console.warn("Could not update actual_check_in via API:", e);
-        }
-      }
 
       // Optimistically update rooms in local state so room turns OCCUPIED instantly
       setRooms((prev) =>
@@ -498,16 +562,35 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
 
   const handleCheckOut = async (bookingOrId, settlementData = {}) => {
     try {
-      const bookingId = typeof bookingOrId === "string" ? bookingOrId : (bookingOrId?._id || bookingOrId?.id);
-      const amount = settlementData.settlementPaymentAmount !== undefined
-        ? settlementData.settlementPaymentAmount
-        : (typeof bookingOrId === "object" ? (bookingOrId.dueAmount || 0) : 0);
+      const bookingId = typeof bookingOrId === "string" || typeof bookingOrId === "number"
+        ? String(bookingOrId)
+        : String(bookingOrId?._id || bookingOrId?.id);
+
+      const bookingObj = typeof bookingOrId === "object" && bookingOrId !== null
+        ? bookingOrId
+        : bookings.find((b) => String(b.id || b._id) === String(bookingId));
+
+      const bTotal = Number(bookingObj?.totalAmount ?? bookingObj?.total_amount ?? 0);
+      const bPaid = Number(bookingObj?.paidAmount ?? bookingObj?.paid_amount ?? 0);
+      const bookingDue = Number(bookingObj?.dueAmount ?? bookingObj?.due_amount ?? Math.max(0, bTotal - bPaid));
+
+      let amount = settlementData.settlementPaymentAmount !== undefined
+        ? Number(settlementData.settlementPaymentAmount)
+        : bookingDue;
+
+      // Safety guard: if amount is 0 but booking has an outstanding due, use the booking's due amount
+      if ((!amount || amount === 0) && bookingDue > 0) {
+        amount = bookingDue;
+      }
+
       const method = settlementData.paymentMethod || "CASH";
 
       const res = await apiRequest(API_ENDPOINTS.RECEPTIONIST.CHECKOUT(bookingId), {
         method: "POST",
         body: {
           paid_amount: Number(amount) || 0,
+          due_amount: bookingDue,
+          settlement_payment_amount: Number(amount) || 0,
           late_checkout_charge: Number(settlementData.lateCheckoutFee) || 0,
           late_checkout_hours: Number(settlementData.lateCheckoutHours) || 0,
           notes: `Checked out and settled via ${method}${settlementData.transactionId ? ` (Ref: ${settlementData.transactionId})` : ""}`,

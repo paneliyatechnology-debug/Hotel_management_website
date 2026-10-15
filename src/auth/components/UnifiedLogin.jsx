@@ -224,12 +224,8 @@ export default function UnifiedLogin({ onLoginSuccess }) {
 
       const msg = res?.message || "A password reset link has been sent to your email. Please check your inbox or spam folder.";
       toast.success(msg);
-      setLoginSuccessMsg(msg);
-      setForgotOpen(false);
-      setForgotEmail("");
+      setForgotMsg(msg);
       setForgotError("");
-      setForgotMsg("");
-      setForgotStep(1);
     } catch (err) {
       toast.error(err.message || "Could not process password reset request.");
       setForgotError(err.message || "Could not process password reset request.");
@@ -521,49 +517,104 @@ export default function UnifiedLogin({ onLoginSuccess }) {
         </DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 0.5 }}>
-            <Typography variant="body2" sx={{ color: themeConfig.textMuted, mb: 2 }}>
-              Enter your registered email address. We will send a password reset link directly to your email inbox.
-            </Typography>
+            {forgotMsg ? (
+              <Box sx={{ py: 1 }}>
+                <Alert severity="success" sx={{ mb: 2.5, borderRadius: "12px", fontWeight: 700 }}>
+                  {forgotMsg}
+                </Alert>
+                <Typography variant="body2" sx={{ color: themeConfig.textMuted, mb: 2, fontSize: "0.85rem" }}>
+                  Please check your inbox or spam folder for the link. Once you have the token, you can set your new password directly:
+                </Typography>
+                <Button
+                  component="a"
+                  href="/reset-password"
+                  variant="contained"
+                  fullWidth
+                  sx={{
+                    bgcolor: themeConfig.primary,
+                    "&:hover": { bgcolor: themeConfig.primaryDark },
+                    fontWeight: 800,
+                    textTransform: "none",
+                    py: 1.2,
+                    borderRadius: "10px",
+                    mb: 1,
+                  }}
+                >
+                  Enter Reset Token & Set Password
+                </Button>
+              </Box>
+            ) : (
+              <>
+                <Typography variant="body2" sx={{ color: themeConfig.textMuted, mb: 2 }}>
+                  Enter your registered email address. We will send a password reset link directly to your email inbox.
+                </Typography>
 
-            {forgotError && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {forgotError}
-              </Alert>
+                {forgotError && (
+                  <Alert severity="error" sx={{ mb: 2 }}>
+                    {forgotError}
+                  </Alert>
+                )}
+
+                <TextField
+                  autoFocus
+                  label="Registered Email Address"
+                  type="email"
+                  fullWidth
+                  required
+                  value={forgotEmail}
+                  onChange={(e) => {
+                    setForgotEmail(e.target.value);
+                    if (forgotError) setForgotError("");
+                  }}
+                  placeholder="e.g. admin@grandroyale.com"
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <EmailIcon sx={{ color: "#94a3b8", fontSize: 20 }} />
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+
+                <Box sx={{ mt: 2, textAlign: "center" }}>
+                  <Button
+                    component="a"
+                    href="/reset-password"
+                    size="small"
+                    sx={{ color: themeConfig.primary, fontSize: "0.78rem", textTransform: "none", fontWeight: 700 }}
+                  >
+                    Already have a reset token? Click here
+                  </Button>
+                </Box>
+              </>
             )}
-
-            <TextField
-              autoFocus
-              label="Registered Email Address"
-              type="email"
-              fullWidth
-              required
-              value={forgotEmail}
-              onChange={(e) => setForgotEmail(e.target.value)}
-              placeholder="e.g. admin@grandroyale.com"
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <EmailIcon sx={{ color: "#94a3b8", fontSize: 20 }} />
-                    </InputAdornment>
-                  ),
-                },
-              }}
-            />
           </Box>
         </DialogContent>
         <DialogActions sx={{ p: 2.5, pt: 1 }}>
-          <Button onClick={() => setForgotOpen(false)} color="inherit" sx={{ fontWeight: 700 }}>
-            Cancel
-          </Button>
           <Button
-            onClick={handleSendOtp}
-            variant="contained"
-            disabled={forgotLoading}
-            sx={{ bgcolor: themeConfig.primary, "&:hover": { bgcolor: themeConfig.primaryDark }, fontWeight: 800, textTransform: "none", px: 2.5 }}
+            onClick={() => {
+              setForgotOpen(false);
+              setForgotMsg("");
+              setForgotError("");
+              setForgotEmail("");
+            }}
+            color="inherit"
+            sx={{ fontWeight: 700 }}
           >
-            {forgotLoading ? <CircularProgress size={20} color="inherit" /> : "Send Reset Link"}
+            {forgotMsg ? "Close" : "Cancel"}
           </Button>
+          {!forgotMsg && (
+            <Button
+              onClick={handleSendOtp}
+              variant="contained"
+              disabled={forgotLoading}
+              sx={{ bgcolor: themeConfig.primary, "&:hover": { bgcolor: themeConfig.primaryDark }, fontWeight: 800, textTransform: "none", px: 2.5 }}
+            >
+              {forgotLoading ? <CircularProgress size={20} color="inherit" /> : "Send Reset Link"}
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
 

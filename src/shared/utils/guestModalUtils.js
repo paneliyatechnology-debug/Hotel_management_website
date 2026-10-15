@@ -407,8 +407,30 @@ export function createSafeGuestModalData(raw) {
     back_image: backImage,
     guest_signature: signature,
     guestSignature: signature,
-    images: raw.images || (frontImage ? [frontImage, ...(backImage ? [backImage] : [])] : []),
-    signatures: raw.signatures || (signature ? [signature] : []),
+    idProof: raw.idProof || rawGuestObj?.idProof || rawBookingObj?.idProof || { frontImage, backImage, signature },
+    id_proof: raw.id_proof || rawGuestObj?.id_proof || rawBookingObj?.id_proof,
+    id_proof_front: frontImage,
+    id_proof_back: backImage,
+    id_proof_image: frontImage,
+    id_proof_url: frontImage,
+    images: (Array.isArray(raw.images) && raw.images.length > 0)
+      ? raw.images
+      : (typeof raw.images === "string" && raw.images.trim())
+        ? [raw.images.trim()]
+        : (Array.isArray(rawGuestObj?.images) && rawGuestObj.images.length > 0)
+          ? rawGuestObj.images
+          : (Array.isArray(rawBookingObj?.images) && rawBookingObj.images.length > 0)
+            ? rawBookingObj.images
+            : (frontImage ? [frontImage, ...(backImage ? [backImage] : [])] : []),
+    signatures: (Array.isArray(raw.signatures) && raw.signatures.length > 0)
+      ? raw.signatures
+      : (typeof raw.signatures === "string" && raw.signatures.trim())
+        ? [raw.signatures.trim()]
+        : (Array.isArray(rawGuestObj?.signatures) && rawGuestObj.signatures.length > 0)
+          ? rawGuestObj.signatures
+          : (Array.isArray(rawBookingObj?.signatures) && rawBookingObj.signatures.length > 0)
+            ? rawBookingObj.signatures
+            : (signature ? [signature] : []),
     documents: raw.documents,
     guest: cleanGuest,
     booking: cleanBooking,

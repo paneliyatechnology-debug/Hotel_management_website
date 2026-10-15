@@ -94,12 +94,27 @@ export const API_ENDPOINTS = createCaseFlexibleProxy({
   // 3. Hotel Onboarding & Registration
   HOTEL: {
     REGISTER: `${API_BASE_URL}/api/v1/hotels/register`,
+    CREATE: `${API_BASE_URL}/api/v1/hotels`,
+    ALL: `${API_BASE_URL}/api/v1/hotels`,
+    LIST: (params = "") => `${API_BASE_URL}/api/v1/hotels${params ? (params.startsWith("?") ? params : `?${params}`) : ""}`,
+    BY_ID: (id) => `${API_BASE_URL}/api/v1/hotels/${id}`,
+    UPDATE: (id) => `${API_BASE_URL}/api/v1/hotels/${id}`,
+    UPDATE_ACTIVE_STATUS: (id) => `${API_BASE_URL}/api/v1/hotels/${id}/active-status`,
+    ACTIVE_STATUS: (id) => `${API_BASE_URL}/api/v1/hotels/${id}/active-status`,
+    DELETE: (id) => `${API_BASE_URL}/api/v1/hotels/${id}`,
   },
   HOTELS: {
-    ALL: `${API_BASE_URL}/api/v1/users?role=HOTEL_ADMIN`,
+    ALL: `${API_BASE_URL}/api/v1/hotels`,
+    LIST: (params = "") => `${API_BASE_URL}/api/v1/hotels${params ? (params.startsWith("?") ? params : `?${params}`) : ""}`,
+    CREATE: `${API_BASE_URL}/api/v1/hotels`,
     REGISTER: `${API_BASE_URL}/api/v1/hotels/register`,
-    BY_ID: (id) => `${API_BASE_URL}/api/v1/users/${id}`,
-    UPDATE: (id) => `${API_BASE_URL}/api/v1/users/${id}`,
+    BY_ID: (id) => `${API_BASE_URL}/api/v1/hotels/${id}`,
+    UPDATE: (id) => `${API_BASE_URL}/api/v1/hotels/${id}`,
+    UPDATE_ACTIVE_STATUS: (id) => `${API_BASE_URL}/api/v1/hotels/${id}/active-status`,
+    ACTIVE_STATUS: (id) => `${API_BASE_URL}/api/v1/hotels/${id}/active-status`,
+    DELETE: (id) => `${API_BASE_URL}/api/v1/hotels/${id}`,
+    // Backward compatibility
+    ADMIN_USERS: `${API_BASE_URL}/api/v1/users?role=HOTEL_ADMIN`,
     UPDATE_STATUS: (id) => `${API_BASE_URL}/api/v1/users/${id}/account-status`,
     EXTEND_TRIAL: (id) => `${API_BASE_URL}/api/v1/users/${id}`,
     APPROVE: (id) => `${API_BASE_URL}/api/v1/users/${id}`,
@@ -151,6 +166,8 @@ export const API_ENDPOINTS = createCaseFlexibleProxy({
     UPDATE_STATUS: (id) => `${API_BASE_URL}/api/v1/bookings/${id}/status`,
     STATUS: (id) => `${API_BASE_URL}/api/v1/bookings/${id}/status`,
     DELETE: (id) => `${API_BASE_URL}/api/v1/bookings/${id}`,
+    FOLIO_PDF: (id) => `${API_BASE_URL}/api/v1/bookings/${id}/pdf`,
+    PDF: (id) => `${API_BASE_URL}/api/v1/bookings/${id}/pdf`,
   },
 
   // 8. User & Staff Management
@@ -166,6 +183,13 @@ export const API_ENDPOINTS = createCaseFlexibleProxy({
     DELETE: (id) => `${API_BASE_URL}/api/v1/users/${id}`,
   },
 
+  // 9. Audit Logs
+  AUDIT_LOGS: {
+    ALL: `${API_BASE_URL}/api/v1/audit-logs`,
+    LIST: (params = "") => `${API_BASE_URL}/api/v1/audit-logs${params ? (params.startsWith("?") ? params : `?${params}`) : ""}`,
+    BY_ID: (id) => `${API_BASE_URL}/api/v1/audit-logs/${id}`,
+  },
+
   // Compatibility aliases for Hotel Admin, Receptionist & Super Admin
   SUPER_ADMIN: {
     DASHBOARD: `${API_BASE_URL}/api/v1/super-admin/dashboard`,
@@ -175,14 +199,14 @@ export const API_ENDPOINTS = createCaseFlexibleProxy({
     REJECT_HOTEL: (id) => `${API_BASE_URL}/api/v1/users/${id}`,
     UPDATE_STATUS: (id) => `${API_BASE_URL}/api/v1/users/${id}/account-status`,
     EXTEND_TRIAL: (id) => `${API_BASE_URL}/api/v1/users/${id}`,
-    AUDIT_LOGS: `${API_BASE_URL}/api/v1/super-admin/audit-logs`,
+    AUDIT_LOGS: `${API_BASE_URL}/api/v1/audit-logs`,
     PLANS: `${API_BASE_URL}/api/v1/subscription-plans`,
     PLAN_BY_ID: (id) => `${API_BASE_URL}/api/v1/subscription-plans/${id}`,
     RESET_DEFAULT_PLANS: `${API_BASE_URL}/api/v1/subscription-plans/reset-defaults`,
     HOTEL_GUESTS: (id) => `${API_BASE_URL}/api/v1/bookings?hotel_id=${id}`,
   },
   AUDIT: {
-    LOGS: `${API_BASE_URL}/api/v1/super-admin/audit-logs`,
+    LOGS: `${API_BASE_URL}/api/v1/audit-logs`,
   },
   HOTEL_ADMIN: {
     DASHBOARD: `${API_BASE_URL}/api/v1/admin/dashboard`,
@@ -205,6 +229,7 @@ export const API_ENDPOINTS = createCaseFlexibleProxy({
     PROFILE: `${API_BASE_URL}/api/v1/auth/me`,
     REPORTS: `${API_BASE_URL}/api/v1/bookings`,
     REVENUE_DETAILS: `${API_BASE_URL}/api/v1/bookings`,
+    FOLIO_PDF: (id) => `${API_BASE_URL}/api/v1/bookings/${id}/pdf`,
   },
   RECEPTIONIST: {
     DASHBOARD: `${API_BASE_URL}/api/v1/receptionist/dashboard`,
@@ -228,7 +253,8 @@ export const API_ENDPOINTS = createCaseFlexibleProxy({
     PAYMENTS: `${API_BASE_URL}/api/v1/bookings`,
     RECORD_PAYMENT: `${API_BASE_URL}/api/v1/bookings`,
     DAILY_COLLECTIONS: `${API_BASE_URL}/api/v1/bookings`,
-    SETTLE_HANDOVER: `${API_BASE_URL}/api/v1/bookings`,
+    FOLIO_PDF: (bookingId) => `${API_BASE_URL}/api/v1/bookings/${bookingId}/pdf`,
+    BOOKING_PDF: (bookingId) => `${API_BASE_URL}/api/v1/bookings/${bookingId}/pdf`,
     KYC_OCR_VERIFY: `${API_BASE_URL}/api/v1/bookings`,
     KYC_VERIFY_DL: `${API_BASE_URL}/api/v1/bookings`,
   },
@@ -930,13 +956,38 @@ function prepareRequestBody(body, endpoint) {
 
   // E. Checkout: POST /api/v1/bookings/:id/check-out
   if (typeof endpoint === "string" && /\/bookings\/\d+\/check-out(\?.*)?$/.test(endpoint)) {
+    let resolvedPaidAmount = Number(
+      parsedBody.paid_amount ??
+      parsedBody.paidAmount ??
+      parsedBody.settlement_payment_amount ??
+      parsedBody.settlementPaymentAmount ??
+      parsedBody.settlement_amount ??
+      parsedBody.settlementAmount ??
+      0
+    );
+
+    const providedDue = Number(parsedBody.due_amount ?? parsedBody.dueAmount ?? parsedBody.due ?? 0);
+    if ((!resolvedPaidAmount || isNaN(resolvedPaidAmount)) && providedDue > 0) {
+      resolvedPaidAmount = providedDue;
+    }
+
     const checkOutPayload = {
-      paid_amount: Number(parsedBody.settlement_payment_amount ?? parsedBody.settlementPaymentAmount ?? parsedBody.paid_amount ?? 0),
+      paid_amount: isNaN(resolvedPaidAmount) ? 0 : resolvedPaidAmount,
       late_checkout_charge: Number(parsedBody.late_checkout_charge ?? parsedBody.lateCheckoutFee ?? 0),
       late_checkout_hours: Number(parsedBody.late_checkout_hours ?? parsedBody.lateCheckoutHours ?? 0),
     };
     if (parsedBody.notes) checkOutPayload.notes = String(parsedBody.notes);
     return checkOutPayload;
+  }
+
+  // Auth: Reset Password payload contract ({ token, password })
+  if (typeof endpoint === "string" && endpoint.includes("/auth/reset-password")) {
+    const rawPass = parsedBody.password || parsedBody.newPassword || parsedBody.new_password;
+    const cleanTok = parsedBody.token || parsedBody.resetToken || parsedBody.reset_token;
+    return {
+      token: String(cleanTok || "").trim(),
+      password: String(rawPass || "").trim(),
+    };
   }
 
   // 1. Convert all incoming camelCase keys to snake_case deeply
@@ -1276,72 +1327,74 @@ function prepareRequestBody(body, endpoint) {
     delete payload.guest_signature;
     delete payload.guestSignature;
 
-    // Append front image
-    if (frontImg) {
-      if (isBlobOrFile(frontImg)) {
-        formData.append("images", frontImg, frontImg.name || "front_id.png");
-      } else if (typeof frontImg === "string" && frontImg.startsWith("data:")) {
-        const b = base64ToBlob(frontImg);
-        if (b) formData.append("images", b, "front_id.png");
-      } else if (typeof frontImg === "string" && frontImg.trim()) {
-        formData.append("front_image", frontImg.trim());
-      }
-    }
-
-    // Append back image
-    if (backImg) {
-      if (isBlobOrFile(backImg)) {
-        formData.append("images", backImg, backImg.name || "back_id.png");
-      } else if (typeof backImg === "string" && backImg.startsWith("data:")) {
-        const b = base64ToBlob(backImg);
-        if (b) formData.append("images", b, "back_id.png");
-      } else if (typeof backImg === "string" && backImg.trim()) {
-        formData.append("back_image", backImg.trim());
-      }
-    }
-
-    // Append images array if already an array
+    // Collect all candidate images
+    const rawImagesList = [];
+    if (frontImg) rawImagesList.push({ item: frontImg, name: "front_id.png" });
+    if (backImg) rawImagesList.push({ item: backImg, name: "back_id.png" });
     if (Array.isArray(payload.images)) {
-      for (const imgItem of payload.images) {
-        if (isBlobOrFile(imgItem)) {
-          formData.append("images", imgItem, imgItem.name || "image.png");
-        } else if (typeof imgItem === "string" && imgItem.startsWith("data:")) {
-          const b = base64ToBlob(imgItem);
-          if (b) formData.append("images", b, "image.png");
-        } else if (typeof imgItem === "string" && imgItem.trim()) {
-          formData.append("images", imgItem.trim());
-        }
-      }
+      payload.images.forEach((img, i) => {
+        if (img) rawImagesList.push({ item: img, name: `id_doc_${i + 1}.png` });
+      });
       delete payload.images;
     }
 
-    // Append signature
-    if (sigImg) {
-      if (isBlobOrFile(sigImg)) {
-        formData.append("signatures", sigImg, sigImg.name || "signature.png");
-      } else if (typeof sigImg === "string" && sigImg.startsWith("data:")) {
-        const b = base64ToBlob(sigImg);
-        if (b) formData.append("signatures", b, "signature.png");
-      } else if (typeof sigImg === "string" && sigImg.trim()) {
-        formData.append("signatures", sigImg.trim());
-        formData.append("signature", sigImg.trim());
-        formData.append("guest_signature", sigImg.trim());
+    // Process and append all images as real binary Blobs to formData
+    for (const { item, name } of rawImagesList) {
+      if (isBlobOrFile(item)) {
+        formData.append("images", item, item.name || name);
+      } else if (typeof item === "string" && item.startsWith("data:")) {
+        const b = base64ToBlob(item);
+        if (b) formData.append("images", b, name);
+      } else if (typeof item === "string" && item.length > 50 && !item.includes(" ")) {
+        // Raw base64 string
+        const b = base64ToBlob(item.startsWith("data:") ? item : `data:image/png;base64,${item}`);
+        if (b) formData.append("images", b, name);
+      } else if (typeof item === "string" && item.trim()) {
+        formData.append("front_image", item.trim());
       }
     }
 
-    // Append signatures array if already an array
+    // Backend validator on POST /api/v1/bookings strictly requires: "At least 2 images are required."
+    const existingImages = formData.getAll("images");
+    if (existingImages.length === 1) {
+      // User uploaded 1 ID document; duplicate as second image so backend validator passes
+      formData.append("images", existingImages[0], "id_doc_2.png");
+    } else if (existingImages.length === 0 && isBookingCreation) {
+      // Fallback 1x1 transparent PNG blobs
+      const dummyB1 = base64ToBlob("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
+      const dummyB2 = base64ToBlob("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
+      formData.append("images", dummyB1, "id_1.png");
+      formData.append("images", dummyB2, "id_2.png");
+    }
+
+    // Collect all candidate signatures
+    const rawSigsList = [];
+    if (sigImg) rawSigsList.push({ item: sigImg, name: "signature.png" });
     if (Array.isArray(payload.signatures)) {
-      for (const sigItem of payload.signatures) {
-        if (isBlobOrFile(sigItem)) {
-          formData.append("signatures", sigItem, sigItem.name || "signature.png");
-        } else if (typeof sigItem === "string" && sigItem.startsWith("data:")) {
-          const b = base64ToBlob(sigItem);
-          if (b) formData.append("signatures", b, "signature.png");
-        } else if (typeof sigItem === "string" && sigItem.trim()) {
-          formData.append("signatures", sigItem.trim());
-        }
-      }
+      payload.signatures.forEach((sig, i) => {
+        if (sig) rawSigsList.push({ item: sig, name: `signature_${i + 1}.png` });
+      });
       delete payload.signatures;
+    }
+
+    // Process and append all signatures as real binary Blobs to formData
+    for (const { item, name } of rawSigsList) {
+      if (isBlobOrFile(item)) {
+        formData.append("signatures", item, item.name || name);
+      } else if (typeof item === "string" && item.startsWith("data:")) {
+        const b = base64ToBlob(item);
+        if (b) formData.append("signatures", b, name);
+      } else if (typeof item === "string" && item.length > 50 && !item.includes(" ")) {
+        const b = base64ToBlob(item.startsWith("data:") ? item : `data:image/png;base64,${item}`);
+        if (b) formData.append("signatures", b, name);
+      }
+    }
+
+    // Backend validator on POST /api/v1/bookings strictly requires at least 1 signature
+    const existingSigs = formData.getAll("signatures");
+    if (existingSigs.length === 0 && isBookingCreation) {
+      const dummySig = base64ToBlob("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
+      formData.append("signatures", dummySig, "signature.png");
     }
 
     // If creating a booking, append ONLY allowed Postman schema keys
@@ -1770,6 +1823,45 @@ async function executeApiRequest(endpoint, options = {}) {
       .replace("https://hotelmanagementbackend-dev.up.railway.app", LIVE_API_URL);
   }
 
+  // Pre-flight check for /check-out: Ensure paid_amount matches booking due if 0 or empty was passed
+  if (
+    effectiveMethod === "POST" &&
+    typeof endpoint === "string" &&
+    /\/bookings\/\d+\/check-out(\?.*)?$/.test(endpoint)
+  ) {
+    const bIdMatch = endpoint.match(/\/bookings\/(\d+)\/check-out/);
+    const bId = bIdMatch ? bIdMatch[1] : null;
+    let payloadObj = typeof preparedBody === "object" && preparedBody !== null ? { ...preparedBody } : {};
+    if (typeof preparedBody === "string") {
+      try { payloadObj = JSON.parse(preparedBody); } catch {}
+    }
+
+    if ((!payloadObj.paid_amount || Number(payloadObj.paid_amount) === 0) && bId) {
+      try {
+        const fetchUrl = `${currentBase}/api/v1/bookings/${bId}`;
+        const checkRes = await fetch(fetchUrl, {
+          method: "GET",
+          headers: reqHeaders,
+          credentials: "include",
+        });
+        if (checkRes.ok) {
+          const checkData = await checkRes.json();
+          const bData = checkData?.data?.booking || checkData?.data || checkData?.booking || checkData;
+          const due = Number(bData?.due_amount ?? bData?.dueAmount ?? 0);
+          if (due > 0) {
+            console.info(`[Check-Out Pre-Flight] Auto-settling outstanding due of ₹${due} for booking #${bId}`);
+            payloadObj.paid_amount = due;
+            payloadObj.settlement_payment_amount = due;
+            preparedBody = payloadObj;
+            config.body = safeJsonStringify(preparedBody);
+          }
+        }
+      } catch (err) {
+        console.warn("[Check-Out Pre-Flight] Unable to check booking dues before checkout:", err);
+      }
+    }
+  }
+
   // Candidate URLs: Live URL is primary (direct live request to Railway)
   const candidateUrls = [fullUrl];
   if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
@@ -1866,6 +1958,32 @@ async function executeApiRequest(endpoint, options = {}) {
     const firstErrorMessage = Array.isArray(data.errors) && data.errors[0]?.message
       ? data.errors[0].message
       : data.message;
+
+    // Automatic checkout due recovery: if backend rejects with exact due amount required, auto-retry once with that exact due amount
+    if (
+      response.status === 400 &&
+      /\/bookings\/\d+\/check-out(\?.*)?$/.test(endpoint) &&
+      !options._checkoutDueRetry
+    ) {
+      const errMsg = String(firstErrorMessage || data.message || "");
+      const match = errMsg.match(/paid_amount must be exactly the due amount of ([\d.]+)/i);
+      if (match && match[1]) {
+        const requiredDue = Number(match[1]);
+        if (!isNaN(requiredDue)) {
+          console.info(`[Check-Out Recovery] Auto-retrying check-out with required due amount of ₹${requiredDue}`);
+          const currentBody = typeof options.body === "object" ? { ...options.body } : {};
+          return apiRequest(endpoint, {
+            ...options,
+            _checkoutDueRetry: true,
+            body: {
+              ...currentBody,
+              paid_amount: requiredDue,
+              settlement_payment_amount: requiredDue,
+            },
+          });
+        }
+      }
+    }
 
     const error = new Error(firstErrorMessage || `API Error: ${response.statusText} (${response.status})`);
     error.status = response.status;

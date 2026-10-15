@@ -254,16 +254,21 @@ export default function InHouseFoliosPage({
     const defaultOption = "hourly";
     const overstay = calculateOverstayFee(booking, hotelSettings, { selectedOption: defaultOption });
     const posChargesTotal = (booking.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
-    const grandTotal = (booking.totalAmount || 0) + posChargesTotal + (overstay.lateFee || 0);
-    const paidTotal = booking.paidAmount || 0;
-    const due = Math.max(0, grandTotal - paidTotal);
+    const bTotal = Number(booking.totalAmount ?? booking.total_amount ?? 0);
+    const paidTotal = Number(booking.paidAmount ?? booking.paid_amount ?? 0);
+    const lateFee = overstay?.lateFee || 0;
+    const grandTotal = (bTotal > 0 ? bTotal : (paidTotal + Number(booking.dueAmount ?? booking.due_amount ?? 0))) + posChargesTotal + lateFee;
+    let due = Number(booking.dueAmount ?? booking.due_amount ?? Math.max(0, grandTotal - paidTotal));
+    if (lateFee > 0 && due === Number(booking.dueAmount ?? booking.due_amount ?? 0)) {
+      due += lateFee;
+    }
 
     setCheckoutDialog({
       open: true,
       booking,
       overstay,
       lateOption: defaultOption,
-      lateFee: overstay.lateFee || 0,
+      lateFee,
       paymentMethod: due > 0 ? "UPI" : "CASH",
       amount: due,
       transactionId: "",
@@ -275,9 +280,14 @@ export default function InHouseFoliosPage({
     if (!checkoutDialog.booking) return;
     const overstay = calculateOverstayFee(checkoutDialog.booking, hotelSettings, { selectedOption: newOption });
     const posChargesTotal = (checkoutDialog.booking.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
-    const grandTotal = (checkoutDialog.booking.totalAmount || 0) + posChargesTotal + (overstay.lateFee || 0);
-    const paidTotal = checkoutDialog.booking.paidAmount || 0;
-    const due = Math.max(0, grandTotal - paidTotal);
+    const bTotal = Number(checkoutDialog.booking.totalAmount ?? checkoutDialog.booking.total_amount ?? 0);
+    const paidTotal = Number(checkoutDialog.booking.paidAmount ?? checkoutDialog.booking.paid_amount ?? 0);
+    const lateFee = overstay?.lateFee || 0;
+    const grandTotal = (bTotal > 0 ? bTotal : (paidTotal + Number(checkoutDialog.booking.dueAmount ?? checkoutDialog.booking.due_amount ?? 0))) + posChargesTotal + lateFee;
+    let due = Number(checkoutDialog.booking.dueAmount ?? checkoutDialog.booking.due_amount ?? Math.max(0, grandTotal - paidTotal));
+    if (lateFee > 0 && due === Number(checkoutDialog.booking.dueAmount ?? checkoutDialog.booking.due_amount ?? 0)) {
+      due += lateFee;
+    }
 
     setCheckoutDialog((prev) => ({
       ...prev,
@@ -1135,7 +1145,7 @@ export default function InHouseFoliosPage({
                         </Typography>
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.85rem" }}>
-                        ₹{(checkoutDialog.booking?.totalAmount || 0).toLocaleString()}
+                        ₹{Number(checkoutDialog.booking?.totalAmount ?? checkoutDialog.booking?.total_amount ?? 0).toLocaleString()}
                       </TableCell>
                     </TableRow>
 
@@ -1174,7 +1184,7 @@ export default function InHouseFoliosPage({
                         Total Folio Bill
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: 900, fontSize: "0.92rem", color: themeConfig.textMain }}>
-                        ₹{((checkoutDialog.booking?.totalAmount || 0) + (checkoutDialog.lateFee || 0) + ((checkoutDialog.booking?.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0))).toLocaleString()}
+                        ₹{((Number(checkoutDialog.booking?.totalAmount ?? checkoutDialog.booking?.total_amount ?? 0)) + (checkoutDialog.lateFee || 0) + ((checkoutDialog.booking?.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0))).toLocaleString()}
                       </TableCell>
                     </TableRow>
 
@@ -1184,7 +1194,7 @@ export default function InHouseFoliosPage({
                         <strong>Advance Payment Paid at Check-In</strong>
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: 800, color: "#059669", fontSize: "0.85rem" }}>
-                        -₹{(checkoutDialog.booking?.paidAmount || 0).toLocaleString()}
+                        -₹{Number(checkoutDialog.booking?.paidAmount ?? checkoutDialog.booking?.paid_amount ?? 0).toLocaleString()}
                       </TableCell>
                     </TableRow>
 

@@ -422,8 +422,10 @@ export default function ReceptionistOverviewPage({
     // 2. From bookings if any guest was not in guests array
     bookings.forEach((b) => {
       const gObj = typeof b.guest === "object" && b.guest ? b.guest : {};
-      const gId = String(gObj._id || b.guest || b.guestId || `b-${b._id || b.bookingNumber}`);
-      const gPhone = gObj.mobileNumber || gObj.phone || b.guestPhone || "";
+      const realBookingId = b.id || b._id || b.bookingId;
+      const bNumber = b.booking_number || b.bookingNumber;
+      const gId = String(gObj.id || gObj._id || b.guest || b.guestId || realBookingId || bNumber || "");
+      const gPhone = gObj.mobileNumber || gObj.phone || b.guestPhone || b.mobile_number || b.phone || "";
 
       if (!seenGuestIds.has(gId) && (!gPhone || !seenPhones.has(gPhone))) {
         seenGuestIds.add(gId);
@@ -497,9 +499,13 @@ export default function ReceptionistOverviewPage({
         delete cleanG.activeBooking;
 
         list.push({
-          _id: gObj._id || gId,
+          _id: realBookingId || gObj.id || gObj._id || gId,
+          id: realBookingId || gObj.id || gObj._id,
+          bookingId: realBookingId,
+          booking_number: bNumber,
+          bookingNumber: bNumber,
           ...cleanB,
-          name: gObj.fullName || gObj.name || b.guestName || "Guest",
+          name: gObj.fullName || gObj.name || b.guestName || b.primary_guest_name || "Guest",
           phone: gPhone || "N/A",
           email: gObj.email || b.guestEmail || "",
           status: b.status === "CHECKED_IN" ? "IN-HOUSE" : b.status,
@@ -756,13 +762,20 @@ export default function ReceptionistOverviewPage({
       const bPrice = Number(b.pricePerNight || b.price_per_night || b.price || b.customPricePerNight || b.room?.customPricePerNight || (bBase > 0 ? Math.round((bBase / bNights) * 100) / 100 : 3500));
       const bRoomType = b.roomType || b.roomTypeName || b.room?.roomType?.name || "Standard Room";
 
+      const realBId = b.id || b._id || b.bookingId;
+      const bNum = b.booking_number || b.bookingNumber;
+
       return {
-        _id: b._id,
+        _id: realBId,
+        id: realBId,
+        bookingId: realBId,
+        booking_number: bNum,
+        bookingNumber: bNum,
         ...b,
         booking: b,
         activeBooking: b,
         guest: g,
-        guestId: g?._id || b.guest?._id || (typeof b.guest === "string" ? b.guest : null),
+        guestId: g?.id || g?._id || b.guest?.id || b.guest?._id || (typeof b.guest === "string" ? b.guest : realBId),
         name: g?.fullName || g?.name || b.guestName || b.primary_guest_name || b.primaryGuestName || "Resident Guest",
         email: g?.email || b.email || "guest@hotel.com",
         phone: g?.mobileNumber || g?.phone || b.mobileNumber || b.mobile_number || b.guestPhone || "N/A",
@@ -800,17 +813,19 @@ export default function ReceptionistOverviewPage({
           b.rawStatus === "CHECKED_IN"
         );
       });
-      const seenBookingIds = new Set(todayFromBookings.map((b) => String(b._id)));
+      const seenBookingIds = new Set(todayFromBookings.map((b) => String(b.id || b._id)));
 
       const extraTodayGuests = (inHouseGuestsList || [])
         .filter(
-          (g) => !seenBookingIds.has(String(g.booking?._id || g._id))
+          (g) => !seenBookingIds.has(String(g.id || g._id || g.booking?.id || g.booking?._id))
         )
         .map((g) => {
           const cleanB = (g.booking && g.booking !== g) ? { ...g.booking } : null;
           if (cleanB) { delete cleanB.guest; delete cleanB.booking; delete cleanB.activeBooking; }
           const cleanG = (g.guest && g.guest !== g) ? { ...g.guest } : null;
           if (cleanG) { delete cleanG.guest; delete cleanG.booking; delete cleanG.activeBooking; }
+          const realId = g.id || g._id || cleanB?.id || cleanB?._id;
+          const bNum = g.booking_number || g.bookingNumber || cleanB?.booking_number || cleanB?.bookingNumber;
           const rawIn = g.checkInDateRaw || g.checkInDate || g.check_in_date || g.checkIn || g.createdAt || new Date().toISOString();
           let rawOut = g.checkOutDateRaw || g.checkOutDate || g.check_out_date || g.checkOut;
           if (!rawOut || rawOut === "N/A") {
@@ -823,13 +838,17 @@ export default function ReceptionistOverviewPage({
             }
           }
           return {
-            _id: g._id,
+            _id: realId,
+            id: realId,
+            bookingId: realId,
+            booking_number: bNum,
+            bookingNumber: bNum,
             ...(cleanB || {}),
             ...g,
             booking: cleanB,
             activeBooking: cleanB,
             guest: cleanG,
-            guestId: g._id,
+            guestId: realId,
             name: g.name || g.fullName || cleanB?.primary_guest_name || "Guest",
             email: g.email || "",
             phone: g.phone || g.mobileNumber || cleanB?.mobile_number || "N/A",
@@ -1624,12 +1643,13 @@ export default function ReceptionistOverviewPage({
                     .slice(guestPage * guestRowsPerPage, guestPage * guestRowsPerPage + guestRowsPerPage)
                     .map((g) => (
                       <TableRow
-                        key={g._id || g.name}
+                        key={g.id || g._id || g.name}
                         onClick={() => {
+                          const resolvedId = g.id || g.bookingId || g._id || g.guestId || (typeof g.guest === "string" ? g.guest : g.guest?.id || g.guest?._id);
                           setSelectedGuestModal({
                             open: true,
                             guest: createSafeGuestModalData(g),
-                            guestId: g._id || g.id || g.bookingId || g.guest?._id || g.guestId || (typeof g.guest === "string" ? g.guest : null),
+                            guestId: resolvedId,
                           });
                         }}
                         sx={{

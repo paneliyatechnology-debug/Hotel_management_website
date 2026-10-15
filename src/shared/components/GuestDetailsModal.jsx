@@ -23,6 +23,7 @@ import {
   TableBody,
   TableContainer,
   CircularProgress,
+  LinearProgress,
   Tooltip,
 } from "@mui/material";
 import {
@@ -119,17 +120,53 @@ export default function GuestDetailsModal({
   const [data, setData] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
 
-  // Target ID to fetch from API
-  const targetId =
-    guestId ||
-    guestData?.id ||
-    guestData?._id ||
-    guestData?.bookingId ||
-    guestData?.booking?.id ||
-    guestData?.booking?._id ||
-    guestData?.guestId;
+  // Helper to sanitize identifier strings
+  const cleanIdVal = (val) => {
+    if (!val) return null;
+    const str = String(val).trim();
+    if (str === "null" || str === "undefined" || str === "" || str === "b-undefined") return null;
+    return str;
+  };
 
-  // Fetch full booking details whenever modal opens
+  // 1. Direct numeric ID candidate (PostgreSQL/MySQL integer ID like 18)
+  const numericId = [
+    guestId,
+    guestData?.id,
+    guestData?._id,
+    guestData?.bookingId,
+    guestData?.booking_id,
+    guestData?.booking?.id,
+    guestData?.booking?._id,
+    guestData?.guestId,
+    guestData?.guest?.id,
+    guestData?.guest?._id,
+  ]
+    .map(cleanIdVal)
+    .find((v) => v && /^\d+$/.test(v));
+
+  // 2. Booking Number candidate (e.g. "BK-20261015-8C42AB")
+  const candidateBookingNumber = [
+    guestData?.booking_number,
+    guestData?.bookingNumber,
+    guestData?.booking?.booking_number,
+    guestData?.booking?.bookingNumber,
+    guestId,
+  ]
+    .map(cleanIdVal)
+    .find((v) => v && v.startsWith("BK-"));
+
+  // 3. Mobile / Phone candidate
+  const candidatePhone = [
+    guestData?.mobile_number,
+    guestData?.phone,
+    guestData?.mobileNumber,
+    guestData?.guest?.mobile_number,
+    guestData?.guest?.phone,
+  ]
+    .map(cleanIdVal)
+    .find((v) => v && /^\+?[0-9]{7,15}$/.test(v.replace(/[\s-]/g, "")));
+
+  // Fetch full booking dossier whenever modal opens
   useEffect(() => {
     if (!open) {
       setData(null);
@@ -137,32 +174,98 @@ export default function GuestDetailsModal({
       return;
     }
 
-    if (!targetId || String(targetId).startsWith("b-")) {
-      // Use locally passed data
-      setData(guestData || {});
-      return;
+    let isSubscribed = true;
+
+    async function loadFullBookingDossier() {
+      setLoading(true);
+      try {
+        let bookingIdToFetch = numericId;
+
+        // If no direct numeric ID, but we have a booking number or phone, resolve via search lookup
+        if (!bookingIdToFetch && (candidateBookingNumber || candidatePhone)) {
+          const query = candidateBookingNumber || candidatePhone;
+          const lookupEndpoint = API_ENDPOINTS.RECEPTIONIST.GUEST_LOOKUP
+            ? API_ENDPOINTS.RECEPTIONIST.GUEST_LOOKUP(query)
+            : `${API_ENDPOINTS.RECEPTIONIST.GUESTS}?search=${encodeURIComponent(query)}`;
+
+          const lookupRes = await apiRequest(lookupEndpoint);
+          const list =
+            (Array.isArray(lookupRes?.data?.bookings) ? lookupRes.data.bookings : null) ||
+            (Array.isArray(lookupRes?.data) ? lookupRes.data : null) ||
+            (Array.isArray(lookupRes?.bookings) ? lookupRes.bookings : null) ||
+            [];
+
+          const matched =
+            list.find((item) => {
+              if (!item) return false;
+              const bNum = item.booking_number || item.bookingNumber;
+              const mPhone = item.mobile_number || item.phone;
+              return (
+                (candidateBookingNumber && bNum === candidateBookingNumber) ||
+                (candidatePhone && mPhone === candidatePhone)
+              );
+            }) || list[0];
+
+          if (matched && (matched.id || matched._id)) {
+            bookingIdToFetch = matched.id || matched._id;
+          }
+        }
+
+        // Fetch single booking details with full KYC images & signatures
+        if (bookingIdToFetch && isSubscribed) {
+          const endpoint = API_ENDPOINTS.RECEPTIONIST.GUEST_BY_ID(bookingIdToFetch);
+          const res = await apiRequest(endpoint);
+          if (isSubscribed) {
+            const fetched =
+              res?.data?.booking ||
+              res?.data?.data ||
+              res?.data ||
+              res?.booking ||
+              res;
+            if (fetched && typeof fetched === "object" && (fetched.id || fetched.booking_number || fetched.primary_guest_name)) {
+              setData(fetched);
+              return;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Could not fetch detailed booking dossier:", err);
+      } finally {
+        if (isSubscribed) setLoading(false);
+      }
     }
 
-    setLoading(true);
-    const endpoint = API_ENDPOINTS.RECEPTIONIST.GUEST_BY_ID(targetId);
-    apiRequest(endpoint)
-      .then((res) => {
-        if (res?.success && res?.data) {
-          setData(res.data);
-        } else {
-          setData(guestData || {});
-        }
-      })
-      .catch((err) => {
-        console.warn("Could not fetch detailed booking data, using fallback:", err);
-        setData(guestData || {});
-      })
-      .finally(() => setLoading(false));
-  }, [open, targetId, guestData]);
+    loadFullBookingDossier();
 
-  // Combined source of truth: Prefer API `data`, fallback to `guestData`
+    return () => {
+      isSubscribed = false;
+    };
+  }, [open, numericId, candidateBookingNumber, candidatePhone]);
+
+  // Combined source of truth: Merge API `data` over `guestData`
   const booking = useMemo(() => {
-    return data || guestData || {};
+    const base = guestData || {};
+    const api = data || {};
+    return {
+      ...base,
+      ...api,
+      hotel: api.hotel || base.hotel || null,
+      creator: api.creator || base.creator || null,
+      guest: {
+        ...(base.guest || {}),
+        ...(api.guest || {}),
+      },
+      rooms: (Array.isArray(api.rooms) && api.rooms.length > 0)
+        ? api.rooms
+        : (Array.isArray(base.rooms) && base.rooms.length > 0)
+          ? base.rooms
+          : (api.rooms || base.rooms || []),
+      payment_history: (Array.isArray(api.payment_history) && api.payment_history.length > 0)
+        ? api.payment_history
+        : (Array.isArray(base.payment_history) && base.payment_history.length > 0)
+          ? base.payment_history
+          : (api.paymentHistory || base.paymentHistory || []),
+    };
   }, [data, guestData]);
 
   // Primary Guest Fields
@@ -171,53 +274,60 @@ export default function GuestDetailsModal({
     booking.fullName ||
     booking.name ||
     booking.guestName ||
-    "MAULIK";
+    guestData?.primary_guest_name ||
+    guestData?.name ||
+    "Resident Guest";
 
-  const secondaryGuestName = booking.secondary_guest_name || null;
+  const secondaryGuestName = booking.secondary_guest_name || guestData?.secondary_guest_name || null;
 
   const mobileNumber =
     booking.mobile_number ||
     booking.phone ||
     booking.mobileNumber ||
+    guestData?.mobile_number ||
+    guestData?.phone ||
     "N/A";
 
-  const email = booking.email || "Not Provided";
-  const address = booking.address || "";
+  const email = booking.email || guestData?.email || "Not Provided";
+  const address = booking.address || guestData?.address || "";
   const bookingNumber =
     booking.booking_number ||
     booking.bookingNumber ||
-    `BK-${booking.id || "N/A"}`;
+    guestData?.booking_number ||
+    guestData?.bookingNumber ||
+    candidateBookingNumber ||
+    (booking.id ? `BK-${booking.id}` : (guestData?.id ? `BK-${guestData.id}` : "BK-N/A"));
 
-  const hotelName = booking.hotel?.name || "JK";
-  const creator = booking.creator || null;
+  const hotelName = booking.hotel?.name || guestData?.hotel?.name || "Hotel Property";
+  const creator = booking.creator || guestData?.creator || null;
 
   // Dates & Schedule
-  const checkInDate = booking.check_in_date || booking.checkInDate || null;
-  const checkOutDate = booking.check_out_date || booking.checkOutDate || null;
-  const actualCheckIn = booking.actual_check_in || booking.actualCheckIn || null;
-  const actualCheckOut = booking.actual_check_out || booking.actualCheckOut || null;
+  const checkInDate = booking.check_in_date || booking.checkInDate || guestData?.checkInDate || guestData?.check_in_date || null;
+  const checkOutDate = booking.check_out_date || booking.checkOutDate || guestData?.checkOutDate || guestData?.check_out_date || null;
+  const actualCheckIn = booking.actual_check_in || booking.actualCheckIn || guestData?.actualCheckIn || null;
+  const actualCheckOut = booking.actual_check_out || booking.actualCheckOut || guestData?.actualCheckOut || null;
 
-  const nights = Number(booking.number_of_nights || booking.numberOfNights || 1);
-  const adults = Number(booking.adults !== undefined ? booking.adults : 1);
-  const children = Number(booking.children !== undefined ? booking.children : 0);
+  const nights = Number(booking.number_of_nights || booking.numberOfNights || guestData?.numberOfNights || 1);
+  const adults = Number(booking.adults !== undefined ? booking.adults : (guestData?.adults !== undefined ? guestData.adults : 1));
+  const children = Number(booking.children !== undefined ? booking.children : (guestData?.children !== undefined ? guestData.children : 0));
 
   // Statuses
-  const bookingStatus = (booking.booking_status || booking.status || "CHECKED_IN").toUpperCase();
-  const paymentStatus = (booking.payment_status || booking.paymentStatus || "PARTIALLY_PAID").toUpperCase();
+  const bookingStatus = (booking.booking_status || booking.status || guestData?.booking_status || guestData?.status || "CHECKED_IN").toUpperCase();
+  const paymentStatus = (booking.payment_status || booking.paymentStatus || guestData?.payment_status || guestData?.paymentStatus || "PARTIALLY_PAID").toUpperCase();
 
   // Financial Ledger
-  const baseAmount = Number(booking.base_amount ?? booking.baseAmount ?? 0);
-  const taxAmount = Number(booking.tax_amount ?? booking.taxAmount ?? booking.gst_amount ?? 0);
+  const baseAmount = Number(booking.base_amount ?? booking.baseAmount ?? guestData?.baseAmount ?? guestData?.base_amount ?? 0);
+  const taxAmount = Number(booking.tax_amount ?? booking.taxAmount ?? booking.gst_amount ?? guestData?.taxAmount ?? 0);
   const gstRate = Number(booking.gst_rate ?? booking.gstRate ?? 18);
   const cgstRate = Number(booking.cgst_rate ?? booking.cgstRate ?? 9);
   const sgstRate = Number(booking.sgst_rate ?? booking.sgstRate ?? 9);
   const gstAmount = Number(booking.gst_amount ?? booking.gstAmount ?? taxAmount);
   const cgstAmount = Number(booking.cgst_amount ?? booking.cgstAmount ?? (gstAmount / 2));
   const sgstAmount = Number(booking.sgst_amount ?? booking.sgstAmount ?? (gstAmount / 2));
-  const totalAmount = Number(booking.total_amount ?? booking.totalAmount ?? (baseAmount + gstAmount));
-  const paidAmount = Number(booking.paid_amount ?? booking.paidAmount ?? 0);
-  const dueAmount = Number(booking.due_amount ?? booking.dueAmount ?? Math.max(0, totalAmount - paidAmount));
-  const notes = booking.notes || "";
+  const totalAmount = Number(booking.total_amount ?? booking.totalAmount ?? guestData?.totalAmount ?? (baseAmount + gstAmount));
+  const paidAmount = Number(booking.paid_amount ?? booking.paidAmount ?? guestData?.paidAmount ?? 0);
+  const dueAmount = Number(booking.due_amount ?? booking.dueAmount ?? guestData?.dueAmount ?? Math.max(0, totalAmount - paidAmount));
+  const notes = booking.notes || guestData?.notes || "";
 
   // Rooms List
   const rooms = useMemo(() => {
@@ -232,9 +342,9 @@ export default function GuestDetailsModal({
         roomTotal: baseAmount,
       }));
     }
-    const rNum = booking.room_number || booking.roomNumber || "206";
-    const rType = booking.room_type_name || booking.roomType || "Family Room";
-    const fl = booking.floor !== undefined ? booking.floor : 2;
+    const rNum = booking.room_number || booking.roomNumber || guestData?.roomAssigned || guestData?.roomNumber || "N/A";
+    const rType = booking.room_type_name || booking.roomType || guestData?.roomType || "Standard Room";
+    const fl = booking.floor !== undefined ? booking.floor : (guestData?.floor !== undefined ? guestData.floor : 1);
     return [
       {
         id: 1,
@@ -246,7 +356,7 @@ export default function GuestDetailsModal({
         roomTotal: baseAmount,
       },
     ];
-  }, [booking.rooms, baseAmount, nights]);
+  }, [booking.rooms, booking.room_number, booking.roomNumber, booking.room_type_name, booking.roomType, booking.floor, guestData, baseAmount, nights]);
 
   // Payment History List
   const paymentHistory = useMemo(() => {
@@ -354,6 +464,8 @@ export default function GuestDetailsModal({
     const candidateSources = [
       booking,
       booking.guest,
+      data,
+      data?.guest,
       guestData,
       guestData?.guest,
       guestData?.booking,
@@ -454,6 +566,8 @@ export default function GuestDetailsModal({
     const candidateSources = [
       booking,
       booking.guest,
+      data,
+      data?.guest,
       guestData,
       guestData?.guest,
       guestData?.booking,
@@ -619,8 +733,17 @@ export default function GuestDetailsModal({
         </Box>
 
         {/* ================= MODAL CONTENT ================= */}
+        {loading && (
+          <LinearProgress
+            sx={{
+              height: 3,
+              bgcolor: "transparent",
+              "& .MuiLinearProgress-bar": { bgcolor: themeConfig.primary },
+            }}
+          />
+        )}
         <DialogContent sx={{ p: { xs: 2, sm: 2.5 } }}>
-          {loading ? (
+          {loading && !data && !guestData?.name && !guestData?.primary_guest_name ? (
             <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", py: 8, gap: 2 }}>
               <CircularProgress sx={{ color: themeConfig.primary }} />
               <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>

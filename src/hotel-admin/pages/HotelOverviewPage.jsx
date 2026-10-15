@@ -556,9 +556,11 @@ export default function HotelOverviewPage({
             ...b,
             booking: b,
             activeBooking: b,
-            _id: b._id,
-            bookingId: b._id,
-            guestId: b._id || g?._id || b.guest,
+            _id: b.id || b._id,
+            id: b.id || b._id,
+            bookingId: b.id || b._id,
+            booking_number: b.booking_number || b.bookingNumber,
+            guestId: b.id || b._id || g?.id || g?._id || b.guest,
             name: g?.fullName || g?.name || b.guestName || "Resident Guest",
             email: g?.email || b.email || "",
             phone: g?.mobileNumber || g?.phone || b.mobileNumber || b.guestPhone || "N/A",
@@ -1276,7 +1278,7 @@ export default function HotelOverviewPage({
                       <TableRow
                         key={g._id || g.name}
                         hover
-                        onClick={() => setSelectedGuestModal({ open: true, guestId: g.bookingId || g._id || g.guestId, guestData: createSafeGuestModalData(g) })}
+                        onClick={() => setSelectedGuestModal({ open: true, guestId: g.id || g.bookingId || g._id || g.guestId, guestData: createSafeGuestModalData(g) })}
                         sx={{
                           cursor: "pointer",
                           "&:hover": { bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(16, 185, 129, 0.05)" },

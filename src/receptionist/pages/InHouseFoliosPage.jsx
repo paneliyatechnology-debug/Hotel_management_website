@@ -589,7 +589,7 @@ export default function InHouseFoliosPage({
                               setSelectedGuestModal({
                                 open: true,
                                 guest: createSafeGuestModalData(b),
-                                guestId: b._id || b.id || b.bookingId || b.guest?._id || b.guest?.id,
+                                guestId: b.id || b._id || b.bookingId || b.guest?.id || b.guest?._id,
                               });
                             }}
                           >

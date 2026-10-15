@@ -358,15 +358,23 @@ export function createSafeGuestModalData(raw) {
   }
   if (photo) cleanBooking.photo = photo;
 
+  const cleanIdVal = (v) => {
+    if (!v) return null;
+    const s = String(v).trim();
+    if (s === "null" || s === "undefined" || s === "" || s === "b-undefined") return null;
+    return v;
+  };
+
   const targetId =
-    raw._id ||
-    raw.id ||
-    cleanGuest._id ||
-    cleanBooking._id ||
-    raw.guestId ||
-    raw.bookingId ||
-    rawBookingObj?._id ||
-    rawGuestObj?._id;
+    cleanIdVal(raw.id) ||
+    cleanIdVal(raw._id) ||
+    cleanIdVal(raw.bookingId) ||
+    cleanIdVal(raw.booking_id) ||
+    cleanIdVal(cleanBooking.id) ||
+    cleanIdVal(cleanBooking._id) ||
+    cleanIdVal(rawGuestObj?.id) ||
+    cleanIdVal(rawGuestObj?._id) ||
+    cleanIdVal(raw.guestId);
 
   const checkInDate =
     raw.checkInDate ||

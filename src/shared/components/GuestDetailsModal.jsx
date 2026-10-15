@@ -51,6 +51,10 @@ import { toast } from "@/shared/utils/toast";
 
 // Helper: Normalize relative or S3 image URLs
 function normalizeImageSrc(src) {
+  if (!src) return null;
+  if (typeof src === "object") {
+    src = src.url || src.secure_url || src.path || src.src || src.uri || src.fileUrl || src.data || src.link || src.image;
+  }
   if (!src || typeof src !== "string") return null;
   const trimmed = src.trim();
   if (
@@ -60,6 +64,14 @@ function normalizeImageSrc(src) {
     trimmed === ""
   ) {
     return null;
+  }
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    try {
+      const arr = JSON.parse(trimmed);
+      if (Array.isArray(arr) && arr.length > 0) {
+        return normalizeImageSrc(arr[0]);
+      }
+    } catch {}
   }
   if (
     trimmed.startsWith("http://") ||
@@ -271,17 +283,206 @@ export default function GuestDetailsModal({
     return [];
   }, [booking.payment_history, paidAmount, actualCheckIn, bookingNumber, paymentStatus, creator]);
 
-  // ID Proof Images (array of Tigris S3 URLs)
+  // ID Proof Images (array of Tigris S3 URLs, local uploads, or candidate fields)
   const images = useMemo(() => {
-    const list = Array.isArray(booking.images) ? booking.images : [];
-    return list.map(normalizeImageSrc).filter(Boolean);
-  }, [booking.images]);
+    const list = [];
+    const seen = new Set();
 
-  // Digital Signatures (array of Tigris S3 URLs)
+    const addImg = (val) => {
+      if (!val) return;
+      if (Array.isArray(val)) {
+        val.forEach(addImg);
+        return;
+      }
+      if (typeof val === "object" && val !== null) {
+        if (val.frontImage || val.front_image || val.front || val.frontImageUrl || val.front_image_url) {
+          addImg(val.frontImage || val.front_image || val.front || val.frontImageUrl || val.front_image_url);
+        }
+        if (val.backImage || val.back_image || val.back || val.backImageUrl || val.back_image_url) {
+          addImg(val.backImage || val.back_image || val.back || val.backImageUrl || val.back_image_url);
+        }
+        if (val.id_proof_front || val.idProofFront || val.id_proof_front_image) {
+          addImg(val.id_proof_front || val.idProofFront || val.id_proof_front_image);
+        }
+        if (val.id_proof_back || val.idProofBack || val.id_proof_back_image) {
+          addImg(val.id_proof_back || val.idProofBack || val.id_proof_back_image);
+        }
+        if (val.id_proof_image || val.idProofImage || val.id_proof_url || val.idProofUrl) {
+          addImg(val.id_proof_image || val.idProofImage || val.id_proof_url || val.idProofUrl);
+        }
+        if (val.govt_id_front || val.govtIdFront || val.govt_id_image || val.govtIdImage || val.govt_id_photo) {
+          addImg(val.govt_id_front || val.govtIdFront || val.govt_id_image || val.govtIdImage || val.govt_id_photo);
+        }
+        if (val.govt_id_back || val.govtIdBack || val.govt_id_photo_back) {
+          addImg(val.govt_id_back || val.govtIdBack || val.govt_id_photo_back);
+        }
+        if (val.id_card_front || val.idCardFront || val.id_card_image) {
+          addImg(val.id_card_front || val.idCardFront || val.id_card_image);
+        }
+        if (val.id_card_back || val.idCardBack) {
+          addImg(val.id_card_back || val.idCardBack);
+        }
+        if (val.url || val.secure_url || val.path || val.src || val.image || val.fileUrl || val.uri || val.data) {
+          addImg(val.url || val.secure_url || val.path || val.src || val.image || val.fileUrl || val.uri || val.data);
+        }
+        if (Array.isArray(val.images)) val.images.forEach(addImg);
+        if (Array.isArray(val.documents)) val.documents.forEach(addImg);
+        if (Array.isArray(val.photos)) val.photos.forEach(addImg);
+        return;
+      }
+      if (typeof val === "string") {
+        const trimmed = val.trim();
+        if ((trimmed.startsWith("[") && trimmed.endsWith("]")) || (trimmed.startsWith("{") && trimmed.endsWith("}"))) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            addImg(parsed);
+            return;
+          } catch {}
+        }
+        if (trimmed.includes(",") && !trimmed.startsWith("data:")) {
+          trimmed.split(",").forEach((item) => addImg(item.trim()));
+          return;
+        }
+        const normalized = normalizeImageSrc(trimmed);
+        if (normalized && !seen.has(normalized)) {
+          seen.add(normalized);
+          list.push(normalized);
+        }
+      }
+    };
+
+    const candidateSources = [
+      booking,
+      booking.guest,
+      guestData,
+      guestData?.guest,
+      guestData?.booking,
+      guestData?.activeBooking,
+    ];
+
+    candidateSources.forEach((src) => {
+      if (!src || typeof src !== "object") return;
+      addImg(src.images);
+      addImg(src.documents);
+      addImg(src.photos);
+      addImg(src.front_image);
+      addImg(src.frontImage);
+      addImg(src.frontImageUrl);
+      addImg(src.front_image_url);
+      addImg(src.back_image);
+      addImg(src.backImage);
+      addImg(src.backImageUrl);
+      addImg(src.back_image_url);
+      addImg(src.idProof);
+      addImg(src.id_proof);
+      addImg(src.id_proof_image);
+      addImg(src.idProofImage);
+      addImg(src.id_proof_url);
+      addImg(src.idProofUrl);
+      addImg(src.id_proof_front);
+      addImg(src.idProofFront);
+      addImg(src.id_proof_back);
+      addImg(src.idProofBack);
+      addImg(src.govt_id_front);
+      addImg(src.govtIdFront);
+      addImg(src.govt_id_back);
+      addImg(src.govtIdBack);
+      addImg(src.govt_id_image);
+      addImg(src.govtIdImage);
+      addImg(src.govt_id_photo);
+      addImg(src.id_card_front);
+      addImg(src.id_card_back);
+      if (Array.isArray(src.members)) {
+        src.members.forEach((m) => {
+          if (!m || typeof m !== "object") return;
+          addImg(m.images);
+          addImg(m.front_image || m.frontImage || m.frontImageUrl);
+          addImg(m.back_image || m.backImage || m.backImageUrl);
+          addImg(m.id_proof_image || m.idProofImage);
+          addImg(m.photo || m.image);
+        });
+      }
+      if (Array.isArray(src.accompanyingGuests)) {
+        src.accompanyingGuests.forEach((m) => {
+          if (!m || typeof m !== "object") return;
+          addImg(m.images);
+          addImg(m.front_image || m.frontImage);
+          addImg(m.back_image || m.backImage);
+          addImg(m.id_proof_image || m.idProofImage);
+          addImg(m.photo || m.image);
+        });
+      }
+    });
+
+    return list;
+  }, [booking, guestData]);
+
+  // Digital Signatures (array of Tigris S3 URLs, data URIs, or candidate fields)
   const signatures = useMemo(() => {
-    const list = Array.isArray(booking.signatures) ? booking.signatures : [];
-    return list.map(normalizeImageSrc).filter(Boolean);
-  }, [booking.signatures]);
+    const list = [];
+    const seen = new Set();
+
+    const addSig = (val) => {
+      if (!val) return;
+      if (Array.isArray(val)) {
+        val.forEach(addSig);
+        return;
+      }
+      if (typeof val === "object" && val !== null) {
+        if (val.url || val.secure_url || val.path || val.src || val.image || val.fileUrl || val.uri || val.data || val.signature) {
+          addSig(val.url || val.secure_url || val.path || val.src || val.image || val.fileUrl || val.uri || val.data || val.signature);
+        }
+        return;
+      }
+      if (typeof val === "string") {
+        const trimmed = val.trim();
+        if ((trimmed.startsWith("[") && trimmed.endsWith("]")) || (trimmed.startsWith("{") && trimmed.endsWith("}"))) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            addSig(parsed);
+            return;
+          } catch {}
+        }
+        const normalized = normalizeImageSrc(trimmed);
+        if (normalized && !seen.has(normalized)) {
+          seen.add(normalized);
+          list.push(normalized);
+        }
+      }
+    };
+
+    const candidateSources = [
+      booking,
+      booking.guest,
+      guestData,
+      guestData?.guest,
+      guestData?.booking,
+      guestData?.activeBooking,
+    ];
+
+    candidateSources.forEach((src) => {
+      if (!src || typeof src !== "object") return;
+      addSig(src.signatures);
+      addSig(src.signature);
+      addSig(src.signature_url);
+      addSig(src.signatureUrl);
+      addSig(src.signature_image);
+      addSig(src.signatureImage);
+      addSig(src.guest_signature);
+      addSig(src.guestSignature);
+      addSig(src.guest_signature_url);
+      addSig(src.guestSignatureUrl);
+      addSig(src.digital_signature);
+      addSig(src.digitalSignature);
+      addSig(src.e_signature);
+      addSig(src.eSignature);
+      addSig(src.idProof?.signature);
+      addSig(src.idProof?.signatureUrl);
+      addSig(src.idProof?.guestSignature);
+    });
+
+    return list;
+  }, [booking, guestData]);
 
   // Folio Print / Print Invoice Handler
   const handlePrintFolio = () => {
@@ -626,6 +827,155 @@ export default function GuestDetailsModal({
                         </Grid>
                       ))}
                     </Grid>
+                  </Paper>
+
+                  {/* 4. Govt ID KYC Document & Signature Highlights */}
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: 2.2,
+                      borderRadius: "16px",
+                      border: `1px solid ${themeConfig.border}`,
+                      bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#FFFFFF",
+                    }}
+                  >
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexWrap: "wrap", gap: 1 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 1 }}>
+                        <BadgeOutlined sx={{ fontSize: 18, color: themeConfig.primary }} />
+                        Govt Identity KYC Proofs &amp; Signatures ({images.length + signatures.length})
+                      </Typography>
+                      <Button
+                        size="small"
+                        onClick={() => setActiveTab(1)}
+                        sx={{ textTransform: "none", fontWeight: 800, color: themeConfig.primary, fontSize: "0.8rem" }}
+                      >
+                        Open Full KYC Tab &rarr;
+                      </Button>
+                    </Box>
+
+                    {images.length > 0 || signatures.length > 0 ? (
+                      <Grid container spacing={2}>
+                        {images.map((imgUrl, idx) => (
+                          <Grid key={`quick-img-${idx}`} size={{ xs: 12, sm: 6, md: 4 }}>
+                            <Paper
+                              elevation={0}
+                              sx={{
+                                p: 1.2,
+                                borderRadius: "12px",
+                                border: `1px solid ${themeConfig.border}`,
+                                bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
+                                textAlign: "center",
+                                transition: "all 0.2s ease",
+                                "&:hover": { borderColor: themeConfig.primary, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" },
+                              }}
+                            >
+                              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.8 }}>
+                                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.74rem" }} noWrap>
+                                  📄 {idx === 0 ? "Front ID (Primary)" : idx === 1 ? "Back ID" : `Document #${idx + 1}`}
+                                </Typography>
+                                <Chip
+                                  icon={<FileDownload sx={{ fontSize: "13px !important" }} />}
+                                  label="Download"
+                                  size="small"
+                                  clickable
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    downloadImage(imgUrl, `${primaryGuestName}_ID_${idx + 1}.png`);
+                                  }}
+                                  sx={{
+                                    height: 20,
+                                    fontSize: "0.65rem",
+                                    fontWeight: 800,
+                                    bgcolor: "rgba(11, 142, 224, 0.1)",
+                                    color: "#0B8EE0",
+                                  }}
+                                />
+                              </Box>
+                              <Box
+                                component="img"
+                                src={imgUrl}
+                                alt={`ID Proof ${idx + 1}`}
+                                onClick={() => setPreviewImage(imgUrl)}
+                                sx={{
+                                  width: "100%",
+                                  height: 120,
+                                  objectFit: "contain",
+                                  bgcolor: isDarkMode ? "rgba(0,0,0,0.25)" : "#FFFFFF",
+                                  border: `1px solid ${themeConfig.border}`,
+                                  borderRadius: "8px",
+                                  cursor: "pointer",
+                                  transition: "transform 0.2s",
+                                  "&:hover": { transform: "scale(1.02)" },
+                                }}
+                              />
+                            </Paper>
+                          </Grid>
+                        ))}
+
+                        {signatures.map((sigUrl, sIdx) => (
+                          <Grid key={`quick-sig-${sIdx}`} size={{ xs: 12, sm: 6, md: 4 }}>
+                            <Paper
+                              elevation={0}
+                              sx={{
+                                p: 1.2,
+                                borderRadius: "12px",
+                                border: `1px solid ${themeConfig.border}`,
+                                bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
+                                textAlign: "center",
+                                transition: "all 0.2s ease",
+                                "&:hover": { borderColor: "#10B981" },
+                              }}
+                            >
+                              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.8 }}>
+                                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.74rem" }} noWrap>
+                                  ✍️ Signature #{sIdx + 1}
+                                </Typography>
+                                <Chip
+                                  icon={<FileDownload sx={{ fontSize: "13px !important" }} />}
+                                  label="Download"
+                                  size="small"
+                                  clickable
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    downloadImage(sigUrl, `${primaryGuestName}_Signature_${sIdx + 1}.png`);
+                                  }}
+                                  sx={{
+                                    height: 20,
+                                    fontSize: "0.65rem",
+                                    fontWeight: 800,
+                                    bgcolor: "rgba(16, 185, 129, 0.1)",
+                                    color: "#10B981",
+                                  }}
+                                />
+                              </Box>
+                              <Box
+                                component="img"
+                                src={sigUrl}
+                                alt={`Signature ${sIdx + 1}`}
+                                onClick={() => setPreviewImage(sigUrl)}
+                                sx={{
+                                  width: "100%",
+                                  height: 100,
+                                  objectFit: "contain",
+                                  bgcolor: isDarkMode ? "rgba(0,0,0,0.25)" : "#FFFFFF",
+                                  border: `1px solid ${themeConfig.border}`,
+                                  borderRadius: "8px",
+                                  cursor: "pointer",
+                                  transition: "transform 0.2s",
+                                  "&:hover": { transform: "scale(1.02)" },
+                                }}
+                              />
+                            </Paper>
+                          </Grid>
+                        ))}
+                      </Grid>
+                    ) : (
+                      <Box sx={{ py: 3, textAlign: "center", color: themeConfig.textMuted }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700, fontSize: "0.85rem" }}>
+                          No KYC Document Photos Uploaded
+                        </Typography>
+                      </Box>
+                    )}
                   </Paper>
                 </Box>
               )}

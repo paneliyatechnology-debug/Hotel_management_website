@@ -204,6 +204,35 @@ function cleanGuestObj(obj) {
   delete copy.guest;
   delete copy.booking;
   delete copy.activeBooking;
+
+  const name =
+    copy.primary_guest_name ||
+    copy.fullName ||
+    copy.name ||
+    copy.guest_name ||
+    copy.guestName ||
+    "";
+  if (name) {
+    copy.name = name;
+    copy.fullName = name;
+    copy.primary_guest_name = name;
+  }
+
+  const phone =
+    copy.mobile_number ||
+    copy.mobileNumber ||
+    copy.phone ||
+    copy.guestPhone ||
+    "";
+  if (phone) {
+    copy.phone = phone;
+    copy.mobileNumber = phone;
+    copy.mobile_number = phone;
+  }
+
+  if (copy.address) copy.guestAddress = copy.address;
+  if (copy.email) copy.email = copy.email;
+
   return removeCircularReferences(copy) || {};
 }
 
@@ -213,6 +242,84 @@ function cleanBookingObj(obj) {
   delete copy.guest;
   delete copy.booking;
   delete copy.activeBooking;
+
+  const name =
+    copy.primary_guest_name ||
+    copy.fullName ||
+    copy.name ||
+    copy.guest_name ||
+    copy.guestName ||
+    "";
+  if (name) {
+    copy.primary_guest_name = name;
+    copy.guestName = name;
+    copy.name = name;
+  }
+
+  const phone =
+    copy.mobile_number ||
+    copy.mobileNumber ||
+    copy.phone ||
+    copy.guestPhone ||
+    "";
+  if (phone) {
+    copy.mobile_number = phone;
+    copy.mobileNumber = phone;
+    copy.phone = phone;
+  }
+
+  const bNum =
+    copy.booking_number ||
+    copy.bookingNumber ||
+    copy.bookingRef ||
+    copy.bookingId ||
+    copy.booking_id;
+  if (bNum) {
+    copy.booking_number = bNum;
+    copy.bookingNumber = bNum;
+  }
+
+  const bStatus =
+    copy.booking_status ||
+    copy.bookingStatus ||
+    copy.status;
+  if (bStatus) {
+    copy.booking_status = bStatus;
+    copy.bookingStatus = bStatus;
+    copy.status = bStatus;
+  }
+
+  const pStatus =
+    copy.payment_status ||
+    copy.paymentStatus;
+  if (pStatus) {
+    copy.payment_status = pStatus;
+    copy.paymentStatus = pStatus;
+  }
+
+  if (copy.check_in_date && !copy.checkInDate) copy.checkInDate = copy.check_in_date;
+  if (copy.check_out_date && !copy.checkOutDate) copy.checkOutDate = copy.check_out_date;
+  if (copy.actual_check_in && !copy.actualCheckIn) copy.actualCheckIn = copy.actual_check_in;
+  if (copy.actual_check_out && !copy.actualCheckOut) copy.actualCheckOut = copy.actual_check_out;
+  if (copy.number_of_nights !== undefined && copy.numberOfNights === undefined) copy.numberOfNights = copy.number_of_nights;
+
+  if (copy.base_amount !== undefined && copy.baseAmount === undefined) copy.baseAmount = copy.base_amount;
+  if (copy.tax_amount !== undefined && copy.taxAmount === undefined) copy.taxAmount = copy.tax_amount;
+  if (copy.gst_amount !== undefined && copy.gstAmount === undefined) copy.gstAmount = copy.gst_amount;
+  if (copy.cgst_amount !== undefined && copy.cgstAmount === undefined) copy.cgstAmount = copy.cgst_amount;
+  if (copy.sgst_amount !== undefined && copy.sgstAmount === undefined) copy.sgstAmount = copy.sgst_amount;
+  if (copy.gst_rate !== undefined && copy.gstRate === undefined) copy.gstRate = copy.gst_rate;
+  if (copy.total_amount !== undefined && copy.totalAmount === undefined) copy.totalAmount = copy.total_amount;
+  if (copy.paid_amount !== undefined && copy.paidAmount === undefined) copy.paidAmount = copy.paid_amount;
+  if (copy.due_amount !== undefined && copy.dueAmount === undefined) copy.dueAmount = copy.due_amount;
+
+  if (Array.isArray(copy.rooms) && copy.rooms.length > 0) {
+    const firstRoom = copy.rooms[0];
+    if (firstRoom?.room_number && !copy.roomNumber) copy.roomNumber = firstRoom.room_number;
+    if (firstRoom?.room_type_name && !copy.roomType) copy.roomType = firstRoom.room_type_name;
+    if (firstRoom?.floor !== undefined && copy.floor === undefined) copy.floor = firstRoom.floor;
+  }
+
   return removeCircularReferences(copy) || null;
 }
 
@@ -343,12 +450,66 @@ export default function GuestDetailsModal({
             resolvedBooking.signature = preservedSignature;
           }
 
+          const mappedRooms = Array.isArray(apiData.rooms) && apiData.rooms.length > 0
+            ? apiData.rooms.map((r, i) => ({
+                id: r.id || i,
+                roomNumber: r.room_number || r.roomNumber,
+                floor: r.floor !== undefined ? r.floor : (parseInt(r.room_number || "101", 10) >= 100 ? Math.floor(parseInt(r.room_number, 10) / 100) : 1),
+                roomType: r.room_type_name || r.roomType || "Standard Room",
+                pricePerNight: apiData.base_amount ? Math.round((Number(apiData.base_amount) / Math.max(1, Number(apiData.number_of_nights || 1))) * 100) / 100 : 0,
+                numberOfNights: Number(apiData.number_of_nights || 1),
+                roomTotal: Number(apiData.base_amount || 0),
+                status: apiData.booking_status || "OCCUPIED",
+              }))
+            : (guestData?.roomsDetail || []);
+
+          const mappedPaymentHistory = Array.isArray(apiData.payment_history) && apiData.payment_history.length > 0
+            ? apiData.payment_history.map((p, idx) => ({
+                id: p.id || idx,
+                formattedDate: p.received_at
+                  ? new Date(p.received_at).toLocaleDateString("en-IN") + " " + new Date(p.received_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+                  : (p.created_at ? new Date(p.created_at).toLocaleDateString("en-IN") : "At Check-In"),
+                transactionId: `TXN-${String(p.id || idx + 101).padStart(5, "0")}`,
+                description: p.source ? `${p.source} Payment (${p.payment_method || "CASH"})` : "Room Stay & Taxes",
+                paymentMethod: p.payment_method || "CASH",
+                amount: Number(p.amount || 0),
+                gst: 0,
+                total: Number(p.amount || 0),
+                status: (p.status || "PAID").toUpperCase(),
+                receivedBy: p.received_by?.name || null,
+                receivedByRole: p.received_by?.role || null,
+              }))
+            : (guestData?.paymentHistory || []);
+
+          const paymentObj = {
+            baseAmount: Number(apiData.base_amount || 0),
+            gstRate: Number(apiData.gst_rate || 18),
+            gstAmount: Number(apiData.gst_amount || apiData.tax_amount || 0),
+            cgstAmount: Number(apiData.cgst_amount || 0),
+            sgstAmount: Number(apiData.sgst_amount || 0),
+            discountAmount: Number(apiData.discount_amount || 0),
+            extraChargesTotal: Number(apiData.extra_charges_total || 0),
+            totalAmount: Number(apiData.total_amount || 0),
+            paidAmount: Number(apiData.paid_amount || 0),
+            dueAmount: Number(apiData.due_amount || 0),
+            paymentStatus: apiData.payment_status === "PARTIALLY_PAID" ? "PARTIAL" : (apiData.payment_status || "PENDING"),
+            paymentMethod: apiData.payment_history?.[0]?.payment_method || "CASH",
+            numberOfNights: Number(apiData.number_of_nights || 1),
+            nightlyRate: Math.round((Number(apiData.base_amount || 0) / Math.max(1, Number(apiData.number_of_nights || 1))) * 100) / 100,
+            notes: apiData.notes || "",
+          };
+
           setDetails({
             ...(guestData || {}),
             ...apiData,
             images: (Array.isArray(apiData.images) && apiData.images.length > 0) ? apiData.images : (preservedImages.length > 0 ? preservedImages : (guestData?.images || [])),
+            signatures: (Array.isArray(apiData.signatures) && apiData.signatures.length > 0) ? apiData.signatures : (guestData?.signatures || []),
             guest: resolvedGuest,
             activeBooking: resolvedBooking,
+            roomsDetail: mappedRooms,
+            rooms: apiData.rooms || [],
+            paymentDetails: paymentObj,
+            paymentHistory: mappedPaymentHistory,
           });
         } else {
           // Fallback to locally passed data if API response structure is basic
@@ -606,7 +767,7 @@ export default function GuestDetailsModal({
     const rawDiscount = Number(existing?.discountAmount ?? existing?.discount_amount ?? source.discountAmount ?? source.discount_amount ?? 0);
     const rawExtra = Number(existing?.extraChargesTotal ?? existing?.extra_charges_total ?? source.extraChargesTotal ?? source.extra_charges_total ?? source.securityDepositAmount ?? 0);
 
-    const candidateGst = existing?.gstAmount ?? existing?.gst_amount ?? source.gstAmount ?? source.gst_amount;
+    const candidateGst = existing?.gstAmount ?? existing?.gst_amount ?? source.gstAmount ?? source.gst_amount ?? existing?.taxAmount ?? existing?.tax_amount ?? source.tax_amount ?? source.taxAmount;
     const rawGst = Number(
       candidateGst !== undefined && Number(candidateGst) > 0
         ? candidateGst
@@ -616,8 +777,8 @@ export default function GuestDetailsModal({
     const effectiveTotal = rawTotal > 0 ? rawTotal : Math.max(0, Math.round((rawBase + rawGst - rawDiscount + rawExtra) * 100) / 100);
     const rawDue = rawDueFromProps > 0 ? rawDueFromProps : Math.max(0, Math.round((effectiveTotal - rawPaid) * 100) / 100);
 
-    const cgst = Number(existing?.cgstAmount ?? Math.round((rawGst / 2) * 100) / 100);
-    const sgst = Number(existing?.sgstAmount ?? Math.round((rawGst - cgst) * 100) / 100);
+    const cgst = Number(existing?.cgstAmount ?? existing?.cgst_amount ?? source.cgst_amount ?? source.cgstAmount ?? Math.round((rawGst / 2) * 100) / 100);
+    const sgst = Number(existing?.sgstAmount ?? existing?.sgst_amount ?? source.sgst_amount ?? source.sgstAmount ?? Math.round((rawGst - cgst) * 100) / 100);
 
     let pStatus = (
       existing?.paymentStatus ||
@@ -651,18 +812,20 @@ export default function GuestDetailsModal({
 
   // Payment Transaction Ledger Resolver
   const resolvedPaymentHistory = useMemo(() => {
-    const list = details?.paymentHistory || activeBooking?.paymentHistory || guestData?.paymentHistory || [];
+    const list = details?.paymentHistory || details?.payment_history || activeBooking?.paymentHistory || activeBooking?.payment_history || guestData?.paymentHistory || [];
     if (Array.isArray(list) && list.length > 0) {
       return list.map((p, idx) => ({
         id: p.id || p._id || idx,
-        formattedDate: p.formattedDate || (p.created_at ? new Date(p.created_at).toLocaleDateString("en-IN") : p.date || "At Check-In"),
+        formattedDate: p.formattedDate || (p.received_at ? new Date(p.received_at).toLocaleDateString("en-IN") + " " + new Date(p.received_at).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit' }) : (p.created_at ? new Date(p.created_at).toLocaleDateString("en-IN") : p.date || "At Check-In")),
         transactionId: p.transactionId || p.transaction_id || `TXN-${String(p.id || idx + 101).padStart(5, "0")}`,
-        description: p.description || p.notes || "Room Stay & Taxes",
+        description: p.description || p.notes || (p.source ? `${p.source} Payment (${p.payment_method || p.paymentMethod || "CASH"})` : "Room Stay & Taxes"),
         paymentMethod: p.paymentMethod || p.payment_method || resolvedPaymentDetails.paymentMethod || "CASH",
         amount: Number(p.amount || p.base_amount || (p.total ? Math.round(Number(p.total) / 1.18) : 0)),
         gst: Number(p.gst || p.gst_amount || 0),
         total: Number(p.total || p.total_amount || p.amount || 0),
         status: (p.status || "PAID").toUpperCase(),
+        receivedBy: p.received_by?.name || p.receivedBy || p.receivedByName || null,
+        receivedByRole: p.received_by?.role || p.receivedByRole || null,
       }));
     }
 
@@ -680,6 +843,7 @@ export default function GuestDetailsModal({
           gst: resolvedPaymentDetails.gstAmount || Math.round(resolvedPaymentDetails.paidAmount - (resolvedPaymentDetails.paidAmount / 1.18)),
           total: resolvedPaymentDetails.paidAmount,
           status: "PAID",
+          receivedBy: activeBooking?.creator?.name || details?.creator?.name || null,
         },
       ];
     }
@@ -689,8 +853,27 @@ export default function GuestDetailsModal({
 
   // Allocated Rooms Breakdown Resolver
   const resolvedRoomsDetail = useMemo(() => {
-    const list = details?.roomsDetail || activeBooking?.roomsDetail || [];
-    if (Array.isArray(list) && list.length > 0) return list;
+    const list = details?.roomsDetail || details?.rooms || activeBooking?.roomsDetail || activeBooking?.rooms || [];
+    if (Array.isArray(list) && list.length > 0) {
+      return list.map((rm, idx) => {
+        const rNum = rm.roomNumber || rm.room_number || "101";
+        const rType = rm.roomType || rm.room_type_name || "Standard Room";
+        const fl = rm.floor !== undefined && rm.floor !== null ? rm.floor : (parseInt(rNum, 10) >= 100 ? Math.floor(parseInt(rNum, 10) / 100) : 1);
+        const nights = rm.numberOfNights || resolvedPaymentDetails.numberOfNights || 1;
+        const price = rm.pricePerNight || (resolvedPaymentDetails.baseAmount ? Math.round((resolvedPaymentDetails.baseAmount / nights) * 100) / 100 : 3500);
+        const total = rm.roomTotal || (price * nights);
+        return {
+          id: rm.id || idx,
+          roomNumber: rNum,
+          roomType: rType,
+          floor: fl,
+          pricePerNight: price,
+          numberOfNights: nights,
+          roomTotal: total,
+          status: rm.status || activeBooking?.status || "OCCUPIED",
+        };
+      });
+    }
 
     const rNum = activeBooking?.roomNumber || activeBooking?.room_number || guest?.roomAssigned || guest?.roomNumber || "101";
     const rType = activeBooking?.roomType || activeBooking?.room_type_name || activeBooking?.roomTypeName || guest?.roomType || "Standard Room";
@@ -1518,11 +1701,20 @@ export default function GuestDetailsModal({
 
                     <Grid container spacing={2}>
                       <Grid size={{ xs: 12, sm: 4 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Full Name</Typography>
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Primary Guest Name</Typography>
                         <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
                           {guest.fullName || guest.name || "N/A"}
                         </Typography>
                       </Grid>
+
+                      {(details?.secondary_guest_name || activeBooking?.secondary_guest_name) && (
+                        <Grid size={{ xs: 12, sm: 4 }}>
+                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Secondary Guest Name</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                            {details?.secondary_guest_name || activeBooking?.secondary_guest_name}
+                          </Typography>
+                        </Grid>
+                      )}
 
                       <Grid size={{ xs: 12, sm: 4 }}>
                         <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Mobile Number</Typography>
@@ -1537,6 +1729,20 @@ export default function GuestDetailsModal({
                         <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 0.5 }}>
                           <Email sx={{ fontSize: 14, color: themeConfig.primary }} />
                           {guest.email || "Not Provided"}
+                        </Typography>
+                      </Grid>
+
+                      <Grid size={{ xs: 12, sm: 4 }}>
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Hotel Property</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.primary }}>
+                          {details?.hotel?.name || activeBooking?.hotel?.name || "JK"}
+                        </Typography>
+                      </Grid>
+
+                      <Grid size={{ xs: 12, sm: 4 }}>
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Staff Attendant / Check-In By</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                          {details?.creator?.name ? `${details.creator.name} (${details.creator.role || "Staff"})` : (activeBooking?.creator?.name ? `${activeBooking.creator.name} (${activeBooking.creator.role || "Staff"})` : "Front Desk")}
                         </Typography>
                       </Grid>
 
@@ -2031,24 +2237,45 @@ export default function GuestDetailsModal({
                     </Typography>
 
                     <Grid container spacing={2}>
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Check-In Date & Time</Typography>
+                      <Grid size={{ xs: 12, sm: 3 }}>
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Booking Number / Ref</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.primary, fontFamily: "monospace" }}>
+                          {activeBooking?.bookingNumber || details?.booking_number || "N/A"}
+                        </Typography>
+                      </Grid>
+
+                      <Grid size={{ xs: 12, sm: 3 }}>
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Check-In Date</Typography>
                         <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
                           {activeBooking?.checkInDate ? new Date(activeBooking.checkInDate).toLocaleDateString("en-IN") : guest.checkInDate || "N/A"} ({formatTime12Hour(activeBooking?.checkInTime || guest.checkInTime || hotelSettings?.checkInTime || "14:00")})
                         </Typography>
+                        {(activeBooking?.actualCheckIn || details?.actual_check_in) && (
+                          <Typography variant="caption" sx={{ color: "#10B981", fontWeight: 700, display: "block" }}>
+                            Actual: {new Date(activeBooking?.actualCheckIn || details?.actual_check_in).toLocaleDateString("en-IN") + " " + new Date(activeBooking?.actualCheckIn || details?.actual_check_in).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                          </Typography>
+                        )}
                       </Grid>
 
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Check-Out Date & Time</Typography>
+                      <Grid size={{ xs: 12, sm: 3 }}>
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Check-Out Date</Typography>
                         <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
                           {activeBooking?.checkOutDate ? new Date(activeBooking.checkOutDate).toLocaleDateString("en-IN") : guest.checkOutDate || "N/A"} ({formatTime12Hour(activeBooking?.checkOutTime || guest.checkOutTime || hotelSettings?.checkOutTime || "12:00")})
                         </Typography>
+                        {(activeBooking?.actualCheckOut || details?.actual_check_out) ? (
+                          <Typography variant="caption" sx={{ color: "#10B981", fontWeight: 700, display: "block" }}>
+                            Actual: {new Date(activeBooking?.actualCheckOut || details?.actual_check_out).toLocaleDateString("en-IN") + " " + new Date(activeBooking?.actualCheckOut || details?.actual_check_out).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                          </Typography>
+                        ) : (
+                          <Typography variant="caption" sx={{ color: "#F59E0B", fontWeight: 700, display: "block" }}>
+                            Actual: In-House (Not Departed)
+                          </Typography>
+                        )}
                       </Grid>
 
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Duration / Nights</Typography>
+                      <Grid size={{ xs: 12, sm: 3 }}>
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Duration & Guests</Typography>
                         <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.primary }}>
-                          {activeBooking?.numberOfNights || 1} Night(s)
+                          {activeBooking?.numberOfNights || 1} Night(s) &bull; {details?.adults ?? activeBooking?.adults ?? 1} Adult(s), {details?.children ?? activeBooking?.children ?? 0} Child
                         </Typography>
                       </Grid>
                     </Grid>
@@ -2292,8 +2519,7 @@ export default function GuestDetailsModal({
                               <TableCell sx={{ fontWeight: 800 }}>Transaction ID</TableCell>
                               <TableCell sx={{ fontWeight: 800 }}>Description</TableCell>
                               <TableCell sx={{ fontWeight: 800 }}>Method</TableCell>
-                              <TableCell sx={{ fontWeight: 800 }}>Taxable</TableCell>
-                              <TableCell sx={{ fontWeight: 800 }}>GST</TableCell>
+                              <TableCell sx={{ fontWeight: 800 }}>Received By</TableCell>
                               <TableCell sx={{ fontWeight: 800 }}>Total Paid</TableCell>
                               <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
                             </TableRow>
@@ -2307,14 +2533,17 @@ export default function GuestDetailsModal({
                                 <TableCell>
                                   <Chip label={p.paymentMethod} size="small" sx={{ fontWeight: 800, fontSize: "0.7rem", bgcolor: themeConfig.champagne, color: themeConfig.primaryDark }} />
                                 </TableCell>
-                                <TableCell>₹{p.amount?.toLocaleString()}</TableCell>
-                                <TableCell>₹{p.gst?.toLocaleString()}</TableCell>
+                                <TableCell>
+                                  <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                                    {p.receivedBy ? `${p.receivedBy}${p.receivedByRole ? ` (${p.receivedByRole})` : ""}` : "Front Desk"}
+                                  </Typography>
+                                </TableCell>
                                 <TableCell sx={{ fontWeight: 900, color: "#10B981" }}>₹{p.total?.toLocaleString()}</TableCell>
                                 <TableCell>
                                   <Chip
                                     label={p.status}
                                     size="small"
-                                    color={p.status === "PAID" ? "success" : "default"}
+                                    color={p.status === "PAID" || p.status === "PARTIALLY_PAID" ? "success" : "default"}
                                     sx={{ fontWeight: 800, fontSize: "0.7rem" }}
                                   />
                                 </TableCell>

@@ -75,21 +75,25 @@ export function createSafeGuestModalData(raw) {
 
   // 3. Resolve key guest attributes
   const name =
+    raw.primary_guest_name ||
     raw.name ||
     raw.fullName ||
     rawGuestObj?.fullName ||
     rawGuestObj?.name ||
-    rawBookingObj?.guestName ||
+    rawGuestObj?.primary_guest_name ||
     rawBookingObj?.primary_guest_name ||
+    rawBookingObj?.guestName ||
     "Guest";
 
   const phone =
+    raw.mobile_number ||
     raw.phone ||
     raw.mobileNumber ||
     rawGuestObj?.phone ||
     rawGuestObj?.mobileNumber ||
-    rawBookingObj?.guestPhone ||
+    rawGuestObj?.mobile_number ||
     rawBookingObj?.mobile_number ||
+    rawBookingObj?.guestPhone ||
     "N/A";
 
   const email =
@@ -99,9 +103,18 @@ export function createSafeGuestModalData(raw) {
     rawBookingObj?.guestEmail ||
     "";
 
+  const address =
+    raw.address ||
+    rawGuestObj?.address ||
+    rawBookingObj?.address ||
+    "";
+
   const roomAssigned =
     raw.roomAssigned ||
     raw.roomNumber ||
+    (Array.isArray(raw.rooms) && raw.rooms.length > 0
+      ? raw.rooms.map((r) => r.room_number || r.roomNumber).filter(Boolean).join(", ")
+      : null) ||
     rawGuestObj?.roomAssigned ||
     cleanBooking.roomNumber ||
     (Array.isArray(cleanBooking.roomNumbers) && cleanBooking.roomNumbers.length > 0
@@ -390,15 +403,70 @@ export function createSafeGuestModalData(raw) {
     id: targetId,
     guestId: cleanGuest._id || targetId,
     bookingId: cleanBooking._id || targetId,
+    booking_number: raw.booking_number || raw.bookingNumber || rawBookingObj?.booking_number || cleanBooking.booking_number,
+    bookingNumber: raw.booking_number || raw.bookingNumber || rawBookingObj?.booking_number || cleanBooking.bookingNumber,
+    booking_status: raw.booking_status || raw.bookingStatus || raw.status || cleanBooking.booking_status,
+    bookingStatus: raw.booking_status || raw.bookingStatus || raw.status || cleanBooking.bookingStatus,
+    payment_status: raw.payment_status || raw.paymentStatus || cleanBooking.payment_status,
+    paymentStatus: raw.payment_status || raw.paymentStatus || cleanBooking.paymentStatus,
     name,
     fullName: name,
+    primary_guest_name: name,
     phone,
     mobileNumber: phone,
+    mobile_number: phone,
     email,
+    address,
     roomAssigned,
     roomNumber: roomAssigned,
+    rooms: Array.isArray(raw.rooms) && raw.rooms.length > 0 ? raw.rooms : (cleanBooking.rooms || []),
+    roomsDetail: Array.isArray(raw.rooms) && raw.rooms.length > 0
+      ? raw.rooms.map((r, i) => ({
+          id: r.id || i,
+          roomNumber: r.room_number || r.roomNumber,
+          floor: r.floor !== undefined ? r.floor : (parseInt(r.room_number || "101", 10) >= 100 ? Math.floor(parseInt(r.room_number, 10) / 100) : 1),
+          roomType: r.room_type_name || r.roomType || "Standard Room",
+          pricePerNight: raw.base_amount ? Math.round((Number(raw.base_amount) / Math.max(1, Number(raw.number_of_nights || 1))) * 100) / 100 : 0,
+          numberOfNights: Number(raw.number_of_nights || 1),
+          roomTotal: Number(raw.base_amount || 0),
+          status: raw.booking_status || "OCCUPIED",
+        }))
+      : (cleanBooking.roomsDetail || []),
     checkInDate,
+    check_in_date: checkInDate,
     checkOutDate,
+    check_out_date: checkOutDate,
+    actualCheckIn: raw.actual_check_in || raw.actualCheckIn || null,
+    actual_check_in: raw.actual_check_in || raw.actualCheckIn || null,
+    actualCheckOut: raw.actual_check_out || raw.actualCheckOut || null,
+    actual_check_out: raw.actual_check_out || raw.actualCheckOut || null,
+    numberOfNights: Number(raw.number_of_nights ?? raw.numberOfNights ?? 1),
+    number_of_nights: Number(raw.number_of_nights ?? raw.numberOfNights ?? 1),
+    adults: Number(raw.adults ?? 1),
+    children: Number(raw.children ?? 0),
+    baseAmount: Number(raw.base_amount ?? raw.baseAmount ?? 0),
+    base_amount: Number(raw.base_amount ?? raw.baseAmount ?? 0),
+    taxAmount: Number(raw.tax_amount ?? raw.taxAmount ?? raw.gst_amount ?? 0),
+    tax_amount: Number(raw.tax_amount ?? raw.taxAmount ?? raw.gst_amount ?? 0),
+    gstAmount: Number(raw.gst_amount ?? raw.gstAmount ?? raw.tax_amount ?? 0),
+    gst_amount: Number(raw.gst_amount ?? raw.gstAmount ?? raw.tax_amount ?? 0),
+    cgstAmount: Number(raw.cgst_amount ?? raw.cgstAmount ?? 0),
+    cgst_amount: Number(raw.cgst_amount ?? raw.cgstAmount ?? 0),
+    sgstAmount: Number(raw.sgst_amount ?? raw.sgstAmount ?? 0),
+    sgst_amount: Number(raw.sgst_amount ?? raw.sgstAmount ?? 0),
+    gstRate: Number(raw.gst_rate ?? raw.gstRate ?? 18),
+    gst_rate: Number(raw.gst_rate ?? raw.gstRate ?? 18),
+    totalAmount: Number(raw.total_amount ?? raw.totalAmount ?? 0),
+    total_amount: Number(raw.total_amount ?? raw.totalAmount ?? 0),
+    paidAmount: Number(raw.paid_amount ?? raw.paidAmount ?? 0),
+    paid_amount: Number(raw.paid_amount ?? raw.paidAmount ?? 0),
+    dueAmount: Number(raw.due_amount ?? raw.dueAmount ?? 0),
+    due_amount: Number(raw.due_amount ?? raw.dueAmount ?? 0),
+    notes: raw.notes || raw.bookingNotes || "",
+    creator: raw.creator || rawBookingObj?.creator || null,
+    hotel: raw.hotel || rawBookingObj?.hotel || null,
+    payment_history: Array.isArray(raw.payment_history) ? raw.payment_history : (raw.paymentHistory || []),
+    paymentHistory: Array.isArray(raw.payment_history) ? raw.payment_history : (raw.paymentHistory || []),
     frontImage,
     backImage,
     signature,

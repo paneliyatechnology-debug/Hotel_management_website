@@ -2035,44 +2035,6 @@ export default function AvailableRoomsPage({
       ) : (
         /* Category Rooms Drilldown */
         <Box>
-          {/* Category Header with Back Button */}
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1.5, mb: 2 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<ArrowBack />}
-                onClick={() => {
-                  setSelectedCategory(null);
-                  if (cameFromExternalRoute && onNavigateTab) {
-                    setCameFromExternalRoute(false);
-                    onNavigateTab(0);
-                  }
-                }}
-                sx={{
-                  borderRadius: "10px",
-                  fontWeight: 800,
-                  fontSize: "0.82rem",
-                  borderColor: themeConfig.border,
-                  color: themeConfig.textMain,
-                  bgcolor: themeConfig.bgCard || "#FFFFFF",
-                  px: 1.8,
-                  py: 0.6,
-                  "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
-                }}
-              >
-                Back to Categories
-              </Button>
-              <Typography variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                {activeCategory?.name || "Selected Category"}
-              </Typography>
-              <Chip
-                label={`${filteredCategoryRooms.length} ${filteredCategoryRooms.length === 1 ? "Room" : "Rooms"}`}
-                size="small"
-                sx={{ fontWeight: 700, bgcolor: themeConfig.champagne, color: themeConfig.primaryDark }}
-              />
-            </Box>
-          </Box>
 
           {/* Filters Bar */}
           <Card

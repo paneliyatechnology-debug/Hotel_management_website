@@ -102,6 +102,7 @@ export {
   NotificationsOutlined,
   Palette,
   Payments,
+  Payments as Payment,
   People,
   Person,
   Phone,

@@ -75,9 +75,9 @@ import StatCard from "@/shared/components/StatCard";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
+import { createSafeGuestModalData } from "@/shared/utils/guestModalUtils";
 import RevenueDetailsPage from "./RevenueDetailsPage";
 import { formatTime12Hour, getTurnaroundWindow } from "@/shared/utils/timeUtils";
-import { createSafeGuestModalData } from "@/shared/utils/guestModalUtils";
 import {
   OccupancyDonutChart,
   RevenueWaveChart,
@@ -104,12 +104,17 @@ export default function HotelOverviewPage({
   const [localRooms, setLocalRooms] = useState(rooms);
   const [showRevenueDetailsView, setShowRevenueDetailsView] = useState(false);
   const [revenueFilterMode, setRevenueFilterMode] = useState("THIS_WEEK");
-  const [selectedGuestModal, setSelectedGuestModal] = useState({ open: false, guestId: null, guestData: null });
+
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [roomSearch, setRoomSearch] = useState("");
   const [nowTime, setNowTime] = useState(Date.now());
   const [guestPage, setGuestPage] = useState(0);
   const [guestRowsPerPage, setGuestRowsPerPage] = useState(5);
+  const [selectedGuestModal, setSelectedGuestModal] = useState({
+    open: false,
+    guest: null,
+    guestId: null,
+  });
 
   // Sync localRooms with incoming prop
   useEffect(() => {
@@ -843,11 +848,6 @@ export default function HotelOverviewPage({
             icon={<Person />}
             color="#8B5CF6"
             badgeText="In-House"
-            onClick={() => {
-              if (onTabChange) {
-                onTabChange(2);
-              }
-            }}
           />
 
           {/* Card 4: Monthly Revenue */}
@@ -948,7 +948,7 @@ export default function HotelOverviewPage({
             <Button
               variant="outlined"
               endIcon={<ArrowForward />}
-              onClick={() => onTabChange && onTabChange(1)}
+              onClick={() => onTabChange && onTabChange("rooms")}
               sx={{
                 borderRadius: "12px",
                 fontWeight: 800,
@@ -1225,21 +1225,23 @@ export default function HotelOverviewPage({
             </Box>
 
             <Button
+              variant="outlined"
               size="small"
-              endIcon={<ArrowForward fontSize="small" />}
-              onClick={() => onTabChange && onTabChange(2)}
+              endIcon={<ArrowForward />}
+              onClick={() => onTabChange && onTabChange("guests")}
               sx={{
-                width: { xs: "100%", sm: "auto" },
-                alignSelf: { xs: "stretch", sm: "center" },
-                whiteSpace: "nowrap",
-                fontWeight: 800,
-                fontSize: { xs: "0.75rem", sm: "0.8rem" },
                 borderRadius: "10px",
-                color: themeConfig.primaryDark,
-                "&:hover": { bgcolor: themeConfig.champagne },
+                fontWeight: 800,
+                fontSize: "0.82rem",
+                textTransform: "none",
+                borderColor: themeConfig.border,
+                color: themeConfig.textMain,
+                bgcolor: themeConfig.bgCard,
+                whiteSpace: "nowrap",
+                "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
               }}
             >
-              Guest Directory
+              Full Guest Directory
             </Button>
           </Box>
 
@@ -1278,7 +1280,14 @@ export default function HotelOverviewPage({
                       <TableRow
                         key={g._id || g.name}
                         hover
-                        onClick={() => setSelectedGuestModal({ open: true, guestId: g.id || g.bookingId || g._id || g.guestId, guestData: createSafeGuestModalData(g) })}
+                        onClick={() => {
+                          const resolvedId = g.id || g.bookingId || g._id || g.guestId;
+                          setSelectedGuestModal({
+                            open: true,
+                            guest: createSafeGuestModalData(g),
+                            guestId: resolvedId,
+                          });
+                        }}
                         sx={{
                           cursor: "pointer",
                           "&:hover": { bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(16, 185, 129, 0.05)" },
@@ -1356,14 +1365,14 @@ export default function HotelOverviewPage({
         </CardContent>
       </Card>
 
-      {/* Full Comprehensive Guest Details & Folio Modal (Requirement #8 & #9) */}
       <GuestDetailsModal
         open={selectedGuestModal.open}
+        onClose={() => setSelectedGuestModal({ open: false, guest: null, guestId: null })}
         guestId={selectedGuestModal.guestId}
-        guestData={selectedGuestModal.guestData}
-        onClose={() => setSelectedGuestModal({ open: false, guestId: null, guestData: null })}
+        guestData={selectedGuestModal.guest}
         hotelSettings={hotelSettings}
       />
+
     </Box>
   );
 }

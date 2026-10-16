@@ -1,609 +1,361 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogActions,
   Box,
   Typography,
-  Grid,
-  Paper,
-  Chip,
   Button,
   IconButton,
-  Avatar,
+  CircularProgress,
+  Chip,
+  Paper,
+  Grid,
   Tabs,
   Tab,
-  Divider,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  TableContainer,
-  CircularProgress,
-  LinearProgress,
-  Tooltip,
+  Avatar,
 } from "@mui/material";
 import {
   Close,
   Person,
   Phone,
-  Email,
+  Bed,
+  CalendarToday,
+  AccountBalanceWallet,
+  Description,
+  Draw,
+  Payments,
+  Hotel,
   LocationOn,
-  MeetingRoom,
-  CalendarMonth,
-  BadgeOutlined,
-  CreditCard,
-  Receipt,
-  Payments as PaymentIcon,
-  FileDownload,
-  Visibility,
-  Print,
-  WhatsApp,
-  Hotel as HotelIcon,
-  CheckCircle,
+  Email,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
-import StatusChip from "@/shared/components/StatusChip";
-import { apiRequest, API_ENDPOINTS, API_BASE_URL } from "@/config/api";
-import { toast } from "@/shared/utils/toast";
+import { API_ENDPOINTS, apiRequest } from "@/config/api";
 
-// Helper: Normalize relative or S3 image URLs
-function normalizeImageSrc(src) {
-  if (!src) return null;
-  if (typeof src === "object") {
-    src = src.url || src.secure_url || src.path || src.src || src.uri || src.fileUrl || src.data || src.link || src.image;
+function unwrapBooking(res) {
+  if (!res || typeof res !== "object") return null;
+  if (Array.isArray(res)) return null;
+  const nested = res.data;
+  if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+    if (nested.data && typeof nested.data === "object" && !Array.isArray(nested.data) && (nested.data.id || nested.data.booking_number || nested.data.images)) {
+      return nested.data;
+    }
+    if (nested.id || nested.booking_number || nested.primary_guest_name || nested.images || nested.signatures) {
+      return nested;
+    }
   }
-  if (!src || typeof src !== "string") return null;
-  const trimmed = src.trim();
-  if (
-    trimmed === "null" ||
-    trimmed === "undefined" ||
-    trimmed === "[object Object]" ||
-    trimmed === ""
-  ) {
-    return null;
-  }
-  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-    try {
-      const arr = JSON.parse(trimmed);
-      if (Array.isArray(arr) && arr.length > 0) {
-        return normalizeImageSrc(arr[0]);
-      }
-    } catch {}
-  }
-  if (
-    trimmed.startsWith("http://") ||
-    trimmed.startsWith("https://") ||
-    trimmed.startsWith("data:") ||
-    trimmed.startsWith("blob:")
-  ) {
-    return trimmed;
-  }
-  const base = (API_BASE_URL || "").replace(/\/api\/v1\/?$/, "");
-  const cleanPath = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
-  return `${base}${cleanPath}`;
+  if (res.id || res.booking_number || res.primary_guest_name || res.images) return res;
+  if (Array.isArray(nested)) return res.booking || null;
+  return nested || res;
 }
 
-// Helper: Single Image Downloader
-function downloadImage(url, filename) {
-  if (!url) return;
-  fetch(url)
-    .then((res) => res.blob())
-    .then((blob) => {
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = filename || "document.png";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-    })
-    .catch(() => {
-      window.open(url, "_blank");
-    });
+function parseMaybeList(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    const t = value.trim();
+    if (!t) return [];
+    if ((t.startsWith("[") && t.endsWith("]")) || (t.startsWith("{") && t.endsWith("}"))) {
+      try {
+        const parsed = JSON.parse(t);
+        if (Array.isArray(parsed)) return parsed;
+        if (parsed && typeof parsed === "object") return Object.values(parsed);
+      } catch {
+        return [];
+      }
+    }
+    if (t.includes(",")) return t.split(",").map((s) => s.trim()).filter(Boolean);
+    return [t];
+  }
+  if (typeof value === "object") return Object.values(value);
+  return [];
+}
+
+function toUrl(entry) {
+  if (!entry) return "";
+  if (typeof entry === "string") return entry.trim();
+  return (
+    entry.url ||
+    entry.secure_url ||
+    entry.path ||
+    entry.src ||
+    entry.image ||
+    entry.image_url ||
+    entry.imageUrl ||
+    entry.file ||
+    entry.file_url ||
+    entry.signature ||
+    ""
+  );
+}
+
+function collectMedia(sources, fallbackLabel) {
+  const seen = new Set();
+  const items = [];
+  sources.flatMap((source) => parseMaybeList(source)).forEach((entry, idx) => {
+    const url = toUrl(entry);
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    items.push({ url, label: mediaLabel(url, fallbackLabel, items.length || idx) });
+  });
+  return items;
+}
+
+function mediaLabel(url, fallback, index) {
+  const name = String(url || "").split("?")[0].split("/").pop() || "";
+  const lower = name.toLowerCase();
+  if (lower.includes("front_id")) return "ID Front";
+  if (lower.includes("back_id")) return "ID Back";
+  const docMatch = lower.match(/id_doc[_-]?(\d+)/);
+  if (docMatch) return `ID Document ${docMatch[1]}`;
+  if (lower.includes("signature")) return `Signature ${index + 1}`;
+  return `${fallback} ${index + 1}`;
+}
+
+function formatMoney(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "₹0.00";
+  return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatDate(value) {
+  if (!value && value !== 0) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function formatDateTime(value) {
+  if (!value && value !== 0) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function statusColor(status) {
+  const s = String(status || "").toUpperCase();
+  if (s.includes("CHECKED_IN") || s === "IN-HOUSE" || s === "PAID") return "success";
+  if (s.includes("CHECKED_OUT") || s === "DEPARTED") return "default";
+  if (s.includes("PARTIAL") || s.includes("DUE") || s.includes("PENDING")) return "warning";
+  if (s.includes("CANCEL")) return "error";
+  return "info";
+}
+
+function InfoField({ label, value, themeConfig, accent }) {
+  return (
+    <Box>
+      <Typography
+        variant="caption"
+        sx={{ color: themeConfig?.textMuted, fontWeight: 700, letterSpacing: 0.4, display: "block" }}
+      >
+        {label}
+      </Typography>
+      <Typography
+        variant="body2"
+        sx={{ fontWeight: 800, color: accent || themeConfig?.textMain, mt: 0.25, wordBreak: "break-word" }}
+      >
+        {value || "—"}
+      </Typography>
+    </Box>
+  );
+}
+
+function EmptyState({ text, themeConfig }) {
+  return (
+    <Box sx={{ py: 4, textAlign: "center" }}>
+      <Typography variant="body2" sx={{ color: themeConfig?.textMuted, fontWeight: 600 }}>
+        {text}
+      </Typography>
+    </Box>
+  );
+}
+
+function MediaGrid({ items, fallbackLabel, themeConfig, onPreview }) {
+  if (!items.length) {
+    return <EmptyState text={`No ${fallbackLabel.toLowerCase()} attached.`} themeConfig={themeConfig} />;
+  }
+  return (
+    <Grid container spacing={1.5}>
+      {items.map((item, idx) => (
+        <Grid key={`${item.url}-${idx}`} size={{ xs: 6, sm: 4, md: 3 }}>
+          <Paper
+            elevation={0}
+            onClick={() => onPreview(item)}
+            sx={{
+              overflow: "hidden",
+              borderRadius: "12px",
+              border: `1px solid ${themeConfig?.border || "#E2E8F0"}`,
+              cursor: "pointer",
+              bgcolor: themeConfig?.bgCard,
+              "&:hover": { boxShadow: "0 8px 20px rgba(0,0,0,0.12)" },
+            }}
+          >
+            <Box
+              component="img"
+              src={item.url}
+              alt={item.label}
+              onError={(e) => {
+                e.currentTarget.style.opacity = "0.25";
+              }}
+              sx={{ width: "100%", height: 110, objectFit: "cover", display: "block", bgcolor: "#0F172A" }}
+            />
+            <Typography variant="caption" sx={{ display: "block", px: 1, py: 0.75, fontWeight: 700, color: themeConfig?.textMain }}>
+              {item.label}
+            </Typography>
+          </Paper>
+        </Grid>
+      ))}
+    </Grid>
+  );
 }
 
 export default function GuestDetailsModal({
   open = false,
-  guestId = null,
-  guestData = null,
   onClose,
-  hotelSettings = { checkInTime: "14:00", checkOutTime: "12:00", timezone: "Asia/Kolkata" },
+  guestId,
+  guestData = null,
+  hotelSettings = null,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
-  const [activeTab, setActiveTab] = useState(0);
+  const mutedCard = isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC";
+
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState(null);
-  const [previewImage, setPreviewImage] = useState(null);
+  const [apiData, setApiData] = useState(null);
+  const [error, setError] = useState(null);
+  const [tab, setTab] = useState("overview");
+  const [preview, setPreview] = useState(null);
 
-  // Helper to sanitize identifier strings
-  const cleanIdVal = (val) => {
-    if (!val) return null;
-    const str = String(val).trim();
-    if (str === "null" || str === "undefined" || str === "" || str === "b-undefined") return null;
-    return str;
-  };
+  const resolvedId = useMemo(() => {
+    return (
+      guestId ||
+      guestData?._id ||
+      guestData?.id ||
+      guestData?.bookingId ||
+      guestData?.booking_id ||
+      guestData?.guest?._id ||
+      guestData?.guest?.id ||
+      ""
+    );
+  }, [guestId, guestData]);
 
-  // 1. Direct numeric ID candidate (PostgreSQL/MySQL integer ID like 18)
-  const numericId = [
-    guestId,
-    guestData?.id,
-    guestData?._id,
-    guestData?.bookingId,
-    guestData?.booking_id,
-    guestData?.booking?.id,
-    guestData?.booking?._id,
-    guestData?.guestId,
-    guestData?.guest?.id,
-    guestData?.guest?._id,
-  ]
-    .map(cleanIdVal)
-    .find((v) => v && /^\d+$/.test(v));
-
-  // 2. Booking Number candidate (e.g. "BK-20261015-8C42AB")
-  const candidateBookingNumber = [
-    guestData?.booking_number,
-    guestData?.bookingNumber,
-    guestData?.booking?.booking_number,
-    guestData?.booking?.bookingNumber,
-    guestId,
-  ]
-    .map(cleanIdVal)
-    .find((v) => v && v.startsWith("BK-"));
-
-  // 3. Mobile / Phone candidate
-  const candidatePhone = [
-    guestData?.mobile_number,
-    guestData?.phone,
-    guestData?.mobileNumber,
-    guestData?.guest?.mobile_number,
-    guestData?.guest?.phone,
-  ]
-    .map(cleanIdVal)
-    .find((v) => v && /^\+?[0-9]{7,15}$/.test(v.replace(/[\s-]/g, "")));
-
-  // Fetch full booking dossier whenever modal opens
   useEffect(() => {
     if (!open) {
-      setData(null);
-      setActiveTab(0);
+      setApiData(null);
+      setError(null);
+      setTab("overview");
+      setPreview(null);
       return;
     }
 
-    let isSubscribed = true;
+    if (!resolvedId) {
+      setApiData(guestData);
+      setError(null);
+      return;
+    }
 
-    async function loadFullBookingDossier() {
+    let cancelled = false;
+    const fetchBooking = async () => {
       setLoading(true);
+      setError(null);
       try {
-        let bookingIdToFetch = numericId;
+        const endpoint =
+          (typeof API_ENDPOINTS.BOOKINGS?.BY_ID === "function" && API_ENDPOINTS.BOOKINGS.BY_ID(resolvedId)) ||
+          (typeof API_ENDPOINTS.RECEPTIONIST?.GUEST_BY_ID === "function" && API_ENDPOINTS.RECEPTIONIST.GUEST_BY_ID(resolvedId)) ||
+          `${API_ENDPOINTS.BOOKINGS?.ALL || `${String(API_ENDPOINTS.API_BASE_URL || "")}/api/v1/bookings`}/${resolvedId}`;
 
-        // If no direct numeric ID, but we have a booking number or phone, resolve via search lookup
-        if (!bookingIdToFetch && (candidateBookingNumber || candidatePhone)) {
-          const query = candidateBookingNumber || candidatePhone;
-          const lookupEndpoint = API_ENDPOINTS.RECEPTIONIST.GUEST_LOOKUP
-            ? API_ENDPOINTS.RECEPTIONIST.GUEST_LOOKUP(query)
-            : `${API_ENDPOINTS.RECEPTIONIST.GUESTS}?search=${encodeURIComponent(query)}`;
-
-          const lookupRes = await apiRequest(lookupEndpoint);
-          const list =
-            (Array.isArray(lookupRes?.data?.bookings) ? lookupRes.data.bookings : null) ||
-            (Array.isArray(lookupRes?.data) ? lookupRes.data : null) ||
-            (Array.isArray(lookupRes?.bookings) ? lookupRes.bookings : null) ||
-            [];
-
-          const matched =
-            list.find((item) => {
-              if (!item) return false;
-              const bNum = item.booking_number || item.bookingNumber;
-              const mPhone = item.mobile_number || item.phone;
-              return (
-                (candidateBookingNumber && bNum === candidateBookingNumber) ||
-                (candidatePhone && mPhone === candidatePhone)
-              );
-            }) || list[0];
-
-          if (matched && (matched.id || matched._id)) {
-            bookingIdToFetch = matched.id || matched._id;
-          }
-        }
-
-        // Fetch single booking details with full KYC images & signatures
-        if (bookingIdToFetch && isSubscribed) {
-          const endpoint = API_ENDPOINTS.RECEPTIONIST.GUEST_BY_ID(bookingIdToFetch);
-          const res = await apiRequest(endpoint);
-          if (isSubscribed) {
-            const fetched =
-              res?.data?.booking ||
-              res?.data?.data ||
-              res?.data ||
-              res?.booking ||
-              res;
-            if (fetched && typeof fetched === "object" && (fetched.id || fetched.booking_number || fetched.primary_guest_name)) {
-              setData(fetched);
-              return;
-            }
+        const res = await apiRequest(endpoint, { forceRefresh: true });
+        const booking = unwrapBooking(res);
+        if (!cancelled) {
+          if (booking && typeof booking === "object" && !Array.isArray(booking)) {
+            setApiData(booking);
+          } else {
+            setApiData(guestData || null);
           }
         }
       } catch (err) {
-        console.warn("Could not fetch detailed booking dossier:", err);
+        if (!cancelled) {
+          setError(err?.message || "Failed to load booking details");
+          setApiData(guestData);
+        }
       } finally {
-        if (isSubscribed) setLoading(false);
+        if (!cancelled) setLoading(false);
       }
-    }
+    };
 
-    loadFullBookingDossier();
-
+    fetchBooking();
     return () => {
-      isSubscribed = false;
+      cancelled = true;
     };
-  }, [open, numericId, candidateBookingNumber, candidatePhone]);
+  }, [open, resolvedId, guestData]);
 
-  // Combined source of truth: Merge API `data` over `guestData`
-  const booking = useMemo(() => {
-    const base = guestData || {};
-    const api = data || {};
-    return {
-      ...base,
-      ...api,
-      hotel: api.hotel || base.hotel || null,
-      creator: api.creator || base.creator || null,
-      guest: {
-        ...(base.guest || {}),
-        ...(api.guest || {}),
-      },
-      rooms: (Array.isArray(api.rooms) && api.rooms.length > 0)
-        ? api.rooms
-        : (Array.isArray(base.rooms) && base.rooms.length > 0)
-          ? base.rooms
-          : (api.rooms || base.rooms || []),
-      payment_history: (Array.isArray(api.payment_history) && api.payment_history.length > 0)
-        ? api.payment_history
-        : (Array.isArray(base.payment_history) && base.payment_history.length > 0)
-          ? base.payment_history
-          : (api.paymentHistory || base.paymentHistory || []),
-    };
-  }, [data, guestData]);
+  const booking = apiData || guestData || {};
+  const guestObj = booking.guest || booking.guestData || {};
 
-  // Primary Guest Fields
-  const primaryGuestName =
+  const name =
     booking.primary_guest_name ||
-    booking.fullName ||
-    booking.name ||
+    guestObj.name ||
+    guestObj.fullName ||
     booking.guestName ||
-    guestData?.primary_guest_name ||
     guestData?.name ||
-    "Resident Guest";
+    "Guest";
 
-  const secondaryGuestName = booking.secondary_guest_name || guestData?.secondary_guest_name || null;
+  const secondaryName = booking.secondary_guest_name || guestObj.secondaryName || "";
+  const phone = booking.mobile_number || guestObj.phone || guestObj.mobileNumber || booking.phone || guestData?.phone || "—";
+  const email = booking.email || guestObj.email || guestData?.email || "—";
+  const address = booking.address || guestObj.address || "—";
+  const bookingNumber = booking.booking_number || booking.bookingNumber || "—";
+  const stayStatus = booking.booking_status || booking.status || guestData?.status || "—";
+  const payStatus = booking.payment_status || "—";
 
-  const mobileNumber =
-    booking.mobile_number ||
-    booking.phone ||
-    booking.mobileNumber ||
-    guestData?.mobile_number ||
-    guestData?.phone ||
-    "N/A";
+  const rooms = Array.isArray(booking.rooms) ? booking.rooms : [];
+  const roomLabel =
+    rooms.map((r) => r.room_number || r.roomNumber).filter(Boolean).join(", ") ||
+    booking.roomNumber ||
+    booking.roomAssigned ||
+    guestData?.roomAssigned ||
+    "—";
 
-  const email = booking.email || guestData?.email || "Not Provided";
-  const address = booking.address || guestData?.address || "";
-  const bookingNumber =
-    booking.booking_number ||
-    booking.bookingNumber ||
-    guestData?.booking_number ||
-    guestData?.bookingNumber ||
-    candidateBookingNumber ||
-    (booking.id ? `BK-${booking.id}` : (guestData?.id ? `BK-${guestData.id}` : "BK-N/A"));
+  const images = collectMedia(
+    [
+      booking.images,
+      booking.id_images,
+      booking.idImages,
+      booking.front_image,
+      booking.frontImage,
+      booking.back_image,
+      booking.backImage,
+      booking.id_proof_image,
+      booking.idProofImage,
+      guestObj.frontImage,
+      guestObj.backImage,
+      guestObj.idProof?.frontImage,
+      guestObj.idProof?.backImage,
+      guestData?.images,
+      guestData?.raw?.images,
+    ],
+    "Document"
+  );
 
-  const hotelName = booking.hotel?.name || guestData?.hotel?.name || "Hotel Property";
-  const creator = booking.creator || guestData?.creator || null;
+  const signatures = collectMedia(
+    [
+      booking.signatures,
+      booking.signature,
+      booking.guest_signature,
+      booking.guestSignature,
+      guestObj.signature,
+      guestData?.signatures,
+      guestData?.raw?.signatures,
+    ],
+    "Signature"
+  );
 
-  // Dates & Schedule
-  const checkInDate = booking.check_in_date || booking.checkInDate || guestData?.checkInDate || guestData?.check_in_date || null;
-  const checkOutDate = booking.check_out_date || booking.checkOutDate || guestData?.checkOutDate || guestData?.check_out_date || null;
-  const actualCheckIn = booking.actual_check_in || booking.actualCheckIn || guestData?.actualCheckIn || null;
-  const actualCheckOut = booking.actual_check_out || booking.actualCheckOut || guestData?.actualCheckOut || null;
+  const payments = Array.isArray(booking.payment_history) ? booking.payment_history : booking.paymentHistory || [];
+  const notes = (booking.notes || "").trim();
 
-  const nights = Number(booking.number_of_nights || booking.numberOfNights || guestData?.numberOfNights || 1);
-  const adults = Number(booking.adults !== undefined ? booking.adults : (guestData?.adults !== undefined ? guestData.adults : 1));
-  const children = Number(booking.children !== undefined ? booking.children : (guestData?.children !== undefined ? guestData.children : 0));
-
-  // Statuses
-  const bookingStatus = (booking.booking_status || booking.status || guestData?.booking_status || guestData?.status || "CHECKED_IN").toUpperCase();
-  const paymentStatus = (booking.payment_status || booking.paymentStatus || guestData?.payment_status || guestData?.paymentStatus || "PARTIALLY_PAID").toUpperCase();
-
-  // Financial Ledger
-  const baseAmount = Number(booking.base_amount ?? booking.baseAmount ?? guestData?.baseAmount ?? guestData?.base_amount ?? 0);
-  const taxAmount = Number(booking.tax_amount ?? booking.taxAmount ?? booking.gst_amount ?? guestData?.taxAmount ?? 0);
-  const gstRate = Number(booking.gst_rate ?? booking.gstRate ?? 18);
-  const cgstRate = Number(booking.cgst_rate ?? booking.cgstRate ?? 9);
-  const sgstRate = Number(booking.sgst_rate ?? booking.sgstRate ?? 9);
-  const gstAmount = Number(booking.gst_amount ?? booking.gstAmount ?? taxAmount);
-  const cgstAmount = Number(booking.cgst_amount ?? booking.cgstAmount ?? (gstAmount / 2));
-  const sgstAmount = Number(booking.sgst_amount ?? booking.sgstAmount ?? (gstAmount / 2));
-  const totalAmount = Number(booking.total_amount ?? booking.totalAmount ?? guestData?.totalAmount ?? (baseAmount + gstAmount));
-  const paidAmount = Number(booking.paid_amount ?? booking.paidAmount ?? guestData?.paidAmount ?? 0);
-  const dueAmount = Number(booking.due_amount ?? booking.dueAmount ?? guestData?.dueAmount ?? Math.max(0, totalAmount - paidAmount));
-  const notes = booking.notes || guestData?.notes || "";
-
-  // Rooms List
-  const rooms = useMemo(() => {
-    if (Array.isArray(booking.rooms) && booking.rooms.length > 0) {
-      return booking.rooms.map((r, i) => ({
-        id: r.id || i,
-        roomNumber: r.room_number || r.roomNumber || "N/A",
-        floor: r.floor !== undefined ? r.floor : (parseInt(r.room_number || "101", 10) >= 100 ? Math.floor(parseInt(r.room_number, 10) / 100) : 1),
-        roomType: r.room_type_name || r.roomType || "Standard Room",
-        pricePerNight: baseAmount ? Math.round((baseAmount / nights) * 100) / 100 : 0,
-        numberOfNights: nights,
-        roomTotal: baseAmount,
-      }));
-    }
-    const rNum = booking.room_number || booking.roomNumber || guestData?.roomAssigned || guestData?.roomNumber || "N/A";
-    const rType = booking.room_type_name || booking.roomType || guestData?.roomType || "Standard Room";
-    const fl = booking.floor !== undefined ? booking.floor : (guestData?.floor !== undefined ? guestData.floor : 1);
-    return [
-      {
-        id: 1,
-        roomNumber: rNum,
-        floor: fl,
-        roomType: rType,
-        pricePerNight: baseAmount ? Math.round((baseAmount / nights) * 100) / 100 : 0,
-        numberOfNights: nights,
-        roomTotal: baseAmount,
-      },
-    ];
-  }, [booking.rooms, booking.room_number, booking.roomNumber, booking.room_type_name, booking.roomType, booking.floor, guestData, baseAmount, nights]);
-
-  // Payment History List
-  const paymentHistory = useMemo(() => {
-    if (Array.isArray(booking.payment_history) && booking.payment_history.length > 0) {
-      return booking.payment_history.map((p, idx) => ({
-        id: p.id || idx,
-        date: p.received_at
-          ? new Date(p.received_at).toLocaleDateString("en-IN") + " " + new Date(p.received_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
-          : p.created_at
-          ? new Date(p.created_at).toLocaleDateString("en-IN")
-          : "At Check-In",
-        transactionId: `TXN-${String(p.id || idx + 101).padStart(5, "0")}`,
-        source: p.source || "BOOKING",
-        method: p.payment_method || "CASH",
-        amount: Number(p.amount || 0),
-        status: (p.status || "PARTIALLY_PAID").toUpperCase(),
-        receivedBy: p.received_by?.name || creator?.name || "Front Desk",
-      }));
-    }
-    if (paidAmount > 0) {
-      return [
-        {
-          id: 1,
-          date: actualCheckIn ? new Date(actualCheckIn).toLocaleDateString("en-IN") : "At Check-In",
-          transactionId: `TXN-${bookingNumber}`,
-          source: "BOOKING",
-          method: "CASH",
-          amount: paidAmount,
-          status: paymentStatus,
-          receivedBy: creator?.name || "Front Desk",
-        },
-      ];
-    }
-    return [];
-  }, [booking.payment_history, paidAmount, actualCheckIn, bookingNumber, paymentStatus, creator]);
-
-  // ID Proof Images (array of Tigris S3 URLs, local uploads, or candidate fields)
-  const images = useMemo(() => {
-    const list = [];
-    const seen = new Set();
-
-    const addImg = (val) => {
-      if (!val) return;
-      if (Array.isArray(val)) {
-        val.forEach(addImg);
-        return;
-      }
-      if (typeof val === "object" && val !== null) {
-        if (val.frontImage || val.front_image || val.front || val.frontImageUrl || val.front_image_url) {
-          addImg(val.frontImage || val.front_image || val.front || val.frontImageUrl || val.front_image_url);
-        }
-        if (val.backImage || val.back_image || val.back || val.backImageUrl || val.back_image_url) {
-          addImg(val.backImage || val.back_image || val.back || val.backImageUrl || val.back_image_url);
-        }
-        if (val.id_proof_front || val.idProofFront || val.id_proof_front_image) {
-          addImg(val.id_proof_front || val.idProofFront || val.id_proof_front_image);
-        }
-        if (val.id_proof_back || val.idProofBack || val.id_proof_back_image) {
-          addImg(val.id_proof_back || val.idProofBack || val.id_proof_back_image);
-        }
-        if (val.id_proof_image || val.idProofImage || val.id_proof_url || val.idProofUrl) {
-          addImg(val.id_proof_image || val.idProofImage || val.id_proof_url || val.idProofUrl);
-        }
-        if (val.govt_id_front || val.govtIdFront || val.govt_id_image || val.govtIdImage || val.govt_id_photo) {
-          addImg(val.govt_id_front || val.govtIdFront || val.govt_id_image || val.govtIdImage || val.govt_id_photo);
-        }
-        if (val.govt_id_back || val.govtIdBack || val.govt_id_photo_back) {
-          addImg(val.govt_id_back || val.govtIdBack || val.govt_id_photo_back);
-        }
-        if (val.id_card_front || val.idCardFront || val.id_card_image) {
-          addImg(val.id_card_front || val.idCardFront || val.id_card_image);
-        }
-        if (val.id_card_back || val.idCardBack) {
-          addImg(val.id_card_back || val.idCardBack);
-        }
-        if (val.url || val.secure_url || val.path || val.src || val.image || val.fileUrl || val.uri || val.data) {
-          addImg(val.url || val.secure_url || val.path || val.src || val.image || val.fileUrl || val.uri || val.data);
-        }
-        if (Array.isArray(val.images)) val.images.forEach(addImg);
-        if (Array.isArray(val.documents)) val.documents.forEach(addImg);
-        if (Array.isArray(val.photos)) val.photos.forEach(addImg);
-        return;
-      }
-      if (typeof val === "string") {
-        const trimmed = val.trim();
-        if ((trimmed.startsWith("[") && trimmed.endsWith("]")) || (trimmed.startsWith("{") && trimmed.endsWith("}"))) {
-          try {
-            const parsed = JSON.parse(trimmed);
-            addImg(parsed);
-            return;
-          } catch {}
-        }
-        if (trimmed.includes(",") && !trimmed.startsWith("data:")) {
-          trimmed.split(",").forEach((item) => addImg(item.trim()));
-          return;
-        }
-        const normalized = normalizeImageSrc(trimmed);
-        if (normalized && !seen.has(normalized)) {
-          seen.add(normalized);
-          list.push(normalized);
-        }
-      }
-    };
-
-    const candidateSources = [
-      booking,
-      booking.guest,
-      data,
-      data?.guest,
-      guestData,
-      guestData?.guest,
-      guestData?.booking,
-      guestData?.activeBooking,
-    ];
-
-    candidateSources.forEach((src) => {
-      if (!src || typeof src !== "object") return;
-      addImg(src.images);
-      addImg(src.documents);
-      addImg(src.photos);
-      addImg(src.front_image);
-      addImg(src.frontImage);
-      addImg(src.frontImageUrl);
-      addImg(src.front_image_url);
-      addImg(src.back_image);
-      addImg(src.backImage);
-      addImg(src.backImageUrl);
-      addImg(src.back_image_url);
-      addImg(src.idProof);
-      addImg(src.id_proof);
-      addImg(src.id_proof_image);
-      addImg(src.idProofImage);
-      addImg(src.id_proof_url);
-      addImg(src.idProofUrl);
-      addImg(src.id_proof_front);
-      addImg(src.idProofFront);
-      addImg(src.id_proof_back);
-      addImg(src.idProofBack);
-      addImg(src.govt_id_front);
-      addImg(src.govtIdFront);
-      addImg(src.govt_id_back);
-      addImg(src.govtIdBack);
-      addImg(src.govt_id_image);
-      addImg(src.govtIdImage);
-      addImg(src.govt_id_photo);
-      addImg(src.id_card_front);
-      addImg(src.id_card_back);
-      if (Array.isArray(src.members)) {
-        src.members.forEach((m) => {
-          if (!m || typeof m !== "object") return;
-          addImg(m.images);
-          addImg(m.front_image || m.frontImage || m.frontImageUrl);
-          addImg(m.back_image || m.backImage || m.backImageUrl);
-          addImg(m.id_proof_image || m.idProofImage);
-          addImg(m.photo || m.image);
-        });
-      }
-      if (Array.isArray(src.accompanyingGuests)) {
-        src.accompanyingGuests.forEach((m) => {
-          if (!m || typeof m !== "object") return;
-          addImg(m.images);
-          addImg(m.front_image || m.frontImage);
-          addImg(m.back_image || m.backImage);
-          addImg(m.id_proof_image || m.idProofImage);
-          addImg(m.photo || m.image);
-        });
-      }
-    });
-
-    return list;
-  }, [booking, guestData]);
-
-  // Digital Signatures (array of Tigris S3 URLs, data URIs, or candidate fields)
-  const signatures = useMemo(() => {
-    const list = [];
-    const seen = new Set();
-
-    const addSig = (val) => {
-      if (!val) return;
-      if (Array.isArray(val)) {
-        val.forEach(addSig);
-        return;
-      }
-      if (typeof val === "object" && val !== null) {
-        if (val.url || val.secure_url || val.path || val.src || val.image || val.fileUrl || val.uri || val.data || val.signature) {
-          addSig(val.url || val.secure_url || val.path || val.src || val.image || val.fileUrl || val.uri || val.data || val.signature);
-        }
-        return;
-      }
-      if (typeof val === "string") {
-        const trimmed = val.trim();
-        if ((trimmed.startsWith("[") && trimmed.endsWith("]")) || (trimmed.startsWith("{") && trimmed.endsWith("}"))) {
-          try {
-            const parsed = JSON.parse(trimmed);
-            addSig(parsed);
-            return;
-          } catch {}
-        }
-        const normalized = normalizeImageSrc(trimmed);
-        if (normalized && !seen.has(normalized)) {
-          seen.add(normalized);
-          list.push(normalized);
-        }
-      }
-    };
-
-    const candidateSources = [
-      booking,
-      booking.guest,
-      data,
-      data?.guest,
-      guestData,
-      guestData?.guest,
-      guestData?.booking,
-      guestData?.activeBooking,
-    ];
-
-    candidateSources.forEach((src) => {
-      if (!src || typeof src !== "object") return;
-      addSig(src.signatures);
-      addSig(src.signature);
-      addSig(src.signature_url);
-      addSig(src.signatureUrl);
-      addSig(src.signature_image);
-      addSig(src.signatureImage);
-      addSig(src.guest_signature);
-      addSig(src.guestSignature);
-      addSig(src.guest_signature_url);
-      addSig(src.guestSignatureUrl);
-      addSig(src.digital_signature);
-      addSig(src.digitalSignature);
-      addSig(src.e_signature);
-      addSig(src.eSignature);
-      addSig(src.idProof?.signature);
-      addSig(src.idProof?.signatureUrl);
-      addSig(src.idProof?.guestSignature);
-    });
-
-    return list;
-  }, [booking, guestData]);
-
-  // Folio Print / Print Invoice Handler
-  const handlePrintFolio = () => {
-    window.print();
-  };
-
-  if (!open) return null;
+  const dueAmount = Number(booking.due_amount ?? booking.dueAmount ?? 0);
 
   return (
     <>
@@ -612,936 +364,365 @@ export default function GuestDetailsModal({
         onClose={onClose}
         maxWidth="md"
         fullWidth
-        scroll="paper"
         slotProps={{
           paper: {
             sx: {
-              borderRadius: "20px",
-              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-              border: `1px solid ${themeConfig.border}`,
-              boxShadow: isDarkMode ? "0 20px 60px rgba(0,0,0,0.6)" : "0 20px 60px rgba(12,39,59,0.15)",
+              borderRadius: "18px",
+              border: `1px solid ${themeConfig?.border || "#E2E8F0"}`,
+              bgcolor: themeConfig?.bgCard || (isDarkMode ? "#0F172A" : "#FFFFFF"),
+              boxShadow: "0 20px 50px rgba(0,0,0,0.25)",
               overflow: "hidden",
               maxHeight: "92vh",
             },
           },
         }}
       >
-        {/* ================= MODAL HEADER ================= */}
         <DialogTitle
-          component="div"
           sx={{
-            p: { xs: 2, sm: 2.5 },
-            bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(238, 245, 240, 0.7)",
-            borderBottom: `1px solid ${themeConfig.border}`,
+            m: 0,
+            p: 2,
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            flexWrap: "wrap",
-            gap: 1.5,
+            bgcolor: mutedCard,
+            borderBottom: `1px solid ${themeConfig?.border || "#E2E8F0"}`,
           }}
         >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.8 }}>
-            <Avatar
-              sx={{
-                bgcolor: themeConfig.primary,
-                color: "#FFFFFF",
-                width: 48,
-                height: 48,
-                fontWeight: 900,
-                fontSize: "1.2rem",
-                boxShadow: `0 4px 14px ${themeConfig.primaryGlow}`,
-              }}
-            >
-              {primaryGuestName.charAt(0).toUpperCase()}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, minWidth: 0 }}>
+            <Avatar sx={{ width: 36, height: 36, bgcolor: themeConfig?.primary || "#0B8EE0", fontWeight: 800 }}>
+              {String(name).charAt(0).toUpperCase()}
             </Avatar>
-            <Box>
+            <Box sx={{ minWidth: 0 }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-                <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "1.15rem" }}>
-                  {primaryGuestName}
+                <Typography variant="h6" sx={{ fontWeight: 800, fontSize: "1.05rem" }}>
+                  Guest Details
                 </Typography>
-                <StatusChip status={bookingStatus} />
-                <Chip
-                  label={paymentStatus === "PAID" ? "FULLY PAID" : paymentStatus === "PARTIALLY_PAID" ? "PARTIALLY PAID" : "PENDING DUE"}
-                  size="small"
-                  sx={{
-                    fontWeight: 800,
-                    fontSize: "0.72rem",
-                    bgcolor:
-                      paymentStatus === "PAID"
-                        ? "rgba(16, 185, 129, 0.15)"
-                        : paymentStatus === "PARTIALLY_PAID"
-                        ? "rgba(245, 158, 11, 0.15)"
-                        : "rgba(239, 68, 68, 0.15)",
-                    color:
-                      paymentStatus === "PAID"
-                        ? "#10B981"
-                        : paymentStatus === "PARTIALLY_PAID"
-                        ? "#F59E0B"
-                        : "#EF4444",
-                    border: `1px solid ${
-                      paymentStatus === "PAID"
-                        ? "rgba(16, 185, 129, 0.3)"
-                        : paymentStatus === "PARTIALLY_PAID"
-                        ? "rgba(245, 158, 11, 0.3)"
-                        : "rgba(239, 68, 68, 0.3)"
-                    }`,
-                  }}
-                />
+                <Chip label={stayStatus} size="small" color={statusColor(stayStatus)} sx={{ fontWeight: 800, fontSize: "0.68rem", height: 22 }} />
+                <Chip label={payStatus} size="small" color={statusColor(payStatus)} variant="outlined" sx={{ fontWeight: 800, fontSize: "0.68rem", height: 22 }} />
               </Box>
-              <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, fontFamily: "monospace" }}>
-                Booking Ref: {bookingNumber} &bull; Property: {hotelName}
+              <Typography variant="caption" sx={{ color: themeConfig?.textMuted, fontWeight: 700 }}>
+                {bookingNumber} · Room {roomLabel}
               </Typography>
             </Box>
           </Box>
-
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Tooltip title="Print Guest Folio / Bill">
-              <IconButton onClick={handlePrintFolio} size="small" sx={{ color: themeConfig.primary }}>
-                <Print sx={{ fontSize: 20 }} />
-              </IconButton>
-            </Tooltip>
-            <IconButton onClick={onClose} size="small" sx={{ color: themeConfig.textMuted, "&:hover": { color: "#EF4444" } }}>
-              <Close sx={{ fontSize: 22 }} />
-            </IconButton>
-          </Box>
+          <IconButton aria-label="close" onClick={onClose} size="small" sx={{ color: themeConfig?.textMuted || "#64748B" }}>
+            <Close fontSize="small" />
+          </IconButton>
         </DialogTitle>
 
-        {/* ================= TABS NAVIGATION ================= */}
-        <Box sx={{ px: 2.5, borderBottom: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(0,0,0,0.15)" : "#FAFCFB" }}>
+        <Box sx={{ px: 1, borderBottom: `1px solid ${themeConfig?.border || "#E2E8F0"}` }}>
           <Tabs
-            value={activeTab}
-            onChange={(_, nv) => setActiveTab(nv)}
+            value={tab}
+            onChange={(_, v) => setTab(v)}
             variant="scrollable"
             scrollButtons="auto"
+            allowScrollButtonsMobile
             sx={{
-              minHeight: 46,
+              minHeight: 44,
               "& .MuiTab-root": {
-                fontWeight: 800,
-                fontSize: "0.85rem",
+                minHeight: 44,
                 textTransform: "none",
-                minHeight: 46,
-                color: themeConfig.textMuted,
-                "&.Mui-selected": { color: themeConfig.primary },
+                fontWeight: 800,
+                fontSize: "0.82rem",
+                color: themeConfig?.textMuted,
               },
-              "& .MuiTabs-indicator": { bgcolor: themeConfig.primary, height: 3, borderRadius: "3px" },
+              "& .Mui-selected": { color: `${themeConfig?.primary || "#0B8EE0"} !important` },
+              "& .MuiTabs-indicator": { bgcolor: themeConfig?.primary || "#0B8EE0" },
             }}
           >
-            <Tab icon={<Person sx={{ fontSize: 17 }} />} iconPosition="start" label="Guest & Stay Details" />
-            <Tab icon={<BadgeOutlined sx={{ fontSize: 17 }} />} iconPosition="start" label={`ID Proofs & Signatures (${images.length + signatures.length})`} />
-            <Tab icon={<CreditCard sx={{ fontSize: 17 }} />} iconPosition="start" label="Billing & Payments" />
+            <Tab value="overview" icon={<Person sx={{ fontSize: 16 }} />} iconPosition="start" label="Overview" />
+            <Tab value="stay" icon={<Bed sx={{ fontSize: 16 }} />} iconPosition="start" label="Stay" />
+            <Tab value="billing" icon={<AccountBalanceWallet sx={{ fontSize: 16 }} />} iconPosition="start" label="Billing" />
+            <Tab value="payments" icon={<Payments sx={{ fontSize: 16 }} />} iconPosition="start" label={`Payments (${payments.length})`} />
+            <Tab value="documents" icon={<Description sx={{ fontSize: 16 }} />} iconPosition="start" label={`Documents (${images.length + signatures.length})`} />
+            <Tab value="notes" icon={<Draw sx={{ fontSize: 16 }} />} iconPosition="start" label="Notes" />
           </Tabs>
         </Box>
 
-        {/* ================= MODAL CONTENT ================= */}
-        {loading && (
-          <LinearProgress
-            sx={{
-              height: 3,
-              bgcolor: "transparent",
-              "& .MuiLinearProgress-bar": { bgcolor: themeConfig.primary },
-            }}
-          />
-        )}
-        <DialogContent sx={{ p: { xs: 2, sm: 2.5 } }}>
-          {loading && !data && !guestData?.name && !guestData?.primary_guest_name ? (
-            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", py: 8, gap: 2 }}>
-              <CircularProgress sx={{ color: themeConfig.primary }} />
-              <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                Loading comprehensive booking details...
+        <DialogContent sx={{ p: 2.5 }}>
+          {loading ? (
+            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1.5 }}>
+              <CircularProgress size={36} sx={{ color: themeConfig?.primary || "#0B8EE0" }} />
+              <Typography variant="body2" sx={{ color: themeConfig?.textMuted, fontWeight: 600 }}>
+                Loading booking details...
               </Typography>
             </Box>
           ) : (
-            <>
-              {/* ================= TAB 0: GUEST & STAY PROFILE ================= */}
-              {activeTab === 0 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
-                  {/* 1. Primary Guest Profile */}
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 2.2,
-                      borderRadius: "16px",
-                      border: `1px solid ${themeConfig.border}`,
-                      bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#FFFFFF",
-                    }}
-                  >
-                    <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
-                      <Person sx={{ fontSize: 18, color: themeConfig.primary }} />
-                      Primary Guest Profile
-                    </Typography>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {error && (
+                <Box
+                  sx={{
+                    p: 1.5,
+                    borderRadius: "10px",
+                    bgcolor: "rgba(239, 68, 68, 0.1)",
+                    border: "1px solid rgba(239, 68, 68, 0.3)",
+                    color: "#EF4444",
+                    fontSize: "0.85rem",
+                    fontWeight: 700,
+                  }}
+                >
+                  {error}. Showing available local details.
+                </Box>
+              )}
 
-                    <Grid container spacing={2}>
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Primary Guest Name</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                          {primaryGuestName}
-                        </Typography>
-                      </Grid>
-
-                      {secondaryGuestName && (
-                        <Grid size={{ xs: 12, sm: 4 }}>
-                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Secondary Guest</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                            {secondaryGuestName}
-                          </Typography>
-                        </Grid>
-                      )}
-
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Mobile Number</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 0.5 }}>
-                          <Phone sx={{ fontSize: 13, color: themeConfig.primary }} />
-                          {mobileNumber}
-                        </Typography>
-                      </Grid>
-
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Email Address</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 0.5 }}>
-                          <Email sx={{ fontSize: 13, color: themeConfig.primary }} />
-                          {email}
-                        </Typography>
-                      </Grid>
-
-                      {address && (
-                        <Grid size={{ xs: 12, sm: 4 }}>
-                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Address / City</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 0.5 }}>
-                            <LocationOn sx={{ fontSize: 13, color: themeConfig.primary }} />
-                            {address}
-                          </Typography>
-                        </Grid>
-                      )}
-
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Hotel Property</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.primary }}>
-                          {hotelName}
-                        </Typography>
-                      </Grid>
-
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Checked In / Handled By</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                          {creator?.name ? `${creator.name} (${creator.role || "Staff"})` : "Front Desk"}
-                        </Typography>
-                      </Grid>
+              {tab === "overview" && (
+                <Paper elevation={0} sx={{ p: 2, borderRadius: "12px", border: `1px solid ${themeConfig?.border || "#E2E8F0"}`, bgcolor: mutedCard }}>
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <InfoField label="FULL NAME" value={name} themeConfig={themeConfig} />
                     </Grid>
-                  </Paper>
-
-                  {/* 2. Stay Schedule & Duration */}
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 2.2,
-                      borderRadius: "16px",
-                      border: `1px solid ${themeConfig.border}`,
-                      bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#FFFFFF",
-                    }}
-                  >
-                    <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
-                      <CalendarMonth sx={{ fontSize: 18, color: themeConfig.primary }} />
-                      Stay Schedule & Timeline
-                    </Typography>
-
-                    <Grid container spacing={2}>
-                      <Grid size={{ xs: 12, sm: 3 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Booking Number / Ref</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.primary, fontFamily: "monospace" }}>
-                          {bookingNumber}
-                        </Typography>
-                      </Grid>
-
-                      <Grid size={{ xs: 12, sm: 3 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Check-In Date</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                          {checkInDate ? new Date(checkInDate).toLocaleDateString("en-IN") : "N/A"}
-                        </Typography>
-                        {actualCheckIn && (
-                          <Typography variant="caption" sx={{ color: "#10B981", fontWeight: 700, display: "block" }}>
-                            Actual: {new Date(actualCheckIn).toLocaleDateString("en-IN") + " " + new Date(actualCheckIn).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-                          </Typography>
-                        )}
-                      </Grid>
-
-                      <Grid size={{ xs: 12, sm: 3 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Check-Out Date</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                          {checkOutDate ? new Date(checkOutDate).toLocaleDateString("en-IN") : "N/A"}
-                        </Typography>
-                        {actualCheckOut ? (
-                          <Typography variant="caption" sx={{ color: "#10B981", fontWeight: 700, display: "block" }}>
-                            Actual: {new Date(actualCheckOut).toLocaleDateString("en-IN") + " " + new Date(actualCheckOut).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-                          </Typography>
-                        ) : (
-                          <Typography variant="caption" sx={{ color: "#F59E0B", fontWeight: 700, display: "block" }}>
-                            Actual: In-House Resident
-                          </Typography>
-                        )}
-                      </Grid>
-
-                      <Grid size={{ xs: 12, sm: 3 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Duration & Guests</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.primary }}>
-                          {nights} Night(s) &bull; {adults} Adult(s), {children} Child
-                        </Typography>
-                      </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <InfoField label="SECONDARY GUEST" value={secondaryName || "—"} themeConfig={themeConfig} />
                     </Grid>
-                  </Paper>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.75 }}>
+                        <Phone sx={{ fontSize: 16, mt: 1.6, color: themeConfig?.textMuted }} />
+                        <InfoField label="MOBILE" value={phone} themeConfig={themeConfig} />
+                      </Box>
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.75 }}>
+                        <Email sx={{ fontSize: 16, mt: 1.6, color: themeConfig?.textMuted }} />
+                        <InfoField label="EMAIL" value={email} themeConfig={themeConfig} />
+                      </Box>
+                    </Grid>
+                    <Grid size={{ xs: 12 }}>
+                      <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.75 }}>
+                        <LocationOn sx={{ fontSize: 16, mt: 1.6, color: themeConfig?.textMuted }} />
+                        <InfoField label="ADDRESS" value={address} themeConfig={themeConfig} />
+                      </Box>
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <InfoField label="BOOKING NO." value={bookingNumber} themeConfig={themeConfig} />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.75 }}>
+                        <Hotel sx={{ fontSize: 16, mt: 1.6, color: themeConfig?.textMuted }} />
+                        <InfoField label="HOTEL" value={booking.hotel?.name || hotelSettings?.name || "—"} themeConfig={themeConfig} />
+                      </Box>
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <InfoField label="CREATED BY" value={booking.creator?.name ? `${booking.creator.name} (${booking.creator.role || "STAFF"})` : "—"} themeConfig={themeConfig} />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <InfoField label="CREATED AT" value={formatDateTime(booking.created_at || booking.createdAt)} themeConfig={themeConfig} />
+                    </Grid>
+                  </Grid>
+                </Paper>
+              )}
 
-                  {/* 3. Allocated Room Breakdown */}
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 2.2,
-                      borderRadius: "16px",
-                      border: `1px solid ${themeConfig.border}`,
-                      bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#FFFFFF",
-                    }}
-                  >
-                    <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
-                      <MeetingRoom sx={{ fontSize: 18, color: themeConfig.primary }} />
-                      Allocated Room Details ({rooms.length})
-                    </Typography>
+              {tab === "stay" && (
+                <Paper elevation={0} sx={{ p: 2, borderRadius: "12px", border: `1px solid ${themeConfig?.border || "#E2E8F0"}`, bgcolor: mutedCard }}>
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.75 }}>
+                        <CalendarToday sx={{ fontSize: 16, mt: 1.6, color: themeConfig?.textMuted }} />
+                        <InfoField label="CHECK-IN" value={formatDate(booking.check_in_date || booking.checkInDate)} themeConfig={themeConfig} />
+                      </Box>
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <InfoField label="CHECK-OUT" value={formatDate(booking.check_out_date || booking.checkOutDate)} themeConfig={themeConfig} />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <InfoField label="ACTUAL CHECK-IN" value={formatDateTime(booking.actual_check_in)} themeConfig={themeConfig} />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <InfoField label="ACTUAL CHECK-OUT" value={formatDateTime(booking.actual_check_out)} themeConfig={themeConfig} />
+                    </Grid>
+                    <Grid size={{ xs: 6, sm: 3 }}>
+                      <InfoField label="NIGHTS" value={booking.number_of_nights ?? "—"} themeConfig={themeConfig} />
+                    </Grid>
+                    <Grid size={{ xs: 6, sm: 3 }}>
+                      <InfoField label="ADULTS" value={booking.adults ?? "—"} themeConfig={themeConfig} />
+                    </Grid>
+                    <Grid size={{ xs: 6, sm: 3 }}>
+                      <InfoField label="CHILDREN" value={booking.children ?? 0} themeConfig={themeConfig} />
+                    </Grid>
+                    <Grid size={{ xs: 6, sm: 3 }}>
+                      <InfoField label="LATE HOURS" value={booking.late_checkout_hours ?? 0} themeConfig={themeConfig} />
+                    </Grid>
+                  </Grid>
 
-                    <Grid container spacing={2}>
-                      {rooms.map((rm, idx) => (
-                        <Grid key={rm.id || idx} size={{ xs: 12, sm: 6 }}>
-                          <Paper
-                            elevation={0}
-                            sx={{
-                              p: 2,
-                              borderRadius: "14px",
-                              border: `1.5px solid ${themeConfig.border}`,
-                              bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F8FAFC",
-                            }}
-                          >
-                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                <Typography variant="subtitle1" sx={{ fontWeight: 900, color: themeConfig.primary }}>
-                                  Room #{rm.roomNumber}
-                                </Typography>
-                                <Chip
-                                  label={`Floor ${rm.floor}`}
-                                  size="small"
-                                  sx={{ bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, fontWeight: 800, fontSize: "0.7rem", height: 22 }}
-                                />
-                              </Box>
-                              <Chip label={bookingStatus} size="small" sx={{ fontWeight: 800, fontSize: "0.7rem" }} />
-                            </Box>
-
-                            <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                              {rm.roomType}
+                  <Typography variant="caption" sx={{ display: "block", mt: 2.5, mb: 1, fontWeight: 800, color: themeConfig?.textMuted }}>
+                    ASSIGNED ROOMS
+                  </Typography>
+                  {rooms.length === 0 ? (
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>Room {roomLabel}</Typography>
+                  ) : (
+                    <Grid container spacing={1.2}>
+                      {rooms.map((room) => (
+                        <Grid key={room.id || room.room_number} size={{ xs: 12, sm: 6 }}>
+                          <Box sx={{ p: 1.4, borderRadius: "10px", border: `1px solid ${themeConfig?.border || "#E2E8F0"}`, bgcolor: themeConfig?.bgCard || "#fff" }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig?.primary || "#0B8EE0" }}>
+                              Room {room.room_number || room.roomNumber}
                             </Typography>
-                            <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", mt: 0.3 }}>
-                              ₹{rm.pricePerNight?.toLocaleString()} / night &bull; {rm.numberOfNights} Night(s)
+                            <Typography variant="caption" sx={{ color: themeConfig?.textMuted, fontWeight: 700, display: "block" }}>
+                              {room.room_type_name || room.roomTypeName || "Room"} · Floor {room.floor ?? "—"}
                             </Typography>
-
-                            <Divider sx={{ my: 1 }} />
-                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                              <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted }}>
-                                Base Room Total:
-                              </Typography>
-                              <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.primaryDark }}>
-                                ₹{rm.roomTotal?.toLocaleString()}
-                              </Typography>
-                            </Box>
-                          </Paper>
+                          </Box>
                         </Grid>
                       ))}
                     </Grid>
-                  </Paper>
-
-                  {/* 4. Govt ID KYC Document & Signature Highlights */}
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 2.2,
-                      borderRadius: "16px",
-                      border: `1px solid ${themeConfig.border}`,
-                      bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#FFFFFF",
-                    }}
-                  >
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexWrap: "wrap", gap: 1 }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 1 }}>
-                        <BadgeOutlined sx={{ fontSize: 18, color: themeConfig.primary }} />
-                        Govt Identity KYC Proofs &amp; Signatures ({images.length + signatures.length})
-                      </Typography>
-                      <Button
-                        size="small"
-                        onClick={() => setActiveTab(1)}
-                        sx={{ textTransform: "none", fontWeight: 800, color: themeConfig.primary, fontSize: "0.8rem" }}
-                      >
-                        Open Full KYC Tab &rarr;
-                      </Button>
-                    </Box>
-
-                    {images.length > 0 || signatures.length > 0 ? (
-                      <Grid container spacing={2}>
-                        {images.map((imgUrl, idx) => (
-                          <Grid key={`quick-img-${idx}`} size={{ xs: 12, sm: 6, md: 4 }}>
-                            <Paper
-                              elevation={0}
-                              sx={{
-                                p: 1.2,
-                                borderRadius: "12px",
-                                border: `1px solid ${themeConfig.border}`,
-                                bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
-                                textAlign: "center",
-                                transition: "all 0.2s ease",
-                                "&:hover": { borderColor: themeConfig.primary, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" },
-                              }}
-                            >
-                              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.8 }}>
-                                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.74rem" }} noWrap>
-                                  📄 {idx === 0 ? "Front ID (Primary)" : idx === 1 ? "Back ID" : `Document #${idx + 1}`}
-                                </Typography>
-                                <Chip
-                                  icon={<FileDownload sx={{ fontSize: "13px !important" }} />}
-                                  label="Download"
-                                  size="small"
-                                  clickable
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    downloadImage(imgUrl, `${primaryGuestName}_ID_${idx + 1}.png`);
-                                  }}
-                                  sx={{
-                                    height: 20,
-                                    fontSize: "0.65rem",
-                                    fontWeight: 800,
-                                    bgcolor: "rgba(11, 142, 224, 0.1)",
-                                    color: "#0B8EE0",
-                                  }}
-                                />
-                              </Box>
-                              <Box
-                                component="img"
-                                src={imgUrl}
-                                alt={`ID Proof ${idx + 1}`}
-                                onClick={() => setPreviewImage(imgUrl)}
-                                sx={{
-                                  width: "100%",
-                                  height: 120,
-                                  objectFit: "contain",
-                                  bgcolor: isDarkMode ? "rgba(0,0,0,0.25)" : "#FFFFFF",
-                                  border: `1px solid ${themeConfig.border}`,
-                                  borderRadius: "8px",
-                                  cursor: "pointer",
-                                  transition: "transform 0.2s",
-                                  "&:hover": { transform: "scale(1.02)" },
-                                }}
-                              />
-                            </Paper>
-                          </Grid>
-                        ))}
-
-                        {signatures.map((sigUrl, sIdx) => (
-                          <Grid key={`quick-sig-${sIdx}`} size={{ xs: 12, sm: 6, md: 4 }}>
-                            <Paper
-                              elevation={0}
-                              sx={{
-                                p: 1.2,
-                                borderRadius: "12px",
-                                border: `1px solid ${themeConfig.border}`,
-                                bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
-                                textAlign: "center",
-                                transition: "all 0.2s ease",
-                                "&:hover": { borderColor: "#10B981" },
-                              }}
-                            >
-                              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.8 }}>
-                                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.74rem" }} noWrap>
-                                  ✍️ Signature #{sIdx + 1}
-                                </Typography>
-                                <Chip
-                                  icon={<FileDownload sx={{ fontSize: "13px !important" }} />}
-                                  label="Download"
-                                  size="small"
-                                  clickable
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    downloadImage(sigUrl, `${primaryGuestName}_Signature_${sIdx + 1}.png`);
-                                  }}
-                                  sx={{
-                                    height: 20,
-                                    fontSize: "0.65rem",
-                                    fontWeight: 800,
-                                    bgcolor: "rgba(16, 185, 129, 0.1)",
-                                    color: "#10B981",
-                                  }}
-                                />
-                              </Box>
-                              <Box
-                                component="img"
-                                src={sigUrl}
-                                alt={`Signature ${sIdx + 1}`}
-                                onClick={() => setPreviewImage(sigUrl)}
-                                sx={{
-                                  width: "100%",
-                                  height: 100,
-                                  objectFit: "contain",
-                                  bgcolor: isDarkMode ? "rgba(0,0,0,0.25)" : "#FFFFFF",
-                                  border: `1px solid ${themeConfig.border}`,
-                                  borderRadius: "8px",
-                                  cursor: "pointer",
-                                  transition: "transform 0.2s",
-                                  "&:hover": { transform: "scale(1.02)" },
-                                }}
-                              />
-                            </Paper>
-                          </Grid>
-                        ))}
-                      </Grid>
-                    ) : (
-                      <Box sx={{ py: 3, textAlign: "center", color: themeConfig.textMuted }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700, fontSize: "0.85rem" }}>
-                          No KYC Document Photos Uploaded
-                        </Typography>
-                      </Box>
-                    )}
-                  </Paper>
-                </Box>
+                  )}
+                </Paper>
               )}
 
-              {/* ================= TAB 1: KYC DOCUMENTS & SIGNATURES ================= */}
-              {activeTab === 1 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
-                  {/* ID Proof Photos */}
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 2.2,
-                      borderRadius: "16px",
-                      border: `1px solid ${themeConfig.border}`,
-                      bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#FFFFFF",
-                    }}
-                  >
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexWrap: "wrap", gap: 1 }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 1 }}>
-                        <BadgeOutlined sx={{ fontSize: 18, color: themeConfig.primary }} />
-                        Govt Identity KYC Documents ({images.length})
-                      </Typography>
-                      {images.length > 0 && (
-                        <Chip
-                          label={`${images.length} Document${images.length > 1 ? "s" : ""} Attached`}
-                          size="small"
-                          sx={{ bgcolor: "rgba(11, 142, 224, 0.12)", color: "#0B8EE0", fontWeight: 800 }}
-                        />
-                      )}
-                    </Box>
-
-                    {images.length > 0 ? (
-                      <Grid container spacing={2}>
-                        {images.map((imgUrl, idx) => (
-                          <Grid key={idx} size={{ xs: 12, sm: 6, md: 4 }}>
-                            <Paper
-                              elevation={0}
-                              sx={{
-                                p: 1.5,
-                                borderRadius: "12px",
-                                border: `1px solid ${themeConfig.border}`,
-                                bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
-                                textAlign: "center",
-                                transition: "all 0.2s ease",
-                                "&:hover": { borderColor: themeConfig.primary, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" },
-                              }}
-                            >
-                              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                                  📄 {idx === 0 ? "Front ID (Primary KYC)" : idx === 1 ? "Back ID" : `KYC Document #${idx + 1}`}
-                                </Typography>
-                                <Chip
-                                  icon={<FileDownload sx={{ fontSize: "14px !important" }} />}
-                                  label="Download"
-                                  size="small"
-                                  clickable
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    downloadImage(imgUrl, `${primaryGuestName}_ID_${idx + 1}.png`);
-                                  }}
-                                  sx={{
-                                    height: 20,
-                                    fontSize: "0.68rem",
-                                    fontWeight: 800,
-                                    bgcolor: "rgba(11, 142, 224, 0.1)",
-                                    color: "#0B8EE0",
-                                  }}
-                                />
-                              </Box>
-                              <Box
-                                component="img"
-                                src={imgUrl}
-                                alt={`KYC Proof ${idx + 1}`}
-                                onClick={() => setPreviewImage(imgUrl)}
-                                sx={{
-                                  width: "100%",
-                                  height: 150,
-                                  objectFit: "contain",
-                                  bgcolor: isDarkMode ? "rgba(0,0,0,0.25)" : "#FFFFFF",
-                                  border: `1px solid ${themeConfig.border}`,
-                                  borderRadius: "8px",
-                                  cursor: "pointer",
-                                  transition: "transform 0.2s",
-                                  "&:hover": { transform: "scale(1.02)" },
-                                }}
-                              />
-                            </Paper>
-                          </Grid>
-                        ))}
-                      </Grid>
-                    ) : (
-                      <Box sx={{ py: 4, textAlign: "center", color: themeConfig.textMuted }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                          No KYC Document Photos Uploaded
-                        </Typography>
-                      </Box>
-                    )}
-                  </Paper>
-
-                  {/* Digital Signatures */}
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 2.2,
-                      borderRadius: "16px",
-                      border: `1px solid ${themeConfig.border}`,
-                      bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#FFFFFF",
-                    }}
-                  >
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexWrap: "wrap", gap: 1 }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 1 }}>
-                        ✍️ Guest Digital E-Signatures ({signatures.length})
-                      </Typography>
-                      {signatures.length > 0 && (
-                        <Chip
-                          label={`${signatures.length} Signature${signatures.length > 1 ? "s" : ""} On File`}
-                          size="small"
-                          sx={{ bgcolor: "rgba(16, 185, 129, 0.12)", color: "#10B981", fontWeight: 800 }}
-                        />
-                      )}
-                    </Box>
-
-                    {signatures.length > 0 ? (
-                      <Grid container spacing={2}>
-                        {signatures.map((sigUrl, sIdx) => (
-                          <Grid key={sIdx} size={{ xs: 12, sm: signatures.length === 1 ? 12 : 6 }}>
-                            <Paper
-                              elevation={0}
-                              sx={{
-                                p: 1.5,
-                                borderRadius: "12px",
-                                border: `1px solid ${themeConfig.border}`,
-                                bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
-                                textAlign: "center",
-                                transition: "all 0.2s ease",
-                                "&:hover": { borderColor: "#10B981" },
-                              }}
-                            >
-                              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                                  ✍️ Signature Record #{sIdx + 1}
-                                </Typography>
-                                <Chip
-                                  icon={<FileDownload sx={{ fontSize: "14px !important" }} />}
-                                  label="Download"
-                                  size="small"
-                                  clickable
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    downloadImage(sigUrl, `${primaryGuestName}_Signature_${sIdx + 1}.png`);
-                                  }}
-                                  sx={{
-                                    height: 20,
-                                    fontSize: "0.68rem",
-                                    fontWeight: 800,
-                                    bgcolor: "rgba(16, 185, 129, 0.1)",
-                                    color: "#10B981",
-                                  }}
-                                />
-                              </Box>
-                              <Box
-                                component="img"
-                                src={sigUrl}
-                                alt={`Signature ${sIdx + 1}`}
-                                onClick={() => setPreviewImage(sigUrl)}
-                                sx={{
-                                  width: "100%",
-                                  height: 120,
-                                  objectFit: "contain",
-                                  bgcolor: isDarkMode ? "rgba(0,0,0,0.25)" : "#FFFFFF",
-                                  border: `1px solid ${themeConfig.border}`,
-                                  borderRadius: "8px",
-                                  cursor: "pointer",
-                                  transition: "transform 0.2s",
-                                  "&:hover": { transform: "scale(1.02)" },
-                                }}
-                              />
-                            </Paper>
-                          </Grid>
-                        ))}
-                      </Grid>
-                    ) : (
-                      <Box sx={{ py: 4, textAlign: "center", color: themeConfig.textMuted }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                          No Digital Signatures Recorded
-                        </Typography>
-                      </Box>
-                    )}
-                  </Paper>
-                </Box>
-              )}
-
-              {/* ================= TAB 2: BILLING & FOLIO LEDGER ================= */}
-              {activeTab === 2 && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
-                  {/* Financial Settlement Snapshot */}
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 2.2,
-                      borderRadius: "16px",
-                      border: `1px solid ${themeConfig.border}`,
-                      bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#FFFFFF",
-                    }}
-                  >
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexWrap: "wrap", gap: 1 }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 1 }}>
-                        <Receipt sx={{ fontSize: 18, color: themeConfig.primary }} />
-                        Financial Settlement &amp; Taxes
-                      </Typography>
-                      <Chip
-                        label={paymentStatus === "PAID" ? "FULLY SETTLED" : paymentStatus === "PARTIALLY_PAID" ? "PARTIALLY PAID" : "PENDING DUE"}
-                        size="small"
-                        sx={{
-                          fontWeight: 800,
-                          fontSize: "0.72rem",
-                          bgcolor:
-                            paymentStatus === "PAID"
-                              ? "rgba(16, 185, 129, 0.15)"
-                              : paymentStatus === "PARTIALLY_PAID"
-                              ? "rgba(245, 158, 11, 0.15)"
-                              : "rgba(239, 68, 68, 0.15)",
-                          color:
-                            paymentStatus === "PAID"
-                              ? "#10B981"
-                              : paymentStatus === "PARTIALLY_PAID"
-                              ? "#F59E0B"
-                              : "#EF4444",
-                        }}
-                      />
-                    </Box>
-
-                    <Grid container spacing={2}>
-                      <Grid size={{ xs: 6, sm: 3 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Base Room Charge</Typography>
-                        <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-                          ₹{baseAmount.toLocaleString()}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.7rem" }}>
-                          ₹{Math.round((baseAmount / nights) * 100) / 100}/night &bull; {nights} night(s)
-                        </Typography>
-                      </Grid>
-
-                      <Grid size={{ xs: 6, sm: 3 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                          GST ({gstRate}%)
-                        </Typography>
-                        <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-                          ₹{gstAmount.toLocaleString()}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.7rem" }}>
-                          CGST ({cgstRate}%): ₹{cgstAmount} | SGST ({sgstRate}%): ₹{sgstAmount}
-                        </Typography>
-                      </Grid>
-
-                      <Grid size={{ xs: 6, sm: 3 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Total Paid to Date</Typography>
-                        <Typography variant="h6" sx={{ fontWeight: 900, color: "#10B981" }}>
-                          ₹{paidAmount.toLocaleString()}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: "#10B981", fontSize: "0.7rem", fontWeight: 700 }}>
-                          ✓ Received &amp; Logged
-                        </Typography>
-                      </Grid>
-
-                      <Grid size={{ xs: 6, sm: 3 }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Pending Balance Due</Typography>
-                        <Typography variant="h6" sx={{ fontWeight: 900, color: dueAmount > 0 ? "#EF4444" : "#10B981" }}>
-                          {dueAmount > 0 ? `₹${dueAmount.toLocaleString()}` : "✓ Settled"}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: dueAmount > 0 ? "#EF4444" : "#10B981", fontSize: "0.7rem", fontWeight: 700 }}>
-                          {dueAmount > 0 ? "⚠️ Collect at Desk" : "No Balance Dues"}
-                        </Typography>
-                      </Grid>
+              {tab === "billing" && (
+                <Paper elevation={0} sx={{ p: 2, borderRadius: "12px", border: `1px solid ${themeConfig?.border || "#E2E8F0"}`, bgcolor: mutedCard }}>
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 6, sm: 4 }}>
+                      <InfoField label="BASE" value={formatMoney(booking.base_amount ?? booking.baseAmount)} themeConfig={themeConfig} />
                     </Grid>
-                  </Paper>
+                    <Grid size={{ xs: 6, sm: 4 }}>
+                      <InfoField label="TAXABLE" value={formatMoney(booking.taxable_amount)} themeConfig={themeConfig} />
+                    </Grid>
+                    <Grid size={{ xs: 6, sm: 4 }}>
+                      <InfoField label="DISCOUNT" value={formatMoney(booking.discount_amount)} themeConfig={themeConfig} />
+                    </Grid>
+                    <Grid size={{ xs: 6, sm: 4 }}>
+                      <InfoField label={`GST (${booking.gst_rate ?? 0}%)`} value={formatMoney(booking.gst_amount ?? booking.tax_amount)} themeConfig={themeConfig} />
+                    </Grid>
+                    <Grid size={{ xs: 6, sm: 4 }}>
+                      <InfoField label={`CGST (${booking.cgst_rate ?? 0}%)`} value={formatMoney(booking.cgst_amount)} themeConfig={themeConfig} />
+                    </Grid>
+                    <Grid size={{ xs: 6, sm: 4 }}>
+                      <InfoField label={`SGST (${booking.sgst_rate ?? 0}%)`} value={formatMoney(booking.sgst_amount)} themeConfig={themeConfig} />
+                    </Grid>
+                    <Grid size={{ xs: 6, sm: 4 }}>
+                      <InfoField label="EXTRA CHARGES" value={formatMoney(booking.extra_charges_total)} themeConfig={themeConfig} />
+                    </Grid>
+                    <Grid size={{ xs: 6, sm: 4 }}>
+                      <InfoField label="LATE CHECKOUT" value={formatMoney(booking.late_checkout_charge)} themeConfig={themeConfig} />
+                    </Grid>
+                    <Grid size={{ xs: 6, sm: 4 }}>
+                      <InfoField label="TOTAL" value={formatMoney(booking.total_amount ?? booking.totalAmount)} themeConfig={themeConfig} accent={themeConfig?.primary || "#0B8EE0"} />
+                    </Grid>
+                    <Grid size={{ xs: 6, sm: 4 }}>
+                      <InfoField label="PAID" value={formatMoney(booking.paid_amount ?? booking.paidAmount)} themeConfig={themeConfig} accent="#10B981" />
+                    </Grid>
+                    <Grid size={{ xs: 6, sm: 4 }}>
+                      <InfoField
+                        label="DUE"
+                        value={formatMoney(dueAmount)}
+                        themeConfig={themeConfig}
+                        accent={dueAmount > 0 ? "#EF4444" : "#10B981"}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 6, sm: 4 }}>
+                      <InfoField label="PAYMENT STATUS" value={payStatus} themeConfig={themeConfig} />
+                    </Grid>
+                  </Grid>
+                </Paper>
+              )}
 
-                  {/* Itemized Folio Table */}
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 2.2,
-                      borderRadius: "16px",
-                      border: `1px solid ${themeConfig.border}`,
-                      bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#FFFFFF",
-                    }}
-                  >
-                    <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
-                      <Receipt sx={{ fontSize: 18, color: themeConfig.primary }} />
-                      Itemized Tax Invoice Breakdown
-                    </Typography>
-
-                    <TableContainer sx={{ borderRadius: "12px", border: `1px solid ${themeConfig.border}`, overflowX: "auto" }}>
-                      <Table size="small">
-                        <TableHead sx={{ bgcolor: themeConfig.champagne }}>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Description / Item</TableCell>
-                            <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Rate / Night</TableCell>
-                            <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Duration</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMain }}>Amount</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 700, color: themeConfig.textMain }}>
-                              Room #{rooms[0]?.roomNumber} ({rooms[0]?.roomType})
-                            </TableCell>
-                            <TableCell>₹{Math.round((baseAmount / nights) * 100) / 100}</TableCell>
-                            <TableCell>{nights} Night(s)</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 800 }}>₹{baseAmount.toLocaleString()}</TableCell>
-                          </TableRow>
-
-                          <TableRow sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC" }}>
-                            <TableCell colSpan={3} sx={{ fontWeight: 700 }}>
-                              CGST ({cgstRate}%)
-                            </TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 800 }}>₹{cgstAmount.toLocaleString()}</TableCell>
-                          </TableRow>
-
-                          <TableRow sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC" }}>
-                            <TableCell colSpan={3} sx={{ fontWeight: 700 }}>
-                              SGST ({sgstRate}%)
-                            </TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 800 }}>₹{sgstAmount.toLocaleString()}</TableCell>
-                          </TableRow>
-
-                          <TableRow sx={{ borderTop: `2px solid ${themeConfig.border}` }}>
-                            <TableCell colSpan={3} sx={{ fontWeight: 900, fontSize: "0.95rem", color: themeConfig.textMain }}>Grand Total Payable</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 900, fontSize: "1rem", color: themeConfig.primary }}>₹{totalAmount.toLocaleString()}</TableCell>
-                          </TableRow>
-
-                          <TableRow>
-                            <TableCell colSpan={3} sx={{ fontWeight: 800, color: "#10B981" }}>Total Amount Paid</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 900, color: "#10B981" }}>₹{paidAmount.toLocaleString()}</TableCell>
-                          </TableRow>
-
-                          <TableRow sx={{ bgcolor: dueAmount > 0 ? "rgba(239, 68, 68, 0.08)" : "rgba(16, 185, 129, 0.08)" }}>
-                            <TableCell colSpan={3} sx={{ fontWeight: 900, color: dueAmount > 0 ? "#EF4444" : "#10B981" }}>
-                              {dueAmount > 0 ? "⚠️ Outstanding Balance Due" : "✓ Folio Completely Cleared"}
-                            </TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 900, fontSize: "1rem", color: dueAmount > 0 ? "#EF4444" : "#10B981" }}>
-                              ₹{dueAmount.toLocaleString()}
-                            </TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-
-                    {notes && (
-                      <Box sx={{ mt: 1.5, p: 1.2, borderRadius: "8px", bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC", border: `1px solid ${themeConfig.border}` }}>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Settlement Note: </Typography>
-                        <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain }}>{notes}</Typography>
-                      </Box>
-                    )}
-                  </Paper>
-
-                  {/* Payment Transaction History */}
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 2.2,
-                      borderRadius: "16px",
-                      border: `1px solid ${themeConfig.border}`,
-                      bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#FFFFFF",
-                    }}
-                  >
-                    <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
-                      <PaymentIcon sx={{ fontSize: 18, color: themeConfig.primary }} />
-                      Payment Transaction History ({paymentHistory.length})
-                    </Typography>
-
-                    {paymentHistory.length > 0 ? (
-                      <TableContainer sx={{ borderRadius: "12px", border: `1px solid ${themeConfig.border}`, overflowX: "auto" }}>
-                        <Table size="small">
-                          <TableHead sx={{ bgcolor: themeConfig.champagne }}>
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 800 }}>Date &amp; Time</TableCell>
-                              <TableCell sx={{ fontWeight: 800 }}>Transaction ID</TableCell>
-                              <TableCell sx={{ fontWeight: 800 }}>Source / Method</TableCell>
-                              <TableCell sx={{ fontWeight: 800 }}>Received By</TableCell>
-                              <TableCell sx={{ fontWeight: 800 }}>Amount Paid</TableCell>
-                              <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {paymentHistory.map((p, idx) => (
-                              <TableRow key={p.id || idx}>
-                                <TableCell sx={{ fontWeight: 700 }}>{p.date}</TableCell>
-                                <TableCell sx={{ fontWeight: 800, color: themeConfig.primary, fontFamily: "monospace" }}>{p.transactionId}</TableCell>
-                                <TableCell>
-                                  <Chip label={`${p.source} (${p.method})`} size="small" sx={{ fontWeight: 800, fontSize: "0.7rem", bgcolor: themeConfig.champagne, color: themeConfig.primaryDark }} />
-                                </TableCell>
-                                <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                                  {p.receivedBy}
-                                </TableCell>
-                                <TableCell sx={{ fontWeight: 900, color: "#10B981" }}>₹{p.amount?.toLocaleString()}</TableCell>
-                                <TableCell>
-                                  <Chip
-                                    label={p.status}
-                                    size="small"
-                                    color={p.status === "PAID" || p.status === "PARTIALLY_PAID" ? "success" : "default"}
-                                    sx={{ fontWeight: 800, fontSize: "0.7rem" }}
-                                  />
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    ) : (
-                      <Box sx={{ py: 3, textAlign: "center", color: themeConfig.textMuted }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                          No payment transactions logged yet. Balance of ₹{dueAmount.toLocaleString()} is pending.
-                        </Typography>
-                      </Box>
-                    )}
-                  </Paper>
+              {tab === "payments" && (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.2 }}>
+                  {payments.length === 0 ? (
+                    <EmptyState text="No payment history for this booking." themeConfig={themeConfig} />
+                  ) : (
+                    payments.map((p) => (
+                      <Paper
+                        key={p.id || `${p.received_at}-${p.amount}`}
+                        elevation={0}
+                        sx={{ p: 1.6, borderRadius: "12px", border: `1px solid ${themeConfig?.border || "#E2E8F0"}`, bgcolor: mutedCard }}
+                      >
+                        <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
+                          <Box>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                              {formatMoney(p.amount)} · {p.payment_method || "—"}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: themeConfig?.textMuted, fontWeight: 700 }}>
+                              {p.source || "PAYMENT"} · {p.received_by?.name || "Staff"} · {formatDateTime(p.received_at)}
+                            </Typography>
+                          </Box>
+                          <Chip label={p.status || "—"} size="small" color={statusColor(p.status)} sx={{ fontWeight: 800, fontSize: "0.7rem" }} />
+                        </Box>
+                      </Paper>
+                    ))
+                  )}
                 </Box>
               )}
-            </>
+
+              {tab === "documents" && (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+                  <Box>
+                    <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig?.textMuted, display: "block", mb: 1 }}>
+                      ID PHOTOS ({images.length})
+                    </Typography>
+                    <MediaGrid items={images} fallbackLabel="ID photos" themeConfig={themeConfig} onPreview={setPreview} />
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig?.textMuted, display: "block", mb: 1 }}>
+                      SIGNATURES ({signatures.length})
+                    </Typography>
+                    <MediaGrid items={signatures} fallbackLabel="Signatures" themeConfig={themeConfig} onPreview={setPreview} />
+                  </Box>
+                </Box>
+              )}
+
+              {tab === "notes" && (
+                <Paper elevation={0} sx={{ p: 2, borderRadius: "12px", border: `1px solid ${themeConfig?.border || "#E2E8F0"}`, bgcolor: mutedCard }}>
+                  {notes ? (
+                    <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: "pre-wrap", color: themeConfig?.textMain, lineHeight: 1.7 }}>
+                      {notes}
+                    </Typography>
+                  ) : (
+                    <EmptyState text="No notes recorded for this booking." themeConfig={themeConfig} />
+                  )}
+                  <Typography variant="caption" sx={{ display: "block", mt: 2, color: themeConfig?.textMuted, fontWeight: 700 }}>
+                    Last updated {formatDateTime(booking.updated_at)}
+                  </Typography>
+                </Paper>
+              )}
+            </Box>
           )}
         </DialogContent>
+
+        <DialogActions
+          sx={{
+            p: 1.5,
+            borderTop: `1px solid ${themeConfig?.border || "#E2E8F0"}`,
+            bgcolor: mutedCard,
+          }}
+        >
+          <Button
+            onClick={onClose}
+            variant="contained"
+            sx={{
+              borderRadius: "10px",
+              fontWeight: 800,
+              bgcolor: themeConfig?.primary || "#0B8EE0",
+              px: 3,
+            }}
+          >
+            Close
+          </Button>
+        </DialogActions>
       </Dialog>
 
-      {/* Full-Screen Image Preview Modal */}
-      {previewImage && (
-        <Dialog open={Boolean(previewImage)} onClose={() => setPreviewImage(null)} maxWidth="lg">
-          <Box sx={{ position: "relative", p: 1, bgcolor: "#000000" }}>
-            <IconButton
-              onClick={() => setPreviewImage(null)}
-              sx={{ position: "absolute", top: 8, right: 8, color: "#FFFFFF", bgcolor: "rgba(0,0,0,0.6)" }}
-            >
-              <Close />
-            </IconButton>
-            <Box
-              component="img"
-              src={previewImage}
-              alt="Preview"
-              sx={{ maxWidth: "90vw", maxHeight: "85vh", objectFit: "contain", display: "block" }}
-            />
-          </Box>
-        </Dialog>
-      )}
+      <Dialog
+        open={Boolean(preview?.url)}
+        onClose={() => setPreview(null)}
+        maxWidth="md"
+        slotProps={{ paper: { sx: { borderRadius: "16px", p: 1.5, bgcolor: "#0F172A" } } }}
+      >
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#F8FAFC" }}>
+            {preview?.label || "Preview"}
+          </Typography>
+          <IconButton size="small" onClick={() => setPreview(null)} sx={{ color: "#FFF" }}>
+            <Close fontSize="small" />
+          </IconButton>
+        </Box>
+        {preview?.url && (
+          <Box
+            component="img"
+            src={preview.url}
+            alt={preview.label}
+            sx={{ width: "100%", maxHeight: "75vh", objectFit: "contain", borderRadius: "10px" }}
+          />
+        )}
+      </Dialog>
     </>
   );
 }

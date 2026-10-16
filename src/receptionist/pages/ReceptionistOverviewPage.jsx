@@ -66,11 +66,12 @@ import { useAppTheme } from "@/shared/context/ThemeContext";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import StatCard from "@/shared/components/StatCard";
-import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
+import dynamic from "next/dynamic";
 import { formatTime12Hour, getTurnaroundWindow } from "@/shared/utils/timeUtils";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
-import { createSafeGuestModalData, removeCircularReferences } from "@/shared/utils/guestModalUtils";
+import { createSafeGuestModalData } from "@/shared/utils/guestModalUtils";
+import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
 
 export default function ReceptionistOverviewPage({
   user,
@@ -713,11 +714,11 @@ export default function ReceptionistOverviewPage({
       const g = typeof b.guest === "object" && b.guest ? b.guest : {};
       const roomsList = Array.isArray(b.roomNumbers) && b.roomNumbers.length > 0
         ? b.roomNumbers.map(String)
-        : Array.isArray(b.rooms) && b.rooms.length > 0 && typeof b.rooms[0] === "object" && b.rooms[0]?.roomNumber
-          ? b.rooms.map((r) => String(r.roomNumber))
-          : b.roomNumber
-            ? String(b.roomNumber).split(",").map((s) => s.trim()).filter(Boolean)
-            : [b.room?.roomNumber || "101"];
+        : Array.isArray(b.rooms) && b.rooms.length > 0 && typeof b.rooms[0] === "object" && (b.rooms[0]?.roomNumber || b.rooms[0]?.room_number)
+          ? b.rooms.map((r) => String(r.roomNumber || r.room_number || ""))
+          : b.roomNumber || b.room_number
+            ? String(b.roomNumber || b.room_number).split(",").map((s) => s.trim()).filter(Boolean)
+            : [b.room?.roomNumber || b.room?.room_number || "101"];
 
       const rawCheckIn =
         b.checkInDate ||
@@ -728,7 +729,7 @@ export default function ReceptionistOverviewPage({
         b.arrival_date ||
         b.createdAt ||
         b.created_at ||
-        (b.status === "CHECKED_IN" || b.status === "IN-HOUSE" ? new Date().toISOString() : null);
+        (b.status === "CHECKED_IN" || b.booking_status === "CHECKED_IN" || b.status === "IN-HOUSE" ? new Date().toISOString() : null);
 
       let rawCheckOut =
         b.checkOutDate ||
@@ -745,13 +746,18 @@ export default function ReceptionistOverviewPage({
           d.setDate(d.getDate() + nights);
           rawCheckOut = d.toISOString();
         }
-      } else if (!rawCheckOut && (b.status === "CHECKED_IN" || b.status === "IN-HOUSE")) {
+      } else if (!rawCheckOut && (b.status === "CHECKED_IN" || b.booking_status === "CHECKED_IN" || b.status === "IN-HOUSE")) {
         const d = new Date();
         d.setDate(d.getDate() + Math.max(1, Number(b.numberOfNights || b.nights || 1)));
         rawCheckOut = d.toISOString();
       }
 
-      const statusNormalized = b.status === "CHECKED_IN" ? "IN-HOUSE" : b.status === "CHECKED_OUT" ? "DEPARTED" : b.status || "IN-HOUSE";
+      const rawBStatus = String(b.booking_status || b.status || "").toUpperCase();
+      const statusNormalized = (rawBStatus === "CHECKED_IN" || rawBStatus === "IN-HOUSE")
+        ? "IN-HOUSE"
+        : (rawBStatus === "CHECKED_OUT" || rawBStatus === "COMPLETED")
+          ? "DEPARTED"
+          : (rawBStatus || "CONFIRMED");
 
       const bTotal = Number(b.totalAmount ?? b.total_amount ?? b.total ?? b.grandTotal ?? 0);
       const bPaid = Number(b.paidAmount ?? b.paid_amount ?? b.advancePaymentAmount ?? b.advance_paid ?? 0);
@@ -776,9 +782,9 @@ export default function ReceptionistOverviewPage({
         activeBooking: b,
         guest: g,
         guestId: g?.id || g?._id || b.guest?.id || b.guest?._id || (typeof b.guest === "string" ? b.guest : realBId),
-        name: g?.fullName || g?.name || b.guestName || b.primary_guest_name || b.primaryGuestName || "Resident Guest",
+        name: g?.fullName || g?.name || b.guestName || b.primary_guest_name || b.guest_name || b.primaryGuestName || "Resident Guest",
         email: g?.email || b.email || "guest@hotel.com",
-        phone: g?.mobileNumber || g?.phone || b.mobileNumber || b.mobile_number || b.guestPhone || "N/A",
+        phone: g?.mobileNumber || g?.phone || b.mobileNumber || b.mobile_number || b.phone || b.guestPhone || "N/A",
         roomAssigned: roomsList.length > 1 ? roomsList.join(", ") : roomsList[0],
         roomNumbers: roomsList,
         checkInDateRaw: rawCheckIn,
@@ -795,7 +801,7 @@ export default function ReceptionistOverviewPage({
         numberOfNights: bNights,
         roomType: bRoomType,
         status: statusNormalized,
-        rawStatus: b.status,
+        rawStatus: rawBStatus,
       };
     });
   }, [bookings]);
@@ -978,6 +984,12 @@ export default function ReceptionistOverviewPage({
   }, [allFormattedBookings]);
 
   const countAll = allFormattedBookings.length;
+
+  useEffect(() => {
+    if (allFormattedBookings.length > 0 && countTodayAll === 0 && recentFilter === "TODAY_ALL") {
+      setRecentFilter("ALL");
+    }
+  }, [allFormattedBookings.length, countTodayAll, recentFilter]);
 
   return (
     <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
@@ -2132,28 +2144,6 @@ export default function ReceptionistOverviewPage({
                                     <WhatsApp sx={{ fontSize: 16 }} />
                                   </IconButton>
                                 </Tooltip>
-                                <Button
-                                  variant="outlined"
-                                  size="small"
-                                  startIcon={<Visibility sx={{ fontSize: 14 }} />}
-                                  onClick={() => {
-                                    setTelemetryModal({ open: false, type: null });
-                                    setSelectedGuestModal({
-                                      open: true,
-                                      guest: createSafeGuestModalData({ guest, booking, name: gName, phone: gPhone, roomAssigned: room.roomNumber }),
-                                      guestId: booking?._id || booking?.id || guest?._id || guest?.id,
-                                    });
-                                  }}
-                                  sx={{
-                                    borderRadius: "8px",
-                                    fontWeight: 800,
-                                    fontSize: "0.75rem",
-                                    borderColor: themeConfig.border,
-                                    color: themeConfig.textMain,
-                                  }}
-                                >
-                                  Folio
-                                </Button>
                               </Box>
                             </TableCell>
                           </TableRow>
@@ -2373,17 +2363,8 @@ export default function ReceptionistOverviewPage({
                             key={g._id || idx}
                             hover
                             sx={{
-                              cursor: "pointer",
                               transition: "background 0.2s ease",
                               "&:hover": { bgcolor: isDarkMode ? "rgba(255,255,255,0.05)" : "rgba(142, 36, 170, 0.04)" },
-                            }}
-                            onClick={() => {
-                              setTelemetryModal({ open: false, type: null });
-                              setSelectedGuestModal({
-                                open: true,
-                                guest: createSafeGuestModalData(g),
-                                guestId: g._id || g.id || g.bookingId,
-                              });
                             }}
                           >
                             <TableCell sx={{ whiteSpace: "nowrap" }}>
@@ -2462,30 +2443,6 @@ export default function ReceptionistOverviewPage({
                                     <WhatsApp sx={{ fontSize: 16 }} />
                                   </IconButton>
                                 </Tooltip>
-                                <Button
-                                  variant="outlined"
-                                  size="small"
-                                  startIcon={<Visibility sx={{ fontSize: 14 }} />}
-                                  onClick={() => {
-                                    setTelemetryModal({ open: false, type: null });
-                                    setSelectedGuestModal({
-                                      open: true,
-                                      guest: createSafeGuestModalData(g),
-                                      guestId: g._id || g.id || g.bookingId,
-                                    });
-                                  }}
-                                  sx={{
-                                    borderRadius: "8px",
-                                    fontWeight: 800,
-                                    fontSize: "0.75rem",
-                                    borderColor: themeConfig.border,
-                                    color: themeConfig.textMain,
-                                    whiteSpace: "nowrap",
-                                    "&:hover": { borderColor: themeConfig.primary, bgcolor: "rgba(11, 142, 224, 0.08)" },
-                                  }}
-                                >
-                                  View Details
-                                </Button>
                               </Box>
                             </TableCell>
                           </TableRow>

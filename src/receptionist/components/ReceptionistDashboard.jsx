@@ -42,7 +42,6 @@ const ComponentSpinner = () => (
 const ReceptionistOverviewPage = dynamic(() => import("../pages/ReceptionistOverviewPage"), { loading: () => <ComponentSpinner /> });
 const AvailableRoomsPage = dynamic(() => import("../pages/AvailableRoomsPage"), { loading: () => <ComponentSpinner /> });
 const InHouseFoliosPage = dynamic(() => import("../pages/InHouseFoliosPage"), { loading: () => <ComponentSpinner /> });
-const GuestDirectoryPage = dynamic(() => import("../pages/GuestDirectoryPage"), { loading: () => <ComponentSpinner /> });
 const CheckInWizardPage = dynamic(() => import("../pages/CheckInWizardPage"), { loading: () => <ComponentSpinner /> });
 const MoreOperationsPage = dynamic(() => import("../pages/MoreOperationsPage"), { loading: () => <ComponentSpinner /> });
 
@@ -866,16 +865,8 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         />
       )}
 
-      {/* ROUTE 3: GUEST DIRECTORY & DOSSIER */}
+      {/* ROUTE 3: MORE OPERATIONS HUB (User Profile & Session) */}
       {activeNav === 3 && (
-        <GuestDirectoryPage
-          hotelSettings={hotelSettings}
-          onRefresh={fetchFrontDeskData}
-        />
-      )}
-
-      {/* ROUTE 4: MORE OPERATIONS HUB (User Profile & Session) */}
-      {activeNav === 4 && (
         <MoreOperationsPage
           user={{ ...user, hotel: { ...user?.hotel, settings: hotelSettings } }}
           hotelSettings={hotelSettings}

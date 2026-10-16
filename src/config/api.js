@@ -1497,8 +1497,18 @@ function normalizeApiResponse(res) {
       arr.total = d.pagination?.total || arr.length;
       res.data = arr;
     }
-    // If rooms list
-    else if (Array.isArray(d.rooms)) {
+    // If rooms list (not a single booking, which also embeds a `rooms` array)
+    else if (
+      Array.isArray(d.rooms) &&
+      !d.booking_number &&
+      !d.bookingNumber &&
+      !d.primary_guest_name &&
+      !d.booking_status &&
+      !d.bookingStatus &&
+      !Array.isArray(d.images) &&
+      !Array.isArray(d.payment_history) &&
+      !Array.isArray(d.paymentHistory)
+    ) {
       const arr = d.rooms.map(deepDualCase);
       arr.rooms = arr;
       arr.total = d.total;
@@ -1913,7 +1923,7 @@ async function executeApiRequest(endpoint, options = {}) {
       !endpoint.includes("/auth/login") &&
       !endpoint.includes("/auth/refresh-token")
     ) {
-      const storedRefreshToken = localStorage.getItem("refreshToken");
+      const storedRefreshToken = localStorage.getItem("refreshToken") || getCookie("refreshToken");
       if (storedRefreshToken && !options._retry) {
         try {
           const refreshRes = await fetch(API_ENDPOINTS.AUTH.REFRESH_TOKEN, {
@@ -1924,9 +1934,19 @@ async function executeApiRequest(endpoint, options = {}) {
               refreshToken: storedRefreshToken,
             }),
           });
-          const refreshData = await refreshRes.json();
-          const newToken = refreshData.data?.accessToken || refreshData.accessToken || refreshData.token;
-          const newRefreshToken = refreshData.data?.refreshToken || refreshData.refreshToken;
+          const refreshData = await refreshRes.json().catch(() => ({}));
+          const newToken =
+            refreshData.data?.accessToken ||
+            refreshData.data?.access_token ||
+            refreshData.data?.token ||
+            refreshData.accessToken ||
+            refreshData.access_token ||
+            refreshData.token;
+          const newRefreshToken =
+            refreshData.data?.refreshToken ||
+            refreshData.data?.refresh_token ||
+            refreshData.refreshToken ||
+            refreshData.refresh_token;
 
           if (refreshRes.ok && newToken) {
             localStorage.setItem("token", newToken);
@@ -1943,7 +1963,7 @@ async function executeApiRequest(endpoint, options = {}) {
             });
           }
         } catch (refreshErr) {
-          console.error("Auto token refresh failed:", refreshErr);
+          console.warn("Auto token refresh failed:", refreshErr);
         }
       }
 

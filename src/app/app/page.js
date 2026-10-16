@@ -209,10 +209,10 @@ function HotelWebAppContent() {
       return ["overview", "hotels", "plans", "settings"];
     }
     if (effectiveRole === "HOTEL_ADMIN") {
-      return ["overview", "daily-collections", "guests", "staff", "rooms", "subscriptions", "settings"];
+      return ["overview", "guests", "daily-collections", "staff", "rooms", "subscriptions", "settings"];
     }
     if (effectiveRole === "RECEPTIONIST") {
-      return ["dashboard", "rooms", "folios", "guests", "more"];
+      return ["dashboard", "rooms", "folios", "more"];
     }
     return [];
   };
@@ -239,14 +239,15 @@ function HotelWebAppContent() {
         if (cleanPath === "dashboard" || cleanPath === "overview") return 0;
         if (cleanPath === "rooms" || cleanPath === "checkin" || cleanPath === "check-in" || cleanPath === "booking") return 1;
         if (cleanPath === "folios" || cleanPath === "in-house" || cleanPath === "inhouse") return 2;
-        if (cleanPath === "guests" || cleanPath === "guest-directory" || cleanPath === "directory") return 3;
-        if (cleanPath === "more" || cleanPath === "settings" || cleanPath === "operations") return 4;
+        if (cleanPath === "more" || cleanPath === "settings" || cleanPath === "operations") return 3;
       }
       if (effectiveRole === "HOTEL_ADMIN") {
-        if (cleanPath === "collections" || cleanPath === "daily-collections" || cleanPath === "payments" || cleanPath === "billing") return 1;
-        if (cleanPath === "folios" || cleanPath === "guests" || cleanPath === "guest-directory") return 2;
+        if (cleanPath === "guests" || cleanPath === "guest" || cleanPath === "directory") return 1;
+        if (cleanPath === "collections" || cleanPath === "daily-collections" || cleanPath === "payments" || cleanPath === "billing") return 2;
         if (cleanPath === "team" || cleanPath === "staff") return 3;
+        if (cleanPath === "rooms") return 4;
         if (cleanPath === "plans" || cleanPath === "pricing" || cleanPath === "subscriptions") return 5;
+        if (cleanPath === "settings") return 6;
       }
     }
     return 0;
@@ -339,10 +340,20 @@ function HotelWebAppContent() {
     }
   }, [pathname, user, currentEffectiveRole]);
 
-  const handleTabChange = (tabIndex) => {
+  const handleTabChange = (tabIndexOrPath) => {
+    let tabIndex = tabIndexOrPath;
+    const effectiveRole = activePortalRole || user?.role;
+    if (typeof tabIndexOrPath === "string" && user) {
+      const navList = getNavListForUser(user, effectiveRole);
+      const idx = navList.indexOf(tabIndexOrPath);
+      if (idx !== -1) {
+        tabIndex = idx;
+      } else {
+        tabIndex = getActiveTabFromPath(user, tabIndexOrPath, effectiveRole);
+      }
+    }
     setActiveTab(tabIndex);
     if (user) {
-      const effectiveRole = activePortalRole || user.role;
       const prefix = effectiveRole === "HOTEL_ADMIN" ? "/admin" : "/receptionist";
       const navList = getNavListForUser(user, effectiveRole);
       if (navList[tabIndex] !== undefined) {

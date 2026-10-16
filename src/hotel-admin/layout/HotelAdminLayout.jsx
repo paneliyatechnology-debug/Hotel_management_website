@@ -3,18 +3,18 @@
 import DashboardLayout from "@/shared/layout/DashboardLayout";
 import {
   Dashboard as DashboardIcon,
-  Person,
   People,
   Layers,
   Stars,
   Settings,
   Payments,
+  Person,
 } from "@/shared/icons";
 
 export const HOTEL_ADMIN_NAV = [
   { label: "Dashboard", shortLabel: "Overview", path: "overview", icon: <DashboardIcon fontSize="small" /> },
-  { label: "Daily Collections", shortLabel: "Collections", path: "daily-collections", icon: <Payments fontSize="small" /> },
   { label: "Guest Directory", shortLabel: "Guests", path: "guests", icon: <Person fontSize="small" /> },
+  { label: "Daily Collections", shortLabel: "Collections", path: "daily-collections", icon: <Payments fontSize="small" /> },
   { label: "Staff Management", shortLabel: "Staff", path: "staff", icon: <People fontSize="small" /> },
   { label: "Rooms & Tariffs", shortLabel: "Rooms", path: "rooms", icon: <Layers fontSize="small" /> },
   { label: "Subscription Plan", shortLabel: "Plans", path: "subscriptions", icon: <Stars fontSize="small" /> },

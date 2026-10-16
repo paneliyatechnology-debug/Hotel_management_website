@@ -10,6 +10,16 @@ import dynamic from "next/dynamic";
 import { CircularProgress } from "@mui/material";
 import { useSocket } from "@/shared/context/SocketContext";
 
+function extractRecords(res) {
+  const payload = res?.data !== undefined ? res.data : res;
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.bookings)) return payload.bookings;
+  if (Array.isArray(payload?.guests)) return payload.guests;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.data?.bookings)) return payload.data.bookings;
+  return [];
+}
+
 const ComponentSpinner = () => (
   <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 8 }}>
     <CircularProgress size={36} />
@@ -20,8 +30,8 @@ const SettingsView = dynamic(() => import("@/shared/components/SettingsView"), {
 const ConfirmDialog = dynamic(() => import("@/shared/components/ConfirmDialog"));
 
 const HotelOverviewPage = dynamic(() => import("../pages/HotelOverviewPage"), { loading: () => <ComponentSpinner /> });
+const GuestListPage = dynamic(() => import("../pages/GuestListPage"), { loading: () => <ComponentSpinner /> });
 const DailyCollectionsPage = dynamic(() => import("../pages/DailyCollectionsPage"), { loading: () => <ComponentSpinner /> });
-const GuestDirectoryPage = dynamic(() => import("../pages/GuestDirectoryPage"), { loading: () => <ComponentSpinner /> });
 const StaffTeamPage = dynamic(() => import("../pages/StaffTeamPage"), { loading: () => <ComponentSpinner /> });
 const RoomTypesPage = dynamic(() => import("../pages/RoomTypesPage"), { loading: () => <ComponentSpinner /> });
 const SubscriptionPage = dynamic(() => import("../pages/SubscriptionPage"), { loading: () => <ComponentSpinner /> });
@@ -42,16 +52,12 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
   const [fetchedTabs, setFetchedTabs] = useState({});
 
   // Filters & Searches
-  const [guestSearch, setGuestSearch] = useState("");
-  const [guestFilter, setGuestFilter] = useState("ALL");
   const [staffSearch, setStaffSearch] = useState("");
   const [staffRoleFilter, setStaffRoleFilter] = useState("ALL");
   const [selectedFloor, setSelectedFloor] = useState("ALL");
   const [selectedStatus, setSelectedStatus] = useState("ALL");
 
   // Modals & Drawers
-  const [guestModal, setGuestModal] = useState({ open: false, mode: "ADD", data: getInitialGuestForm() });
-  const [viewGuestModal, setViewGuestModal] = useState({ open: false, guest: null });
   const [staffModal, setStaffModal] = useState({ open: false, mode: "ADD", data: getInitialStaffForm() });
   const [viewStaffModal, setViewStaffModal] = useState({ open: false, staff: null });
   const [roomModal, setRoomModal] = useState({ open: false, mode: "ADD", data: getInitialRoomForm() });
@@ -60,7 +66,6 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
 
   function getInitialRoomForm(prefillCategory = null) {
     const defaultCat = prefillCategory || roomTypes[0];
-    const catGstRate = defaultCat?.gstRate ?? 18;
     return {
       _id: "",
       roomNumber: "",
@@ -73,11 +78,6 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       status: "AVAILABLE",
       notes: "",
       amenities: [],
-      gstEnabled: defaultCat?.gstEnabled !== false,
-      gstRate: catGstRate,
-      cgstRate: defaultCat?.cgstRate ?? catGstRate / 2,
-      sgstRate: defaultCat?.sgstRate ?? catGstRate / 2,
-      taxInclusive: Boolean(defaultCat?.taxInclusive),
     };
   }
 
@@ -92,30 +92,6 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       bedType: "",
       description: "",
       amenities: [],
-      gstEnabled: true,
-      gstRate: 18,
-      cgstRate: 9,
-      sgstRate: 9,
-      taxInclusive: false,
-    };
-  }
-
-  function getInitialGuestForm() {
-    const availableRoom = rooms.find((r) => r.status === "AVAILABLE") || rooms[0];
-    const defaultPrice = availableRoom?.customPricePerNight || (typeof availableRoom?.roomType === "object" ? availableRoom?.roomType?.basePrice : 0) || availableRoom?.basePrice || 0;
-    return {
-      _id: "",
-      name: "",
-      email: "",
-      phone: "",
-      idType: "AADHAAR",
-      idNumber: "",
-      address: "",
-      roomAssigned: availableRoom ? String(availableRoom.roomNumber) : "",
-      checkInDate: new Date().toISOString().split("T")[0],
-      checkOutDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
-      totalAmount: defaultPrice,
-      status: "IN-HOUSE",
     };
   }
 
@@ -144,8 +120,8 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         endpointsToFetch.push(
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(res.data)),
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || [])),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || [])),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => setBookings(extractRecords(res))),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => setGuests(extractRecords(res))),
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
         );
@@ -156,23 +132,24 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(res.data)),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || [])),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => setBookings(extractRecords(res))),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => setGuests(extractRecords(res))),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
           );
         }
-        // Route 1: DAILY COLLECTIONS
+        // Route 1: GUEST DIRECTORY & PROFILES
         else if (tabIndex === 1) {
           endpointsToFetch.push(
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => setBookings(extractRecords(res))),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => setGuests(extractRecords(res))),
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
           );
         }
-        // Route 2: GUEST DIRECTORY
+        // Route 2: DAILY COLLECTIONS
         else if (tabIndex === 2) {
           endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => (res?.data || Array.isArray(res)) && setGuests(res.data || res || [])),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => (res?.data || Array.isArray(res)) && setBookings(res.data || res || [])),
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || []))
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
           );
         }
         // Route 3: STAFF TEAM
@@ -253,81 +230,6 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
 
   const showToast = (message, severity = "success") => {
     toast.show(message, severity);
-  };
-
-  // Guest CRUD Handlers
-  const handleSaveGuest = async (e) => {
-    e.preventDefault();
-    const guestName = guestModal.data.name || guestModal.data.fullName;
-    const guestPhone = guestModal.data.phone || guestModal.data.mobileNumber;
-    if (!guestName || !guestPhone) {
-      showToast("Guest name and phone number are required", "error");
-      return;
-    }
-
-    try {
-      const selectedRoomList = guestModal.data.selectedRooms || [];
-      const combinedRoomNumbers = selectedRoomList.length > 0
-        ? selectedRoomList.map((r) => r.roomNumber).join(", ")
-        : guestModal.data.roomAssigned || "";
-
-      const payload = {
-        fullName: guestName,
-        mobileNumber: guestPhone,
-        email: guestModal.data.email || "",
-        address: guestModal.data.address || "",
-        idType: guestModal.data.idType || "AADHAAR",
-        idNumber: guestModal.data.idNumber || "PENDING",
-        roomAssigned: combinedRoomNumbers,
-        roomIds: selectedRoomList.map((r) => r._id || r).filter(Boolean),
-        selectedRooms: selectedRoomList,
-        roomNumbers: selectedRoomList.map((r) => String(r.roomNumber)).filter(Boolean),
-        checkInDate: guestModal.data.checkInDate || "",
-        checkOutDate: guestModal.data.checkOutDate || "",
-        status: guestModal.data.status || "IN-HOUSE",
-        totalAmount: Number(guestModal.data.totalAmount) || 0,
-        advancePaid: Number(guestModal.data.advancePaid) || 0,
-        accompanyingGuests: guestModal.data.accompanyingGuests || [],
-      };
-
-      const res = await apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS, {
-        method: "POST",
-        body: payload,
-      });
-
-      if (res.data) {
-        await fetchAllData();
-        showToast(
-          guestModal.mode === "EDIT"
-            ? "Guest profile updated successfully!"
-            : `New guest registered & ${selectedRoomList.length || 1} room(s) allocated successfully!`
-        );
-      }
-      setGuestModal({ open: false, mode: "ADD", data: getInitialGuestForm() });
-    } catch (err) {
-      showToast(err.message || "Failed to save guest record", "error");
-    }
-  };
-
-  const handleDeleteGuest = (guest) => {
-    setConfirmDelete({
-      open: true,
-      title: "Delete Guest Record",
-      message: `Are you sure you want to delete guest record for "${guest.name || guest.fullName}"? This action cannot be undone.`,
-      onConfirm: async () => {
-        try {
-          await apiRequest(API_ENDPOINTS.RECEPTIONIST.DELETE_GUEST(guest._id), {
-            method: "DELETE",
-          });
-          await fetchAllData();
-          showToast("Guest record deleted from database.");
-        } catch (err) {
-          showToast(err.message || "Failed to delete guest", "error");
-        } finally {
-          setConfirmDelete({ open: false, title: "", message: "", onConfirm: null });
-        }
-      },
-    });
   };
 
   // Staff CRUD Handlers
@@ -479,11 +381,11 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
           status: roomModal.data.status || "AVAILABLE",
           notes: roomModal.data.notes || "",
           amenities: Array.isArray(roomModal.data.amenities) ? roomModal.data.amenities.join(", ") : (roomModal.data.amenities || ""),
-          gst_enabled: roomModal.data.gstEnabled !== false,
-          gst_rate: Number(roomModal.data.gstRate || roomModal.data.gst_rate) || 0,
-          cgst_rate: Number(roomModal.data.cgstRate || roomModal.data.cgst_rate) || 0,
-          sgst_rate: Number(roomModal.data.sgstRate || roomModal.data.sgst_rate) || 0,
-          tax_inclusive: Boolean(roomModal.data.taxInclusive || roomModal.data.tax_inclusive),
+          gst_enabled: false,
+          gst_rate: 0,
+          cgst_rate: 0,
+          sgst_rate: 0,
+          tax_inclusive: false,
           is_active: true,
         };
         const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.UPDATE_ROOM(roomModal.data._id), {
@@ -517,11 +419,11 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
             status: roomModal.data.status || "AVAILABLE",
             notes: roomModal.data.notes || "",
             amenities: Array.isArray(roomModal.data.amenities) ? roomModal.data.amenities.join(", ") : (roomModal.data.amenities || ""),
-            gst_enabled: roomModal.data.gstEnabled !== false,
-            gst_rate: Number(roomModal.data.gstRate || roomModal.data.gst_rate) || 0,
-            cgst_rate: Number(roomModal.data.cgstRate || roomModal.data.cgst_rate) || 0,
-            sgst_rate: Number(roomModal.data.sgstRate || roomModal.data.sgst_rate) || 0,
-            tax_inclusive: Boolean(roomModal.data.taxInclusive || roomModal.data.tax_inclusive),
+            gst_enabled: false,
+            gst_rate: 0,
+            cgst_rate: 0,
+            sgst_rate: 0,
+            tax_inclusive: false,
             is_active: true,
           };
 
@@ -645,11 +547,11 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         bed_count: Number(typeModal.data.bedCount || typeModal.data.bed_count) || 1,
         bed_type: typeModal.data.bedType || typeModal.data.bed_type || "1 King Size Bed",
         amenities: typeModal.data.amenities || [],
-        gst_enabled: typeModal.data.gstEnabled !== false,
-        gst_rate: Number(typeModal.data.gstRate || typeModal.data.gst_rate) || 0,
-        cgst_rate: Number(typeModal.data.cgstRate || typeModal.data.cgst_rate) || 0,
-        sgst_rate: Number(typeModal.data.sgstRate || typeModal.data.sgst_rate) || 0,
-        tax_inclusive: Boolean(typeModal.data.taxInclusive || typeModal.data.tax_inclusive),
+        gst_enabled: false,
+        gst_rate: 0,
+        cgst_rate: 0,
+        sgst_rate: 0,
+        tax_inclusive: false,
       };
 
       if (typeModal.mode === "EDIT" && typeModal.data._id) {
@@ -747,30 +649,23 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         />
       )}
 
-      {/* ROUTE 1: DAILY COLLECTIONS & CASH DRAWER HANDOVER */}
+      {/* ROUTE 1: GUEST DIRECTORY & PROFILES */}
       {activeNav === 1 && (
+        <GuestListPage
+          guests={guests}
+          bookings={bookings}
+          rooms={rooms}
+          hotelSettings={hotelSettings}
+          onRefresh={fetchAllData}
+        />
+      )}
+
+      {/* ROUTE 2: DAILY COLLECTIONS & CASH DRAWER HANDOVER */}
+      {activeNav === 2 && (
         <DailyCollectionsPage
           user={user}
           hotelSettings={hotelSettings}
           onRefreshOverview={fetchAllData}
-        />
-      )}
-
-      {/* ROUTE 2: GUEST DIRECTORY */}
-      {activeNav === 2 && (
-        <GuestDirectoryPage
-          guests={guests}
-          bookings={bookings}
-          rooms={rooms}
-          guestSearch={guestSearch}
-          setGuestSearch={setGuestSearch}
-          guestFilter={guestFilter}
-          setGuestFilter={setGuestFilter}
-          viewGuestModal={viewGuestModal}
-          setViewGuestModal={setViewGuestModal}
-          hotelSettings={hotelSettings}
-          onDeleteGuest={handleDeleteGuest}
-          onRefresh={fetchAllData}
         />
       )}
 

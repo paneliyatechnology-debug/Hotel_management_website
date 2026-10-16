@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -64,8 +64,7 @@ import { formatTime12Hour, calculateOverstayFee } from "@/shared/utils/timeUtils
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
 import { toast } from "@/shared/utils/toast";
 import { createSafeGuestModalData } from "@/shared/utils/guestModalUtils";
-
-const GuestDetailsModal = dynamic(() => import("@/shared/components/GuestDetailsModal"));
+import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
 
 export default function InHouseFoliosPage({
   bookings = [],
@@ -98,7 +97,25 @@ export default function InHouseFoliosPage({
     }
   );
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeStatusTab, setActiveStatusTab] = useState("CHECKED_IN");
+  const [activeStatusTab, setActiveStatusTab] = useState(() => {
+    return bookings.some((b) => {
+      const s = String(b.booking_status || b.status || "").toUpperCase();
+      return s === "CHECKED_IN" || s === "IN-HOUSE" || s === "IN_HOUSE";
+    }) ? "CHECKED_IN" : "ALL";
+  });
+
+  useEffect(() => {
+    if (bookings.length > 0 && activeStatusTab === "CHECKED_IN") {
+      const hasInHouse = bookings.some((b) => {
+        const s = String(b.booking_status || b.status || "").toUpperCase();
+        return s === "CHECKED_IN" || s === "IN-HOUSE" || s === "IN_HOUSE";
+      });
+      if (!hasInHouse) {
+        setActiveStatusTab("ALL");
+      }
+    }
+  }, [bookings, activeStatusTab]);
+
   const [balanceFilter, setBalanceFilter] = useState("ALL");
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [page, setPage] = useState(0);
@@ -123,7 +140,7 @@ export default function InHouseFoliosPage({
     booking: null,
   });
 
-  // Guest Details Dossier Modal State
+  // Guest Details Modal State
   const [selectedGuestModal, setSelectedGuestModal] = useState({
     open: false,
     guest: null,
@@ -163,37 +180,48 @@ export default function InHouseFoliosPage({
     return `${day}-${month}-${year}`;
   };
 
-  // Telemetry Calculations
-  const inHouseBookings = bookings.filter((b) => b.status === "CHECKED_IN");
-  const confirmedBookings = bookings.filter((b) => b.status === "CONFIRMED" || b.status === "PENDING");
-  const checkedOutBookings = bookings.filter((b) => b.status === "CHECKED_OUT");
+  // Status Helper
+  const getNormalizedStatus = (b) => {
+    const s = String(b.booking_status || b.status || "").toUpperCase();
+    if (s === "IN-HOUSE" || s === "IN_HOUSE") return "CHECKED_IN";
+    return s || "CONFIRMED";
+  };
 
-  // Operational active folios (excludes historical past checkouts prior to today)
+  // Telemetry Calculations
+  const inHouseBookings = bookings.filter((b) => getNormalizedStatus(b) === "CHECKED_IN");
+  const confirmedBookings = bookings.filter((b) => {
+    const s = getNormalizedStatus(b);
+    return s === "CONFIRMED" || s === "PENDING" || s === "BOOKED";
+  });
+  const checkedOutBookings = bookings.filter((b) => getNormalizedStatus(b) === "CHECKED_OUT" || getNormalizedStatus(b) === "DEPARTED");
+
+  // Operational active folios
   const activeOperationalBookings = bookings.filter((b) => {
-    if (b.status === "CHECKED_IN" || b.status === "CONFIRMED" || b.status === "PENDING") return true;
-    if (b.status === "CHECKED_OUT") {
-      const outDate = b.checkOutDate ? String(b.checkOutDate).split("T")[0] : "";
+    const s = getNormalizedStatus(b);
+    if (s === "CHECKED_IN" || s === "CONFIRMED" || s === "PENDING" || s === "BOOKED") return true;
+    if (s === "CHECKED_OUT" || s === "DEPARTED") {
+      const outDate = (b.checkOutDate || b.check_out_date) ? String(b.checkOutDate || b.check_out_date).split("T")[0] : "";
       return outDate && outDate >= todayStr;
     }
     return false;
   });
 
-  const totalGrossLedger = activeOperationalBookings.reduce((sum, b) => {
+  const totalGrossLedger = bookings.reduce((sum, b) => {
     const pos = (b.posCharges || []).reduce((pSum, c) => pSum + (c.amount || 0), 0);
     const overstay = calculateOverstayFee(b, hotelSettings);
-    return sum + (b.totalAmount || 0) + pos + (overstay.lateFee || 0);
+    return sum + (Number(b.totalAmount ?? b.total_amount ?? 0)) + pos + (overstay?.lateFee || 0);
   }, 0);
 
-  const totalPendingDues = activeOperationalBookings.reduce((sum, b) => {
+  const totalPendingDues = bookings.reduce((sum, b) => {
     const pos = (b.posCharges || []).reduce((pSum, c) => pSum + (c.amount || 0), 0);
     const overstay = calculateOverstayFee(b, hotelSettings);
-    const gross = (b.totalAmount || 0) + pos + (overstay.lateFee || 0);
-    const paid = b.paidAmount || 0;
+    const gross = (Number(b.totalAmount ?? b.total_amount ?? 0)) + pos + (overstay?.lateFee || 0);
+    const paid = Number(b.paidAmount ?? b.paid_amount ?? 0);
     return sum + Math.max(0, gross - paid);
   }, 0);
 
   const todayCheckoutsDueCount = inHouseBookings.filter((b) => {
-    const outDate = b.checkOutDate ? String(b.checkOutDate).split("T")[0] : "";
+    const outDate = (b.checkOutDate || b.check_out_date) ? String(b.checkOutDate || b.check_out_date).split("T")[0] : "";
     return outDate && outDate <= todayStr;
   }).length;
 
@@ -203,34 +231,35 @@ export default function InHouseFoliosPage({
     if (Array.isArray(b.roomNumbers) && b.roomNumbers.length > 0) {
       return b.roomNumbers.map(String);
     }
-    if (Array.isArray(b.rooms) && b.rooms.length > 0 && typeof b.rooms[0] === "object" && b.rooms[0]?.roomNumber) {
-      return b.rooms.map((r) => String(r.roomNumber));
+    if (Array.isArray(b.rooms) && b.rooms.length > 0) {
+      const extracted = b.rooms
+        .map((r) => String(r.room_number || r.roomNumber || r.room || ""))
+        .filter(Boolean);
+      if (extracted.length > 0) return extracted;
     }
-    if (b.roomNumber) {
-      return String(b.roomNumber).split(",").map((s) => s.trim()).filter(Boolean);
+    if (b.roomNumber || b.room_number) {
+      return String(b.roomNumber || b.room_number).split(",").map((s) => s.trim()).filter(Boolean);
     }
-    if (b.room?.roomNumber) {
-      return [String(b.room.roomNumber)];
+    if (b.room?.room_number || b.room?.roomNumber) {
+      return [String(b.room.room_number || b.room.roomNumber)];
     }
     return ["N/A"];
   };
 
   // Filter Bookings List
   const filteredBookings = bookings.filter((b) => {
-    // Status Filter
-    if (activeStatusTab !== "ALL" && b.status !== activeStatusTab) return false;
+    const s = getNormalizedStatus(b);
 
-    // For ALL tab: exclude past historical checkouts from previous days (< todayStr)
-    if (activeStatusTab === "ALL" && b.status === "CHECKED_OUT") {
-      const outDate = b.checkOutDate ? String(b.checkOutDate).split("T")[0] : "";
-      if (outDate && outDate < todayStr) return false;
-    }
+    // Status Filter
+    if (activeStatusTab === "CHECKED_IN" && s !== "CHECKED_IN") return false;
+    if (activeStatusTab === "CHECKED_OUT" && s !== "CHECKED_OUT" && s !== "DEPARTED") return false;
+    // When activeStatusTab === "ALL", show all bookings
 
     // Balance Filter
     const overstay = calculateOverstayFee(b, hotelSettings);
-    const posChargesTotal = (b.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
-    const grandTotal = (b.totalAmount || 0) + posChargesTotal + (overstay.lateFee || 0);
-    const paidTotal = b.paidAmount || 0;
+    const posChargesTotal = (b.posCharges || []).reduce((pSum, c) => pSum + (c.amount || 0), 0);
+    const grandTotal = (Number(b.totalAmount ?? b.total_amount ?? 0)) + posChargesTotal + (overstay?.lateFee || 0);
+    const paidTotal = Number(b.paidAmount ?? b.paid_amount ?? 0);
     const dueBalance = Math.max(0, grandTotal - paidTotal);
 
     if (balanceFilter === "DUES" && dueBalance <= 0) return false;
@@ -239,11 +268,13 @@ export default function InHouseFoliosPage({
     // Search Filter
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const matchFolio = (b.bookingNumber || "").toLowerCase().includes(q);
-      const matchGuest = (b.guest?.name || b.guest?.fullName || "").toLowerCase().includes(q);
-      const matchPhone = (b.guest?.phone || b.guest?.mobileNumber || "").toLowerCase().includes(q);
+      const matchFolio = (b.bookingNumber || b.booking_number || "").toLowerCase().includes(q);
+      const guestName = (b.guestName || b.primary_guest_name || b.guest_name || b.guest?.name || b.guest?.fullName || "").toLowerCase();
+      const matchGuest = guestName.includes(q);
+      const guestPhone = (b.phone || b.mobile_number || b.guest?.phone || b.guest?.mobileNumber || "").toLowerCase();
+      const matchPhone = guestPhone.includes(q);
       const roomsList = getBookingRoomNumbers(b);
-      const matchRoom = roomsList.some((rn) => rn.toLowerCase().includes(q)) || String(b.roomNumber || "").toLowerCase().includes(q);
+      const matchRoom = roomsList.some((rn) => rn.toLowerCase().includes(q)) || String(b.roomNumber || b.room_number || "").toLowerCase().includes(q);
       if (!matchFolio && !matchGuest && !matchPhone && !matchRoom) return false;
     }
 
@@ -472,8 +503,8 @@ export default function InHouseFoliosPage({
               },
             }}
           >
+            <Tab value="ALL" label={`All Folios (${bookings.length})`} />
             <Tab value="CHECKED_IN" label={`Active In-House (${inHouseBookings.length})`} />
-            <Tab value="ALL" label={`Today's Active Folios (${activeOperationalBookings.length})`} />
             <Tab value="CHECKED_OUT" label={`Checked-Out (${checkedOutBookings.length})`} />
           </Tabs>
 
@@ -561,19 +592,21 @@ export default function InHouseFoliosPage({
                 filteredBookings
                   .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                   .map((b) => {
-                    const guestName = b.guest?.name || b.guest?.fullName || "Walk-In Guest";
-                    const guestPhone = b.guest?.phone || b.guest?.mobileNumber || "";
+                    const guestName = b.guestName || b.primary_guest_name || b.guest_name || b.guest?.name || b.guest?.fullName || "Walk-In Guest";
+                    const guestPhone = b.phone || b.mobile_number || b.guest?.phone || b.guest?.mobileNumber || "";
                     const roomsList = getBookingRoomNumbers(b);
-                    const roomType = b.roomType?.name || b.room?.roomType?.name || "Room Stay";
+                    const roomType = b.roomType?.name || b.room_type_name || b.room?.roomType?.name || "Room Stay";
                     const overstay = calculateOverstayFee(b, hotelSettings);
                     const posChargesTotal = (b.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
-                    const grandTotal = (b.totalAmount || 0) + posChargesTotal + (overstay.lateFee || 0);
-                    const paidTotal = b.paidAmount || 0;
+                    const grandTotal = (Number(b.totalAmount ?? b.total_amount ?? 0)) + posChargesTotal + (overstay?.lateFee || 0);
+                    const paidTotal = Number(b.paidAmount ?? b.paid_amount ?? 0);
                     const dueBalance = Math.max(0, grandTotal - paidTotal);
-                    const isCheckoutToday = b.checkOutDate && String(b.checkOutDate).split("T")[0] <= todayStr;
+                    const outDateRaw = b.checkOutDate || b.check_out_date;
+                    const isCheckoutToday = outDateRaw && String(outDateRaw).split("T")[0] <= todayStr;
+                    const idPhoto = b.frontImage || b.id_proof_image || b.images?.[0] || b.guest?.idProof?.frontImage || b.guest?.frontImage;
 
                     return (
-                      <TableRow key={b._id} hover sx={{ "&:hover": { bgcolor: "rgba(11, 142, 224, 0.03)" }, "& td": { py: 1, px: 1.5 } }}>
+                      <TableRow key={b._id || b.id} hover sx={{ "&:hover": { bgcolor: "rgba(11, 142, 224, 0.03)" }, "& td": { py: 1, px: 1.5 } }}>
 
                         {/* Guest Details */}
                         <TableCell sx={{ whiteSpace: "nowrap" }}>
@@ -601,20 +634,19 @@ export default function InHouseFoliosPage({
                                 {guestName}
                               </Typography>
                               <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, flexWrap: "wrap", mt: 0.4 }}>
-                                {/* {guestPhone && (
-                                  <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "flex", alignItems: "center", gap: 0.5 }}>
+                                {guestPhone && (
+                                  <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "flex", alignItems: "center", gap: 0.5, fontSize: "0.72rem" }}>
                                     <Phone sx={{ fontSize: 11 }} /> {guestPhone}
                                   </Typography>
-                                )} */}
+                                )}
 
-                                {(b.guest?.idProof?.frontImage || b.guest?.frontImage) && (
-
+                                {idPhoto && (
                                   <Chip
                                     label="📄 ID Photo"
                                     size="small"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setPreviewImage(b.guest?.idProof?.frontImage || b.guest?.frontImage);
+                                      setPreviewImage(idPhoto);
                                     }}
                                     sx={{
                                       height: 18,
@@ -675,7 +707,7 @@ export default function InHouseFoliosPage({
 
                         {/* Stay Duration */}
                         <TableCell sx={{ color: themeConfig.textMuted, fontSize: "0.78rem", whiteSpace: "nowrap" }}>
-                          <div><strong>In:</strong> {formatDDMMYYYY(b.checkInDate || "Today")} ({b.checkInTime ? formatTime12Hour(b.checkInTime) : checkInTimeFormatted})</div>
+                          <div><strong>In:</strong> {formatDDMMYYYY(b.checkInDate || b.check_in_date || "Today")} ({b.checkInTime ? formatTime12Hour(b.checkInTime) : checkInTimeFormatted})</div>
                           <div>
                             <strong>Out:</strong> {formatDDMMYYYY((() => {
                               if (b.actualCheckOut) {
@@ -687,7 +719,7 @@ export default function InHouseFoliosPage({
                                   return `${day}-${m}-${y}`;
                                 }
                               }
-                              return b.checkOutDate || "Tomorrow";
+                              return b.checkOutDate || b.check_out_date || "Tomorrow";
                             })())} ({(() => {
                               if (b.actualCheckOut) {
                                 const d = new Date(b.actualCheckOut);
@@ -1754,7 +1786,7 @@ export default function InHouseFoliosPage({
         </DialogActions>
       </Dialog>
 
-      {/* Comprehensive Guest Details Dossier */}
+      {/* Guest Details Modal */}
       <GuestDetailsModal
         open={selectedGuestModal.open}
         onClose={() => setSelectedGuestModal({ open: false, guest: null, guestId: null })}

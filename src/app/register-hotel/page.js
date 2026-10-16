@@ -23,9 +23,8 @@ import { setAuthCookies } from "@/shared/utils/cookieAuth";
 export default function RegisterHotelPage() {
   const [activeStep, setActiveStep] = useState(1);
   const [formData, setFormData] = useState({
-    // Step 1: Hotel Information
     hotelName: "",
-    hotelType: "Select hotel type",
+    hotelType: "",
     ownerName: "",
     roomCount: "",
     email: "",
@@ -33,25 +32,20 @@ export default function RegisterHotelPage() {
     phone: "",
     businessLicense: null,
     businessLicenseName: "",
-    location: "Select location",
-
-    // Step 2: Owner Details & Address
+    location: "",
     address: "",
-    city: "Ahmedabad",
-    state: "Gujarat",
-    pincode: "380015",
+    city: "",
+    state: "",
+    pincode: "",
     country: "India",
     idNumber: "",
     emergencyPhone: "",
-
-    // Step 3: Hotel Documents & Taxation
     gstNumber: "",
     panNumber: "",
     ownershipDocName: "",
-
-    // Step 4: Complete & Terms
-    agreedTerms: true,
+    agreedTerms: false,
   });
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -88,35 +82,73 @@ export default function RegisterHotelPage() {
     }
   };
 
+  const updateField = (key, value) => {
+    setFormData((prev) => ({ ...prev, [key]: value }));
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const validateStep = (step) => {
+    const errors = {};
+    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(formData.email || "").trim());
+    const phoneDigits = String(formData.phone || "").replace(/\D/g, "");
+    const pinDigits = String(formData.pincode || "").replace(/\D/g, "");
+    const rooms = Number(formData.roomCount);
+    const gst = String(formData.gstNumber || "").trim().toUpperCase();
+    const pan = String(formData.panNumber || "").trim().toUpperCase();
+
+    if (step === 1) {
+      if (!formData.hotelName.trim()) errors.hotelName = "Hotel name is required.";
+      if (!formData.hotelType) errors.hotelType = "Select a hotel type.";
+      if (!formData.ownerName.trim()) errors.ownerName = "Owner name is required.";
+      if (!formData.roomCount || !Number.isFinite(rooms) || rooms < 1) errors.roomCount = "Enter at least 1 room.";
+      if (!formData.email.trim()) errors.email = "Email is required.";
+      else if (!emailOk) errors.email = "Enter a valid email address.";
+      if (!phoneDigits) errors.phone = "Phone number is required.";
+      else if (phoneDigits.length !== 10) errors.phone = "Enter a 10-digit mobile number.";
+      if (formData.website.trim() && !/^https?:\/\/.+\..+/.test(formData.website.trim())) {
+        errors.website = "Enter a full website URL, like https://hotel.com";
+      }
+    }
+
+    if (step === 2) {
+      if (!formData.address.trim()) errors.address = "Property address is required.";
+      if (!formData.city.trim()) errors.city = "City is required.";
+      if (!formData.state.trim()) errors.state = "State is required.";
+      if (!pinDigits) errors.pincode = "Pincode is required.";
+      else if (pinDigits.length !== 6) errors.pincode = "Pincode must be 6 digits.";
+    }
+
+    if (step === 3) {
+      if (gst && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(gst)) {
+        errors.gstNumber = "Enter a valid 15-character GST number, or leave it blank.";
+      }
+      if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(pan)) {
+        errors.panNumber = "Enter a valid 10-character PAN, or leave it blank.";
+      }
+    }
+
+    if (step === 4 && !formData.agreedTerms) {
+      errors.agreedTerms = "Please accept the terms before submitting.";
+    }
+
+    return errors;
+  };
+
   const handleNextStep = (e) => {
     if (e) e.preventDefault();
     setError("");
-
-    if (activeStep === 1) {
-      if (!formData.hotelName || !formData.ownerName || !formData.email || !formData.phone) {
-        setError("Please fill all required fields in Step 1 (*): Hotel Name, Owner Name, Email, and Phone Number.");
-        return;
-      }
-      const rawPhone = String(formData.phone || "").replace(/\D/g, "");
-      if (rawPhone.length < 10) {
-        setError("Please enter a valid 10-digit mobile number.");
-        return;
-      }
-      setActiveStep(2);
-    } else if (activeStep === 2) {
-      if (!formData.address) {
-        setError("Please provide the complete property address in Step 2 (*).");
-        return;
-      }
-      const cleanPin = String(formData.pincode || "").replace(/\D/g, "");
-      if (cleanPin.length !== 6) {
-        setError("Please provide a valid 6-digit Indian postal pincode (e.g. 380015).");
-        return;
-      }
-      setActiveStep(3);
-    } else if (activeStep === 3) {
-      setActiveStep(4);
+    const errors = validateStep(activeStep);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setError("Please fix the highlighted fields before continuing.");
+      return;
     }
+    if (activeStep < 4) setActiveStep(activeStep + 1);
   };
 
   const handleBackStep = () => {
@@ -130,45 +162,34 @@ export default function RegisterHotelPage() {
     if (e) e.preventDefault();
     setError("");
 
-    if (!formData.hotelName || !formData.ownerName || !formData.email || !formData.phone) {
-      setError("Please fill all required hotel registration fields (*).");
+    const stepErrors = { ...validateStep(1), ...validateStep(2), ...validateStep(3), ...validateStep(4) };
+    if (Object.keys(stepErrors).length > 0) {
+      setFieldErrors(stepErrors);
+      setError("Please fix the highlighted fields before submitting.");
+      if (stepErrors.hotelName || stepErrors.hotelType || stepErrors.ownerName || stepErrors.roomCount || stepErrors.email || stepErrors.phone || stepErrors.website) setActiveStep(1);
+      else if (stepErrors.address || stepErrors.city || stepErrors.state || stepErrors.pincode) setActiveStep(2);
+      else if (stepErrors.gstNumber || stepErrors.panNumber) setActiveStep(3);
       return;
     }
 
-    const cleanPincode = String(formData.pincode || "380015").replace(/\D/g, "");
-    if (cleanPincode.length !== 6) {
-      setError("Please provide a valid 6-digit Indian postal pincode (e.g. 380015).");
-      setActiveStep(2);
-      return;
-    }
-
-    const rawPhoneDigits = String(formData.phone || "").replace(/\D/g, "");
-    const cleanPhone = rawPhoneDigits.slice(-10);
-    if (cleanPhone.length !== 10) {
-      setError("Please enter a valid 10-digit Indian mobile number.");
-      setActiveStep(1);
-      return;
-    }
+    const cleanPincode = String(formData.pincode || "").replace(/\D/g, "");
+    const cleanPhone = String(formData.phone || "").replace(/\D/g, "").slice(-10);
 
     try {
       setLoading(true);
-
-      const locParts = formData.location && formData.location !== "Select location" ? formData.location.split(",") : [];
-      const cityVal = formData.city || (locParts[0] ? locParts[0].trim() : "Ahmedabad");
-      const stateVal = formData.state || (locParts[1] ? locParts[1].trim() : "Gujarat");
 
       const payload = {
         name: formData.hotelName.trim(),
         ownerName: formData.ownerName.trim(),
         ownerEmail: formData.email.toLowerCase().trim(),
         ownerPhone: cleanPhone,
-        address: (formData.address || (formData.location !== "Select location" ? formData.location : "123 Ocean Drive")).trim(),
-        city: cityVal.trim(),
-        state: stateVal.trim(),
-        country: formData.country || "India",
+        address: formData.address.trim(),
+        city: formData.city.trim(),
+        state: formData.state.trim(),
+        country: "India",
         pincode: cleanPincode,
-        totalRooms: Number(formData.roomCount) || 20,
-        hotelType: formData.hotelType !== "Select hotel type" ? formData.hotelType : "Luxury Boutique Hotel",
+        totalRooms: Number(formData.roomCount),
+        hotelType: formData.hotelType,
         website: (formData.website || "").trim(),
       };
 
@@ -463,22 +484,23 @@ export default function RegisterHotelPage() {
                               required
                               placeholder="Enter hotel name"
                               value={formData.hotelName}
-                              onChange={(e) => setFormData({ ...formData, hotelName: e.target.value })}
-                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-[#00C2A8] focus:border-[#00C2A8] outline-none transition-all placeholder:text-slate-300 bg-[#F8FAFC]"
+                              onChange={(e) => updateField("hotelName", e.target.value)}
+                              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-medium focus:ring-2 outline-none transition-all placeholder:text-slate-300 ${fieldErrors.hotelName ? "border-red-400 bg-red-50/40 focus:ring-red-300" : "border-slate-200 bg-[#F8FAFC] focus:ring-[#00C2A8] focus:border-[#00C2A8]"}`}
                             />
+                            {fieldErrors.hotelName && <p className="text-[10px] text-red-600 mt-1 font-semibold">{fieldErrors.hotelName}</p>}
                           </div>
 
                           <div>
                             <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                              Hotel Type
+                              Hotel Type *
                             </label>
                             <div className="relative">
                               <select
                                 value={formData.hotelType}
-                                onChange={(e) => setFormData({ ...formData, hotelType: e.target.value })}
-                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-[#00C2A8] focus:border-[#00C2A8] outline-none bg-[#F8FAFC] text-slate-700 appearance-none pr-9"
+                                onChange={(e) => updateField("hotelType", e.target.value)}
+                                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-medium focus:ring-2 outline-none appearance-none pr-9 ${fieldErrors.hotelType ? "border-red-400 bg-red-50/40 text-red-900 focus:ring-red-300" : "border-slate-200 bg-[#F8FAFC] text-slate-700 focus:ring-[#00C2A8] focus:border-[#00C2A8]"}`}
                               >
-                                <option>Select hotel type</option>
+                                <option value="">Select hotel type</option>
                                 <option>Luxury Boutique Hotel</option>
                                 <option>Boutique Hotel</option>
                                 <option>Luxury Resort</option>
@@ -488,6 +510,7 @@ export default function RegisterHotelPage() {
                               </select>
                               <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
                             </div>
+                            {fieldErrors.hotelType && <p className="text-[10px] text-red-600 mt-1 font-semibold">{fieldErrors.hotelType}</p>}
                           </div>
 
                           <div>
@@ -499,9 +522,10 @@ export default function RegisterHotelPage() {
                               required
                               placeholder="Enter owner name"
                               value={formData.ownerName}
-                              onChange={(e) => setFormData({ ...formData, ownerName: e.target.value })}
-                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-[#00C2A8] focus:border-[#00C2A8] outline-none transition-all placeholder:text-slate-300 bg-[#F8FAFC]"
+                              onChange={(e) => updateField("ownerName", e.target.value)}
+                              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-medium focus:ring-2 outline-none transition-all placeholder:text-slate-300 ${fieldErrors.ownerName ? "border-red-400 bg-red-50/40 focus:ring-red-300" : "border-slate-200 bg-[#F8FAFC] focus:ring-[#00C2A8] focus:border-[#00C2A8]"}`}
                             />
+                            {fieldErrors.ownerName && <p className="text-[10px] text-red-600 mt-1 font-semibold">{fieldErrors.ownerName}</p>}
                           </div>
 
                           <div>
@@ -511,11 +535,13 @@ export default function RegisterHotelPage() {
                             <input
                               type="number"
                               required
+                              min="1"
                               placeholder="Enter number of rooms"
                               value={formData.roomCount}
-                              onChange={(e) => setFormData({ ...formData, roomCount: e.target.value })}
-                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-[#00C2A8] focus:border-[#00C2A8] outline-none transition-all placeholder:text-slate-300 bg-[#F8FAFC]"
+                              onChange={(e) => updateField("roomCount", e.target.value)}
+                              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-medium focus:ring-2 outline-none transition-all placeholder:text-slate-300 ${fieldErrors.roomCount ? "border-red-400 bg-red-50/40 focus:ring-red-300" : "border-slate-200 bg-[#F8FAFC] focus:ring-[#00C2A8] focus:border-[#00C2A8]"}`}
                             />
+                            {fieldErrors.roomCount && <p className="text-[10px] text-red-600 mt-1 font-semibold">{fieldErrors.roomCount}</p>}
                           </div>
 
                           <div>
@@ -527,9 +553,10 @@ export default function RegisterHotelPage() {
                               required
                               placeholder="Enter email address"
                               value={formData.email}
-                              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-[#00C2A8] focus:border-[#00C2A8] outline-none transition-all placeholder:text-slate-300 bg-[#F8FAFC]"
+                              onChange={(e) => updateField("email", e.target.value)}
+                              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-medium focus:ring-2 outline-none transition-all placeholder:text-slate-300 ${fieldErrors.email ? "border-red-400 bg-red-50/40 focus:ring-red-300" : "border-slate-200 bg-[#F8FAFC] focus:ring-[#00C2A8] focus:border-[#00C2A8]"}`}
                             />
+                            {fieldErrors.email && <p className="text-[10px] text-red-600 mt-1 font-semibold">{fieldErrors.email}</p>}
                           </div>
 
                           <div>
@@ -540,9 +567,10 @@ export default function RegisterHotelPage() {
                               type="url"
                               placeholder="Enter website"
                               value={formData.website}
-                              onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-[#00C2A8] focus:border-[#00C2A8] outline-none transition-all placeholder:text-slate-300 bg-[#F8FAFC]"
+                              onChange={(e) => updateField("website", e.target.value)}
+                              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-medium focus:ring-2 outline-none transition-all placeholder:text-slate-300 ${fieldErrors.website ? "border-red-400 bg-red-50/40 focus:ring-red-300" : "border-slate-200 bg-[#F8FAFC] focus:ring-[#00C2A8] focus:border-[#00C2A8]"}`}
                             />
+                            {fieldErrors.website && <p className="text-[10px] text-red-600 mt-1 font-semibold">{fieldErrors.website}</p>}
                           </div>
 
                           <div>
@@ -553,10 +581,12 @@ export default function RegisterHotelPage() {
                               type="tel"
                               required
                               placeholder="Enter phone number"
+                              maxLength={10}
                               value={formData.phone}
-                              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-[#00C2A8] focus:border-[#00C2A8] outline-none transition-all placeholder:text-slate-300 bg-[#F8FAFC]"
+                              onChange={(e) => updateField("phone", e.target.value.replace(/\D/g, "").slice(0, 10))}
+                              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-medium focus:ring-2 outline-none transition-all placeholder:text-slate-300 ${fieldErrors.phone ? "border-red-400 bg-red-50/40 focus:ring-red-300" : "border-slate-200 bg-[#F8FAFC] focus:ring-[#00C2A8] focus:border-[#00C2A8]"}`}
                             />
+                            {fieldErrors.phone && <p className="text-[10px] text-red-600 mt-1 font-semibold">{fieldErrors.phone}</p>}
                           </div>
 
                         </div>
@@ -594,11 +624,12 @@ export default function RegisterHotelPage() {
                             <input
                               type="text"
                               required
-                              placeholder="e.g. 742 Ocean Drive, Coastal Highway"
+                              placeholder="Enter property address"
                               value={formData.address}
-                              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-[#00C2A8] outline-none bg-[#F8FAFC]"
+                              onChange={(e) => updateField("address", e.target.value)}
+                              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-medium focus:ring-2 outline-none ${fieldErrors.address ? "border-red-400 bg-red-50/40 focus:ring-red-300" : "border-slate-200 bg-[#F8FAFC] focus:ring-[#00C2A8]"}`}
                             />
+                            {fieldErrors.address && <p className="text-[10px] text-red-600 mt-1 font-semibold">{fieldErrors.address}</p>}
                           </div>
 
                           <div>
@@ -608,11 +639,12 @@ export default function RegisterHotelPage() {
                             <input
                               type="text"
                               required
-                              placeholder="Ahmedabad"
+                              placeholder="Enter city"
                               value={formData.city}
-                              onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-[#00C2A8] outline-none bg-[#F8FAFC]"
+                              onChange={(e) => updateField("city", e.target.value)}
+                              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-medium focus:ring-2 outline-none ${fieldErrors.city ? "border-red-400 bg-red-50/40 focus:ring-red-300" : "border-slate-200 bg-[#F8FAFC] focus:ring-[#00C2A8]"}`}
                             />
+                            {fieldErrors.city && <p className="text-[10px] text-red-600 mt-1 font-semibold">{fieldErrors.city}</p>}
                           </div>
 
                           <div>
@@ -622,11 +654,12 @@ export default function RegisterHotelPage() {
                             <input
                               type="text"
                               required
-                              placeholder="Gujarat"
+                              placeholder="Enter state"
                               value={formData.state}
-                              onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-[#00C2A8] outline-none bg-[#F8FAFC]"
+                              onChange={(e) => updateField("state", e.target.value)}
+                              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-medium focus:ring-2 outline-none ${fieldErrors.state ? "border-red-400 bg-red-50/40 focus:ring-red-300" : "border-slate-200 bg-[#F8FAFC] focus:ring-[#00C2A8]"}`}
                             />
+                            {fieldErrors.state && <p className="text-[10px] text-red-600 mt-1 font-semibold">{fieldErrors.state}</p>}
                           </div>
 
                           <div>
@@ -637,22 +670,17 @@ export default function RegisterHotelPage() {
                               type="text"
                               required
                               maxLength={6}
-                              placeholder="380015"
+                              placeholder="Enter 6-digit pincode"
                               value={formData.pincode}
-                              onChange={(e) => {
-                                const val = e.target.value.replace(/\D/g, "").slice(0, 6);
-                                setFormData({ ...formData, pincode: val });
-                              }}
+                              onChange={(e) => updateField("pincode", e.target.value.replace(/\D/g, "").slice(0, 6))}
                               className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-medium focus:ring-2 outline-none transition-all ${
-                                formData.pincode && formData.pincode.length !== 6
-                                  ? "border-amber-400 focus:ring-amber-400 bg-amber-50/40 text-amber-900"
+                                fieldErrors.pincode
+                                  ? "border-red-400 focus:ring-red-300 bg-red-50/40 text-red-900"
                                   : "border-slate-200 focus:ring-[#00C2A8] bg-[#F8FAFC]"
                               }`}
                             />
-                            {formData.pincode && formData.pincode.length !== 6 && (
-                              <p className="text-[10px] text-amber-600 mt-1 font-semibold">
-                                Must be exactly 6 numeric digits ({formData.pincode.length}/6 entered)
-                              </p>
+                            {fieldErrors.pincode && (
+                              <p className="text-[10px] text-red-600 mt-1 font-semibold">{fieldErrors.pincode}</p>
                             )}
                           </div>
 
@@ -702,9 +730,10 @@ export default function RegisterHotelPage() {
                               type="text"
                               placeholder="e.g. 24ABCDE1234F1Z5"
                               value={formData.gstNumber}
-                              onChange={(e) => setFormData({ ...formData, gstNumber: e.target.value })}
-                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-[#00C2A8] outline-none bg-[#F8FAFC]"
+                              onChange={(e) => updateField("gstNumber", e.target.value.toUpperCase())}
+                              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-medium focus:ring-2 outline-none ${fieldErrors.gstNumber ? "border-red-400 bg-red-50/40 focus:ring-red-300" : "border-slate-200 bg-[#F8FAFC] focus:ring-[#00C2A8]"}`}
                             />
+                            {fieldErrors.gstNumber && <p className="text-[10px] text-red-600 mt-1 font-semibold">{fieldErrors.gstNumber}</p>}
                           </div>
 
                           <div>
@@ -715,9 +744,10 @@ export default function RegisterHotelPage() {
                               type="text"
                               placeholder="e.g. ABCDE1234F"
                               value={formData.panNumber}
-                              onChange={(e) => setFormData({ ...formData, panNumber: e.target.value })}
-                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-[#00C2A8] outline-none bg-[#F8FAFC]"
+                              onChange={(e) => updateField("panNumber", e.target.value.toUpperCase())}
+                              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-medium focus:ring-2 outline-none ${fieldErrors.panNumber ? "border-red-400 bg-red-50/40 focus:ring-red-300" : "border-slate-200 bg-[#F8FAFC] focus:ring-[#00C2A8]"}`}
                             />
+                            {fieldErrors.panNumber && <p className="text-[10px] text-red-600 mt-1 font-semibold">{fieldErrors.panNumber}</p>}
                           </div>
 
                         </div>
@@ -754,7 +784,7 @@ export default function RegisterHotelPage() {
                             <div><span className="text-slate-500">Owner Name:</span> <strong>{formData.ownerName || "Not set"}</strong></div>
                             <div><span className="text-slate-500">Email:</span> <strong>{formData.email || "Not set"}</strong></div>
                             <div><span className="text-slate-500">Phone:</span> <strong>{formData.phone || "Not set"}</strong></div>
-                            <div><span className="text-slate-500">Location:</span> <strong>{formData.location}</strong></div>
+                            <div><span className="text-slate-500">City:</span> <strong>{formData.city || "Not set"}</strong></div>
                           </div>
                         </div>
 
@@ -762,13 +792,14 @@ export default function RegisterHotelPage() {
                           <input
                             type="checkbox"
                             checked={formData.agreedTerms}
-                            onChange={(e) => setFormData({ ...formData, agreedTerms: e.target.checked })}
+                            onChange={(e) => updateField("agreedTerms", e.target.checked)}
                             className="mt-0.5 w-4 h-4 rounded text-[#00C2A8] focus:ring-[#00C2A8] accent-[#00C2A8]"
                           />
                           <span>
                             I confirm that all information provided is accurate and agree to the <strong>Terms of Service</strong> and <strong>Privacy Policy</strong>.
                           </span>
                         </label>
+                        {fieldErrors.agreedTerms && <p className="text-[10px] text-red-600 font-semibold">{fieldErrors.agreedTerms}</p>}
 
                         <div className="flex items-center justify-between pt-2">
                           <button

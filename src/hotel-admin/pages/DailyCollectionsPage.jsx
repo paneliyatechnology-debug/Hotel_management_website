@@ -55,6 +55,49 @@ import { useSocket } from "@/shared/context/SocketContext";
 import { toast } from "@/shared/utils/toast";
 import EmptyState from "@/shared/components/EmptyState";
 
+function bookingsToCollections(list) {
+  const rows = (Array.isArray(list) ? list : [])
+    .map((b) => {
+      const amount = Number(b.paid_amount ?? b.paidAmount ?? 0);
+      const method = String(b.payment_method || b.paymentMethod || "CASH").toUpperCase();
+      const when = b.actual_check_in || b.created_at || b.createdAt;
+      return {
+        receiptNumber: b.booking_number || b.bookingNumber || b.id,
+        timeStr: when ? new Date(when).toLocaleString("en-IN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" }) : "",
+        roomNumber: b.room_number || b.roomNumber || (Array.isArray(b.rooms) ? b.rooms.map((r) => r.room_number || r.roomNumber).filter(Boolean).join(", ") : "") || "—",
+        guestName: b.primary_guest_name || b.guestName || b.guest?.name || "Guest",
+        guestPhone: b.mobile_number || b.phone || "—",
+        bookingNumber: b.booking_number || b.bookingNumber || b.id,
+        paymentMethod: method,
+        paymentType: amount > 0 ? "Paid amount" : "No payment",
+        note: b.notes || "",
+        amount,
+        collectedByName: b.creator?.name || "Front Desk",
+        drawerSettlementStatus: "UNSETTLED",
+        transactionId: "",
+      };
+    })
+    .filter((row) => row.amount > 0);
+
+  const sum = (method) => rows.filter((row) => row.paymentMethod === method).reduce((total, row) => total + row.amount, 0);
+  const todayGross = rows.reduce((total, row) => total + row.amount, 0);
+  return {
+    telemetry: {
+      todayGross,
+      todayCash: sum("CASH"),
+      todayUpi: sum("UPI"),
+      todayCard: sum("CARD"),
+      todayBank: sum("BANK_TRANSFER") + sum("NET_BANKING"),
+      cashInDrawer: sum("CASH"),
+      unsettledTotal: todayGross,
+      totalVaultSettled: 0,
+    },
+    guestPaymentsList: rows,
+    pagination: { page: 1, limit: rows.length || 10, totalRecords: rows.length, totalPages: 1 },
+    handoverHistory: [],
+  };
+}
+
 export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOverview }) {
   const { themeConfig, isDarkMode } = useAppTheme();
 
@@ -91,23 +134,9 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
     ) => {
       setLoading(true);
       try {
-        const params = new URLSearchParams();
-        params.append("page", String(p));
-        params.append("limit", String(l));
-        if (q && q.trim()) params.append("search", q.trim());
-        if (m && m !== "ALL") params.append("paymentMethod", m);
-        params.append("handoverPage", String(hp));
-        params.append("handoverLimit", String(hl));
-
-        const isReceptionist = user?.role === "RECEPTIONIST";
-        const baseEndpoint = isReceptionist
-          ? API_ENDPOINTS.RECEPTIONIST.DAILY_COLLECTIONS
-          : API_ENDPOINTS.HOTEL_ADMIN.DAILY_COLLECTIONS;
-        const endpoint = `${baseEndpoint}?${params.toString()}`;
-        const res = await apiRequest(endpoint);
-        if (res?.success) {
-          setData(res.data);
-        }
+        const res = await apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS);
+        const list = Array.isArray(res?.data) ? res.data : res?.data?.bookings || [];
+        setData(bookingsToCollections(list));
       } catch (err) {
         console.error("Failed to load daily collections:", err);
       } finally {

@@ -20,6 +20,41 @@ function extractRecords(res) {
   return [];
 }
 
+function asRoomList(res) {
+  const payload = res?.data !== undefined ? res.data : res;
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.rooms)) return payload.rooms;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
+
+function readLabel(value) {
+  if (value == null) return "";
+  if (typeof value === "string" || typeof value === "number") return String(value).trim();
+  if (typeof value === "object") return readLabel(value.name || value.title || value.en || value.label);
+  return "";
+}
+
+function normalizeRoomTypes(res) {
+  const raw = res?.data ?? res;
+  const list = Array.isArray(raw)
+    ? raw
+    : Array.isArray(raw?.room_types)
+      ? raw.room_types
+      : Array.isArray(raw?.roomTypes)
+        ? raw.roomTypes
+        : [];
+  return list.map((cat) => {
+    const name =
+      readLabel(cat?.name) ||
+      readLabel(cat?.title) ||
+      readLabel(cat?.type_name) ||
+      readLabel(cat?.category_name) ||
+      readLabel(cat?.room_type_name);
+    return { ...cat, _id: cat?._id || cat?.id, id: cat?.id || cat?._id, name };
+  });
+}
+
 const ComponentSpinner = () => (
   <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 8 }}>
     <CircularProgress size={36} />
@@ -70,10 +105,10 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       _id: "",
       roomNumber: "",
       roomType: defaultCat?._id || "",
-      floor: 1,
-      seatingCapacity: defaultCat?.capacity?.adults || 2,
-      bedCount: defaultCat?.bedCount || 1,
-      bedType: defaultCat?.bedType || "1 King Size Bed",
+      floor: "",
+      seatingCapacity: "",
+      bedCount: "",
+      bedType: "",
       customPricePerNight: "",
       status: "AVAILABLE",
       notes: "",
@@ -119,10 +154,10 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       if (forceRefresh) {
         endpointsToFetch.push(
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(res.data)),
-          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
+          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
           apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => setBookings(extractRecords(res))),
           apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => setGuests(extractRecords(res))),
-          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
+          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES).then((res) => setRoomTypes(normalizeRoomTypes(res))),
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
         );
       } else {
@@ -130,8 +165,8 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         if (tabIndex === 0) {
           endpointsToFetch.push(
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(res.data)),
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES).then((res) => setRoomTypes(normalizeRoomTypes(res))),
             apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => setBookings(extractRecords(res))),
             apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => setGuests(extractRecords(res))),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
@@ -142,7 +177,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
           endpointsToFetch.push(
             apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => setBookings(extractRecords(res))),
             apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => setGuests(extractRecords(res))),
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
           );
         }
@@ -162,14 +197,22 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         else if (tabIndex === 4) {
           endpointsToFetch.push(
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(res.data)),
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => (res?.data || Array.isArray(res)) && setRooms(res.data || res || [])),
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES).then((res) => (res?.data || Array.isArray(res)) && setRoomTypes(res.data || res || []))
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES).then((res) => setRoomTypes(normalizeRoomTypes(res)))
           );
         }
         // Route 5: SUBSCRIPTION
         else if (tabIndex === 5) {
           endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(res.data))
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(res.data)),
+            apiRequest(API_ENDPOINTS.SUBSCRIPTION_PLANS.PUBLIC),
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => {
+              const profile = res?.data || res;
+              const nextSub = profile?.subscription || profile?.hotel?.subscription;
+              if (nextSub) {
+                setDashboardData((prev) => ({ ...(prev || {}), subscription: nextSub }));
+              }
+            })
           );
         }
         // Route 6: SETTINGS
@@ -201,6 +244,15 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
     await loadTabData(activeNav, true);
   };
 
+  const reloadRoomsList = async () => {
+    const [roomsRes, typesRes] = await Promise.all([
+      apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS),
+      apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES),
+    ]);
+    setRooms(asRoomList(roomsRes));
+    setRoomTypes(normalizeRoomTypes(typesRes));
+  };
+
   // Real-Time Socket Auto-Sync across all operational mutations & subscription changes
   useSocket(
     [
@@ -224,7 +276,8 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
           subscription: newSub,
         }));
       }
-      fetchAllData(true);
+      fetchAllData();
+      reloadRoomsList();
     }
   );
 
@@ -271,7 +324,6 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         });
 
         if (res.data) {
-          setStaffList(staffList.map((s) => (s._id === staffModal.data._id ? { ...s, ...res.data } : s)));
           showToast(res.message || "Staff member details updated successfully!");
         }
       } else {
@@ -281,10 +333,10 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         });
 
         if (res.data) {
-          setStaffList([res.data, ...staffList]);
           showToast(res.message || "New staff member onboarded and credentials emailed!");
         }
       }
+      await fetchAllData();
       setStaffModal({ open: false, mode: "ADD", data: getInitialStaffForm() });
     } catch (err) {
       showToast(err.message || "Failed to save staff account", "error");
@@ -441,12 +493,12 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         }
 
         if (createdRooms.length > 0) {
-          setRooms((prev) => [...createdRooms, ...prev]);
           if (createdRooms.length === 1) {
-            showToast(`Room ${createdRooms[0].roomNumber} created successfully!`);
+            showToast(`Room ${createdRooms[0].roomNumber || createdRooms[0].room_number} created successfully!`);
           } else {
-            showToast(`Successfully created ${createdRooms.length} rooms (${createdRooms.map((r) => r.roomNumber).join(", ")})!`);
+            showToast(`Successfully created ${createdRooms.length} rooms.`);
           }
+          await reloadRoomsList();
         }
         if (errors.length > 0) {
           showToast(errors.join(" | "), "error");
@@ -485,7 +537,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
             method: "DELETE",
           });
           setRooms((prev) => prev.filter((r) => r._id !== room._id && r.id !== room._id));
-          await fetchAllData();
+          await reloadRoomsList();
           showToast(`Room ${room.roomNumber} removed.`);
         } catch (err) {
           showToast(err.message || "Failed to delete room", "error");
@@ -521,7 +573,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
     // Client-side duplicate name check
     const isDuplicate = roomTypes.some(
       (rt) =>
-        rt.name.trim().toLowerCase() === inputName.toLowerCase() &&
+        (rt.name || "").trim().toLowerCase() === inputName.toLowerCase() &&
         (typeModal.mode !== "EDIT" || rt._id !== typeModal.data._id)
     );
 
@@ -540,6 +592,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       const payload = {
         hotel_id: effectiveHotelId ? Number(effectiveHotelId) : undefined,
         name: inputName,
+        title: inputName,
         description: typeModal.data.description || "",
         base_price: Number(typeModal.data.basePrice || typeModal.data.base_price) || 0,
         max_adults: Number(typeModal.data.maxAdults || typeModal.data.max_adults) || 2,
@@ -560,7 +613,6 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
           body: payload,
         });
         if (res.data) {
-          setRoomTypes(roomTypes.map((rt) => (rt._id === typeModal.data._id ? res.data : rt)));
           showToast("Room category updated successfully!");
         }
       } else {
@@ -568,11 +620,15 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
           method: "POST",
           body: payload,
         });
-        if (res.data) {
-          setRoomTypes([res.data, ...roomTypes]);
-          showToast("Room category created successfully!");
-        }
+        const created = normalizeRoomTypes({ data: [res?.data || {}] })[0] || {};
+        setRoomTypes((prev) => {
+          const id = created._id || created.id;
+          const next = { ...created, name: created.name || inputName };
+          return [next, ...prev.filter((item) => String(item._id || item.id) !== String(id))];
+        });
+        showToast("Room category created successfully!");
       }
+      await reloadRoomsList();
       setTypeModal({ open: false, mode: "ADD", data: getInitialTypeForm() });
     } catch (err) {
       showToast(err.message || "Failed to save room category", "error");

@@ -57,6 +57,8 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
   const [bookings, setBookings] = useState([]);
   const [guests, setGuests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [bookingsError, setBookingsError] = useState("");
+  const [isCheckInSubmitting, setIsCheckInSubmitting] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: "", severity: "success" });
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
   const [initialSelectedCategory, setInitialSelectedCategory] = useState(null);
@@ -196,8 +198,8 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
   };
 
   const extractBookings = (res) => {
-    const raw = res?.data?.bookings || res?.bookings || res?.data || res || [];
-    const list = Array.isArray(raw) ? raw : [];
+    const raw = res?.data?.bookings || res?.bookings || (Array.isArray(res?.data) ? res.data : null) || (Array.isArray(res) ? res : null);
+    const list = Array.isArray(raw) ? raw.filter((item) => item && typeof item === "object") : [];
     return list.map((b) => {
       const id = b.id || b._id;
       const totalAmount = Number(b.totalAmount ?? b.total_amount ?? b.total ?? b.grandTotal ?? 0);
@@ -245,31 +247,40 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
       if (forceRefresh) {
         endpointsToFetch.push(
           apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD, skipCache).then((res) => res?.data && setDashboardData(res.data)),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOMS, skipCache).then((res) => setRooms(extractRooms(res))),
+          apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?page=1&limit=100`, skipCache).then((res) => setRooms(extractRooms(res))),
           apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES, skipCache).then((res) => setRoomTypes(extractRoomTypes(res))),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, skipCache).then((res) => setBookings(extractBookings(res))),
+          apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, skipCache).then((res) => {
+            setBookings(extractBookings(res));
+            setBookingsError("");
+          }).catch((err) => setBookingsError(err?.message || "Could not load folios")),
           apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS, skipCache).then((res) => setGuests(extractGuests(res)))
         );
       } else {
         if (tabIndex === 0) {
           endpointsToFetch.push(
             apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD, skipCache).then((res) => res?.data && setDashboardData(res.data)),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOMS, skipCache).then((res) => setRooms(extractRooms(res))),
+            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?page=1&limit=100`, skipCache).then((res) => setRooms(extractRooms(res))),
             apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES, skipCache).then((res) => setRoomTypes(extractRoomTypes(res))),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, skipCache).then((res) => setBookings(extractBookings(res))),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, skipCache).then((res) => {
+            setBookings(extractBookings(res));
+            setBookingsError("");
+          }).catch((err) => setBookingsError(err?.message || "Could not load folios")),
             apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS, skipCache).then((res) => setGuests(extractGuests(res)))
           );
         } else if (tabIndex === 1) {
           endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOMS, skipCache).then((res) => setRooms(extractRooms(res))),
+            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?page=1&limit=100`, skipCache).then((res) => setRooms(extractRooms(res))),
             apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES, skipCache).then((res) => setRoomTypes(extractRoomTypes(res))),
             apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, skipCache).then((res) => setBookings(extractBookings(res)))
           );
         } else if (tabIndex === 2) {
           endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, skipCache).then((res) => setBookings(extractBookings(res))),
+            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, skipCache).then((res) => {
+            setBookings(extractBookings(res));
+            setBookingsError("");
+          }).catch((err) => setBookingsError(err?.message || "Could not load folios")),
             apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS, skipCache).then((res) => setGuests(extractGuests(res))),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOMS, skipCache).then((res) => setRooms(extractRooms(res)))
+            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?page=1&limit=100`, skipCache).then((res) => setRooms(extractRooms(res)))
           );
         } else if (tabIndex === 3) {
           endpointsToFetch.push(
@@ -334,7 +345,23 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
     toast.show(message, severity);
   };
 
+  const combineLocalDateTime = (dateVal, timeVal) => {
+    const datePart = String(dateVal || "").split("T")[0].split(" ")[0];
+    const rawTime = String(timeVal || "00:00").trim();
+    const timeMatch = rawTime.match(/^(\d{2}):(\d{2})/);
+    const hour = timeMatch ? timeMatch[1] : "00";
+    const minute = timeMatch ? timeMatch[2] : "00";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${hour}:${minute}:00`;
+    }
+    return `${datePart} ${hour}:${minute}:00`;
+  };
+
   const handleFinalCheckIn = async () => {
+    if (isCheckInSubmitting) return;
+    setIsCheckInSubmitting(true);
     try {
       // Validation: Primary Guest digital signature is strictly mandatory
       if (!checkInData.signature || (typeof checkInData.signature === "string" && !checkInData.signature.trim())) {
@@ -391,9 +418,9 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         govt_id_type: checkInData.govtIdType || "AADHAAR",
         id_number: checkInData.govtIdNumber || "PENDING",
         govt_id_number: checkInData.govtIdNumber || "PENDING",
-        check_in_date: new Date(checkInData.checkInDate || Date.now()).toISOString(),
-        check_out_date: new Date(checkInData.checkOutDate || (Date.now() + 86400000)).toISOString(),
-        actual_check_in: new Date().toISOString(),
+        check_in_date: combineLocalDateTime(checkInData.checkInDate, checkInData.checkInTime),
+        check_out_date: combineLocalDateTime(checkInData.checkOutDate, checkInData.checkOutTime || hotelSettings?.checkOutTime || "12:00"),
+        actual_check_in: combineLocalDateTime(checkInData.checkInDate, checkInData.checkInTime),
         adults: Number(checkInData.adults) || (1 + (checkInData.accompanyingGuests?.length || 0)),
         children: Number(checkInData.children) || 0,
         base_amount: Number(checkInData.baseAmount || checkInData.total || 0),
@@ -518,6 +545,8 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
       if (onTabChange) onTabChange(1);
     } catch (err) {
       showToast(err.message || "Failed to process check-in", "error");
+    } finally {
+      setIsCheckInSubmitting(false);
     }
   };
 
@@ -792,6 +821,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
               guests={guests}
               bookings={bookings}
               onFinalCheckIn={handleFinalCheckIn}
+              isCheckInSubmitting={isCheckInSubmitting}
               onBackToRooms={() => {
                 if (typeof localStorage !== "undefined") {
                   localStorage.removeItem("hotel_checkin_wizard_draft_v1");
@@ -856,8 +886,10 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
       {/* ROUTE 2: IN-HOUSE FOLIOS */}
       {activeNav === 2 && (
         <InHouseFoliosPage
-          bookings={bookings}
+          bookings={Array.isArray(bookings) ? bookings : []}
           hotelSettings={hotelSettings}
+          loading={loading}
+          loadError={bookingsError}
           onRefresh={fetchFrontDeskData}
           onCheckOut={handleCheckOut}
           onOpenInvoice={(b) => setInvoiceModal({ open: true, booking: b })}

@@ -50,8 +50,6 @@ export default function RegisterHotelPage() {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
-  const [registeredCredentials, setRegisteredCredentials] = useState(null);
-
   const steps = [
     {
       id: 1,
@@ -218,25 +216,6 @@ export default function RegisterHotelPage() {
         setAuthCookies({
           accessToken: res.data.auth.accessToken,
           user: res.data.admin,
-        });
-      }
-
-      if (res?.credentials || res?.data?.generatedPassword) {
-        setRegisteredCredentials({
-          email: res?.credentials?.email || payload.ownerEmail,
-          password: res?.credentials?.password || res?.data?.generatedPassword,
-        });
-      } else {
-        const ownerFirstName = (formData.ownerName || "Admin")
-          .trim()
-          .split(" ")[0]
-          .replace(/[^a-zA-Z0-9]/g, "");
-        const capName = ownerFirstName
-          ? ownerFirstName.charAt(0).toUpperCase() + ownerFirstName.slice(1)
-          : "Admin";
-        setRegisteredCredentials({
-          email: payload.ownerEmail,
-          password: `${capName}@123`,
         });
       }
 
@@ -428,29 +407,18 @@ export default function RegisterHotelPage() {
                         Registration Successful!
                       </h3>
                       <p className="mt-2 text-xs sm:text-sm text-slate-600 max-w-md mx-auto">
-                        Thank you for registering <strong>{formData.hotelName || "your hotel"}</strong>. Your admin account is active and credentials have been generated.
+                        Thank you for registering <strong>{formData.hotelName || "your hotel"}</strong>. Your admin account is active.
                       </p>
                     </div>
 
-                    {registeredCredentials && (
-                      <div className="bg-[#F0F7F5] border border-[#00C2A8]/40 rounded-2xl p-5 max-w-md mx-auto text-left shadow-sm">
-                        <div className="text-xs font-bold text-[#058B79] uppercase tracking-wider mb-2">
-                          Your Admin Credentials
-                        </div>
-                        <div className="space-y-1.5 text-xs text-[#0F172A]">
-                          <div>
-                            <span className="text-slate-500">Login Email:</span>{" "}
-                            <strong className="font-mono text-sm select-all">{registeredCredentials.email}</strong>
-                          </div>
-                          <div>
-                            <span className="text-slate-500">Password:</span>{" "}
-                            <strong className="font-mono text-sm select-all bg-white px-2 py-0.5 rounded border border-emerald-200 text-[#073832]">
-                              {registeredCredentials.password}
-                            </strong>
-                          </div>
-                        </div>
+                    <div className="bg-[#F0F7F5] border border-[#00C2A8]/40 rounded-2xl p-5 max-w-md mx-auto text-center shadow-sm">
+                      <div className="text-sm font-bold text-[#073832]">
+                        Check your email
                       </div>
-                    )}
+                      <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+                        We have sent your PMS login details to your email. Please check your inbox.
+                      </p>
+                    </div>
 
                     <div className="pt-2">
                       <Link

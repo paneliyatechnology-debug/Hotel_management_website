@@ -31,6 +31,7 @@ import {
   Grid,
   Divider,
   TablePagination,
+  CircularProgress,
 } from "@mui/material";
 import {
   Add,
@@ -63,6 +64,7 @@ import StatCard from "@/shared/components/StatCard";
 import { formatTime12Hour, calculateOverstayFee } from "@/shared/utils/timeUtils";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
 import { toast } from "@/shared/utils/toast";
+import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { createSafeGuestModalData } from "@/shared/utils/guestModalUtils";
 import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
 
@@ -78,8 +80,33 @@ export default function InHouseFoliosPage({
   onCheckOut,
   onOpenInvoice,
   onOpenPosCharge,
+  loading = false,
+  loadError = "",
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
+  const [stayById, setStayById] = useState({});
+
+  useEffect(() => {
+    let cancelled = false;
+    const ids = bookings.map((booking) => booking.id || booking._id).filter(Boolean);
+    if (ids.length === 0) return undefined;
+    (async () => {
+      const loaded = {};
+      await Promise.all(ids.map(async (id) => {
+        try {
+          const res = await apiRequest(API_ENDPOINTS.BOOKINGS.BY_ID(id), { forceRefresh: true });
+          const detail = res?.data?.data || res?.data || null;
+          if (detail && typeof detail === "object" && !Array.isArray(detail)) loaded[String(id)] = detail;
+        } catch {
+          loaded[String(id)] = null;
+        }
+      }));
+      if (!cancelled) setStayById((prev) => ({ ...prev, ...loaded }));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [bookings]);
 
   // Real-Time Socket Auto-Sync
   useSocket(
@@ -97,24 +124,7 @@ export default function InHouseFoliosPage({
     }
   );
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeStatusTab, setActiveStatusTab] = useState(() => {
-    return bookings.some((b) => {
-      const s = String(b.booking_status || b.status || "").toUpperCase();
-      return s === "CHECKED_IN" || s === "IN-HOUSE" || s === "IN_HOUSE";
-    }) ? "CHECKED_IN" : "ALL";
-  });
-
-  useEffect(() => {
-    if (bookings.length > 0 && activeStatusTab === "CHECKED_IN") {
-      const hasInHouse = bookings.some((b) => {
-        const s = String(b.booking_status || b.status || "").toUpperCase();
-        return s === "CHECKED_IN" || s === "IN-HOUSE" || s === "IN_HOUSE";
-      });
-      if (!hasInHouse) {
-        setActiveStatusTab("ALL");
-      }
-    }
-  }, [bookings, activeStatusTab]);
+  const [activeStatusTab, setActiveStatusTab] = useState("CHECKED_IN");
 
   const [balanceFilter, setBalanceFilter] = useState("ALL");
   const [copiedUpi, setCopiedUpi] = useState(false);
@@ -180,6 +190,64 @@ export default function InHouseFoliosPage({
     return `${day}-${month}-${year}`;
   };
 
+  const formatStayStamp = (val) => {
+    if (!val) return "—";
+    const text = String(val).trim();
+    if (/^(today|tomorrow)$/i.test(text)) return "—";
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const toLabel = (year, month, day, hour24, minute) => {
+      const hourNum = Number(hour24);
+      const ampm = hourNum >= 12 ? "PM" : "AM";
+      const hour12 = hourNum % 12 || 12;
+      return `${Number(day)} ${months[Number(month) - 1]} ${year}, ${String(hour12).padStart(2, "0")}:${String(minute).padStart(2, "0")} ${ampm}`;
+    };
+    const wall = text.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+    if (wall && !/[zZ]$/.test(text) && !text.includes("+")) {
+      return toLabel(wall[1], wall[2], wall[3], wall[4], wall[5]);
+    }
+    const parsed = new Date(text);
+    if (Number.isNaN(parsed.getTime())) return text;
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Kolkata",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(parsed);
+    const get = (type) => parts.find((part) => part.type === type)?.value || "00";
+    return toLabel(get("year"), get("month"), get("day"), get("hour"), get("minute"));
+  };
+
+  const readStayValue = (source, names) => {
+    if (!source || typeof source !== "object") return "";
+    const entries = Object.entries(source);
+    for (const name of names) {
+      const hit = entries.find(([key, value]) => key.toLowerCase() === name.toLowerCase() && value);
+      if (hit) return hit[1];
+    }
+    return "";
+  };
+
+  const formatSchedule = (booking, which) => {
+    const detail = stayById[String(booking?.id || booking?._id || "")];
+    const sources = [detail, booking, booking?.booking, booking?.guest?.booking, booking?.activeBooking];
+    const dateNames = which === "in"
+      ? ["actual_check_in", "actualCheckIn", "check_in_date", "checkInDate", "check_in", "checkIn", "checkin_date", "checkinDate"]
+      : ["actual_check_out", "actualCheckOut", "check_out_date", "checkOutDate", "check_out", "checkOut", "checkout_date", "checkoutDate"];
+    const timeNames = which === "in"
+      ? ["check_in_time", "checkInTime", "actual_check_in_time"]
+      : ["check_out_time", "checkOutTime", "actual_check_out_time"];
+    const dateVal = sources.map((source) => readStayValue(source, dateNames)).find(Boolean) || "";
+    const timeVal = sources.map((source) => readStayValue(source, timeNames)).find(Boolean) || "";
+    const dateText = String(dateVal).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateText) && timeVal) {
+      return formatStayStamp(`${dateText} ${String(timeVal).slice(0, 5)}:00`);
+    }
+    return formatStayStamp(dateVal);
+  };
+
   // Status Helper
   const getNormalizedStatus = (b) => {
     const s = String(b.booking_status || b.status || "").toUpperCase();
@@ -188,15 +256,16 @@ export default function InHouseFoliosPage({
   };
 
   // Telemetry Calculations
-  const inHouseBookings = bookings.filter((b) => getNormalizedStatus(b) === "CHECKED_IN");
-  const confirmedBookings = bookings.filter((b) => {
+  const safeBookings = Array.isArray(bookings) ? bookings.filter(Boolean) : [];
+  const inHouseBookings = safeBookings.filter((b) => getNormalizedStatus(b) === "CHECKED_IN");
+  const confirmedBookings = safeBookings.filter((b) => {
     const s = getNormalizedStatus(b);
     return s === "CONFIRMED" || s === "PENDING" || s === "BOOKED";
   });
-  const checkedOutBookings = bookings.filter((b) => getNormalizedStatus(b) === "CHECKED_OUT" || getNormalizedStatus(b) === "DEPARTED");
+  const checkedOutBookings = safeBookings.filter((b) => getNormalizedStatus(b) === "CHECKED_OUT" || getNormalizedStatus(b) === "DEPARTED");
 
   // Operational active folios
-  const activeOperationalBookings = bookings.filter((b) => {
+  const activeOperationalBookings = safeBookings.filter((b) => {
     const s = getNormalizedStatus(b);
     if (s === "CHECKED_IN" || s === "CONFIRMED" || s === "PENDING" || s === "BOOKED") return true;
     if (s === "CHECKED_OUT" || s === "DEPARTED") {
@@ -206,13 +275,13 @@ export default function InHouseFoliosPage({
     return false;
   });
 
-  const totalGrossLedger = bookings.reduce((sum, b) => {
+  const totalGrossLedger = safeBookings.reduce((sum, b) => {
     const pos = (b.posCharges || []).reduce((pSum, c) => pSum + (c.amount || 0), 0);
     const overstay = calculateOverstayFee(b, hotelSettings);
     return sum + (Number(b.totalAmount ?? b.total_amount ?? 0)) + pos + (overstay?.lateFee || 0);
   }, 0);
 
-  const totalPendingDues = bookings.reduce((sum, b) => {
+  const totalPendingDues = safeBookings.reduce((sum, b) => {
     const pos = (b.posCharges || []).reduce((pSum, c) => pSum + (c.amount || 0), 0);
     const overstay = calculateOverstayFee(b, hotelSettings);
     const gross = (Number(b.totalAmount ?? b.total_amount ?? 0)) + pos + (overstay?.lateFee || 0);
@@ -247,7 +316,7 @@ export default function InHouseFoliosPage({
   };
 
   // Filter Bookings List
-  const filteredBookings = bookings.filter((b) => {
+  const filteredBookings = safeBookings.filter((b) => {
     const s = getNormalizedStatus(b);
 
     // Status Filter
@@ -573,19 +642,31 @@ export default function InHouseFoliosPage({
             </TableHead>
 
             <TableBody>
-              {filteredBookings.length === 0 ? (
+              {loading && filteredBookings.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} sx={{ py: 4 }}>
+                  <TableCell colSpan={6} sx={{ py: 6, textAlign: "center" }}>
+                    <CircularProgress size={28} sx={{ color: themeConfig.primary }} />
+                  </TableCell>
+                </TableRow>
+              ) : loadError && filteredBookings.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} sx={{ py: 4, textAlign: "center" }}>
                     <EmptyState
-                      title="No Folios Found"
-                      description={
-                        searchQuery
-                          ? "No reservation folios match your search query."
-                          : activeStatusTab === "CHECKED_IN"
-                            ? "No resident guests currently checked in. Use the Check-In Wizard to register guests."
-                            : "No folios under this category."
-                      }
+                      title="Could not load folios"
+                      description={loadError}
+                      actionText="Retry"
+                      onAction={onRefresh}
                     />
+                  </TableCell>
+                </TableRow>
+              ) : filteredBookings.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} sx={{ py: 6, textAlign: "center", color: themeConfig.textMuted, fontWeight: 700 }}>
+                    {activeStatusTab === "CHECKED_IN"
+                      ? "No guests currently in-house."
+                      : searchQuery
+                        ? "No folios match your search."
+                        : "No folios under this category."}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -707,30 +788,9 @@ export default function InHouseFoliosPage({
 
                         {/* Stay Duration */}
                         <TableCell sx={{ color: themeConfig.textMuted, fontSize: "0.78rem", whiteSpace: "nowrap" }}>
-                          <div><strong>In:</strong> {formatDDMMYYYY(b.checkInDate || b.check_in_date || "Today")} ({b.checkInTime ? formatTime12Hour(b.checkInTime) : checkInTimeFormatted})</div>
+                          <div><strong>In:</strong> {formatSchedule(b, "in")}</div>
                           <div>
-                            <strong>Out:</strong> {formatDDMMYYYY((() => {
-                              if (b.actualCheckOut) {
-                                const d = new Date(b.actualCheckOut);
-                                if (!isNaN(d.getTime())) {
-                                  const y = d.getFullYear();
-                                  const m = String(d.getMonth() + 1).padStart(2, "0");
-                                  const day = String(d.getDate()).padStart(2, "0");
-                                  return `${day}-${m}-${y}`;
-                                }
-                              }
-                              return b.checkOutDate || b.check_out_date || "Tomorrow";
-                            })())} ({(() => {
-                              if (b.actualCheckOut) {
-                                const d = new Date(b.actualCheckOut);
-                                if (!isNaN(d.getTime())) {
-                                  const h = String(d.getHours()).padStart(2, "0");
-                                  const m = String(d.getMinutes()).padStart(2, "0");
-                                  return formatTime12Hour(`${h}:${m}`);
-                                }
-                              }
-                              return formatTime12Hour(b.checkOutTime || hotelSettings?.checkOutTime || "12:00");
-                            })()})
+                            <strong>Out:</strong> {formatSchedule(b, "out")}
                             {overstay.isOverstay ? (
                               <Tooltip title={`Late Check-Out: Stayed +${overstay.overdueHours}h past check-out time. +₹${overstay.lateFee} (${overstay.extraDays} Extra Day Tariff) automatically applied.`}>
                                 <Chip

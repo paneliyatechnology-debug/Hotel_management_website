@@ -295,7 +295,9 @@ function HotelWebAppContent() {
           if (res?.data) {
             setUser(res.data);
             localStorage.setItem("user", JSON.stringify(res.data));
-            setAuthCookies({ user: res.data });
+            const keptToken = localStorage.getItem("token") || getCookie("accessToken") || getCookie("token");
+            const keptRefresh = localStorage.getItem("refreshToken") || getCookie("refreshToken");
+            setAuthCookies({ accessToken: keptToken, refreshToken: keptRefresh, user: res.data });
             checkUserLockout(res.data);
           }
         })

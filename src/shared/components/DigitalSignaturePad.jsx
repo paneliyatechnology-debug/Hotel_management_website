@@ -10,7 +10,6 @@ import {
   TextField,
   Tabs,
   Tab,
-  CircularProgress,
 } from "@mui/material";
 import {
   Refresh,
@@ -18,21 +17,16 @@ import {
   Create,
   TextFields,
   Draw,
-  QrCode2,
-  Smartphone,
-  ContentCopy,
-  OpenInNew,
+  CloudUpload,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
-import { useSocket } from "@/shared/context/SocketContext";
-import { QRCodeSVG } from "qrcode.react";
 import SignaturePad from "@/shared/components/SignaturePad";
 
 /**
  * Clean & Modern Digital E-Signature Pad
  * Supports:
- * 1. Real-time Mobile Phone Signature via Instant QR Code Scan (Default)
- * 2. Screen / Mouse Drawing (Desktop / Tablet)
+ * 1. Upload a signature image
+ * 2. Screen / Mouse Drawing
  * 3. Typed Cursive Signature
  */
 export default function DigitalSignaturePad({
@@ -51,13 +45,14 @@ export default function DigitalSignaturePad({
 }) {
   const { themeConfig: appThemeConfig, isDarkMode } = useAppTheme();
   const themeConfig = propThemeConfig || appThemeConfig;
-  const { socket } = useSocket();
 
   const activeSig = value || signature || null;
   const sigPadRef = useRef(null);
+  const fileInputRef = useRef(null);
   const [hasSignature, setHasSignature] = useState(Boolean(activeSig));
-  const [mode, setMode] = useState("QR_MOBILE"); // 'QR_MOBILE' | 'DRAW' | 'TYPE'
+  const [mode, setMode] = useState("UPLOAD");
   const [typedName, setTypedName] = useState(signerName || "");
+  const [uploadError, setUploadError] = useState("");
 
   // Update signature status when activeSig prop updates
   useEffect(() => {
@@ -70,117 +65,38 @@ export default function DigitalSignaturePad({
     if (onSave) onSave(dataUrl);
   }, [onChange, onSave]);
 
-  // Mobile QR Code Sync state
-  const [sessionId, setSessionId] = useState("");
-  const [networkHost, setNetworkHost] = useState("");
-  const [isPollingMobile, setIsPollingMobile] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
-
-  // Generate unique session ID for mobile signing
-  const generateNewSession = useCallback(() => {
-    const newId = `sig_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    setSessionId(newId);
-    return newId;
-  }, []);
-
-  // Detect true network host (LAN IP for mobile phone on same Wi-Fi, or live domain)
-  useEffect(() => {
-    generateNewSession();
-
-    if (typeof window !== "undefined") {
-      const host = window.location.hostname;
-      if (host !== "localhost" && host !== "127.0.0.1" && host !== "") {
-        setNetworkHost(window.location.origin);
-      } else {
-        // Fetch local LAN IPv4 address from API for mobile phone access
-        fetch("/api/signature-sync?action=network-info")
-          .then((res) => res.json())
-          .then((data) => {
-            if (data?.fullUrl) {
-              setNetworkHost(data.fullUrl);
-            } else if (data?.localIp) {
-              setNetworkHost(`http://${data.localIp}:${window.location.port || 3001}`);
-            } else {
-              setNetworkHost(window.location.origin);
-            }
-          })
-          .catch(() => {
-            setNetworkHost(window.location.origin);
-          });
-      }
-    }
-  }, [generateNewSession]);
-
-  // Join signature room on Socket.IO
-  useEffect(() => {
-    if (!socket || !sessionId) return;
-    socket.emit("join_signature_session", { sessionId });
-  }, [socket, sessionId]);
-
-  // Dual Real-Time Sync: Socket.IO Instant Broadcast + Fast HTTP Polling Fallback
-  useEffect(() => {
-    if (!sessionId || hasSignature) return;
-
-    let isMounted = true;
-    setIsPollingMobile(true);
-
-    const handleSignatureSubmitted = (e) => {
-      const data = e.detail || e;
-      if (data && data.sessionId === sessionId && data.signature) {
-        if (isMounted) {
-          setIsPollingMobile(false);
-          handleSignatureUpdate(data.signature);
-        }
-      }
-    };
-
-    // 1. Listen on window custom event dispatched by SocketContext
-    window.addEventListener("socket:SIGNATURE_SUBMITTED", handleSignatureSubmitted);
-
-    // 2. Also listen directly on socket instance if connected
-    if (socket) {
-      socket.on("SIGNATURE_SUBMITTED", handleSignatureSubmitted);
-    }
-
-    // 3. Fast Polling interval (every 1.5s) to guarantee phone submission gets synced instantly
-    const pollInterval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/signature-sync?session=${sessionId}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (isMounted && data?.status === "SIGNED" && data?.signature) {
-          setIsPollingMobile(false);
-          handleSignatureUpdate(data.signature);
-        }
-      } catch (err) {
-        // Silent catch for network polling
-      }
-    }, 1500);
-
-    return () => {
-      isMounted = false;
-      clearInterval(pollInterval);
-      window.removeEventListener("socket:SIGNATURE_SUBMITTED", handleSignatureSubmitted);
-      if (socket) {
-        socket.off("SIGNATURE_SUBMITTED", handleSignatureSubmitted);
-      }
-    };
-  }, [socket, sessionId, hasSignature, handleSignatureUpdate]);
-
-  const mobileSignUrl = `${networkHost || (typeof window !== "undefined" ? window.location.origin : "")}/mobile-sign?session=${sessionId}&name=${encodeURIComponent(
-    signerName || "Guest"
-  )}`;
-
   const handleClear = () => {
     if (sigPadRef.current) {
       sigPadRef.current.clear();
     }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
     setHasSignature(false);
     setTypedName("");
-    generateNewSession();
+    setUploadError("");
     if (onChange) onChange(null);
     if (onSave) onSave(null);
     if (onClear) onClear();
+  };
+
+  const handleImageUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setUploadError("Please upload an image file.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError("Image must be under 5 MB.");
+      return;
+    }
+    setUploadError("");
+    const reader = new FileReader();
+    reader.onload = () => {
+      handleSignatureUpdate(typeof reader.result === "string" ? reader.result : null);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleTypedChange = (e) => {
@@ -203,14 +119,6 @@ export default function DigitalSignaturePad({
       handleSignatureUpdate(dataUrl);
     } else {
       handleSignatureUpdate(null);
-    }
-  };
-
-  const handleCopyLink = () => {
-    if (typeof navigator !== "undefined" && navigator.clipboard) {
-      navigator.clipboard.writeText(mobileSignUrl);
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2500);
     }
   };
 
@@ -319,7 +227,7 @@ export default function DigitalSignaturePad({
         />
       </Box>
 
-      {/* Mode Switch: Mobile QR (Default) vs Draw vs Type */}
+      {/* Mode Switch: Upload Image, Draw, or Type */}
       <Box
         sx={{
           display: "flex",
@@ -347,10 +255,10 @@ export default function DigitalSignaturePad({
           }}
         >
           <Tab
-            value="QR_MOBILE"
-            icon={<Smartphone sx={{ fontSize: 14 }} />}
+            value="UPLOAD"
+            icon={<CloudUpload sx={{ fontSize: 14 }} />}
             iconPosition="start"
-            label="📱 Phone QR"
+            label="Upload Image"
           />
           <Tab
             value="DRAW"
@@ -388,8 +296,7 @@ export default function DigitalSignaturePad({
         )}
       </Box>
 
-      {/* MODE 1: QR CODE MOBILE SIGNATURE (DEFAULT) */}
-      {mode === "QR_MOBILE" && (
+      {mode === "UPLOAD" && (
         <Box
           sx={{
             p: { xs: 1.5, sm: 2 },
@@ -399,190 +306,60 @@ export default function DigitalSignaturePad({
             textAlign: "center",
           }}
         >
-          {hasSignature ? (
-            <Box sx={{ py: 2 }}>
-              <CheckCircle sx={{ fontSize: 48, color: "#10B981", mb: 1 }} />
-              <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#065F46" }}>
-                ✅ Signature Received from Mobile!
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={handleImageUpload}
+          />
+          {activeSig ? (
+            <Box sx={{ py: 1 }}>
+              <Box
+                sx={{
+                  mt: 0.5,
+                  p: 1,
+                  bgcolor: "#FFF",
+                  borderRadius: "10px",
+                  border: "1px solid #E2E8F0",
+                  display: "inline-block",
+                  maxWidth: 320,
+                }}
+              >
+                <img
+                  src={activeSig}
+                  alt="Uploaded signature"
+                  style={{ width: "100%", maxHeight: 140, objectFit: "contain" }}
+                />
+              </Box>
+              <Typography variant="caption" sx={{ display: "block", mt: 1, color: "#059669", fontWeight: 800 }}>
+                Signature image uploaded
               </Typography>
-              <Typography variant="caption" sx={{ color: "#059669", fontWeight: 700, display: "block", mt: 0.5 }}>
-                Signature has been successfully saved from mobile device.
-              </Typography>
-              {activeSig && (
-                <Box
-                  sx={{
-                    mt: 2,
-                    p: 1,
-                    bgcolor: "#FFF",
-                    borderRadius: "10px",
-                    border: "1px solid #E2E8F0",
-                    display: "inline-block",
-                    maxWidth: 280,
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={activeSig} alt="Signature Preview" style={{ width: "100%", maxHeight: 100, objectFit: "contain" }} />
-                </Box>
-              )}
             </Box>
           ) : (
-            <Box>
-              {/* Instructions Banner */}
-              <Box
+            <Box sx={{ py: 2 }}>
+              <CloudUpload sx={{ fontSize: 36, color: themeConfig.primary || "#C5A059", mb: 1 }} />
+              <Typography variant="body2" sx={{ fontWeight: 800, mb: 1.2, color: themeConfig.textMain }}>
+                Upload a signature image
+              </Typography>
+              <Button
+                variant="contained"
+                size="small"
+                onClick={() => fileInputRef.current?.click()}
                 sx={{
-                  p: 1.2,
-                  mb: 2,
-                  borderRadius: "10px",
-                  bgcolor: isDarkMode ? "rgba(56, 189, 248, 0.1)" : "rgba(197, 160, 89, 0.12)",
-                  border: "1px solid rgba(197, 160, 89, 0.3)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 1,
+                  textTransform: "none",
+                  fontWeight: 800,
+                  borderRadius: "8px",
+                  background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
                 }}
               >
-                <Smartphone sx={{ fontSize: 20, color: themeConfig.primary || "#C5A059" }} />
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontWeight: 800,
-                    fontSize: { xs: "0.78rem", sm: "0.85rem" },
-                    color: themeConfig.textMain || "#0F172A",
-                  }}
-                >
-                  Scan QR code with your phone camera to sign ✍️
+                Choose Image
+              </Button>
+              {uploadError && (
+                <Typography variant="caption" sx={{ display: "block", mt: 1, color: "#DC2626", fontWeight: 700 }}>
+                  {uploadError}
                 </Typography>
-              </Box>
-
-              {/* QR Code and Live Status Area */}
-              <Box
-                sx={{
-                  display: "flex",
-                  flexDirection: { xs: "column", sm: "row" },
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 2.5,
-                  my: 1.5,
-                }}
-              >
-                {/* QR Box */}
-                <Box
-                  sx={{
-                    p: 1.5,
-                    bgcolor: "#FFFFFF",
-                    borderRadius: "14px",
-                    border: "2px solid #E2E8F0",
-                    boxShadow: "0 6px 16px rgba(0,0,0,0.06)",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                  }}
-                >
-                  <QRCodeSVG
-                    value={mobileSignUrl}
-                    size={140}
-                    level="M"
-                    includeMargin={false}
-                    fgColor="#0F172A"
-                  />
-                  <Typography variant="caption" sx={{ mt: 1, fontWeight: 800, color: "#64748B", fontSize: "0.65rem" }}>
-                    Scan with Mobile Camera
-                  </Typography>
-                </Box>
-
-                {/* Steps and Live Sync Status */}
-                <Box sx={{ textAlign: "left", maxWidth: 300 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain || "#0F172A", mb: 0.8 }}>
-                    3 Easy Steps:
-                  </Typography>
-                  <Typography variant="caption" sx={{ display: "block", color: "#475569", fontWeight: 700, mb: 0.5 }}>
-                    1️⃣ Point your phone camera at this QR code
-                  </Typography>
-                  <Typography variant="caption" sx={{ display: "block", color: "#475569", fontWeight: 700, mb: 0.5 }}>
-                    2️⃣ Sign on your phone screen and tap Save
-                  </Typography>
-                  <Typography variant="caption" sx={{ display: "block", color: "#475569", fontWeight: 700, mb: 1.5 }}>
-                    3️⃣ Signature will automatically sync here!
-                  </Typography>
-
-                  {/* Live Status indicator */}
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
-                      p: 1,
-                      borderRadius: "8px",
-                      bgcolor: isPollingMobile ? "rgba(59, 130, 246, 0.08)" : "rgba(100, 116, 139, 0.08)",
-                      border: "1px solid rgba(59, 130, 246, 0.2)",
-                    }}
-                  >
-                    {isPollingMobile ? (
-                      <CircularProgress size={14} sx={{ color: "#3B82F6" }} />
-                    ) : (
-                      <QrCode2 sx={{ fontSize: 16, color: "#64748B" }} />
-                    )}
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        fontWeight: 800,
-                        color: isPollingMobile ? "#1D4ED8" : "#475569",
-                        fontSize: "0.7rem",
-                      }}
-                    >
-                      {isPollingMobile ? "Waiting for mobile signature..." : "Ready to scan"}
-                    </Typography>
-                  </Box>
-                </Box>
-              </Box>
-
-              {/* Action Buttons: Copy Link & Refresh */}
-              <Box sx={{ display: "flex", justifyContent: "center", gap: 1, flexWrap: "wrap", mt: 1 }}>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<ContentCopy sx={{ fontSize: 13 }} />}
-                  onClick={handleCopyLink}
-                  sx={{
-                    fontSize: "0.72rem",
-                    fontWeight: 800,
-                    textTransform: "none",
-                    borderRadius: "8px",
-                  }}
-                >
-                  {copiedLink ? "Link Copied! ✅" : "Copy Mobile Link"}
-                </Button>
-
-                <Button
-                  size="small"
-                  variant="text"
-                  startIcon={<Refresh sx={{ fontSize: 13 }} />}
-                  onClick={generateNewSession}
-                  sx={{
-                    fontSize: "0.72rem",
-                    fontWeight: 800,
-                    textTransform: "none",
-                    color: "#64748B",
-                  }}
-                >
-                  New QR Code
-                </Button>
-
-                <Button
-                  size="small"
-                  variant="text"
-                  startIcon={<OpenInNew sx={{ fontSize: 13 }} />}
-                  onClick={() => window.open(mobileSignUrl, "_blank")}
-                  sx={{
-                    fontSize: "0.72rem",
-                    fontWeight: 800,
-                    textTransform: "none",
-                    color: "#64748B",
-                  }}
-                >
-                  Open in Browser
-                </Button>
-              </Box>
+              )}
             </Box>
           )}
         </Box>

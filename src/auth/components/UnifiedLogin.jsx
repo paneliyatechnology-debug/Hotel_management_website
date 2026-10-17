@@ -166,12 +166,13 @@ export default function UnifiedLogin({ onLoginSuccess }) {
         }
 
         if (user) {
-          if (user.role === "SUPER_ADMIN") {
+          const allowedRoles = ["SUPER_ADMIN", "HOTEL_ADMIN", "RECEPTIONIST"];
+          if (!allowedRoles.includes(user.role)) {
             localStorage.removeItem("token");
             localStorage.removeItem("refreshToken");
             localStorage.removeItem("user");
             clearAuthCookies();
-            const errStr = "Access Denied. Super Admin accounts must log in through the Super Admin Portal.";
+            const errStr = "Access Denied. This login is only for Super Admin, Hotel Admin, or Receptionist accounts.";
             toast.error(errStr);
             setError(errStr);
             setLoading(false);

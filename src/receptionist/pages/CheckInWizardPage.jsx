@@ -35,6 +35,7 @@ import {
   TableCell,
   TableContainer,
   Dialog,
+  CircularProgress,
 } from "@mui/material";
 import { calculateMultiRoomBookingGST } from "@/shared/utils/gstUtils";
 import { uploadToCloudinaryServer } from "@/shared/utils/uploadService";
@@ -143,6 +144,7 @@ export default function CheckInWizardPage({
   bookings = [],
   onFinalCheckIn,
   onBackToRooms,
+  isCheckInSubmitting = false,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
   const checkInTimeFormatted = formatTime12Hour(hotelSettings?.checkInTime || "14:00");
@@ -683,7 +685,7 @@ export default function CheckInWizardPage({
   const gstBookingResult = calculateMultiRoomBookingGST({
     rooms: (selectedRoomsList.length > 0 ? selectedRoomsList : [{ pricePerNight: checkInData.rate ?? 3000, gstEnabled: true, gstRate: 18 }]).map((r) => {
       const rt = getRoomTypeObj(r);
-      const price = getRoomTariff(r) || Number(checkInData.rate) || 0;
+      const price = Number(checkInData.rate) > 0 ? Number(checkInData.rate) : (getRoomTariff(r) || 0);
       return {
         ...r,
         pricePerNight: price,
@@ -704,9 +706,15 @@ export default function CheckInWizardPage({
   const totalSgstAmount = gstBookingResult.sgstAmount;
   const totalIgstAmount = gstBookingResult.igstAmount;
 
-  const vipDiscountAmount = isVipGuest ? Math.round(baseTariffTotal * 0.10) : (checkInData.discountAmount || 0);
+  const vipDiscountAmount = isVipGuest ? Math.round(baseTariffTotal * 0.10) : (Number(checkInData.discountAmount) || 0);
+  const discountApplied = Math.min(baseTariffTotal, Math.max(0, vipDiscountAmount));
+  const priceAfterDiscount = Math.max(0, baseTariffTotal - discountApplied);
+  const taxRatio = baseTariffTotal > 0 ? priceAfterDiscount / baseTariffTotal : 0;
+  const displayCgst = Math.round(totalCgstAmount * taxRatio);
+  const displaySgst = Math.round(totalSgstAmount * taxRatio);
+  const displayIgst = Math.round(totalIgstAmount * taxRatio);
   const securityDepositAmount = checkInData.collectSecurityDeposit ? (Number(checkInData.securityDepositAmount) || 1000) : 0;
-  const calculatedGrandTotal = Math.max(0, gstBookingResult.grandTotal - vipDiscountAmount) + securityDepositAmount;
+  const calculatedGrandTotal = priceAfterDiscount + displayCgst + displaySgst + displayIgst + securityDepositAmount;
 
   // Auto-fill Advance Amount Paid with full Total including GST (Base + CGST 9% + SGST 9%)
   useEffect(() => {
@@ -1353,6 +1361,13 @@ export default function CheckInWizardPage({
 
     // Step 2 (Index 1): Stay & Room Allocation Validation
     if (activeStep === 1) {
+      const checkInAt = new Date(`${checkInData.checkInDate || ""}T${String(checkInData.checkInTime || "00:00").slice(0, 5)}:00`);
+      const checkOutAt = new Date(`${checkInData.checkOutDate || ""}T${String(checkInData.checkOutTime || hotelSettings?.checkOutTime || "12:00").slice(0, 5)}:00`);
+      if (Number.isNaN(checkInAt.getTime()) || Number.isNaN(checkOutAt.getTime()) || checkOutAt <= checkInAt) {
+        showErrorAlert("Check-out date and time must be later than check-in date and time.");
+        return;
+      }
+
       if (!checkInData.roomId && (!checkInData.roomIds || checkInData.roomIds.length === 0)) {
         setFieldErrors({ roomId: true });
         showErrorAlert("⚠️ Room Required: Please assign at least one room before continuing.");
@@ -1395,6 +1410,7 @@ export default function CheckInWizardPage({
   };
 
   const handleTriggerFinalCheckIn = () => {
+    if (isCheckInSubmitting) return;
     const isSignatureMissing = !checkInData.signature || (typeof checkInData.signature === "string" && !checkInData.signature.trim());
     if (isSignatureMissing) {
       setFieldErrors((prev) => ({ ...prev, signature: true }));
@@ -2203,148 +2219,6 @@ export default function CheckInWizardPage({
                 </Grid>
               </Grid>
             </Paper>
-
-            {/* Section 2: Room Allocation Overview & Date Conflict Guard */}
-            <Paper
-              id="room-selection-section"
-              className="card-3d"
-              sx={{
-                p: 3,
-                borderRadius: "20px",
-                bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-                border: `1.5px solid ${conflictingRooms.length > 0 ? "#EF4444" : themeConfig.border}`,
-              }}
-            >
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2.5, flexWrap: "wrap", gap: 1 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                  <Avatar sx={{ bgcolor: conflictingRooms.length > 0 ? "#DC2626" : themeConfig.primary, color: "#FFFFFF", width: 34, height: 34 }}>
-                    <MeetingRoom sx={{ fontSize: 20 }} />
-                  </Avatar>
-                  <div>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 900, color: conflictingRooms.length > 0 ? "#DC2626" : themeConfig.textMain }}>
-                      Allocated Room(s) & Availability Status
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                      Stay Period: <strong>{formatDisplayDate(checkInData.checkInDate || getTodayLocalDate())}</strong> to <strong>{formatDisplayDate(checkInData.checkOutDate)}</strong> &bull; Total Selected Capacity: {totalRoomCapacity} Guests
-                    </Typography>
-                  </div>
-                </Box>
-              </Box>
-
-              {/* ⚠️ Prominent Warning if Room is Already Reserved for Selected Dates */}
-              {conflictingRooms.length > 0 && (
-                <Paper
-                  sx={{
-                    p: 2,
-                    mb: 2.5,
-                    borderRadius: "14px",
-                    bgcolor: "rgba(239, 68, 68, 0.08)",
-                    border: "1.5px solid #EF4444",
-                  }}
-                >
-                  <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5 }}>
-                    <Warning sx={{ color: "#DC2626", fontSize: 26, mt: 0.2 }} />
-                    <Box sx={{ flex: 1 }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 900, color: "#DC2626", fontSize: "0.95rem" }}>
-                        ⚠️ Room Date Conflict Detected!
-                      </Typography>
-                      {conflictingRooms.map((cr, idx) => {
-                        const conflict = getRoomConflict(cr);
-                        return (
-                          <Typography key={idx} variant="body2" sx={{ color: themeConfig.textMain, mt: 0.5, fontWeight: 700 }}>
-                            &bull; <strong>Room #{cr.roomNumber}</strong> is already booked from{" "}
-                            <span style={{ color: "#DC2626", fontWeight: 900 }}>
-                              {formatDisplayDate(conflict?.checkInDate)} to {formatDisplayDate(conflict?.checkOutDate)}
-                            </span>{" "}
-                            by <strong>{conflict?.guest?.fullName || conflict?.guestName || "another guest"}</strong> (Booking #{conflict?.bookingNumber}).
-                          </Typography>
-                        );
-                      })}
-                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", mt: 1, fontWeight: 600 }}>
-                        Please select alternative stay dates or click below to switch to an available room:
-                      </Typography>
-
-                      {/* 1-Click Available Room Alternatives */}
-                      <Box sx={{ mt: 1.5, display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
-                        {availableRooms.length > 0 ? (
-                          availableRooms.map((ar) => (
-                            <Button
-                              key={ar._id}
-                              size="small"
-                              variant="contained"
-                              onClick={() => handleSwitchSingleRoom(ar._id)}
-                              sx={{
-                                borderRadius: "10px",
-                                fontSize: "0.75rem",
-                                fontWeight: 800,
-                                bgcolor: "#10B981",
-                                color: "#FFFFFF",
-                                "&:hover": { bgcolor: "#059669" },
-                              }}
-                            >
-                              ✓ Switch to Room #{ar.roomNumber} ({getRoomCategoryName(ar)})
-                            </Button>
-                          ))
-                        ) : (
-                          <Typography variant="caption" sx={{ color: "#DC2626", fontWeight: 800 }}>
-                            No other rooms available for these exact dates. Please modify stay dates.
-                          </Typography>
-                        )}
-                      </Box>
-                    </Box>
-                  </Box>
-                </Paper>
-              )}
-
-              <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
-                {selectedRoomsList.map((r) => {
-                  const cap = getRoomMaxCapacity(r);
-                  const catName = getRoomCategoryName(r);
-                  const isActive = String(r._id) === String(activeRoomId);
-                  const conflict = getRoomConflict(r);
-                  const isConflict = Boolean(conflict);
-
-                  return (
-                    <Chip
-                      key={String(r._id || r.roomNumber)}
-                      clickable
-                      onClick={() => {
-                        setCheckInData((prev) => ({
-                          ...prev,
-                          activeRoomId: String(r._id),
-                        }));
-                      }}
-                      icon={
-                        <MeetingRoom
-                          sx={{
-                            fontSize: "16px !important",
-                            color: isConflict ? "#DC2626 !important" : isActive ? "#FFFFFF !important" : "inherit",
-                          }}
-                        />
-                      }
-                      label={
-                        isConflict
-                          ? `Room #${r.roomNumber} • 🔴 Booked (${formatDisplayDate(conflict.checkInDate)} - ${formatDisplayDate(conflict.checkOutDate)})`
-                          : `Room #${r.roomNumber} (${catName}) • Capacity: ${cap} Guest(s)${isActive ? " (Active)" : ""}`
-                      }
-                      sx={{
-                        fontWeight: 800,
-                        fontSize: "0.82rem",
-                        p: 1.5,
-                        bgcolor: isConflict
-                          ? "rgba(239, 68, 68, 0.12)"
-                          : isActive
-                            ? themeConfig.primary
-                            : (isDarkMode ? "rgba(255,255,255,0.08)" : "#F1F5F9"),
-                        color: isConflict ? "#DC2626" : isActive ? "#FFFFFF" : themeConfig.textMain,
-                        borderRadius: "12px",
-                        border: `1.5px solid ${isConflict ? "#EF4444" : isActive ? themeConfig.primary : themeConfig.border}`,
-                      }}
-                    />
-                  );
-                })}
-              </Box>
-            </Paper>
           </Box>
         )}
 
@@ -2390,63 +2264,31 @@ export default function CheckInWizardPage({
                   <TableBody>
                     <TableRow>
                       <TableCell sx={{ fontWeight: 700 }}>
-                        Base Taxable Room Tariff ({selectedRoomsList.map((r) => `#${r.roomNumber}`).join(", ") || checkInData.roomNumber})
+                        Room Rate ({selectedRoomsList.map((r) => `#${r.roomNumber}`).join(", ") || checkInData.roomNumber})
+                        {discountApplied > 0 ? ` • Discount ₹${discountApplied.toLocaleString("en-IN")}` : ""}
                       </TableCell>
                       <TableCell align="right">
-                        {checkInData.numberOfNights || nights || 1} Night(s) Total
+                        ₹{Number(checkInData.rate) || 0} × {checkInData.numberOfNights || nights || 1} Night(s){selectedRoomsList.length > 1 ? ` × ${selectedRoomsList.length} Rooms` : ""}
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: 800 }}>
-                        ₹{baseTariffTotal.toLocaleString("en-IN")}
+                        ₹{priceAfterDiscount.toLocaleString("en-IN")}
                       </TableCell>
                     </TableRow>
 
-                    {gstBookingResult.roomBreakdowns && gstBookingResult.roomBreakdowns.map((rb, idx) => (
-                      <TableRow key={idx} sx={{ bgcolor: "rgba(15, 118, 110, 0.03)" }}>
-                        <TableCell sx={{ pl: 3 }}>
-                          <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.primary }}>
-                            🏨 Room #{rb.roomNumber} ({rb.roomTypeName})
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={`Base ₹${rb.taxableAmount.toLocaleString("en-IN")} + GST ${rb.gstRate}% (CGST ${rb.cgstRate}% + SGST ${rb.sgstRate}%)`}
-                            size="small"
-                            sx={{ height: "auto", py: 0.3, px: 0.5, fontSize: "0.68rem", fontWeight: 800, "& .MuiChip-label": { whiteSpace: "normal", wordBreak: "break-word" } }}
-                          />
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 800, color: "#D97706" }}>
-                          +₹{rb.gstAmount.toLocaleString("en-IN")}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-
-                    {totalGstAmount > 0 && (
-                      <TableRow sx={{ bgcolor: "rgba(217, 119, 6, 0.06)" }}>
-                        <TableCell sx={{ fontWeight: 800, color: "#D97706" }}>
-                          Total Applicable Tax (CGST + SGST)
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700, color: "#D97706" }}>
-                          CGST ₹{totalCgstAmount.toLocaleString("en-IN")} + SGST ₹{totalSgstAmount.toLocaleString("en-IN")}
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 900, color: "#D97706" }}>
-                          +₹{totalGstAmount.toLocaleString("en-IN")}
-                        </TableCell>
-                      </TableRow>
-                    )}
-
-                    {isVipGuest && (
-                      <TableRow sx={{ bgcolor: "rgba(245, 158, 11, 0.08)" }}>
-                        <TableCell sx={{ fontWeight: 800, color: "#B45309" }}>
-                          ⭐ VIP Returning Guest Loyalty Discount (10%)
-                        </TableCell>
-                        <TableCell align="right" sx={{ color: "#B45309", fontWeight: 700 }}>
-                          10% Off
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 800, color: "#B45309" }}>
-                          -₹{vipDiscountAmount.toLocaleString("en-IN")}
-                        </TableCell>
-                      </TableRow>
-                    )}
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 700 }}>CGST</TableCell>
+                      <TableCell align="right">9%</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 800 }}>
+                        ₹{displayCgst.toLocaleString("en-IN")}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 700 }}>SGST</TableCell>
+                      <TableCell align="right">9%</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 800 }}>
+                        ₹{displaySgst.toLocaleString("en-IN")}
+                      </TableCell>
+                    </TableRow>
 
                     {checkInData.collectSecurityDeposit && (
                       <TableRow>
@@ -2462,7 +2304,7 @@ export default function CheckInWizardPage({
 
                     <TableRow sx={{ bgcolor: themeConfig.champagne }}>
                       <TableCell sx={{ fontWeight: 900, fontSize: "1rem" }}>
-                        Net Payable Total (Base + Tax)
+                        Total (Rate + CGST + SGST)
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: 800 }}>
                         All Taxes & Fees Included
@@ -2532,18 +2374,79 @@ export default function CheckInWizardPage({
                   </TextField>
                 </Grid>
 
-                {/* Transaction Reference / Note */}
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Transaction ID / Payment Note"
-                    placeholder="e.g. UPI Ref #402918482"
-                    value={checkInData.transactionId || ""}
-                    onChange={(e) => setCheckInData({ ...checkInData, transactionId: e.target.value })}
-                  />
-                </Grid>
               </Grid>
+
+              {checkInData.paymentMethod === "CARD" && (
+                <Box sx={{ mt: 2, p: 2, borderRadius: "14px", border: `1px solid ${themeConfig.border}`, bgcolor: "#F8FAFC" }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>Card Details</Typography>
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, sm: 4 }}>
+                      <TextField select fullWidth size="small" label="Card Type" value={checkInData.cardType || "VISA"} onChange={(e) => setCheckInData({ ...checkInData, cardType: e.target.value })}>
+                        <MenuItem value="VISA">Visa</MenuItem>
+                        <MenuItem value="MASTERCARD">Mastercard</MenuItem>
+                        <MenuItem value="RUPAY">RuPay</MenuItem>
+                        <MenuItem value="AMEX">Amex</MenuItem>
+                      </TextField>
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 4 }}>
+                      <TextField fullWidth size="small" label="Last 4 Digits" placeholder="1234" slotProps={{ htmlInput: { maxLength: 4 } }} value={checkInData.cardLast4 || ""} onChange={(e) => setCheckInData({ ...checkInData, cardLast4: e.target.value.replace(/\D/g, "").slice(0, 4) })} />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 4 }}>
+                      <TextField fullWidth size="small" label="Card Holder Name" value={checkInData.cardHolder || ""} onChange={(e) => setCheckInData({ ...checkInData, cardHolder: e.target.value })} />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <TextField fullWidth size="small" label="POS / Approval Reference" value={checkInData.transactionId || ""} onChange={(e) => setCheckInData({ ...checkInData, transactionId: e.target.value })} />
+                    </Grid>
+                  </Grid>
+                </Box>
+              )}
+
+              {(checkInData.paymentMethod || "UPI") === "UPI" && (
+                <Box sx={{ mt: 2, p: 2, borderRadius: "14px", border: `1px solid ${themeConfig.border}`, bgcolor: "#F8FAFC" }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>UPI Details</Typography>
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, sm: 4 }}>
+                      <TextField select fullWidth size="small" label="UPI App" value={checkInData.upiApp || "PHONEPE"} onChange={(e) => setCheckInData({ ...checkInData, upiApp: e.target.value })}>
+                        <MenuItem value="PHONEPE">PhonePe</MenuItem>
+                        <MenuItem value="GPAY">Google Pay</MenuItem>
+                        <MenuItem value="PAYTM">Paytm</MenuItem>
+                        <MenuItem value="OTHER">Other</MenuItem>
+                      </TextField>
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 8 }}>
+                      <TextField fullWidth size="small" label="UPI Transaction ID" placeholder="e.g. 402918482" value={checkInData.transactionId || ""} onChange={(e) => setCheckInData({ ...checkInData, transactionId: e.target.value })} />
+                    </Grid>
+                  </Grid>
+                </Box>
+              )}
+
+              {checkInData.paymentMethod === "CASH" && (
+                <Box sx={{ mt: 2, p: 2, borderRadius: "14px", border: `1px solid ${themeConfig.border}`, bgcolor: "#F8FAFC" }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>Cash Details</Typography>
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <TextField fullWidth size="small" label="Cash Received (₹)" type="number" value={checkInData.cashReceived ?? ""} onChange={(e) => setCheckInData({ ...checkInData, cashReceived: e.target.value })} />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <TextField fullWidth size="small" label="Note" value={checkInData.transactionId || ""} onChange={(e) => setCheckInData({ ...checkInData, transactionId: e.target.value })} />
+                    </Grid>
+                  </Grid>
+                </Box>
+              )}
+
+              {checkInData.paymentMethod === "NET_BANKING" && (
+                <Box sx={{ mt: 2, p: 2, borderRadius: "14px", border: `1px solid ${themeConfig.border}`, bgcolor: "#F8FAFC" }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>Bank Transfer Details</Typography>
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <TextField fullWidth size="small" label="Bank Name" value={checkInData.bankName || ""} onChange={(e) => setCheckInData({ ...checkInData, bankName: e.target.value })} />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <TextField fullWidth size="small" label="UTR / Reference No." value={checkInData.transactionId || ""} onChange={(e) => setCheckInData({ ...checkInData, transactionId: e.target.value })} />
+                    </Grid>
+                  </Grid>
+                </Box>
+              )}
             </Paper>
           </Box>
         )}
@@ -2595,12 +2498,6 @@ export default function CheckInWizardPage({
                     <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 0.5 }}>
                       <WhatsApp sx={{ color: "#25D366", fontSize: 16 }} />
                       {checkInData.mobile ? `+91 ${checkInData.mobile}` : "N/A"}
-                    </Typography>
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>Govt ID Proof:</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                      {checkInData.govtIdType || "AADHAAR"} • {checkInData.govtIdNumber || "Uploaded"}
                     </Typography>
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6, md: 3 }}>
@@ -2866,7 +2763,8 @@ export default function CheckInWizardPage({
                 fullWidth
                 variant="contained"
                 onClick={handleTriggerFinalCheckIn}
-                startIcon={<CheckCircle />}
+                disabled={isCheckInSubmitting}
+                startIcon={isCheckInSubmitting ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : <CheckCircle />}
                 className="btn-3d"
                 sx={{
                   background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
@@ -2883,7 +2781,7 @@ export default function CheckInWizardPage({
                   },
                 }}
               >
-                Confirm & Complete Check-In
+                {isCheckInSubmitting ? "Creating Booking..." : "Confirm & Complete Check-In"}
               </Button>
             )}
           </Box>

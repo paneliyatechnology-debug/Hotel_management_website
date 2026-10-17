@@ -114,7 +114,7 @@ export const API_ENDPOINTS = createCaseFlexibleProxy({
     ACTIVE_STATUS: (id) => `${API_BASE_URL}/api/v1/hotels/${id}/active-status`,
     DELETE: (id) => `${API_BASE_URL}/api/v1/hotels/${id}`,
     // Backward compatibility
-    ADMIN_USERS: `${API_BASE_URL}/api/v1/users?role=HOTEL_ADMIN`,
+    ADMIN_USERS: `${API_BASE_URL}/api/v1/hotels`,
     UPDATE_STATUS: (id) => `${API_BASE_URL}/api/v1/users/${id}/account-status`,
     EXTEND_TRIAL: (id) => `${API_BASE_URL}/api/v1/users/${id}`,
     APPROVE: (id) => `${API_BASE_URL}/api/v1/users/${id}`,
@@ -129,6 +129,7 @@ export const API_ENDPOINTS = createCaseFlexibleProxy({
     CREATE: `${API_BASE_URL}/api/v1/subscription-plans`,
     UPDATE: (id) => `${API_BASE_URL}/api/v1/subscription-plans/${id}`,
     DELETE: (id) => `${API_BASE_URL}/api/v1/subscription-plans/${id}`,
+    PURCHASE: (id) => `${API_BASE_URL}/api/v1/subscription-plans/${id}/purchase`,
     RESET_DEFAULTS: `${API_BASE_URL}/api/v1/subscription-plans/reset-defaults`,
   },
 
@@ -193,8 +194,8 @@ export const API_ENDPOINTS = createCaseFlexibleProxy({
   // Compatibility aliases for Hotel Admin, Receptionist & Super Admin
   SUPER_ADMIN: {
     DASHBOARD: `${API_BASE_URL}/api/v1/super-admin/dashboard`,
-    HOTELS: `${API_BASE_URL}/api/v1/users?role=HOTEL_ADMIN`,
-    UPDATE_HOTEL: (id) => `${API_BASE_URL}/api/v1/users/${id}`,
+    HOTELS: `${API_BASE_URL}/api/v1/hotels`,
+    UPDATE_HOTEL: (id) => `${API_BASE_URL}/api/v1/hotels/${id}`,
     APPROVE_HOTEL: (id) => `${API_BASE_URL}/api/v1/users/${id}`,
     REJECT_HOTEL: (id) => `${API_BASE_URL}/api/v1/users/${id}`,
     UPDATE_STATUS: (id) => `${API_BASE_URL}/api/v1/users/${id}/account-status`,
@@ -225,7 +226,7 @@ export const API_ENDPOINTS = createCaseFlexibleProxy({
     PAYMENTS: `${API_BASE_URL}/api/v1/bookings`,
     RECORD_PAYMENT: `${API_BASE_URL}/api/v1/bookings`,
     DAILY_COLLECTIONS: `${API_BASE_URL}/api/v1/bookings`,
-    SETTLE_HANDOVER: `${API_BASE_URL}/api/v1/bookings`,
+    SETTLE_HANDOVER: `${API_BASE_URL}/api/v1/reports/collections/settle`,
     PROFILE: `${API_BASE_URL}/api/v1/auth/me`,
     REPORTS: `${API_BASE_URL}/api/v1/bookings`,
     REVENUE_DETAILS: `${API_BASE_URL}/api/v1/bookings`,
@@ -703,65 +704,6 @@ export function deepDualCase(obj) {
     result.roomType = rtObject;
   }
 
-  // Room Category entity itself (from /api/v1/room-types)
-  if (result.name === "Family Room" || Number(result.id) === 15 || Number(result._id) === 15) {
-    if (!result.basePrice && !result.base_price) {
-      result.basePrice = 4500;
-      result.base_price = 4500;
-    }
-    if (!result.bedCount && !result.bed_count) {
-      result.bedCount = 1;
-      result.bed_count = 1;
-    }
-    if (!result.bedType && !result.bed_type) {
-      result.bedType = "1 King Size Bed";
-      result.bed_type = "1 King Size Bed";
-    }
-    if (!result.capacity) {
-      result.capacity = { adults: 4, children: 2 };
-    }
-    if (!result.amenities || (Array.isArray(result.amenities) && result.amenities.length === 0)) {
-      result.amenities = [
-        "Free High-Speed WiFi",
-        "Attached Bathroom & Geyser",
-        "Air Conditioner (AC)",
-        "Smart 4K LED TV",
-        "Balcony / Scenic View",
-        "24/7 Room Service",
-      ];
-    }
-  }
-
-  if (result.name === "Premium Suite" || Number(result.id) === 16 || Number(result._id) === 16) {
-    if (!result.basePrice && !result.base_price) {
-      result.basePrice = 5200;
-      result.base_price = 5200;
-    }
-    if (!result.bedCount && !result.bed_count) {
-      result.bedCount = 1;
-      result.bed_count = 1;
-    }
-    if (!result.bedType && !result.bed_type) {
-      result.bedType = "1 King Size Bed";
-      result.bed_type = "1 King Size Bed";
-    }
-    if (!result.capacity) {
-      result.capacity = { adults: 2, children: 1 };
-    }
-    if (!result.amenities || (Array.isArray(result.amenities) && result.amenities.length === 0)) {
-      result.amenities = [
-        "Free High-Speed WiFi",
-        "King Size Bed",
-        "Attached Bathroom & Geyser",
-        "Air Conditioner (AC)",
-        "Balcony / Scenic View",
-        "Swimming Pool Access",
-        "Tea / Coffee Maker",
-        "Mini Fridge / Bar",
-      ];
-    }
-  }
-
   return result;
 }
 
@@ -881,7 +823,7 @@ function prepareRequestBody(body, endpoint) {
 
   // 0. Special endpoint handlers matching Postman contract
   // A. Subscription plans (Postman: Plan JSON uses camelCase)
-  if (typeof endpoint === "string" && endpoint.includes("/subscription-plans")) {
+  if (typeof endpoint === "string" && endpoint.includes("/subscription-plans") && !endpoint.includes("/purchase")) {
     const planPayload = { ...parsedBody };
     if (planPayload.billing_cycle !== undefined && planPayload.billingCycle === undefined) {
       planPayload.billingCycle = planPayload.billing_cycle;
@@ -1148,35 +1090,34 @@ function prepareRequestBody(body, endpoint) {
       }
       payload.room_id = roomIds;
 
-      // Dates (ISO 8601 strings)
+      const toSqlDateTime = (value, fallback) => {
+        if (!value) return fallback;
+        const text = String(value).trim();
+        const wallClock = text.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::(\d{2}))?/);
+        if (wallClock && !text.endsWith("Z")) {
+          return `${wallClock[1]} ${wallClock[2]}:${wallClock[3] || "00"}`;
+        }
+        const parsed = new Date(text);
+        if (Number.isNaN(parsed.getTime())) return fallback;
+        const pad = (n) => String(n).padStart(2, "0");
+        return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}:${pad(parsed.getSeconds())}`;
+      };
+      const nowSql = toSqlDateTime(new Date().toISOString());
+      const tomorrow = new Date(Date.now() + 86400000);
+      const tomorrowSql = toSqlDateTime(tomorrow.toISOString());
+
       if (!payload.check_in_date) {
-        if (payload.check_in || payload.checkin) {
-          payload.check_in_date = payload.check_in || payload.checkin;
-        } else {
-          payload.check_in_date = new Date().toISOString();
-        }
+        payload.check_in_date = payload.check_in || payload.checkin || nowSql;
       }
-      if (payload.check_in_date) {
-        try {
-          payload.check_in_date = new Date(payload.check_in_date).toISOString();
-        } catch {
-          payload.check_in_date = new Date().toISOString();
-        }
+      payload.check_in_date = toSqlDateTime(payload.check_in_date, nowSql);
+      if (payload.actual_check_in) {
+        payload.actual_check_in = toSqlDateTime(payload.actual_check_in, payload.check_in_date);
       }
+
       if (!payload.check_out_date) {
-        if (payload.check_out || payload.checkout) {
-          payload.check_out_date = payload.check_out || payload.checkout;
-        } else {
-          payload.check_out_date = new Date(Date.now() + 86400000).toISOString();
-        }
+        payload.check_out_date = payload.check_out || payload.checkout || tomorrowSql;
       }
-      if (payload.check_out_date) {
-        try {
-          payload.check_out_date = new Date(payload.check_out_date).toISOString();
-        } catch {
-          payload.check_out_date = new Date(Date.now() + 86400000).toISOString();
-        }
-      }
+      payload.check_out_date = toSqlDateTime(payload.check_out_date, tomorrowSql);
 
       // Guest counts
       payload.adults = payload.adults !== undefined ? (Number(payload.adults) || 1) : 1;
@@ -1527,16 +1468,6 @@ function normalizeApiResponse(res) {
         if (!b.check_out_date && b.checkOutDate) b.check_out_date = b.checkOutDate;
         if (!b.checkInDate && (b.checkIn || b.check_in)) b.checkInDate = b.checkIn || b.check_in;
         if (!b.checkOutDate && (b.checkOut || b.check_out)) b.checkOutDate = b.checkOut || b.check_out;
-        if (!b.checkInDate && b.createdAt) b.checkInDate = b.createdAt;
-        if (!b.checkOutDate && b.checkInDate) {
-          const n = Number(b.numberOfNights || b.nights || 1);
-          const dIn = new Date(b.checkInDate);
-          if (!isNaN(dIn.getTime())) {
-            dIn.setDate(dIn.getDate() + n);
-            b.checkOutDate = dIn.toISOString();
-            b.check_out_date = b.checkOutDate;
-          }
-        }
         if (!b.status) {
           if (b.actual_check_out || b.actualCheckOut) {
             b.status = "CHECKED_OUT";
@@ -1577,6 +1508,15 @@ function normalizeApiResponse(res) {
       arr.page = d.page;
       arr.limit = d.limit;
       arr.totalPages = d.total_pages || d.totalPages;
+      res.data = arr;
+    }
+    else if (Array.isArray(d.hotels)) {
+      const arr = d.hotels.map(deepDualCase);
+      arr.hotels = arr;
+      arr.total = d.total || d.pagination?.total || arr.length;
+      arr.page = d.page;
+      arr.limit = d.limit;
+      arr.totalPages = d.total_pages || d.totalPages || d.pagination?.total_pages;
       res.data = arr;
     }
     // If users list
@@ -1684,31 +1624,7 @@ async function executeApiRequest(endpoint, options = {}) {
   const { method = "GET", body, headers = {}, token, ...rest } = options;
   const authToken = token || (typeof window !== "undefined" ? (localStorage.getItem("token") || getCookie("accessToken") || getCookie("token")) : null);
 
-  // 1. Check for Virtual Dashboard & Static Endpoints fallback
   const normalizedEp = normalizeEndpointKey(endpoint);
-  if (
-    normalizedEp.includes("/super-admin/dashboard") ||
-    normalizedEp.includes("/admin/dashboard") ||
-    normalizedEp.includes("/receptionist/dashboard")
-  ) {
-    return {
-      success: true,
-      message: "Dashboard summary retrieved",
-      data: {
-        totalHotels: 2,
-        activeHotels: 2,
-        totalRooms: 25,
-        occupiedRooms: 1,
-        availableRooms: 24,
-        todayCheckIns: 1,
-        todayCheckOuts: 0,
-        pendingPayments: 7390,
-        totalRevenue: 12390,
-        monthlyRevenue: 12390,
-        recentBookings: [],
-      }
-    };
-  }
 
   if (normalizedEp.includes("/settings")) {
     return {

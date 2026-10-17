@@ -983,7 +983,7 @@ export default function StaffTeamPage({
                     {viewStaffModal.staff.name}
                   </Typography>
                   <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.85)" }}>
-                    {getRoleMeta(viewStaffModal.staff.role).label} &bull; Employee #{viewStaffModal.staff._id?.slice(-6) || viewStaffModal.staff.employeeId || "EMP-01"}
+                    {getRoleMeta(viewStaffModal.staff.role).label} &bull; Employee #{viewStaffModal.staff.employeeId || viewStaffModal.staff.employee_id || viewStaffModal.staff.id || viewStaffModal.staff._id || "EMP-01"}
                   </Typography>
                 </Box>
               </Box>

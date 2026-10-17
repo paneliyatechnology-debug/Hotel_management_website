@@ -41,6 +41,7 @@ import {
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useLiveCountdown } from "@/shared/utils/countdown";
+import { toast } from "@/shared/utils/toast";
 
 export default function SubscriptionPage({ user, subscription: initialSub, onRefresh }) {
   const { themeConfig, isDarkMode } = useAppTheme();
@@ -50,6 +51,7 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
   const [helpDialogOpen, setHelpDialogOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [ticketSent, setTicketSent] = useState(false);
+  const [purchasingId, setPurchasingId] = useState(null);
   const [helpForm, setHelpForm] = useState({
     name: user?.name || "",
     phone: user?.phone || user?.hotel?.ownerPhone || "",
@@ -57,7 +59,8 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
   });
 
   const hotel = user?.hotel || {};
-  const sub = initialSub || hotel.subscription || {};
+  const [liveSub, setLiveSub] = useState(null);
+  const sub = liveSub || initialSub || hotel.subscription || {};
   const supportContact = hotel.supportContact || {
     phone: "+91 98765 43210",
     email: "support@grandroyale-saas.com",
@@ -70,21 +73,31 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
   // Fetch real subscription plans from database
   useEffect(() => {
     fetchPlans();
+    fetchSubscription();
   }, []);
 
   const fetchPlans = async () => {
     try {
       setLoadingPlans(true);
       const res = await apiRequest(API_ENDPOINTS.SUBSCRIPTION_PLANS.PUBLIC);
-      if (res?.data?.all) {
-        setPlans(res.data.all);
-      } else if (Array.isArray(res?.data)) {
-        setPlans(res.data);
-      }
+      const list = res?.data?.all || res?.data?.plans || (Array.isArray(res?.data) ? res.data : []);
+      if (Array.isArray(list)) setPlans(list);
     } catch (err) {
       console.warn("Could not load real plans from API:", err);
+      toast.error(err?.message || "Could not load subscription plans.");
     } finally {
       setLoadingPlans(false);
+    }
+  };
+
+  const fetchSubscription = async () => {
+    try {
+      const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE);
+      const profile = res?.data || res;
+      const nextSub = profile?.subscription || profile?.hotel?.subscription;
+      if (nextSub) setLiveSub(nextSub);
+    } catch (err) {
+      console.warn("Could not load subscription:", err);
     }
   };
 
@@ -114,6 +127,36 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
     hour: "2-digit",
     minute: "2-digit",
   });
+
+  const handlePurchasePlan = async (plan) => {
+    const planId = plan?._id || plan?.id || plan?.planId || plan?.plan_id;
+    if (!planId) {
+      toast.error("This plan cannot be purchased yet.");
+      return;
+    }
+    try {
+      setPurchasingId(planId);
+      const res = await apiRequest(API_ENDPOINTS.SUBSCRIPTION_PLANS.PURCHASE(planId), {
+        method: "POST",
+        body: {
+          plan_id: planId,
+          billing_cycle: plan.billingCycle || plan.billing_cycle || billingCycle,
+        },
+      });
+      const redirectUrl = res?.data?.paymentUrl || res?.data?.payment_url || res?.data?.checkoutUrl || res?.data?.checkout_url || res?.data?.url;
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
+        return;
+      }
+      toast.success(res?.message || `${plan.name} purchased successfully.`);
+      await Promise.all([fetchPlans(), fetchSubscription()]);
+      if (typeof onRefresh === "function") onRefresh();
+    } catch (err) {
+      toast.error(err?.message || "Plan purchase failed.");
+    } finally {
+      setPurchasingId(null);
+    }
+  };
 
   const handleOpenUpgrade = (plan) => {
     setSelectedPlan(plan);
@@ -249,7 +292,11 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
             variant="contained"
             className="btn-3d"
             startIcon={<WorkspacePremium />}
-            onClick={() => handleOpenUpgrade("Professional Tier")}
+            onClick={() => {
+              const target = displayedPlans.find((p) => p.isPopular || p.badge === "MOST POPULAR") || displayedPlans[0];
+              if (target) handlePurchasePlan(target);
+              else toast.error("No subscription plan is available to purchase.");
+            }}
             sx={{
               background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
               color: "#FFFFFF",
@@ -487,7 +534,8 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
                       variant={isPopular ? "contained" : "outlined"}
                       fullWidth
                       className={isPopular ? "btn-3d" : ""}
-                      onClick={() => handleOpenUpgrade(plan)}
+                      onClick={() => handlePurchasePlan(plan)}
+                      disabled={purchasingId === (plan._id || plan.id)}
                       sx={{
                         borderRadius: "14px",
                         fontWeight: 900,
@@ -517,7 +565,7 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
                             }),
                       }}
                     >
-                      Choose {plan.name}
+                      {purchasingId === (plan._id || plan.id) ? "Purchasing..." : `Choose ${plan.name}`}
                     </Button>
                   </Card>
                 </Grid>

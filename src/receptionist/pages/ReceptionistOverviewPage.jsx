@@ -110,6 +110,23 @@ export default function ReceptionistOverviewPage({
   // Filter for Recent Front Desk Table: "TODAY_ALL" (Default: In & Out) | "TODAY_CHECKIN" | "TODAY_CHECKOUT" | "IN_HOUSE" | "ALL"
   const [recentFilter, setRecentFilter] = useState("TODAY_ALL");
 
+  const apiDateLabel = (value) => {
+    if (!value) return "—";
+    const text = String(value).trim();
+    const wall = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (wall && !/[zZ]$/.test(text)) return `${wall[3]}-${wall[2]}-${wall[1]}`;
+    const parsed = new Date(text);
+    if (Number.isNaN(parsed.getTime())) return "—";
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Kolkata",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).formatToParts(parsed);
+    const get = (type) => parts.find((part) => part.type === type)?.value || "";
+    return `${get("day")}-${get("month")}-${get("year")}`;
+  };
+
   // Selected Guest Modal State
   const [selectedGuestModal, setSelectedGuestModal] = useState({
     open: false,
@@ -328,47 +345,22 @@ export default function ReceptionistOverviewPage({
         ) : "") || "Not Assigned";
 
       const rawIn =
-        g.checkInDate ||
+        g.actual_check_in ||
+        g.actualCheckIn ||
         g.check_in_date ||
-        g.checkIn ||
-        g.check_in ||
-        g.arrivalDate ||
-        g.arrival_date ||
-        (b ? (b.checkInDate || b.check_in_date || b.checkIn || b.check_in || b.createdAt || b.created_at) : null) ||
-        g.createdAt ||
-        g.created_at ||
-        (isCheckedIn ? new Date().toISOString() : null);
+        g.checkInDate ||
+        (b ? (b.actual_check_in || b.actualCheckIn || b.check_in_date || b.checkInDate) : null);
 
-      let checkInDateStr = "N/A";
-      if (rawIn) {
-        checkInDateStr = typeof rawIn === "string" && rawIn.includes("T") ? rawIn.split("T")[0] : (typeof rawIn === "string" ? rawIn : new Date(rawIn).toISOString().split("T")[0]);
-      } else if (isCheckedIn) {
-        checkInDateStr = new Date().toISOString().split("T")[0];
-      }
+      const checkInDateStr = rawIn ? apiDateLabel(rawIn) : "—";
 
       const rawOut =
-        g.checkOutDate ||
+        g.actual_check_out ||
+        g.actualCheckOut ||
         g.check_out_date ||
-        g.checkOut ||
-        g.check_out ||
-        g.departureDate ||
-        g.departure_date ||
-        (b ? (b.checkOutDate || b.check_out_date || b.checkOut || b.check_out) : null);
+        g.checkOutDate ||
+        (b ? (b.actual_check_out || b.actualCheckOut || b.check_out_date || b.checkOutDate) : null);
 
-      let checkOutDateStr = "N/A";
-      if (rawOut) {
-        checkOutDateStr = typeof rawOut === "string" && rawOut.includes("T") ? rawOut.split("T")[0] : (typeof rawOut === "string" ? rawOut : new Date(rawOut).toISOString().split("T")[0]);
-      } else if (checkInDateStr !== "N/A") {
-        const inD = new Date(checkInDateStr);
-        if (!isNaN(inD.getTime())) {
-          inD.setDate(inD.getDate() + Math.max(1, Number(g.numberOfNights || b?.numberOfNights || b?.nights || 1)));
-          checkOutDateStr = inD.toISOString().split("T")[0];
-        }
-      } else if (isCheckedIn) {
-        const inD = new Date();
-        inD.setDate(inD.getDate() + Math.max(1, Number(g.numberOfNights || b?.numberOfNights || b?.nights || 1)));
-        checkOutDateStr = inD.toISOString().split("T")[0];
-      }
+      const checkOutDateStr = rawOut ? apiDateLabel(rawOut) : "—";
 
       const bTotal = Number(b?.totalAmount ?? b?.total_amount ?? b?.total ?? b?.grandTotal ?? 0);
       const bPaid = Number(b?.paidAmount ?? b?.paid_amount ?? b?.advancePaymentAmount ?? b?.advance_paid ?? 0);
@@ -440,45 +432,20 @@ export default function ReceptionistOverviewPage({
               : b.roomNumber || (b.room?.roomNumber ? String(b.room.roomNumber) : "Not Assigned");
 
         const rawIn =
-          b.checkInDate ||
+          b.actual_check_in ||
+          b.actualCheckIn ||
           b.check_in_date ||
-          b.checkIn ||
-          b.check_in ||
-          b.arrivalDate ||
-          b.arrival_date ||
-          b.createdAt ||
-          b.created_at ||
-          (b.status === "CHECKED_IN" || b.status === "IN-HOUSE" ? new Date().toISOString() : null);
+          b.checkInDate;
 
-        let checkInDateStr = "N/A";
-        if (rawIn) {
-          checkInDateStr = typeof rawIn === "string" && rawIn.includes("T") ? rawIn.split("T")[0] : (typeof rawIn === "string" ? rawIn : new Date(rawIn).toISOString().split("T")[0]);
-        } else if (b.status === "CHECKED_IN" || b.status === "IN-HOUSE") {
-          checkInDateStr = new Date().toISOString().split("T")[0];
-        }
+        const checkInDateStr = rawIn ? apiDateLabel(rawIn) : "—";
 
         const rawOut =
-          b.checkOutDate ||
+          b.actual_check_out ||
+          b.actualCheckOut ||
           b.check_out_date ||
-          b.checkOut ||
-          b.check_out ||
-          b.departureDate ||
-          b.departure_date;
+          b.checkOutDate;
 
-        let checkOutDateStr = "N/A";
-        if (rawOut) {
-          checkOutDateStr = typeof rawOut === "string" && rawOut.includes("T") ? rawOut.split("T")[0] : (typeof rawOut === "string" ? rawOut : new Date(rawOut).toISOString().split("T")[0]);
-        } else if (checkInDateStr !== "N/A") {
-          const inD = new Date(checkInDateStr);
-          if (!isNaN(inD.getTime())) {
-            inD.setDate(inD.getDate() + Math.max(1, Number(b?.numberOfNights || b?.nights || 1)));
-            checkOutDateStr = inD.toISOString().split("T")[0];
-          }
-        } else if (b.status === "CHECKED_IN" || b.status === "IN-HOUSE") {
-          const inD = new Date();
-          inD.setDate(inD.getDate() + Math.max(1, Number(b?.numberOfNights || b?.nights || 1)));
-          checkOutDateStr = inD.toISOString().split("T")[0];
-        }
+        const checkOutDateStr = rawOut ? apiDateLabel(rawOut) : "—";
 
         const bTotal = Number(b?.totalAmount ?? b?.total_amount ?? b?.total ?? b?.grandTotal ?? 0);
         const bPaid = Number(b?.paidAmount ?? b?.paid_amount ?? b?.advancePaymentAmount ?? b?.advance_paid ?? 0);
@@ -721,36 +688,18 @@ export default function ReceptionistOverviewPage({
             : [b.room?.roomNumber || b.room?.room_number || "101"];
 
       const rawCheckIn =
-        b.checkInDate ||
+        b.actual_check_in ||
+        b.actualCheckIn ||
         b.check_in_date ||
-        b.checkIn ||
-        b.check_in ||
-        b.arrivalDate ||
-        b.arrival_date ||
-        b.createdAt ||
-        b.created_at ||
-        (b.status === "CHECKED_IN" || b.booking_status === "CHECKED_IN" || b.status === "IN-HOUSE" ? new Date().toISOString() : null);
+        b.checkInDate ||
+        null;
 
-      let rawCheckOut =
-        b.checkOutDate ||
+      const rawCheckOut =
+        b.actual_check_out ||
+        b.actualCheckOut ||
         b.check_out_date ||
-        b.checkOut ||
-        b.check_out ||
-        b.departureDate ||
-        b.departure_date;
-
-      if (!rawCheckOut && rawCheckIn) {
-        const d = new Date(rawCheckIn);
-        if (!isNaN(d.getTime())) {
-          const nights = Math.max(1, Number(b.numberOfNights || b.nights || 1));
-          d.setDate(d.getDate() + nights);
-          rawCheckOut = d.toISOString();
-        }
-      } else if (!rawCheckOut && (b.status === "CHECKED_IN" || b.booking_status === "CHECKED_IN" || b.status === "IN-HOUSE")) {
-        const d = new Date();
-        d.setDate(d.getDate() + Math.max(1, Number(b.numberOfNights || b.nights || 1)));
-        rawCheckOut = d.toISOString();
-      }
+        b.checkOutDate ||
+        null;
 
       const rawBStatus = String(b.booking_status || b.status || "").toUpperCase();
       const statusNormalized = (rawBStatus === "CHECKED_IN" || rawBStatus === "IN-HOUSE")
@@ -788,9 +737,9 @@ export default function ReceptionistOverviewPage({
         roomAssigned: roomsList.length > 1 ? roomsList.join(", ") : roomsList[0],
         roomNumbers: roomsList,
         checkInDateRaw: rawCheckIn,
-        checkInDate: formatDDMMYYYY(rawCheckIn || new Date()),
+        checkInDate: rawCheckIn ? apiDateLabel(rawCheckIn) : "—",
         checkOutDateRaw: rawCheckOut,
-        checkOutDate: formatDDMMYYYY(rawCheckOut || new Date(Date.now() + 86400000)),
+        checkOutDate: rawCheckOut ? apiDateLabel(rawCheckOut) : "—",
         totalAmount: bTotal > 0 ? bTotal : (bPaid + bDue),
         paidAmount: bPaid,
         dueAmount: bDue,
@@ -832,17 +781,8 @@ export default function ReceptionistOverviewPage({
           if (cleanG) { delete cleanG.guest; delete cleanG.booking; delete cleanG.activeBooking; }
           const realId = g.id || g._id || cleanB?.id || cleanB?._id;
           const bNum = g.booking_number || g.bookingNumber || cleanB?.booking_number || cleanB?.bookingNumber;
-          const rawIn = g.checkInDateRaw || g.checkInDate || g.check_in_date || g.checkIn || g.createdAt || new Date().toISOString();
-          let rawOut = g.checkOutDateRaw || g.checkOutDate || g.check_out_date || g.checkOut;
-          if (!rawOut || rawOut === "N/A") {
-            const inD = new Date(rawIn);
-            if (!isNaN(inD.getTime())) {
-              inD.setDate(inD.getDate() + Math.max(1, Number(g.numberOfNights || 1)));
-              rawOut = inD.toISOString();
-            } else {
-              rawOut = new Date(Date.now() + 86400000).toISOString();
-            }
-          }
+          const rawIn = g.actual_check_in || g.actualCheckIn || g.check_in_date || g.checkInDate || g.checkInDateRaw || "";
+          const rawOut = g.actual_check_out || g.actualCheckOut || g.check_out_date || g.checkOutDate || g.checkOutDateRaw || "";
           return {
             _id: realId,
             id: realId,
@@ -861,9 +801,9 @@ export default function ReceptionistOverviewPage({
             roomAssigned: g.roomAssigned || "101",
             roomNumbers: [g.roomAssigned || "101"],
             checkInDateRaw: rawIn,
-            checkInDate: formatDDMMYYYY(rawIn || new Date()),
+            checkInDate: rawIn ? apiDateLabel(rawIn) : "—",
             checkOutDateRaw: rawOut,
-            checkOutDate: formatDDMMYYYY(rawOut || new Date(Date.now() + 86400000)),
+            checkOutDate: rawOut ? apiDateLabel(rawOut) : "—",
             totalAmount: Number(g.totalAmount ?? g.total_amount ?? cleanB?.totalAmount ?? cleanB?.total_amount ?? 0),
             paidAmount: Number(g.paidAmount ?? g.paid_amount ?? cleanB?.paidAmount ?? cleanB?.paid_amount ?? 0),
             baseAmount: Number(g.baseAmount ?? g.base_amount ?? cleanB?.baseAmount ?? cleanB?.base_amount ?? 0),
@@ -884,26 +824,17 @@ export default function ReceptionistOverviewPage({
       const inHouseFromBookings = allFormattedBookings.filter(
         (b) => b.status === "IN-HOUSE" || b.rawStatus === "CHECKED_IN"
       );
-      const seenBookingIds = new Set(inHouseFromBookings.map((b) => String(b._id)));
+      const seenBookingIds = new Set(inHouseFromBookings.map((b) => String(b.id || b._id)));
 
       const extraInHouse = (inHouseGuestsList || [])
-        .filter((g) => !seenBookingIds.has(String(g.booking?._id || g._id)))
+        .filter((g) => !seenBookingIds.has(String(g.id || g._id || g.booking?.id || g.booking?._id || "")))
         .map((g) => {
           const cleanB = (g.booking && g.booking !== g) ? { ...g.booking } : null;
           if (cleanB) { delete cleanB.guest; delete cleanB.booking; delete cleanB.activeBooking; }
           const cleanG = (g.guest && g.guest !== g) ? { ...g.guest } : null;
           if (cleanG) { delete cleanG.guest; delete cleanG.booking; delete cleanG.activeBooking; }
-          const rawIn = g.checkInDateRaw || g.checkInDate || g.check_in_date || g.checkIn || g.createdAt || new Date().toISOString();
-          let rawOut = g.checkOutDateRaw || g.checkOutDate || g.check_out_date || g.checkOut;
-          if (!rawOut || rawOut === "N/A") {
-            const inD = new Date(rawIn);
-            if (!isNaN(inD.getTime())) {
-              inD.setDate(inD.getDate() + Math.max(1, Number(g.numberOfNights || 1)));
-              rawOut = inD.toISOString();
-            } else {
-              rawOut = new Date(Date.now() + 86400000).toISOString();
-            }
-          }
+          const rawIn = g.actual_check_in || g.actualCheckIn || g.check_in_date || g.checkInDate || g.checkInDateRaw || "";
+          const rawOut = g.actual_check_out || g.actualCheckOut || g.check_out_date || g.checkOutDate || g.checkOutDateRaw || "";
           return {
             _id: g._id,
             ...(cleanB || {}),
@@ -918,9 +849,9 @@ export default function ReceptionistOverviewPage({
             roomAssigned: g.roomAssigned || "101",
             roomNumbers: [g.roomAssigned || "101"],
             checkInDateRaw: rawIn,
-            checkInDate: formatDDMMYYYY(rawIn || new Date()),
+            checkInDate: rawIn ? apiDateLabel(rawIn) : "—",
             checkOutDateRaw: rawOut,
-            checkOutDate: formatDDMMYYYY(rawOut || new Date(Date.now() + 86400000)),
+            checkOutDate: rawOut ? apiDateLabel(rawOut) : "—",
             totalAmount: Number(g.totalAmount ?? g.total_amount ?? cleanB?.totalAmount ?? cleanB?.total_amount ?? 0),
             paidAmount: Number(g.paidAmount ?? g.paid_amount ?? cleanB?.paidAmount ?? cleanB?.paid_amount ?? 0),
             baseAmount: Number(g.baseAmount ?? g.base_amount ?? cleanB?.baseAmount ?? cleanB?.base_amount ?? 0),
@@ -975,8 +906,13 @@ export default function ReceptionistOverviewPage({
   const countInHouse = useMemo(() => {
     const fromBookings = allFormattedBookings.filter(
       (b) => b.status === "IN-HOUSE" || b.rawStatus === "CHECKED_IN"
-    ).length;
-    return Math.max(fromBookings, (inHouseGuestsList || []).length);
+    );
+    const seen = new Set(fromBookings.map((b) => String(b.id || b._id)));
+    const extra = (inHouseGuestsList || []).filter((g) => {
+      const gid = String(g.id || g._id || g.booking?.id || g.booking?._id || "");
+      return gid && !seen.has(gid);
+    });
+    return fromBookings.length + extra.length;
   }, [allFormattedBookings, inHouseGuestsList]);
 
   const countTodayCheckIn = useMemo(() => {
@@ -1629,8 +1565,6 @@ export default function ReceptionistOverviewPage({
                   <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.2, whiteSpace: "nowrap" }}>Guest Name</TableCell>
                   <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Assigned Room</TableCell>
                   <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Contact</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Check-In Date</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Check-Out Date</TableCell>
                   <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Status</TableCell>
                   <TableCell align="center" sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Action</TableCell>
                 </TableRow>
@@ -1638,7 +1572,7 @@ export default function ReceptionistOverviewPage({
               <TableBody>
                 {activeRecentBookings.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center" sx={{ py: 3.5, color: themeConfig.textMuted, fontWeight: 700 }}>
+                    <TableCell colSpan={5} align="center" sx={{ py: 3.5, color: themeConfig.textMuted, fontWeight: 700 }}>
                       {recentFilter === "TODAY_ALL"
                         ? "No check-ins, check-outs, or active in-house guests for today."
                         : recentFilter === "TODAY_CHECKOUT"
@@ -1720,40 +1654,6 @@ export default function ReceptionistOverviewPage({
                           <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain }}>
                             {g.phone}
                           </Typography>
-                        </TableCell>
-                        <TableCell sx={{ color: themeConfig.textMuted }}>
-                          {isTodayDate(g.checkInDateRaw || g.checkInDate) ? (
-                            <Chip
-                              label={(!g.checkInDate || g.checkInDate === "N/A") ? formatDDMMYYYY(new Date()) : g.checkInDate}
-                              size="small"
-                              sx={{
-                                fontWeight: 800,
-                                fontSize: "0.72rem",
-                                borderRadius: "6px",
-                                bgcolor: "rgba(16, 185, 129, 0.12)",
-                                color: "#059669",
-                                border: "1px solid rgba(16, 185, 129, 0.3)",
-                              }}
-                            />
-                          ) : (
-                            <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain }}>
-                              {(!g.checkInDate || g.checkInDate === "N/A") ? formatDDMMYYYY(new Date()) : g.checkInDate}
-                            </Typography>
-                          )}
-                        </TableCell>
-                        <TableCell sx={{ color: themeConfig.textMuted }}>
-                          <Chip
-                            label={(!g.checkOutDate || g.checkOutDate === "N/A") ? formatDDMMYYYY(new Date(Date.now() + 86400000)) : g.checkOutDate}
-                            size="small"
-                            sx={{
-                              fontWeight: 800,
-                              fontSize: "0.72rem",
-                              borderRadius: "6px",
-                              bgcolor: isTodayDate(g.checkOutDateRaw || g.checkOutDate) ? "rgba(239, 68, 68, 0.1)" : "transparent",
-                              color: isTodayDate(g.checkOutDateRaw || g.checkOutDate) ? "#EF4444" : themeConfig.textMain,
-                              border: isTodayDate(g.checkOutDateRaw || g.checkOutDate) ? "1px solid rgba(239, 68, 68, 0.3)" : `1px solid ${themeConfig.border}`,
-                            }}
-                          />
                         </TableCell>
                         <TableCell>
                           <StatusChip status={g.status || "IN-HOUSE"} size="small" />

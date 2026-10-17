@@ -62,6 +62,7 @@ import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import StatCard from "@/shared/components/StatCard";
 import { formatTime12Hour, calculateOverstayFee } from "@/shared/utils/timeUtils";
+import { folioMoney, loadBookingDetail } from "@/shared/utils/folioMoney";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
 import { toast } from "@/shared/utils/toast";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
@@ -82,6 +83,8 @@ export default function InHouseFoliosPage({
   onOpenPosCharge,
   loading = false,
   loadError = "",
+  checkoutRequest = null,
+  onCheckoutRequestHandled,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
   const [stayById, setStayById] = useState({});
@@ -350,22 +353,18 @@ export default function InHouseFoliosPage({
     return true;
   });
 
-  const handleOpenCheckout = (booking) => {
+  const handleOpenCheckout = async (booking) => {
+    const detail = await loadBookingDetail(booking);
     const defaultOption = "hourly";
-    const overstay = calculateOverstayFee(booking, hotelSettings, { selectedOption: defaultOption });
-    const posChargesTotal = (booking.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
-    const bTotal = Number(booking.totalAmount ?? booking.total_amount ?? 0);
-    const paidTotal = Number(booking.paidAmount ?? booking.paid_amount ?? 0);
+    const overstay = calculateOverstayFee(detail, hotelSettings, { selectedOption: defaultOption });
+    const posChargesTotal = (detail.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
     const lateFee = overstay?.lateFee || 0;
-    const grandTotal = (bTotal > 0 ? bTotal : (paidTotal + Number(booking.dueAmount ?? booking.due_amount ?? 0))) + posChargesTotal + lateFee;
-    let due = Number(booking.dueAmount ?? booking.due_amount ?? Math.max(0, grandTotal - paidTotal));
-    if (lateFee > 0 && due === Number(booking.dueAmount ?? booking.due_amount ?? 0)) {
-      due += lateFee;
-    }
+    const money = folioMoney(detail);
+    const due = Math.max(0, money.total + posChargesTotal + lateFee - money.paid);
 
     setCheckoutDialog({
       open: true,
-      booking,
+      booking: detail,
       overstay,
       lateOption: defaultOption,
       lateFee,
@@ -376,18 +375,21 @@ export default function InHouseFoliosPage({
     });
   };
 
+  useEffect(() => {
+    if (!checkoutRequest?.guest) return;
+    const guest = checkoutRequest.guest;
+    const booking = guest.booking || guest;
+    handleOpenCheckout(booking);
+    if (onCheckoutRequestHandled) onCheckoutRequestHandled();
+  }, [checkoutRequest]);
+
   const handleLateOptionChange = (newOption) => {
     if (!checkoutDialog.booking) return;
     const overstay = calculateOverstayFee(checkoutDialog.booking, hotelSettings, { selectedOption: newOption });
     const posChargesTotal = (checkoutDialog.booking.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
-    const bTotal = Number(checkoutDialog.booking.totalAmount ?? checkoutDialog.booking.total_amount ?? 0);
-    const paidTotal = Number(checkoutDialog.booking.paidAmount ?? checkoutDialog.booking.paid_amount ?? 0);
     const lateFee = overstay?.lateFee || 0;
-    const grandTotal = (bTotal > 0 ? bTotal : (paidTotal + Number(checkoutDialog.booking.dueAmount ?? checkoutDialog.booking.due_amount ?? 0))) + posChargesTotal + lateFee;
-    let due = Number(checkoutDialog.booking.dueAmount ?? checkoutDialog.booking.due_amount ?? Math.max(0, grandTotal - paidTotal));
-    if (lateFee > 0 && due === Number(checkoutDialog.booking.dueAmount ?? checkoutDialog.booking.due_amount ?? 0)) {
-      due += lateFee;
-    }
+    const money = folioMoney(checkoutDialog.booking);
+    const due = Math.max(0, money.total + posChargesTotal + lateFee - money.paid);
 
     setCheckoutDialog((prev) => ({
       ...prev,
@@ -1237,7 +1239,7 @@ export default function InHouseFoliosPage({
                         </Typography>
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.85rem" }}>
-                        ₹{Number(checkoutDialog.booking?.totalAmount ?? checkoutDialog.booking?.total_amount ?? 0).toLocaleString()}
+                        ₹{folioMoney(checkoutDialog.booking).base.toLocaleString("en-IN")}
                       </TableCell>
                     </TableRow>
 
@@ -1276,7 +1278,7 @@ export default function InHouseFoliosPage({
                         Total Folio Bill
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: 900, fontSize: "0.92rem", color: themeConfig.textMain }}>
-                        ₹{((Number(checkoutDialog.booking?.totalAmount ?? checkoutDialog.booking?.total_amount ?? 0)) + (checkoutDialog.lateFee || 0) + ((checkoutDialog.booking?.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0))).toLocaleString()}
+                        ₹{(folioMoney(checkoutDialog.booking).total + (checkoutDialog.lateFee || 0) + ((checkoutDialog.booking?.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0))).toLocaleString("en-IN")}
                       </TableCell>
                     </TableRow>
 

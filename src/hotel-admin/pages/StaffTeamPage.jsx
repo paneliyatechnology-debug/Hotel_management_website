@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -50,8 +50,7 @@ import {
   AdminPanelSettings,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
-import { usePresence } from "@/shared/context/SocketContext";
-import PresenceBadge from "@/shared/components/PresenceBadge";
+import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import { formatTime12Hour } from "@/shared/utils/timeUtils";
@@ -100,8 +99,6 @@ export default function StaffTeamPage({
   getInitialStaffForm,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
-  const { isUserOnline } = usePresence();
-
   const totalReceptionists = staffList.filter((s) => (s.role || "").toUpperCase().includes("RECEPTIONIST")).length;
   const totalManagers = staffList.filter((s) => (s.role || "").toUpperCase().includes("MANAGER")).length;
   const totalHousekeeping = staffList.filter((s) => (s.role || "").toUpperCase().includes("HOUSEKEEPING")).length;
@@ -110,6 +107,31 @@ export default function StaffTeamPage({
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [serverStaff, setServerStaff] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const params = new URLSearchParams({
+        page: String(page + 1),
+        limit: String(rowsPerPage),
+      });
+      params.set("role", staffRoleFilter && staffRoleFilter !== "ALL" ? staffRoleFilter : "RECEPTIONIST");
+      if ((staffSearch || "").trim()) params.set("search", staffSearch.trim());
+      try {
+        const res = await apiRequest(`${API_ENDPOINTS.USERS.ALL}?${params.toString()}`, { forceRefresh: true });
+        const list = Array.isArray(res?.data) ? res.data : [];
+        const rawTotal = res?.data?.total ?? res?.data?.pagination?.total ?? res?.data?.pagination?.totalRecords;
+        if (!cancelled && Number.isFinite(Number(rawTotal))) setServerStaff({ list, total: Number(rawTotal) });
+        else if (!cancelled) setServerStaff(null);
+      } catch {
+        if (!cancelled) setServerStaff(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, rowsPerPage, staffSearch, staffRoleFilter]);
 
   const filteredStaff = staffList.filter((s) => {
     const q = (staffSearch || "").toLowerCase();
@@ -201,7 +223,8 @@ export default function StaffTeamPage({
     }
   };
 
-  const paginatedStaff = filteredStaff.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  const paginatedStaff = serverStaff ? serverStaff.list : filteredStaff.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  const staffCount = serverStaff ? serverStaff.total : filteredStaff.length;
 
   return (
     <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
@@ -320,10 +343,12 @@ export default function StaffTeamPage({
             ? "0 8px 24px -4px rgba(0, 0, 0, 0.4)"
             : "0 8px 24px -4px rgba(12, 39, 59, 0.04), inset 0 1px 0 #FFFFFF",
           display: "flex",
-          flexDirection: { xs: "column", sm: "row" },
-          alignItems: "center",
+          flexDirection: { xs: "column", lg: "row" },
+          alignItems: { xs: "stretch", lg: "center" },
           justifyContent: "space-between",
           gap: 2,
+          overflow: "visible",
+          minWidth: 0,
         }}
       >
         <TextField
@@ -333,7 +358,9 @@ export default function StaffTeamPage({
           onChange={(e) => setStaffSearch(e.target.value)}
           sx={{
             width: "100%",
-            minWidth: { xs: "100%", sm: 260 },
+            flex: { lg: "1 1 280px" },
+            minWidth: 0,
+            maxWidth: { lg: 420 },
             "& .MuiOutlinedInput-root": {
               borderRadius: "12px",
               bgcolor: themeConfig.bgMain,
@@ -355,16 +382,12 @@ export default function StaffTeamPage({
           sx={{
             display: "flex",
             gap: 1,
-            flexWrap: "nowrap",
+            flexWrap: "wrap",
             alignItems: "center",
-            overflowX: "auto",
-            WebkitOverflowScrolling: "touch",
+            justifyContent: { xs: "flex-start", lg: "flex-end" },
             py: 0.5,
             width: "100%",
-            maxWidth: "100%",
-            "&::-webkit-scrollbar": { display: "none" },
-            msOverflowStyle: "none",
-            scrollbarWidth: "none",
+            minWidth: 0,
           }}
         >
           {[
@@ -438,7 +461,7 @@ export default function StaffTeamPage({
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredStaff.length === 0 ? (
+            {staffCount === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} sx={{ py: 6, textAlign: "center" }}>
                   <EmptyState
@@ -480,7 +503,6 @@ export default function StaffTeamPage({
                           <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
                             {staff.name}
                           </Typography>
-                          <PresenceBadge isOnline={isUserOnline(staff._id || staff.id)} size="small" />
                         </Box>
 
                       </Box>
@@ -610,11 +632,11 @@ export default function StaffTeamPage({
             )}
           </TableBody>
         </Table>
-        {filteredStaff.length > 0 && (
+        {staffCount > 0 && (
           <TablePagination
             rowsPerPageOptions={[5, 10, 25, 50]}
             component="div"
-            count={filteredStaff.length}
+            count={staffCount}
             rowsPerPage={rowsPerPage}
             page={page}
             onPageChange={(e, newPage) => setPage(newPage)}

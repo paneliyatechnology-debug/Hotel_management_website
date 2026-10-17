@@ -42,20 +42,34 @@ import { toast } from "@/shared/utils/toast";
 /**
  * 1. OCCUPANCY RADIAL DONUT CHART (Custom High-End SVG)
  */
-export function OccupancyDonutChart({ rooms = [] }) {
+export function OccupancyDonutChart({ rooms = [], statuses = null, occupancyRate = null }) {
   const { themeConfig, isDarkMode } = useAppTheme();
   const [hoveredSegment, setHoveredSegment] = useState(null);
 
-  const total = rooms.length || 1;
-  const occupied = rooms.filter((r) => r.status === "OCCUPIED").length;
-  const available = rooms.filter((r) => r.status === "AVAILABLE").length;
-  const cleaning = rooms.filter((r) => r.status === "CLEANING").length;
-  const maintenance = rooms.filter((r) => r.status === "MAINTENANCE" || r.status === "BLOCKED").length;
+  const countFromApi = (name) => {
+    if (!Array.isArray(statuses)) return null;
+    return statuses
+      .filter((row) => String(row.status || "").toUpperCase() === name)
+      .reduce((sum, row) => sum + Number(row.count || 0), 0);
+  };
 
-  const occRate = Math.round((occupied / total) * 100);
+  const total = Number(
+    Array.isArray(statuses) && statuses.length
+      ? statuses.reduce((sum, row) => sum + Number(row.count || 0), 0)
+      : rooms.length
+  ) || 1;
+  const occupied = countFromApi("OCCUPIED") ?? rooms.filter((r) => r.status === "OCCUPIED").length;
+  const available = countFromApi("AVAILABLE") ?? rooms.filter((r) => r.status === "AVAILABLE").length;
+  const cleaning = countFromApi("CLEANING") ?? rooms.filter((r) => r.status === "CLEANING").length;
+  const reserved = countFromApi("RESERVED") ?? rooms.filter((r) => r.status === "RESERVED").length;
+  const maintenance = (countFromApi("MAINTENANCE") ?? rooms.filter((r) => r.status === "MAINTENANCE").length)
+    + (countFromApi("BLOCKED") ?? rooms.filter((r) => r.status === "BLOCKED").length);
+
+  const occRate = occupancyRate != null ? Math.round(Number(occupancyRate)) : Math.round((occupied / total) * 100);
 
   const segments = [
     { label: "Occupied", count: occupied, color: "#3B82F6", grad: "url(#donutOccupied)", desc: "Currently in room" },
+    { label: "Reserved", count: reserved, color: "#0B8EE0", grad: "url(#donutOccupied)", desc: "Reserved" },
     { label: "Available", count: available, color: "#10B981", grad: "url(#donutAvailable)", desc: "Ready for check-in" },
     { label: "Cleaning", count: cleaning, color: "#F59E0B", grad: "url(#donutCleaning)", desc: "In turnaround" },
     { label: "Maintenance", count: maintenance, color: "#EF4444", grad: "url(#donutMaint)", desc: "Blocked / Repair" },
@@ -280,20 +294,17 @@ export function RevenueWaveChart({ dashboardData, isDarkMode }) {
   const revenueData = useMemo(() => {
     if (Array.isArray(weeklyBreakdown) && weeklyBreakdown.length > 0) {
       return weeklyBreakdown.map((item, idx) => {
-        const amt = Number(item.amount || 0);
-        let weekday = item.dayName;
-        if (!weekday && item.date) {
-          const dObj = new Date(item.date);
-          if (!isNaN(dObj.getTime())) {
-            weekday = dObj.toLocaleDateString("en-US", { weekday: "short" });
-          }
-        }
-        if (!weekday) weekday = item.day ? item.day.slice(0, 3) : `D${idx + 1}`;
+        const amt = Number(item.amount ?? item.revenue ?? 0);
+        const weekday = item.day || item.dayName || `Day ${idx + 1}`;
+        const rawDate = String(item.date || item.formattedDate || "").split("T")[0];
+        const parts = rawDate.split("-");
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const dateLabel = parts.length === 3 ? `${Number(parts[2])} ${months[Number(parts[1]) - 1] || ""}`.trim() : rawDate;
 
         return {
-          day: item.formattedDate || item.day || `Day ${idx + 1}`,
-          dayName: weekday,
-          dayFull: item.weekdayFull || item.day || item.formattedDate,
+          day: weekday,
+          dayName: dateLabel,
+          dayFull: weekday,
           total: amt,
           upi: Number(item.upiAmount ?? 0),
           cash: Number(item.cashAmount ?? amt),

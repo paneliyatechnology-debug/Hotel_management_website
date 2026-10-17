@@ -172,6 +172,7 @@ export default function GuestListPage({
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [bookingDetails, setBookingDetails] = useState({});
+  const [serverPage, setServerPage] = useState(null);
 
   // Real-Time Socket Auto-Sync
   useSocket(
@@ -191,7 +192,7 @@ export default function GuestListPage({
 
   // List the bookings API records (check-in / check-out stays) as they arrive.
   const unifiedGuests = useMemo(() => {
-    const source = asRecordList(bookings);
+    const source = serverPage?.list || asRecordList(bookings);
     const records = source.length > 0 ? source : asRecordList(guests);
     const items = [];
     const seenIds = new Set();
@@ -242,7 +243,34 @@ export default function GuestListPage({
     });
 
     return items;
-  }, [bookings, guests, rooms]);
+  }, [bookings, guests, rooms, serverPage]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const params = new URLSearchParams({
+        page: String(page + 1),
+        limit: String(rowsPerPage),
+      });
+      if (searchQuery.trim()) params.set("search", searchQuery.trim());
+      if (statusFilter !== "ALL") params.set("booking_status", statusFilter);
+      try {
+        const res = await apiRequest(`${API_ENDPOINTS.BOOKINGS.ALL}?${params.toString()}`, { forceRefresh: true });
+        const list = Array.isArray(res?.data) ? res.data : [];
+        const rawTotal = res?.data?.total ?? res?.data?.pagination?.total ?? res?.data?.pagination?.totalRecords;
+        if (!cancelled && Number.isFinite(Number(rawTotal))) {
+          setServerPage({ list, total: Number(rawTotal) });
+        } else if (!cancelled) {
+          setServerPage(null);
+        }
+      } catch {
+        if (!cancelled) setServerPage(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, rowsPerPage, searchQuery, statusFilter]);
 
   useEffect(() => {
     const missing = unifiedGuests.filter((g) => {
@@ -285,8 +313,13 @@ export default function GuestListPage({
     const baseAmount = num(firstValue(sources, ["base_amount", "baseAmount", "room_amount", "roomAmount"]));
     const gstAmount = num(firstValue(sources, ["gst_amount", "gstAmount", "tax_amount", "taxAmount"]));
     const bookedPlusGst = baseAmount + gstAmount;
-    const totalAmount = bookedPlusGst > 0 ? bookedPlusGst : num(firstValue(sources, ["total_amount", "totalAmount", "grand_total", "grandTotal"]));
-    return { ...g, checkIn, checkOut, baseAmount, gstAmount, totalAmount };
+    const totalAmount = bookedPlusGst > 0 ? bookedPlusGst : num(firstValue(sources, ["total_amount", "totalAmount", "grand_total", "grandTotal", "totalAmount"]));
+    const paidAmount = num(firstValue(sources, ["paid_amount", "paidAmount", "advance_paid", "advancePaid"])) || g.paidAmount || 0;
+    const dueFromApi = firstValue(sources, ["due_amount", "dueAmount"]);
+    const dueAmount = dueFromApi !== undefined && dueFromApi !== null && dueFromApi !== ""
+      ? num(dueFromApi)
+      : Math.max(0, totalAmount - paidAmount);
+    return { ...g, checkIn, checkOut, baseAmount, gstAmount, totalAmount, paidAmount, dueAmount };
   };
 
   // Telemetry Metrics
@@ -361,9 +394,10 @@ export default function GuestListPage({
 
   // Paginated Slices
   const paginatedGuests = useMemo(() => {
+    if (serverPage) return filteredGuests;
     const start = page * rowsPerPage;
     return filteredGuests.slice(start, start + rowsPerPage);
-  }, [filteredGuests, page, rowsPerPage]);
+  }, [filteredGuests, page, rowsPerPage, serverPage]);
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
@@ -397,22 +431,28 @@ export default function GuestListPage({
       "Booking Number",
     ];
 
-    const rows = filteredGuests.map((g) => [
-      `"${g.guestName.replace(/"/g, '""')}"`,
-      `"${g.phone}"`,
-      `"${g.email}"`,
-      `"${g.roomAssigned}"`,
-      `"${g.roomType}"`,
-      `"${formatDate(g.checkInDate)}"`,
-      `"${formatDate(g.checkOutDate)}"`,
-      `"${g.status}"`,
-      g.totalAmount,
-      g.paidAmount,
-      g.dueAmount,
-      `"${formatDateTime(g.actualCheckIn)}"`,
-      `"${formatDateTime(g.actualCheckOut)}"`,
-      `"${g.bookingNumber}"`,
-    ]);
+    const rows = filteredGuests.map((g) => {
+      const stay = withApiStay(g);
+      const amount = Number(stay.totalAmount) || 0;
+      const paid = Number(stay.paidAmount) || 0;
+      const due = Number(stay.dueAmount) || 0;
+      return [
+        `"${String(g.guestName || "").replace(/"/g, '""')}"`,
+        `"${g.phone || ""}"`,
+        `"${g.email || ""}"`,
+        `"${g.roomAssigned || ""}"`,
+        `"${g.roomType || ""}"`,
+        `"${formatDate(stay.checkIn || g.checkInDate)}"`,
+        `"${formatDate(stay.checkOut || g.checkOutDate)}"`,
+        `"${g.status || ""}"`,
+        amount,
+        paid,
+        due,
+        `"${formatDateTime(g.actualCheckIn || stay.checkIn)}"`,
+        `"${formatDateTime(g.actualCheckOut || stay.checkOut)}"`,
+        `"${g.bookingNumber || ""}"`,
+      ];
+    });
 
     const csvContent =
       "data:text/csv;charset=utf-8," +
@@ -450,7 +490,7 @@ export default function GuestListPage({
   }
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: { xs: 2.5, md: 3.5 }, px: { xs: 0.5, sm: 0.5 }, pb: 2 }}>
       {/* Page Header */}
       <Box
         sx={{
@@ -542,8 +582,8 @@ export default function GuestListPage({
       </Box>
 
       {/* Telemetry Stat Cards */}
-      <Grid container spacing={2.5}>
-        <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
+      <Grid container spacing={{ xs: 2, md: 2.5 }}>
+        <Grid size={{ xs: 12, sm: 6, lg: 4, xl: 2.4 }}>
           <StatCard
             title="Total Guests"
             value={metrics.total}
@@ -552,7 +592,7 @@ export default function GuestListPage({
             color="#2563EB"
           />
         </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
+        <Grid size={{ xs: 12, sm: 6, lg: 4, xl: 2.4 }}>
           <StatCard
             title="In-House Active"
             value={metrics.inHouse}
@@ -561,7 +601,7 @@ export default function GuestListPage({
             color="#059669"
           />
         </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
+        <Grid size={{ xs: 12, sm: 6, lg: 4, xl: 2.4 }}>
           <StatCard
             title="Checked Out / Past"
             value={metrics.departed}
@@ -570,7 +610,7 @@ export default function GuestListPage({
             color="#7C3AED"
           />
         </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
+        <Grid size={{ xs: 12, sm: 6, lg: 4, xl: 2.4 }}>
           <StatCard
             title="Total Guest Collections"
             value={formatCurrency(metrics.totalRevenue)}
@@ -579,7 +619,7 @@ export default function GuestListPage({
             color="#D97706"
           />
         </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
+        <Grid size={{ xs: 12, sm: 6, lg: 4, xl: 2.4 }}>
           <StatCard
             title="Outstanding Dues"
             value={formatCurrency(metrics.totalDues)}
@@ -1029,7 +1069,7 @@ export default function GuestListPage({
 
           <TablePagination
             component="div"
-            count={filteredGuests.length}
+            count={serverPage ? serverPage.total : filteredGuests.length}
             page={page}
             onPageChange={handleChangePage}
             rowsPerPage={rowsPerPage}

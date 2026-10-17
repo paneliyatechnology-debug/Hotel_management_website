@@ -210,7 +210,7 @@ export const API_ENDPOINTS = createCaseFlexibleProxy({
     LOGS: `${API_BASE_URL}/api/v1/audit-logs`,
   },
   HOTEL_ADMIN: {
-    DASHBOARD: `${API_BASE_URL}/api/v1/admin/dashboard`,
+    DASHBOARD: `${API_BASE_URL}/api/v1/dashboard`,
     ROOM_TYPES: `${API_BASE_URL}/api/v1/room-types`,
     UPDATE_ROOM_TYPE: (id) => `${API_BASE_URL}/api/v1/room-types/${id}`,
     DELETE_ROOM_TYPE: (id) => `${API_BASE_URL}/api/v1/room-types/${id}`,

@@ -471,8 +471,14 @@ export default function HotelOverviewPage({
     0
   );
   const liveMonthRevNum = Number(fin.monthlyRevenue ?? dashboardData?.monthlyRevenue ?? 0);
-  const liveTotalGuests = guests.length || ops.currentGuests || 0;
-  const liveInHouseGuests = guests.filter((g) => g.status === "IN-HOUSE").length || ops.currentGuests || 0;
+  const listedGuestTotal = Number(guests.total ?? bookings.total);
+  const liveTotalGuests = Number.isFinite(listedGuestTotal) && listedGuestTotal >= 0
+    ? listedGuestTotal
+    : (guests.length || bookings.length || 0);
+  const liveInHouseGuests = Number(ops.currentGuests ?? guests.filter((g) => {
+    const status = String(g.status || g.booking_status || "").toUpperCase();
+    return status === "IN-HOUSE" || status === "CHECKED_IN" || status === "OCCUPIED";
+  }).length) || 0;
 
   const todayRevenue = `₹${liveTodayRevNum.toLocaleString("en-IN")}`;
   const weeklyEarnings = `₹${liveWeeklyRevNum.toLocaleString("en-IN")}`;
@@ -686,6 +692,7 @@ export default function HotelOverviewPage({
           onBackToDashboard={() => setShowRevenueDetailsView(false)}
           hotelSettings={hotelSettings}
           initialFilter={revenueFilterMode}
+          dashboardData={dashboardData}
         />
       </Box>
     );
@@ -738,7 +745,7 @@ export default function HotelOverviewPage({
             </Box>
 
             <Typography variant="h4" sx={{ fontWeight: 900, color: "#FFFFFF", letterSpacing: -0.5, fontSize: { xs: "1.25rem", sm: "1.8rem" } }}>
-              {user?.hotel?.name || "MYOWNPMS"}
+              {dashboardData?.hotel?.name || user?.hotel?.name || "MYOWNPMS"}
             </Typography>
             {user?.hotel?.city ? (
               <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.8)", mt: 0.5, fontSize: { xs: "0.78rem", sm: "0.85rem" }, display: "flex", alignItems: "center", gap: 0.6 }}>
@@ -869,11 +876,11 @@ export default function HotelOverviewPage({
           {/* Card 3: Total Guests */}
           <StatCard
             title="TOTAL GUESTS"
-            value={`${liveTotalGuests || liveInHouseGuests || 0} Guests`}
-            subtitle={`${liveInHouseGuests || 0} Active in-house • ${totalOccupied} Rooms`}
+            value={`${liveTotalGuests} Guests`}
+            subtitle={`${liveInHouseGuests} in-house • ${ops.checkedInToday || 0} checked in today • ${ops.checkedOutToday || 0} checked out`}
             icon={<Person />}
             color="#8B5CF6"
-            badgeText="In-House"
+            badgeText="Total"
           />
 
           {/* Card 4: Monthly Revenue */}
@@ -922,7 +929,11 @@ export default function HotelOverviewPage({
         >
           {/* 1. Circular Occupancy Donut */}
           <Box sx={{ gridColumn: { xs: "span 12", md: "span 12", lg: "span 5", xl: "span 4" }, display: "flex", flexDirection: "column" }}>
-            <OccupancyDonutChart rooms={rooms} />
+            <OccupancyDonutChart
+              rooms={rooms}
+              statuses={(dashboardData?.room_status_graph || dashboardData?.roomStatusGraph)?.statuses}
+              occupancyRate={dashboardData?.operationsSummary?.occupancyRate}
+            />
           </Box>
 
           {/* 2. 7-Day Revenue Curve Wave */}

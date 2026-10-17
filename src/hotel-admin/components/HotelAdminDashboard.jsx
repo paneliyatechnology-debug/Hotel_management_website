@@ -12,12 +12,15 @@ import { useSocket } from "@/shared/context/SocketContext";
 
 function extractRecords(res) {
   const payload = res?.data !== undefined ? res.data : res;
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.bookings)) return payload.bookings;
-  if (Array.isArray(payload?.guests)) return payload.guests;
-  if (Array.isArray(payload?.data)) return payload.data;
-  if (Array.isArray(payload?.data?.bookings)) return payload.data.bookings;
-  return [];
+  let list = [];
+  if (Array.isArray(payload)) list = payload;
+  else if (Array.isArray(payload?.bookings)) list = payload.bookings;
+  else if (Array.isArray(payload?.guests)) list = payload.guests;
+  else if (Array.isArray(payload?.data)) list = payload.data;
+  else if (Array.isArray(payload?.data?.bookings)) list = payload.data.bookings;
+  const rawTotal = payload?.total ?? payload?.pagination?.total ?? payload?.pagination?.totalRecords ?? payload?.pagination?.total_records;
+  if (Number.isFinite(Number(rawTotal))) list.total = Number(rawTotal);
+  return list;
 }
 
 function asRoomList(res) {
@@ -70,6 +73,60 @@ const DailyCollectionsPage = dynamic(() => import("../pages/DailyCollectionsPage
 const StaffTeamPage = dynamic(() => import("../pages/StaffTeamPage"), { loading: () => <ComponentSpinner /> });
 const RoomTypesPage = dynamic(() => import("../pages/RoomTypesPage"), { loading: () => <ComponentSpinner /> });
 const SubscriptionPage = dynamic(() => import("../pages/SubscriptionPage"), { loading: () => <ComponentSpinner /> });
+
+function adaptHotelDashboard(data) {
+  if (!data || typeof data !== "object") return data;
+  const kpis = data.kpis || {};
+  const pulse = data.today_pulse || data.todayPulse || {};
+  const weekly = data.weekly_revenue_graph || data.weeklyRevenueGraph || [];
+  const methods = data.revenue_by_payment_method || data.revenueByPaymentMethod || {};
+  const quota = data.subscription_quota || data.subscriptionQuota || {};
+  const weekTotal = Array.isArray(weekly) ? weekly.reduce((sum, day) => sum + Number(day.revenue || 0), 0) : 0;
+  const todayRevenue = Number(kpis.today_revenue ?? kpis.todayRevenue ?? 0);
+  const monthRevenue = Number(kpis.month_revenue ?? kpis.monthRevenue ?? 0);
+
+  return {
+    ...data,
+    financials: {
+      ...(data.financials || {}),
+      todayRevenue,
+      monthlyRevenue: monthRevenue,
+      weeklyRevenue: weekTotal,
+      outstandingDue: Number(kpis.total_outstanding_due ?? kpis.totalOutstandingDue ?? 0),
+    },
+    weeklyRevenue: {
+      totalThisWeek: weekTotal,
+      totalCash: Number(methods.CASH ?? methods.cash ?? 0),
+      totalUpi: Number(methods.UPI ?? methods.upi ?? 0),
+      breakdown: (Array.isArray(weekly) ? weekly : []).map((day) => ({
+        date: day.date,
+        day: day.day,
+        dayName: day.day,
+        amount: Number(day.revenue || 0),
+        cashAmount: 0,
+        upiAmount: 0,
+      })),
+    },
+    operationsSummary: {
+      ...(data.operationsSummary || {}),
+      currentGuests: Number(pulse.current_in_house_guests ?? pulse.currentInHouseGuests ?? 0),
+      checkedInToday: Number(pulse.actual_checked_in_today ?? pulse.actualCheckedInToday ?? 0),
+      checkedOutToday: Number(pulse.actual_checked_out_today ?? pulse.actualCheckedOutToday ?? 0),
+      occupancyRate: Number(kpis.occupancy_rate_percentage ?? kpis.occupancyRatePercentage ?? 0),
+      totalRooms: Number(kpis.total_physical_rooms ?? kpis.totalPhysicalRooms ?? 0),
+      activeStaff: Number(kpis.active_staff_count ?? kpis.activeStaffCount ?? 0),
+    },
+    subscription: data.subscription || (quota.plan_name || quota.planName
+      ? {
+          plan: quota.plan_name || quota.planName,
+          planId: quota.plan_id || quota.planId,
+          maxRooms: quota.max_rooms_allowed ?? quota.maxRoomsAllowed,
+          roomsConfigured: quota.rooms_configured ?? quota.roomsConfigured,
+          status: "ACTIVE",
+        }
+      : data.subscription),
+  };
+}
 
 export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }) {
   const { themeConfig } = useAppTheme();
@@ -153,7 +210,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
 
       if (forceRefresh) {
         endpointsToFetch.push(
-          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(res.data)),
+          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(adaptHotelDashboard(res.data))),
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
           apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => setBookings(extractRecords(res))),
           apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => setGuests(extractRecords(res))),
@@ -164,7 +221,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         // Route 0: OVERVIEW / DASHBOARD
         if (tabIndex === 0) {
           endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(res.data)),
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(adaptHotelDashboard(res.data))),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES).then((res) => setRoomTypes(normalizeRoomTypes(res))),
             apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => setBookings(extractRecords(res))),
@@ -196,7 +253,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         // Route 4: ROOMS & CATEGORIES MASTER
         else if (tabIndex === 4) {
           endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(res.data)),
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(adaptHotelDashboard(res.data))),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES).then((res) => setRoomTypes(normalizeRoomTypes(res)))
           );
@@ -204,7 +261,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         // Route 5: SUBSCRIPTION
         else if (tabIndex === 5) {
           endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(res.data)),
+            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(adaptHotelDashboard(res.data))),
             apiRequest(API_ENDPOINTS.SUBSCRIPTION_PLANS.PUBLIC),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => {
               const profile = res?.data || res;

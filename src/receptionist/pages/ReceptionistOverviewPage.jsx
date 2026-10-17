@@ -30,6 +30,7 @@ import {
   MenuItem,
 } from "@mui/material";
 import { toast } from "@/shared/utils/toast";
+import { folioMoney, loadBookingDetail } from "@/shared/utils/folioMoney";
 import {
   HowToReg,
   CleaningServices,
@@ -85,6 +86,7 @@ export default function ReceptionistOverviewPage({
   onNavigateTab,
   onSelectRoomForCheckIn,
   onCheckOut,
+  onRequestCheckout,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
 
@@ -143,22 +145,39 @@ export default function ReceptionistOverviewPage({
     isSubmitting: false,
   });
 
-  const handleOpenCheckoutModal = (item) => {
-    const rawTotal = Number(item.totalAmount ?? item.total_amount ?? item.booking?.totalAmount ?? item.booking?.total_amount ?? 0);
-    const rawPaid = Number(item.paidAmount ?? item.paid_amount ?? item.booking?.paidAmount ?? item.booking?.paid_amount ?? 0);
-    const due = Number(item.dueAmount ?? item.due_amount ?? item.booking?.dueAmount ?? item.booking?.due_amount ?? Math.max(0, rawTotal - rawPaid));
+  const handleOpenCheckoutModal = async (item) => {
+    const seed = folioMoney(item.booking || item);
     setCheckoutModal({
       open: true,
       item: {
         ...item,
-        totalAmount: rawTotal,
-        paidAmount: rawPaid,
-        dueAmount: due,
+        totalAmount: seed.total,
+        paidAmount: seed.paid,
+        dueAmount: seed.due,
       },
-      paymentMethod: due > 0 ? "UPI" : "CASH",
-      settlementAmount: due,
+      paymentMethod: seed.due > 0 ? "UPI" : "CASH",
+      settlementAmount: seed.due,
       isSubmitting: false,
     });
+    try {
+      const source = await loadBookingDetail(item.booking || item);
+      const money = folioMoney(source);
+      setCheckoutModal((prev) => ({
+        ...prev,
+        open: true,
+        item: {
+          ...item,
+          booking: source,
+          totalAmount: money.total,
+          paidAmount: money.paid,
+          dueAmount: money.due,
+        },
+        paymentMethod: money.due > 0 ? "UPI" : "CASH",
+        settlementAmount: money.due,
+      }));
+    } catch (err) {
+      toast.error(err?.message || "Could not load booking amount");
+    }
   };
 
   const handleConfirmCheckoutModal = async () => {
@@ -921,12 +940,6 @@ export default function ReceptionistOverviewPage({
 
   const countAll = allFormattedBookings.length;
 
-  useEffect(() => {
-    if (allFormattedBookings.length > 0 && countTodayAll === 0 && recentFilter === "TODAY_ALL") {
-      setRecentFilter("ALL");
-    }
-  }, [allFormattedBookings.length, countTodayAll, recentFilter]);
-
   return (
     <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
       {/* ========================================================================= */}
@@ -997,7 +1010,7 @@ export default function ReceptionistOverviewPage({
             <Button
               variant="contained"
               startIcon={<Bolt />}
-              onClick={() => onNavigateTab && onNavigateTab(1)}
+              onClick={() => onNavigateTab && onNavigateTab(2)}
               className="btn-3d"
               sx={{
                 background: "linear-gradient(135deg, #FFFFFF 0%, #E6EFF8 100%)",
@@ -1188,7 +1201,7 @@ export default function ReceptionistOverviewPage({
             <Button
               variant="outlined"
               endIcon={<ArrowForward />}
-              onClick={() => onNavigateTab && onNavigateTab(1)}
+              onClick={() => onNavigateTab && onNavigateTab(2)}
               sx={{
                 borderRadius: "12px",
                 fontWeight: 800,
@@ -1229,14 +1242,11 @@ export default function ReceptionistOverviewPage({
               {categoryStats.map((cat) => {
                 const hasAvailable = cat.available > 0;
                 const isAllBooked = cat.available === 0 && cat.totalRooms > 0;
-                const adultsCount = cat.capacity?.adults || 2;
-                const kidsCount = cat.capacity?.children || 1;
-
                 return (
                   <Card
                     key={cat._id || cat.id}
                     className="card-3d"
-                    onClick={() => onNavigateTab && onNavigateTab(1, cat._id || cat.id || cat.name)}
+                    onClick={() => onNavigateTab && onNavigateTab(2, cat._id || cat.id || cat.name)}
                     sx={{
                       p: { xs: 2, sm: 2.2, md: 2.5 },
                       borderRadius: "20px",
@@ -1291,65 +1301,6 @@ export default function ReceptionistOverviewPage({
                             {cat.name}
                           </Typography>
                         </Box>
-
-                        <Box sx={{ textAlign: "right", flexShrink: 0, whiteSpace: "nowrap" }}>
-                          <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.primary, lineHeight: 1, fontSize: { xs: "1.15rem", sm: "1.25rem" } }}>
-                            ₹{Number(cat.basePrice || 0).toLocaleString()}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block", mt: 0.3, fontSize: "0.72rem" }}>
-                            / night
-                          </Typography>
-                        </Box>
-                      </Box>
-
-                      {/* Specs Row: Guests & Bed across full card width */}
-                      <Box
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          flexWrap: "wrap",
-                          gap: 0.8,
-                          mb: 1.5,
-                          px: 0.2,
-                        }}
-                      >
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            color: themeConfig.textMuted,
-                            fontWeight: 800,
-                            fontSize: "0.75rem",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 0.5,
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          👥 Max {adultsCount} Guests {kidsCount > 0 ? `(+ ${kidsCount} Kids)` : ""}
-                        </Typography>
-
-                        <Chip
-                          icon={<Bed sx={{ fontSize: 13, color: `${themeConfig.primaryDark} !important` }} />}
-                          label={
-                            cat.bedType
-                              ? String(cat.bedType).toLowerCase().includes("bed")
-                                ? cat.bedType
-                                : `${cat.bedType} Bed`
-                              : `${cat.bedCount} Bed`
-                          }
-                          size="small"
-                          sx={{
-                            bgcolor: themeConfig.champagne,
-                            color: themeConfig.primaryDark,
-                            fontWeight: 800,
-                            fontSize: "0.7rem",
-                            height: 23,
-                            border: "none",
-                            flexShrink: 0,
-                            "& .MuiChip-label": { px: 0.8, whiteSpace: "nowrap" },
-                          }}
-                        />
                       </Box>
 
                       {/* 3 Status Units */}
@@ -1534,7 +1485,7 @@ export default function ReceptionistOverviewPage({
               <Button
                 size="small"
                 endIcon={<ArrowForward fontSize="small" />}
-                onClick={() => onNavigateTab && onNavigateTab(2)}
+                onClick={() => onNavigateTab && onNavigateTab(3)}
                 sx={{
                   fontWeight: 800,
                   fontSize: "0.8rem",
@@ -1667,7 +1618,8 @@ export default function ReceptionistOverviewPage({
                               startIcon={<Logout sx={{ fontSize: 15 }} />}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleOpenCheckoutModal(g);
+                                if (onRequestCheckout) onRequestCheckout(g);
+                                else handleOpenCheckoutModal(g);
                               }}
                               sx={{
                                 fontWeight: 800,
@@ -2371,14 +2323,18 @@ export default function ReceptionistOverviewPage({
       <Dialog
         open={checkoutModal.open}
         onClose={() => !checkoutModal.isSubmitting && setCheckoutModal({ open: false, item: null, paymentMethod: "CASH", settlementAmount: 0, isSubmitting: false })}
-        maxWidth="xs"
+        maxWidth="sm"
         fullWidth
         slotProps={{ paper: { sx: { borderRadius: "20px", p: 1 } } }}
       >
-        <DialogTitle sx={{ fontWeight: 900, pb: 1, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Logout color="error" />
-            <Typography variant="h6" sx={{ fontWeight: 900 }}>Confirm Guest Check-Out</Typography>
+        <DialogTitle sx={{ fontWeight: 900, pb: 1, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+              Room #{checkoutModal.item?.roomAssigned || ""} Status
+            </Typography>
+            <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
+              Active In-House Guest Settlement & Checkout
+            </Typography>
           </Box>
           <IconButton size="small" onClick={() => setCheckoutModal({ open: false, item: null, paymentMethod: "CASH", settlementAmount: 0, isSubmitting: false })}>
             <Close fontSize="small" />
@@ -2387,50 +2343,68 @@ export default function ReceptionistOverviewPage({
         <DialogContent dividers>
           {checkoutModal.item && (
             <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 0.5 }}>
-              <Box sx={{ p: 2, borderRadius: "14px", bgcolor: themeConfig.champagne, border: `1px solid ${themeConfig.border}` }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                  {checkoutModal.item.name}
-                </Typography>
-                <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
-                  Room #{checkoutModal.item.roomAssigned} &bull; Contact: {checkoutModal.item.phone}
-                </Typography>
-                <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.primary, mt: 0.5, display: "block" }}>
-                  Check-In: {checkoutModal.item.checkInDate}
-                </Typography>
-              </Box>
-
-              {checkoutModal.item.dueAmount > 0 && (
+              <Paper sx={{ p: 1.6, borderRadius: "16px", bgcolor: isDarkMode ? "rgba(11,142,224,0.08)" : "rgba(11,142,224,0.05)", border: `1px solid ${themeConfig.border}`, display: "flex", alignItems: "center", gap: 1.5 }}>
+                <Avatar sx={{ bgcolor: themeConfig.primary, fontWeight: 900 }}>{(checkoutModal.item.name || "G").charAt(0)}</Avatar>
                 <Box>
-                  <Typography variant="caption" sx={{ fontWeight: 800, color: "#EF4444", mb: 0.5, display: "block" }}>
-                    Outstanding Folio Balance: ₹{checkoutModal.item.dueAmount}
-                  </Typography>
-                  <TextField
-                    label="Settlement Amount (₹)"
-                    type="number"
-                    size="small"
-                    fullWidth
-                    value={checkoutModal.settlementAmount}
-                    onChange={(e) => setCheckoutModal((prev) => ({ ...prev, settlementAmount: e.target.value }))}
-                    sx={{ mb: 1.5 }}
-                  />
-                  <TextField
-                    select
-                    label="Payment Method"
-                    size="small"
-                    fullWidth
-                    value={checkoutModal.paymentMethod}
-                    onChange={(e) => setCheckoutModal((prev) => ({ ...prev, paymentMethod: e.target.value }))}
-                  >
-                    <MenuItem value="CASH">Cash Payment</MenuItem>
-                    <MenuItem value="UPI">UPI / QR Code</MenuItem>
-                    <MenuItem value="CARD">Debit / Credit Card</MenuItem>
-                  </TextField>
+                  <Typography sx={{ fontWeight: 900, color: themeConfig.textMain, lineHeight: 1.2 }}>{checkoutModal.item.name}</Typography>
+                  <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>{checkoutModal.item.phone}</Typography>
+                  <Chip label={`Folio #${checkoutModal.item.bookingNumber || checkoutModal.item.booking?.bookingNumber || "Active"}`} size="small" sx={{ ml: 1, height: 20, fontWeight: 800, fontSize: "0.68rem" }} />
                 </Box>
-              )}
+              </Paper>
 
-              <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontSize: "0.85rem" }}>
-                Are you sure you want to check out <strong>{checkoutModal.item.name}</strong> from <strong>Room #{checkoutModal.item.roomAssigned}</strong>? Room status will automatically change to <em>Cleaning Needed</em>.
-              </Typography>
+              <Paper sx={{ p: 1.5, borderRadius: "16px", border: `1px solid ${themeConfig.border}` }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 900, mb: 1 }}>Folio Billing & Dues Verification</Typography>
+                <TableContainer sx={{ borderRadius: "10px", border: `1px solid ${themeConfig.border}` }}>
+                  <Table size="small">
+                    <TableHead sx={{ bgcolor: themeConfig.champagne }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 800 }}>Item / Description</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 800 }}>Amount</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell>Room Tariff (Room Stay)</TableCell>
+                        <TableCell align="right">₹{Number(checkoutModal.item.totalAmount || 0).toLocaleString("en-IN")}</TableCell>
+                      </TableRow>
+                      <TableRow sx={{ bgcolor: themeConfig.champagne }}>
+                        <TableCell sx={{ fontWeight: 900 }}>Total Folio Charges</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 900 }}>₹{Number(checkoutModal.item.totalAmount || 0).toLocaleString("en-IN")}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={{ color: "#059669" }}>Advance Paid at Check-In</TableCell>
+                        <TableCell align="right" sx={{ color: "#059669", fontWeight: 800 }}>-₹{Number(checkoutModal.item.paidAmount || 0).toLocaleString("en-IN")}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 900, color: checkoutModal.item.dueAmount > 0 ? "#DC2626" : "#059669" }}>Folio Settlement Status:</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 900, color: checkoutModal.item.dueAmount > 0 ? "#DC2626" : "#059669" }}>
+                          {checkoutModal.item.dueAmount > 0 ? `₹${Number(checkoutModal.item.dueAmount).toLocaleString("en-IN")} Due` : "✓ ₹0 Due (Fully Cleared)"}
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Paper>
+
+              {checkoutModal.item.dueAmount > 0 ? (
+                <TextField
+                  select
+                  label="Payment Method"
+                  size="small"
+                  fullWidth
+                  value={checkoutModal.paymentMethod}
+                  onChange={(e) => setCheckoutModal((prev) => ({ ...prev, paymentMethod: e.target.value }))}
+                >
+                  <MenuItem value="CASH">Cash Payment</MenuItem>
+                  <MenuItem value="UPI">UPI / QR Code</MenuItem>
+                  <MenuItem value="CARD">Debit / Credit Card</MenuItem>
+                </TextField>
+              ) : (
+                <Paper sx={{ p: 1.6, borderRadius: "14px", bgcolor: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.25)" }}>
+                  <Typography sx={{ fontWeight: 900, color: "#059669" }}>✓ Account Fully Cleared</Typography>
+                  <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>No pending balance for this room. Ready for checkout.</Typography>
+                </Paper>
+              )}
             </Box>
           )}
         </DialogContent>
@@ -2438,25 +2412,25 @@ export default function ReceptionistOverviewPage({
           <Button
             onClick={() => setCheckoutModal({ open: false, item: null, paymentMethod: "CASH", settlementAmount: 0, isSubmitting: false })}
             disabled={checkoutModal.isSubmitting}
-            sx={{ borderRadius: "10px" }}
+            sx={{ borderRadius: "10px", textTransform: "none", fontWeight: 700 }}
           >
             Cancel
           </Button>
           <Button
             variant="contained"
-            color="error"
             onClick={handleConfirmCheckoutModal}
             disabled={checkoutModal.isSubmitting}
             startIcon={<Logout />}
             sx={{
-              borderRadius: "10px",
+              borderRadius: "12px",
               fontWeight: 800,
-              bgcolor: "#EF4444",
-              "&:hover": { bgcolor: "#DC2626" },
+              textTransform: "none",
+              bgcolor: "#0F766E",
+              "&:hover": { bgcolor: "#115E59" },
               px: 2.5,
             }}
           >
-            {checkoutModal.isSubmitting ? "Processing..." : "Complete Check-Out"}
+            {checkoutModal.isSubmitting ? "Processing..." : "Complete Check-Out & Release Room"}
           </Button>
         </DialogActions>
       </Dialog>

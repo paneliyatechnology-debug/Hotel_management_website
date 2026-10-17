@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -69,6 +69,7 @@ const getCategoryIcon = (categoryName = "") => {
   return <MeetingRoom sx={{ fontSize: 22, color: "#0F766E" }} />;
 };
 import { useAppTheme } from "@/shared/context/ThemeContext";
+import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import EmptyState from "@/shared/components/EmptyState";
 import StatusChip from "@/shared/components/StatusChip";
 
@@ -135,6 +136,7 @@ export default function RoomTypesPage({
   const [categoryRowsPerPage, setCategoryRowsPerPage] = useState(6);
   const [roomPage, setRoomPage] = useState(0);
   const [roomRowsPerPage, setRoomRowsPerPage] = useState(5);
+  const [serverRooms, setServerRooms] = useState(null);
 
   const fieldSx = (invalid) => ({
     "& .MuiOutlinedInput-root": {
@@ -327,7 +329,34 @@ export default function RoomTypesPage({
         return String(typeId) === String(selectedCategory._id || selectedCategory.id) || (selectedCategory.name && (r.room_type_name || r.roomTypeName) === selectedCategory.name);
       })
     : [];
-  const pagedRooms = selectedRooms.slice(roomPage * roomRowsPerPage, roomPage * roomRowsPerPage + roomRowsPerPage);
+  useEffect(() => {
+    if (!selectedCategory) {
+      setServerRooms(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const params = new URLSearchParams({
+        page: String(roomPage + 1),
+        limit: String(roomRowsPerPage),
+        room_type_id: String(selectedCategory._id || selectedCategory.id),
+      });
+      try {
+        const res = await apiRequest(`${API_ENDPOINTS.ROOMS.ALL}?${params.toString()}`, { forceRefresh: true });
+        const list = Array.isArray(res?.data) ? res.data : [];
+        const rawTotal = res?.data?.total ?? res?.data?.pagination?.total ?? res?.data?.pagination?.totalRecords;
+        if (!cancelled && Number.isFinite(Number(rawTotal))) setServerRooms({ list, total: Number(rawTotal) });
+        else if (!cancelled) setServerRooms(null);
+      } catch {
+        if (!cancelled) setServerRooms(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCategory, roomPage, roomRowsPerPage]);
+
+  const pagedRooms = serverRooms ? serverRooms.list : selectedRooms.slice(roomPage * roomRowsPerPage, roomPage * roomRowsPerPage + roomRowsPerPage);
   const pagedCategories = roomTypes.slice(categoryPage * categoryRowsPerPage, categoryPage * categoryRowsPerPage + categoryRowsPerPage);
 
   return (
@@ -634,10 +663,10 @@ export default function RoomTypesPage({
               </Box>
 
               <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 1.5 }}>
-                {selectedCategory.name} · {selectedRooms.length} {selectedRooms.length === 1 ? "Room" : "Rooms"}
+                {selectedCategory.name} · {(serverRooms ? serverRooms.total : selectedRooms.length)} {(serverRooms ? serverRooms.total : selectedRooms.length) === 1 ? "Room" : "Rooms"}
               </Typography>
 
-              {selectedRooms.length === 0 ? (
+              {(serverRooms ? serverRooms.total : selectedRooms.length) === 0 ? (
                 <EmptyState title="No rooms in this category" description={`Add a room under ${selectedCategory.name} to see it in this list.`} />
               ) : (
                 <TableContainer sx={{ border: `1px solid ${themeConfig.border}`, borderRadius: "14px" }}>
@@ -713,7 +742,7 @@ export default function RoomTypesPage({
                   </Table>
                   <TablePagination
                     component="div"
-                    count={selectedRooms.length}
+                    count={serverRooms ? serverRooms.total : selectedRooms.length}
                     page={roomPage}
                     onPageChange={(e, next) => setRoomPage(next)}
                     rowsPerPage={roomRowsPerPage}

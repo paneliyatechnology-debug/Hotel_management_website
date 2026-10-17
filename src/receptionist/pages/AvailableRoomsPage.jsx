@@ -82,6 +82,7 @@ import { useAppTheme } from "@/shared/context/ThemeContext";
 import EmptyState from "@/shared/components/EmptyState";
 import StatusChip from "@/shared/components/StatusChip";
 import { formatTime12Hour, calculateOverstayFee } from "@/shared/utils/timeUtils";
+import { folioMoney, loadBookingDetail } from "@/shared/utils/folioMoney";
 
 export default function AvailableRoomsPage({
   user,
@@ -575,7 +576,7 @@ export default function AvailableRoomsPage({
   }, [categoryStats, selectedCategoryFilter, selectedFloor, selectedStatus, roomSearch, bookings]);
 
   // Open Room Status Change / Checkout Settlement Dialog
-  const handleOpenStatusDialog = (room) => {
+  const handleOpenStatusDialog = async (room) => {
     const rId = String(room?._id || "");
     const rNum = String(room?.roomNumber || "");
 
@@ -602,24 +603,21 @@ export default function AvailableRoomsPage({
     let grandTotal = 0;
     let lateFee = 0;
 
-    if (matchedBooking) {
-      overstay = calculateOverstayFee(matchedBooking, hotelSettings, { selectedOption: "hourly" });
-      const posChargesTotal = (matchedBooking.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
+    const bookingDetail = matchedBooking ? await loadBookingDetail(matchedBooking) : null;
+    if (bookingDetail) {
+      overstay = calculateOverstayFee(bookingDetail, hotelSettings, { selectedOption: "hourly" });
+      const posChargesTotal = (bookingDetail.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
       lateFee = overstay?.lateFee || 0;
-      const bTotal = Number(matchedBooking.totalAmount ?? matchedBooking.total_amount ?? 0);
-      const paidTotal = Number(matchedBooking.paidAmount ?? matchedBooking.paid_amount ?? 0);
-      grandTotal = (bTotal > 0 ? bTotal : (paidTotal + Number(matchedBooking.dueAmount ?? matchedBooking.due_amount ?? 0))) + posChargesTotal + lateFee;
-      due = Number(matchedBooking.dueAmount ?? matchedBooking.due_amount ?? Math.max(0, grandTotal - paidTotal));
-      if (lateFee > 0 && due === Number(matchedBooking.dueAmount ?? matchedBooking.due_amount ?? 0)) {
-        due += lateFee;
-      }
+      const money = folioMoney(bookingDetail);
+      grandTotal = money.total + posChargesTotal + lateFee;
+      due = Math.max(0, grandTotal - money.paid);
     }
 
     setStatusDialog({
       open: true,
       room,
       newStatus: room.status === "OCCUPIED" ? "CLEANING" : (room.status || "AVAILABLE"),
-      booking: matchedBooking || null,
+      booking: bookingDetail || null,
       overstay,
       lateOption: "hourly",
       lateFee,
@@ -635,13 +633,9 @@ export default function AvailableRoomsPage({
     const overstay = calculateOverstayFee(statusDialog.booking, hotelSettings, { selectedOption: newOption });
     const posChargesTotal = (statusDialog.booking.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
     const lateFee = overstay?.lateFee || 0;
-    const bTotal = Number(statusDialog.booking.totalAmount ?? statusDialog.booking.total_amount ?? 0);
-    const paidTotal = Number(statusDialog.booking.paidAmount ?? statusDialog.booking.paid_amount ?? 0);
-    const grandTotal = (bTotal > 0 ? bTotal : (paidTotal + Number(statusDialog.booking.dueAmount ?? statusDialog.booking.due_amount ?? 0))) + posChargesTotal + lateFee;
-    let due = Number(statusDialog.booking.dueAmount ?? statusDialog.booking.due_amount ?? Math.max(0, grandTotal - paidTotal));
-    if (lateFee > 0 && due === Number(statusDialog.booking.dueAmount ?? statusDialog.booking.due_amount ?? 0)) {
-      due += lateFee;
-    }
+    const money = folioMoney(statusDialog.booking, statusDialog.room);
+    const grandTotal = money.total + posChargesTotal + lateFee;
+    const due = Math.max(0, grandTotal - money.paid);
 
     setStatusDialog((prev) => ({
       ...prev,
@@ -2627,9 +2621,10 @@ export default function AvailableRoomsPage({
           `upi://pay?pa=${hotelUpi}&pn=${upiPayee}&am=${upiAmount}&cu=INR&tn=${upiNote}`
         )}`;
         const posChargesTotal = (statusDialog.booking?.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
-        const bTotal = Number(statusDialog.booking?.totalAmount ?? statusDialog.booking?.total_amount ?? 0);
-        const paidAmount = Number(statusDialog.booking?.paidAmount ?? statusDialog.booking?.paid_amount ?? 0);
-        const folioGrandTotal = (bTotal > 0 ? bTotal : (paidAmount + Number(statusDialog.booking?.dueAmount ?? statusDialog.booking?.due_amount ?? 0))) + posChargesTotal + (statusDialog.lateFee || 0);
+        const money = folioMoney(statusDialog.booking, statusDialog.room);
+        const paidAmount = money.paid;
+        const roomTariff = money.base || money.total;
+        const folioGrandTotal = money.total + posChargesTotal + (statusDialog.lateFee || 0);
 
         return (
           <Dialog
@@ -2835,7 +2830,7 @@ export default function AvailableRoomsPage({
                               Room Tariff ({statusDialog.booking?.roomType?.name || "Room Stay"})
                             </TableCell>
                             <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.8rem", py: 0.8 }}>
-                              ₹{(statusDialog.booking?.totalAmount || 0).toLocaleString()}
+                              ₹{roomTariff.toLocaleString("en-IN")}
                             </TableCell>
                           </TableRow>
 

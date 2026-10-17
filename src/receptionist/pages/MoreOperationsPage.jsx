@@ -63,8 +63,18 @@ export default function MoreOperationsPage({ user, hotelSettings, onLogout }) {
   const checkInTime = hotelSettings?.checkInTime || user?.hotel?.settings?.checkInTime || "14:00";
   const checkOutTime = hotelSettings?.checkOutTime || user?.hotel?.settings?.checkOutTime || "12:00";
 
+  const roleLabel = String(userRole).replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+
   return (
-    <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 }, maxWidth: 900, mx: "auto" }}>
+    <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2.5, sm: 3.5 }, maxWidth: 980, mx: "auto", display: "flex", flexDirection: "column", gap: 3 }}>
+      <Box>
+        <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.4 }}>
+          More
+        </Typography>
+        <Typography variant="body2" sx={{ color: themeConfig.textMuted, mt: 0.4 }}>
+          Your front desk profile, hotel timings, and sign out.
+        </Typography>
+      </Box>
       {/* Profile Overview Hero Card */}
       <Card
         className="card-3d"
@@ -177,7 +187,7 @@ export default function MoreOperationsPage({ user, hotelSettings, onLogout }) {
             >
               <Chip
                 icon={<Badge sx={{ fontSize: "14px !important", color: `${themeConfig.primary} !important` }} />}
-                label={`Role: ${userRole}`}
+                label={roleLabel}
                 size="small"
                 sx={{
                   bgcolor: themeConfig.champagne,
@@ -216,7 +226,6 @@ export default function MoreOperationsPage({ user, hotelSettings, onLogout }) {
           boxShadow: isDarkMode
             ? "0 10px 30px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05)"
             : "0 8px 24px rgba(12, 39, 59, 0.05)",
-          mb: 3,
         }}
       >
         <Typography
@@ -240,7 +249,7 @@ export default function MoreOperationsPage({ user, hotelSettings, onLogout }) {
           sx={{
             display: "grid",
             gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-            gap: 2,
+            gap: 2.5,
           }}
         >
           {/* Email */}
@@ -353,12 +362,10 @@ export default function MoreOperationsPage({ user, hotelSettings, onLogout }) {
               <Schedule sx={{ fontSize: 15, color: themeConfig.primary }} />
               Check-In / Out Policy
             </Typography>
-            <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-              Check-In: {checkInTime} | Check-Out: {checkOutTime}
-            </Typography>
-            <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
-              Standard property front desk schedule
-            </Typography>
+            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 0.6 }}>
+              <Chip label={`Check-in ${checkInTime}`} size="small" sx={{ fontWeight: 800, bgcolor: "rgba(16,185,129,0.12)", color: "#059669" }} />
+              <Chip label={`Check-out ${checkOutTime}`} size="small" sx={{ fontWeight: 800, bgcolor: "rgba(11,142,224,0.12)", color: "#0284C7" }} />
+            </Box>
           </Box>
         </Box>
       </Card>

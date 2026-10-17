@@ -126,6 +126,7 @@ export function useReceptionistRooms(options = {}) {
 export function useBookingRoomOptions(params = {}, options = {}) {
   return useQuery({
     queryKey: ["receptionist", "booking-room-options", params],
+    queryFn: async () => {
       const searchParams = new URLSearchParams();
       if (params.checkInDate || params.checkIn || params.check_in_date) {
         searchParams.append("check_in_date", params.check_in_date || params.checkInDate || params.checkIn);

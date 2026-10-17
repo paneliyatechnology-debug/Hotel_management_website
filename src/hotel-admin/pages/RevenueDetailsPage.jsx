@@ -52,7 +52,7 @@ import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import EmptyState from "@/shared/components/EmptyState";
 
-export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, initialFilter = "THIS_WEEK" }) {
+export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, initialFilter = "THIS_WEEK", dashboardData }) {
   const { themeConfig, isDarkMode } = useAppTheme();
 
   // Filters State
@@ -78,6 +78,54 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
 
   // Selected Transaction for Dialog
   const [selectedTxn, setSelectedTxn] = useState(null);
+  const [bookingRows, setBookingRows] = useState([]);
+
+  const toYmd = (value) => {
+    if (!value) return "";
+    const text = String(value);
+    const match = text.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) return match[1];
+    const parsed = new Date(value);
+    if (isNaN(parsed.getTime())) return "";
+    const month = String(parsed.getMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getDate()).padStart(2, "0");
+    return `${parsed.getFullYear()}-${month}-${day}`;
+  };
+
+  const dateWindow = () => {
+    const now = new Date();
+    const ymd = (d) => toYmd(d);
+    if (filterType === "TODAY") return [ymd(now), ymd(now)];
+    if (filterType === "THIS_WEEK" || filterType === "LAST_WEEK") {
+      const day = now.getDay();
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1) - (filterType === "LAST_WEEK" ? 7 : 0));
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      return [ymd(monday), ymd(sunday)];
+    }
+    if (filterType === "THIS_MONTH" || filterType === "LAST_MONTH") {
+      const start = new Date(now.getFullYear(), now.getMonth() - (filterType === "LAST_MONTH" ? 1 : 0), 1);
+      const end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+      return [ymd(start), ymd(end)];
+    }
+    if (filterType === "CUSTOM" && startDate && endDate) return [toYmd(startDate), toYmd(endDate)];
+    return ["", ""];
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiRequest(`${API_ENDPOINTS.BOOKINGS.ALL}?page=1&limit=100`, { forceRefresh: true });
+        const list = Array.isArray(res?.data) ? res.data : res?.data?.bookings || [];
+        if (!cancelled) setBookingRows(list);
+      } catch {
+        if (!cancelled) setBookingRows([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [filterType, startDate, endDate]);
 
   const fetchRevenueDetails = async () => {
     setLoading(true);
@@ -117,12 +165,65 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
     setPage(0);
   };
 
-  const transactions = revenueData?.transactions || [];
-  const breakdown = revenueData?.revenueBreakdown || { roomBooking: 0, extraServices: 0, foodRestaurant: 0, otherCharges: 0, total: 0 };
-  const dateRangeLabel = revenueData?.dateRange?.label || "Selected Range";
-  const totalRev = revenueData?.totalRevenue || 0;
-  const totalTxnCount = revenueData?.totalTransactions || 0;
+  const kpis = dashboardData?.kpis || {};
+  const methods = dashboardData?.revenue_by_payment_method || dashboardData?.revenueByPaymentMethod || {};
+  const weekly = dashboardData?.weeklyRevenue?.breakdown || dashboardData?.weekly_revenue_graph || dashboardData?.weeklyRevenueGraph || [];
+  const todayRevenue = Number(dashboardData?.financials?.todayRevenue ?? kpis.today_revenue ?? kpis.todayRevenue ?? 0);
+  const monthRevenue = Number(dashboardData?.financials?.monthlyRevenue ?? kpis.month_revenue ?? kpis.monthRevenue ?? 0);
+  const weekRevenue = weekly.reduce((sum, day) => sum + Number(day.amount ?? day.revenue ?? 0), 0);
+  const cashTotal = Number(methods.CASH ?? methods.cash ?? dashboardData?.weeklyRevenue?.totalCash ?? 0);
+  const upiTotal = Number(methods.UPI ?? methods.upi ?? dashboardData?.weeklyRevenue?.totalUpi ?? 0);
+  const cardTotal = Number(methods.CARD ?? methods.card ?? 0);
+  const otherTotal = Number(methods.BANK_TRANSFER ?? methods.bankTransfer ?? 0) + Number(methods.ONLINE ?? methods.online ?? 0);
+  const apiTransactions = revenueData?.transactions || [];
+  const usingDashboard = !(Number(revenueData?.totalRevenue) > 0 || apiTransactions.length > 0);
+  const rangeRevenue = filterType === "TODAY" ? todayRevenue : (filterType === "THIS_MONTH" || filterType === "LAST_MONTH" ? monthRevenue : weekRevenue);
+  const [rangeStart, rangeEnd] = dateWindow();
+  const bookingTransactions = bookingRows.map((b) => {
+    const checkIn = toYmd(b.check_in_date || b.checkInDate || b.actual_check_in || b.actualCheckIn);
+    const checkOut = toYmd(b.check_out_date || b.checkOutDate || b.actual_check_out || b.actualCheckOut);
+    const created = toYmd(b.created_at || b.createdAt || b.payment_date || b.paymentDate);
+    const paid = Number(b.paid_amount ?? b.paidAmount ?? b.advance_paid ?? b.advancePaid ?? 0);
+    const base = Number(b.base_amount ?? b.baseAmount ?? 0);
+    const gst = Number(b.gst_amount ?? b.gstAmount ?? b.tax_amount ?? b.taxAmount ?? 0);
+    const total = Number(b.total_amount ?? b.totalAmount ?? b.grand_total ?? b.grandTotal ?? 0) || base + gst || paid;
+    const room = (Array.isArray(b.rooms) && (b.rooms[0]?.room_number || b.rooms[0]?.roomNumber)) || b.room_number || b.roomNumber || "—";
+    const dates = [checkIn, checkOut, created].filter(Boolean);
+    const inRange = !rangeStart || !rangeEnd || dates.some((day) => day >= rangeStart && day <= rangeEnd) || (checkIn && checkOut && checkIn <= rangeEnd && checkOut >= rangeStart);
+    return {
+      id: b.id || b._id || b.booking_number,
+      inRange,
+      formattedDate: checkIn || created || checkOut,
+      transactionId: b.booking_number || b.bookingNumber || b.id || "",
+      guestName: b.primary_guest_name || b.guestName || b.guest?.name || b.guest?.fullName || "Guest",
+      bookingNumber: b.booking_number || b.bookingNumber || "—",
+      roomNumber: room,
+      description: b.room_type_name || b.roomTypeName || "Room booking",
+      paymentMethod: String(b.payment_method || b.paymentMethod || "CASH").toUpperCase(),
+      amount: base || total,
+      tax: gst,
+      total,
+      status: String(b.payment_status || b.paymentStatus || (paid >= total && total > 0 ? "PAID" : b.booking_status || b.status || "PAID")).toUpperCase(),
+    };
+  }).filter((row) => row.inRange);
+
+  const transactions = apiTransactions.length > 0 ? apiTransactions : bookingTransactions;
+  const breakdown = usingDashboard
+    ? { roomBooking: cashTotal, extraServices: upiTotal, foodRestaurant: cardTotal, otherCharges: otherTotal, total: cashTotal + upiTotal + cardTotal + otherTotal }
+    : (revenueData?.revenueBreakdown || { roomBooking: 0, extraServices: 0, foodRestaurant: 0, otherCharges: 0, total: 0 });
+  const sourceLabels = usingDashboard
+    ? ["Cash", "UPI", "Card", "Bank / Online"]
+    : ["Room Bookings", "Extra Services / Beds", "Food / Restaurant", "Other Charges"];
+  const dateRangeLabel = revenueData?.dateRange?.label || (filterType === "TODAY" ? "Today" : filterType === "THIS_MONTH" ? "This Month" : "This Week");
+  const bookedTotal = bookingTransactions.reduce((sum, row) => sum + Number(row.total || 0), 0);
+  const totalRev = apiTransactions.length > 0 ? (revenueData?.totalRevenue || 0) : (bookedTotal || rangeRevenue);
+  const totalTxnCount = apiTransactions.length > 0 ? (revenueData?.totalTransactions || apiTransactions.length) : bookingTransactions.length;
   const avgTicket = totalTxnCount > 0 ? Math.round(totalRev / totalTxnCount) : 0;
+  const shareBase = Number(breakdown.total) > 0 ? Number(breakdown.total) : totalRev;
+  const sharePercent = (amount) => {
+    if (!(shareBase > 0)) return 0;
+    return Math.min(100, Math.max(0, Math.round((Number(amount) || 0) / shareBase * 100)));
+  };
 
   const getMethodColor = (method) => {
     switch (method?.toUpperCase()) {
@@ -452,11 +553,11 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <Hotel sx={{ fontSize: 20, color: themeConfig.primary }} />
                   <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted }}>
-                    Room Bookings
+                    {sourceLabels[0]}
                   </Typography>
                 </Box>
                 <Chip
-                  label={totalRev > 0 ? `${Math.round((breakdown.roomBooking / totalRev) * 100)}%` : "0%"}
+                  label={`${sharePercent(breakdown.roomBooking)}%`}
                   size="small"
                   sx={{ fontWeight: 800, fontSize: "0.7rem", height: 20, bgcolor: themeConfig.champagne, color: themeConfig.primary }}
                 />
@@ -465,11 +566,11 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                 ₹{breakdown.roomBooking?.toLocaleString()}
               </Typography>
               <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                {totalRev > 0 ? `${Math.round((breakdown.roomBooking / totalRev) * 100)}% of total` : "0% of total"}
+                {`${sharePercent(breakdown.roomBooking)}% of total`}
               </Typography>
               <LinearProgress
                 variant="determinate"
-                value={totalRev > 0 ? (breakdown.roomBooking / totalRev) * 100 : 0}
+                value={sharePercent(breakdown.roomBooking)}
                 sx={{
                   mt: 1.5,
                   height: 6,
@@ -498,11 +599,11 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <RoomService sx={{ fontSize: 20, color: "#8B5CF6" }} />
                   <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted }}>
-                    Extra Services / Beds
+                    {sourceLabels[1]}
                   </Typography>
                 </Box>
                 <Chip
-                  label={totalRev > 0 ? `${Math.round((breakdown.extraServices / totalRev) * 100)}%` : "0%"}
+                  label={`${sharePercent(breakdown.extraServices)}%`}
                   size="small"
                   sx={{ fontWeight: 800, fontSize: "0.7rem", height: 20, bgcolor: "rgba(139, 92, 246, 0.12)", color: "#8B5CF6" }}
                 />
@@ -511,11 +612,11 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                 ₹{breakdown.extraServices?.toLocaleString()}
               </Typography>
               <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                {totalRev > 0 ? `${Math.round((breakdown.extraServices / totalRev) * 100)}% of total` : "0% of total"}
+                {`${sharePercent(breakdown.extraServices)}% of total`}
               </Typography>
               <LinearProgress
                 variant="determinate"
-                value={totalRev > 0 ? (breakdown.extraServices / totalRev) * 100 : 0}
+                value={sharePercent(breakdown.extraServices)}
                 sx={{
                   mt: 1.5,
                   height: 6,
@@ -544,11 +645,11 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <Restaurant sx={{ fontSize: 20, color: "#F59E0B" }} />
                   <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted }}>
-                    Food / Restaurant
+                    {sourceLabels[2]}
                   </Typography>
                 </Box>
                 <Chip
-                  label={totalRev > 0 ? `${Math.round((breakdown.foodRestaurant / totalRev) * 100)}%` : "0%"}
+                  label={`${sharePercent(breakdown.foodRestaurant)}%`}
                   size="small"
                   sx={{ fontWeight: 800, fontSize: "0.7rem", height: 20, bgcolor: "rgba(245, 158, 11, 0.12)", color: "#D97706" }}
                 />
@@ -557,11 +658,11 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                 ₹{breakdown.foodRestaurant?.toLocaleString()}
               </Typography>
               <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                {totalRev > 0 ? `${Math.round((breakdown.foodRestaurant / totalRev) * 100)}% of total` : "0% of total"}
+                {`${sharePercent(breakdown.foodRestaurant)}% of total`}
               </Typography>
               <LinearProgress
                 variant="determinate"
-                value={totalRev > 0 ? (breakdown.foodRestaurant / totalRev) * 100 : 0}
+                value={sharePercent(breakdown.foodRestaurant)}
                 sx={{
                   mt: 1.5,
                   height: 6,
@@ -590,11 +691,11 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <AccountBalanceWallet sx={{ fontSize: 20, color: "#10B981" }} />
                   <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted }}>
-                    Other Charges
+                    {sourceLabels[3]}
                   </Typography>
                 </Box>
                 <Chip
-                  label={totalRev > 0 ? `${Math.round((breakdown.otherCharges / totalRev) * 100)}%` : "0%"}
+                  label={`${sharePercent(breakdown.otherCharges)}%`}
                   size="small"
                   sx={{ fontWeight: 800, fontSize: "0.7rem", height: 20, bgcolor: "rgba(16, 185, 129, 0.12)", color: "#10B981" }}
                 />
@@ -603,11 +704,11 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                 ₹{breakdown.otherCharges?.toLocaleString()}
               </Typography>
               <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                {totalRev > 0 ? `${Math.round((breakdown.otherCharges / totalRev) * 100)}% of total` : "0% of total"}
+                {`${sharePercent(breakdown.otherCharges)}% of total`}
               </Typography>
               <LinearProgress
                 variant="determinate"
-                value={totalRev > 0 ? (breakdown.otherCharges / totalRev) * 100 : 0}
+                value={sharePercent(breakdown.otherCharges)}
                 sx={{
                   mt: 1.5,
                   height: 6,

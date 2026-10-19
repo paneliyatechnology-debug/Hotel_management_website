@@ -9,11 +9,6 @@ import {
   Chip,
   Button,
   Divider,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
 } from "@mui/material";
 import {
   Person,
@@ -27,6 +22,7 @@ import {
   CheckCircle,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
+import ConfirmDialog from "@/shared/components/ConfirmDialog";
 
 export default function MoreOperationsPage({ user, hotelSettings, onLogout }) {
   const { themeConfig, isDarkMode } = useAppTheme();
@@ -432,58 +428,15 @@ export default function MoreOperationsPage({ user, hotelSettings, onLogout }) {
         </Button>
       </Card>
 
-      {/* Confirmation Dialog */}
-      <Dialog
+      <ConfirmDialog
         open={logoutDialogOpen}
+        section="Session"
+        title="Sign out"
+        message={`You will be signed out of ${hotelName}. You can sign in again at any time.`}
+        confirmLabel="Sign out"
+        onConfirm={handleConfirmLogout}
         onClose={() => setLogoutDialogOpen(false)}
-        slotProps={{
-          paper: {
-            sx: {
-              borderRadius: "20px",
-              p: 1.5,
-              border: `1px solid ${themeConfig.border}`,
-              bgcolor: themeConfig.bgCard,
-              maxWidth: 420,
-            },
-          },
-        }}
-      >
-        <DialogTitle component="div" sx={{ fontWeight: 900, color: themeConfig.textMain, pb: 1 }}>
-          Confirm Sign Out
-        </DialogTitle>
-        <DialogContent>
-          <DialogContentText sx={{ color: themeConfig.textMuted, fontSize: "0.95rem" }}>
-            Are you sure you want to end your receptionist session and sign out from{" "}
-            <strong style={{ color: themeConfig.textMain }}>{hotelName}</strong>?
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2, pt: 1, gap: 1 }}>
-          <Button
-            onClick={() => setLogoutDialogOpen(false)}
-            sx={{
-              fontWeight: 700,
-              color: themeConfig.textMuted,
-              textTransform: "none",
-              borderRadius: "10px",
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            onClick={handleConfirmLogout}
-            sx={{
-              fontWeight: 800,
-              textTransform: "none",
-              borderRadius: "10px",
-              px: 2.5,
-            }}
-          >
-            Yes, Log Out
-          </Button>
-        </DialogActions>
-      </Dialog>
+      />
     </Box>
   );
 }

@@ -244,7 +244,9 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
     }
     try {
       const endpointsToFetch = [];
-      const skipCache = { skipCache: true };
+      const skipCache = forceRefresh
+        ? { skipCache: true, forceRefresh: true, skipDeduplication: true }
+        : { skipCache: true };
 
       if (forceRefresh) {
         endpointsToFetch.push(
@@ -565,8 +567,8 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         method: "PUT",
         body: { status: "VERIFIED" },
       });
-      setGuests(guests.map((g) => (g._id === guestId ? { ...g, idVerified: true } : g)));
-      showToast("Regulatory ID stamped and verified in police ledger!");
+      await fetchFrontDeskData();
+      showToast("Guest ID verified.");
     } catch (err) {
       showToast(err.message || "Failed to verify guest ID", "error");
     }

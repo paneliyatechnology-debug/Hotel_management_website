@@ -2,6 +2,7 @@ import "./globals.css";
 import { themeConfig } from "@/config/theme";
 import FloatingTabBar from "@/components/FloatingTabBar";
 import ReactQueryProvider from "@/shared/providers/ReactQueryProvider";
+import DisableBrowserAutofill from "@/shared/components/DisableBrowserAutofill";
 
 if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
   console.log = () => {};
@@ -153,6 +154,7 @@ export default function RootLayout({ children }) {
       </head>
       <body className="min-h-screen pb-14 md:pb-0 font-sans antialiased" style={{ backgroundColor: themeConfig.bgMain, color: themeConfig.textMain }}>
         <ReactQueryProvider>
+          <DisableBrowserAutofill />
           {children}
           <FloatingTabBar />
         </ReactQueryProvider>

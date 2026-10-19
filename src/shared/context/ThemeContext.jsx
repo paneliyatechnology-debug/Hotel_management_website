@@ -76,6 +76,16 @@ export function buildMuiTheme(themeConfig, mode = "light") {
       borderRadius: 14,
     },
     components: {
+      MuiTextField: {
+        defaultProps: {
+          autoComplete: "off",
+        },
+      },
+      MuiInputBase: {
+        defaultProps: {
+          autoComplete: "off",
+        },
+      },
       MuiCssBaseline: {
         styleOverrides: {
           body: {

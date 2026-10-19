@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Box } from "@mui/material";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
@@ -36,6 +36,46 @@ function readLabel(value) {
   if (typeof value === "string" || typeof value === "number") return String(value).trim();
   if (typeof value === "object") return readLabel(value.name || value.title || value.en || value.label);
   return "";
+}
+
+const STAFF_ROLES = ["RECEPTIONIST", "MANAGER", "HOUSEKEEPING", "ACCOUNTANT"];
+
+function normalizeStaffList(res) {
+  const payload = res?.data !== undefined ? res.data : res;
+  const list = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.users)
+      ? payload.users
+      : Array.isArray(payload?.records)
+        ? payload.records
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : [];
+
+  return list
+    .filter((member) => {
+      const role = String(member?.role || "").toUpperCase();
+      return STAFF_ROLES.some((name) => role.includes(name));
+    })
+    .map((member) => {
+      const inactive =
+        member?.is_active === false ||
+        member?.isActive === false ||
+        member?.is_disabled === true ||
+        member?.isDisabled === true ||
+        String(member?.status || member?.account_status || "ACTIVE").toUpperCase() === "INACTIVE";
+      return {
+        ...member,
+        _id: member?._id || member?.id,
+        id: member?.id || member?._id,
+        name: member?.name || member?.full_name || member?.fullName || "",
+        email: member?.email || "",
+        phone: String(member?.phone || member?.mobile || member?.mobile_number || member?.phone_number || ""),
+        role: String(member?.role || "RECEPTIONIST").toUpperCase(),
+        shift: member?.shift || "",
+        status: inactive ? "INACTIVE" : "ACTIVE",
+      };
+    });
 }
 
 function normalizeRoomTypes(res) {
@@ -215,7 +255,8 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
           apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => setBookings(extractRecords(res))),
           apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => setGuests(extractRecords(res))),
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES).then((res) => setRoomTypes(normalizeRoomTypes(res))),
-          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
+          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings)),
+          reloadStaffList()
         );
       } else {
         // Route 0: OVERVIEW / DASHBOARD
@@ -246,9 +287,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         }
         // Route 3: STAFF TEAM
         else if (tabIndex === 3) {
-          endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.RECEPTIONISTS).then((res) => (res?.data || Array.isArray(res)) && setStaffList(res.data || res || []))
-          );
+          endpointsToFetch.push(reloadStaffList());
         }
         // Route 4: ROOMS & CATEGORIES MASTER
         else if (tabIndex === 4) {
@@ -303,11 +342,16 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
 
   const reloadRoomsList = async () => {
     const [roomsRes, typesRes] = await Promise.all([
-      apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS),
-      apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES),
+      apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS, { forceRefresh: true, skipDeduplication: true }),
+      apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES, { forceRefresh: true, skipDeduplication: true }),
     ]);
     setRooms(asRoomList(roomsRes));
     setRoomTypes(normalizeRoomTypes(typesRes));
+  };
+
+  const reloadStaffList = async () => {
+    const res = await apiRequest(`${API_ENDPOINTS.USERS.ALL}?page=1&limit=10`, { forceRefresh: true, skipDeduplication: true });
+    setStaffList(normalizeStaffList(res));
   };
 
   // Real-Time Socket Auto-Sync across all operational mutations & subscription changes
@@ -342,20 +386,36 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
     toast.show(message, severity);
   };
 
-  // Staff CRUD Handlers
+  const staffSaveLock = useRef(false);
+
   const handleSaveStaff = async (e) => {
     e.preventDefault();
-    if (!staffModal.data.name || !staffModal.data.email || !staffModal.data.phone) {
-      showToast("Name, Email, and Phone are required for staff", "error");
+    if (staffSaveLock.current) return;
+
+    const name = String(staffModal.data?.name || "").trim();
+    const email = String(staffModal.data?.email || "").trim().toLowerCase();
+    const cleanPhone = String(staffModal.data?.phone || "").replace(/\D/g, "");
+    const role = String(staffModal.data?.role || "").trim().toUpperCase();
+
+    if (name.length < 2) {
+      showToast("Enter the staff member’s full name.", "error");
       return;
     }
-
-    const cleanPhone = staffModal.data.phone.toString().replace(/\D/g, "");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      showToast("Enter a valid email address.", "error");
+      return;
+    }
     if (cleanPhone.length !== 10) {
-      showToast("Phone number must contain exactly 10 numeric digits", "error");
+      showToast("Mobile number must be exactly 10 digits.", "error");
+      return;
+    }
+    if (!STAFF_ROLES.includes(role)) {
+      showToast("Select a role.", "error");
       return;
     }
 
+    const staffId = staffModal.data?._id || staffModal.data?.id;
+    staffSaveLock.current = true;
     try {
       const effectiveHotelId =
         user?.hotel_id ||
@@ -365,70 +425,74 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
 
       const payload = {
         hotel_id: effectiveHotelId ? Number(effectiveHotelId) : undefined,
-        name: staffModal.data.name,
-        email: staffModal.data.email,
+        name,
+        email,
         phone: cleanPhone,
-        role: staffModal.data.role || "RECEPTIONIST",
-        is_active: true,
-        must_change_password: true,
-        password: staffModal.data.password || "StaffPassword@123",
+        role,
+        is_active: staffModal.data?.status !== "INACTIVE",
       };
 
-      if (staffModal.mode === "EDIT" && staffModal.data._id) {
-        const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.UPDATE_RECEPTIONIST(staffModal.data._id), {
+      if (staffModal.mode === "EDIT" && staffId) {
+        const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.UPDATE_RECEPTIONIST(staffId), {
           method: "PUT",
           body: payload,
         });
-
-        if (res.data) {
-          showToast(res.message || "Staff member details updated successfully!");
-        }
+        showToast(res?.message || "Staff member updated.");
       } else {
-        const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.RECEPTIONISTS, {
+        const res = await apiRequest(API_ENDPOINTS.USERS.ALL, {
           method: "POST",
-          body: payload,
+          body: {
+            ...payload,
+            must_change_password: true,
+            password: staffModal.data?.password || "StaffPassword@123",
+          },
         });
-
-        if (res.data) {
-          showToast(res.message || "New staff member onboarded and credentials emailed!");
-        }
+        showToast(res?.message || "Staff member added.");
       }
-      await fetchAllData();
+      await reloadStaffList();
       setStaffModal({ open: false, mode: "ADD", data: getInitialStaffForm() });
     } catch (err) {
-      showToast(err.message || "Failed to save staff account", "error");
+      showToast(err.message || "Failed to save staff member.", "error");
+    } finally {
+      staffSaveLock.current = false;
     }
   };
 
   const handleToggleStaffStatus = async (staff) => {
+    const staffId = staff?._id || staff?.id;
+    if (!staffId) return;
     const nextStatus = staff.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
     const isActive = nextStatus === "ACTIVE";
     try {
-      await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.UPDATE_RECEPTIONIST_STATUS(staff._id || staff.id), {
+      await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.UPDATE_RECEPTIONIST_STATUS(staffId), {
         method: "PATCH",
         body: { is_active: isActive, is_disabled: !isActive },
       });
-      setStaffList(staffList.map((s) => ((s._id === staff._id || s.id === staff.id) ? { ...s, status: nextStatus, is_active: isActive, is_disabled: !isActive } : s)));
-      showToast(`Staff member '${staff.name}' is now ${nextStatus}.`);
+      await reloadStaffList();
+      showToast(`${staff.name} is now ${nextStatus === "ACTIVE" ? "active" : "inactive"}.`);
     } catch (err) {
-      showToast(err.message || "Failed to update staff status", "error");
+      showToast(err.message || "Failed to update staff status.", "error");
     }
   };
 
   const handleDeleteStaff = (staff) => {
+    const staffId = staff?._id || staff?.id;
     setConfirmDelete({
       open: true,
-      title: "Remove Staff Member",
-      message: `Are you sure you want to remove "${staff.name}" (${staff.role || "Receptionist"}) from the hotel staff directory?`,
+      isDanger: true,
+      section: "Staff",
+      confirmLabel: "Remove",
+      title: "Remove staff member",
+      message: `${staff.name} will be removed from the staff directory. Their login will stop working immediately.`,
       onConfirm: async () => {
         try {
-          await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DELETE_RECEPTIONIST(staff._id), {
+          await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DELETE_RECEPTIONIST(staffId), {
             method: "DELETE",
           });
-          setStaffList(staffList.filter((s) => s._id !== staff._id));
-          showToast("Staff member removed from database.");
+          await reloadStaffList();
+          showToast("Staff member removed.");
         } catch (err) {
-          showToast(err.message || "Failed to remove staff member", "error");
+          showToast(err.message || "Failed to remove staff member.", "error");
         } finally {
           setConfirmDelete({ open: false, title: "", message: "", onConfirm: null });
         }
@@ -477,6 +541,10 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
           ? (roomModal.data.roomType._id || roomModal.data.roomType.id)
           : (roomModal.data.roomType || roomModal.data.room_type_id)
       );
+      if (!Number.isFinite(selectedRoomTypeId) || selectedRoomTypeId <= 0) {
+        showToast("Select a room category.", "error");
+        return;
+      }
 
       if (roomModal.mode === "EDIT" && roomModal.data._id) {
         const payload = {
@@ -501,10 +569,10 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
           method: "PUT",
           body: payload,
         });
-        if (res.data) {
-          setRooms(rooms.map((r) => (r._id === roomModal.data._id ? res.data : r)));
-          showToast(`Room ${res.data.room_number || res.data.roomNumber} updated successfully!`);
-        }
+        await reloadRoomsList();
+        showToast(res?.message || `Room ${payload.room_number} updated.`);
+        setRoomModal({ open: false, mode: "ADD", data: getInitialRoomForm() });
+        return;
       } else {
         const createdRooms = [];
         const errors = [];
@@ -550,15 +618,16 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         }
 
         if (createdRooms.length > 0) {
-          if (createdRooms.length === 1) {
-            showToast(`Room ${createdRooms[0].roomNumber || createdRooms[0].room_number} created successfully!`);
-          } else {
-            showToast(`Successfully created ${createdRooms.length} rooms.`);
-          }
           await reloadRoomsList();
+          showToast(
+            createdRooms.length === 1
+              ? `Room ${createdRooms[0].roomNumber || createdRooms[0].room_number} created.`
+              : `${createdRooms.length} rooms created.`
+          );
         }
         if (errors.length > 0) {
           showToast(errors.join(" | "), "error");
+          return;
         }
       }
       setRoomModal({ open: false, mode: "ADD", data: getInitialRoomForm() });
@@ -586,14 +655,16 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
 
     setConfirmDelete({
       open: true,
-      title: "Remove Room",
-      message: `Are you sure you want to remove Room "${room.roomNumber}" (Floor ${room.floor})? Only AVAILABLE rooms can be removed.`,
+      isDanger: true,
+      section: "Rooms",
+      confirmLabel: "Remove room",
+      title: "Remove room",
+      message: `Room ${room.roomNumber} on floor ${room.floor || "—"} will be permanently removed.`,
       onConfirm: async () => {
         try {
-          await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DELETE_ROOM(room._id), {
+          await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DELETE_ROOM(room._id || room.id), {
             method: "DELETE",
           });
-          setRooms((prev) => prev.filter((r) => r._id !== room._id && r.id !== room._id));
           await reloadRoomsList();
           showToast(`Room ${room.roomNumber} removed.`);
         } catch (err) {
@@ -611,8 +682,8 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         method: "PATCH",
         body: { status: newStatus },
       });
-      setRooms(rooms.map((r) => ((r._id === room._id || r.id === room.id) ? { ...r, status: newStatus } : r)));
-      showToast(`Room ${room.roomNumber} status set to ${newStatus}.`);
+      await reloadRoomsList();
+      showToast(`Room ${room.roomNumber} is now ${newStatus}.`);
     } catch (err) {
       showToast(err.message || "Failed to update room status", "error");
     }
@@ -635,7 +706,12 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
     );
 
     if (isDuplicate) {
-      showToast(`A room category named '${inputName}' already exists. Please enter a unique name.`, "error");
+      showToast(`A room category named '${inputName}' already exists.`, "error");
+      return;
+    }
+    const basePrice = Number(typeModal.data.basePrice || typeModal.data.base_price || 0);
+    if (!Number.isFinite(basePrice) || basePrice < 0) {
+      showToast("Enter a valid base price.", "error");
       return;
     }
 
@@ -651,7 +727,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         name: inputName,
         title: inputName,
         description: typeModal.data.description || "",
-        base_price: Number(typeModal.data.basePrice || typeModal.data.base_price) || 0,
+        base_price: basePrice,
         max_adults: Number(typeModal.data.maxAdults || typeModal.data.max_adults) || 2,
         max_children: Number(typeModal.data.maxChildren || typeModal.data.max_children) || 0,
         bed_count: Number(typeModal.data.bedCount || typeModal.data.bed_count) || 1,
@@ -669,21 +745,13 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
           method: "PUT",
           body: payload,
         });
-        if (res.data) {
-          showToast("Room category updated successfully!");
-        }
+        showToast(res?.message || "Room category updated.");
       } else {
         const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES, {
           method: "POST",
           body: payload,
         });
-        const created = normalizeRoomTypes({ data: [res?.data || {}] })[0] || {};
-        setRoomTypes((prev) => {
-          const id = created._id || created.id;
-          const next = { ...created, name: created.name || inputName };
-          return [next, ...prev.filter((item) => String(item._id || item.id) !== String(id))];
-        });
-        showToast("Room category created successfully!");
+        showToast(res?.message || "Room category created.");
       }
       await reloadRoomsList();
       setTypeModal({ open: false, mode: "ADD", data: getInitialTypeForm() });
@@ -699,29 +767,24 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
     });
     const occupiedRooms = linkedRooms.filter((r) => r.status === "OCCUPIED" || r.status === "RESERVED");
 
-    let confirmMsg = `Are you sure you want to delete Room Category "${roomType.name}"? This will delete all ${linkedRooms.length} room(s) assigned to this category.`;
-    if (occupiedRooms.length > 0) {
-      confirmMsg += ` ${occupiedRooms.length} room(s) currently have resident guests — they will be automatically checked out, and guest profiles and folio records will remain safely preserved.`;
-    }
+    const confirmMsg = occupiedRooms.length > 0
+      ? `${roomType.name} and its ${linkedRooms.length} room(s) will be deleted. ${occupiedRooms.length} occupied room(s) will be checked out first. Guest records will be kept.`
+      : `${roomType.name} and its ${linkedRooms.length} room(s) will be permanently deleted.`;
 
     setConfirmDelete({
       open: true,
-      title: `Delete Category "${roomType.name}"`,
+      isDanger: true,
+      section: "Room categories",
+      confirmLabel: "Delete category",
+      title: `Delete ${roomType.name}`,
       message: confirmMsg,
       onConfirm: async () => {
         try {
-          const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DELETE_ROOM_TYPE(roomType._id), {
+          const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DELETE_ROOM_TYPE(roomType._id || roomType.id), {
             method: "DELETE",
           });
-          setRoomTypes((prev) => prev.filter((rt) => rt._id !== roomType._id));
-          setRooms((prev) =>
-            prev.filter((r) => {
-              const typeId = typeof r.roomType === "object" ? r.roomType?._id : r.roomType;
-              return typeId !== roomType._id;
-            })
-          );
-          showToast(res.message || "Room category and associated rooms deleted successfully.");
-          // Refresh background data to sync dashboard metrics & guest directory
+          await reloadRoomsList();
+          showToast(res?.message || "Room category removed.");
           fetchAllData();
         } catch (err) {
           showToast(err.message || "Failed to delete room category", "error");
@@ -738,7 +801,10 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       <ConfirmDialog
         open={confirmDelete.open}
         title={confirmDelete.title}
+        section={confirmDelete.section || "Confirmation"}
         message={confirmDelete.message}
+        isDanger={confirmDelete.isDanger !== false}
+        confirmLabel={confirmDelete.confirmLabel || "Remove"}
         onConfirm={confirmDelete.onConfirm}
         onClose={() => setConfirmDelete({ open: false, title: "", message: "", onConfirm: null })}
       />

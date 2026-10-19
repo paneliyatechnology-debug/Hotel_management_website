@@ -2,100 +2,139 @@
 
 import {
   Dialog,
-  DialogTitle,
-  DialogContent,
   DialogActions,
   Typography,
   Button,
   TextField,
   Box,
+  IconButton,
 } from "@mui/material";
-import { WarningAmber } from "@/shared/icons";
+import { Close, WarningAmber } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 
 export default function ConfirmDialog({
   open,
-  title = "Confirm Action",
-  message = "Are you sure you want to proceed with this operation?",
+  section = "Confirmation",
+  title = "Confirm action",
+  message = "Review the details below before you continue.",
   confirmLabel = "Confirm",
   cancelLabel = "Cancel",
   isDanger = false,
   requireReason = false,
   reasonValue = "",
   onReasonChange,
-  reasonPlaceholder = "Please state the reason for this action...",
+  reasonPlaceholder = "Add a reason",
   loading = false,
   onConfirm,
   onClose,
 }) {
-  const { themeConfig } = useAppTheme();
+  const { themeConfig, isDarkMode } = useAppTheme();
+  const accent = isDanger ? themeConfig.danger || "#DC2626" : themeConfig.primary;
 
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={loading ? undefined : onClose}
+      maxWidth="xs"
+      fullWidth
       slotProps={{
         paper: {
           sx: {
-            borderRadius: "20px",
-            p: 1.5,
-            bgcolor: themeConfig.bgCard,
+            borderRadius: "16px",
+            bgcolor: themeConfig.bgCard || "#FFFFFF",
             border: `1px solid ${themeConfig.border}`,
-            boxShadow: "0 24px 48px -12px rgba(12, 39, 59, 0.22), 0 12px 24px -8px rgba(12, 39, 59, 0.1), inset 0 1px 1px rgba(255, 255, 255, 0.95)",
-            maxWidth: 480,
-            width: "100%",
+            boxShadow: isDarkMode ? "0 24px 48px rgba(0,0,0,0.45)" : "0 24px 48px rgba(15, 23, 42, 0.16)",
+            overflow: "hidden",
           },
         },
       }}
     >
-      <DialogTitle component="div" sx={{ display: "flex", alignItems: "center", gap: 1.5, pb: 1 }}>
-        {isDanger && (
+      <Box
+        sx={{
+          px: 2.5,
+          py: 2,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 1.5,
+          color: "#FFFFFF",
+          background: `linear-gradient(135deg, ${themeConfig.primaryDark || "#0C273B"} 0%, ${themeConfig.primary || "#0B8EE0"} 100%)`,
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
           <Box
             sx={{
-              width: 36,
-              height: 36,
-              borderRadius: "10px",
-              bgcolor: themeConfig.dangerBg,
-              color: themeConfig.danger,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 2px 8px rgba(220, 38, 38, 0.15)",
+              width: 40,
+              height: 40,
+              borderRadius: "12px",
+              display: "grid",
+              placeItems: "center",
+              flexShrink: 0,
+              bgcolor: "rgba(255,255,255,0.16)",
             }}
           >
-            <WarningAmber sx={{ fontSize: 20 }} />
+            <WarningAmber sx={{ fontSize: 22 }} />
           </Box>
-        )}
-        <Typography component="div" variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "1.05rem" }}>
-          {title}
-        </Typography>
-      </DialogTitle>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ color: "rgba(255,255,255,0.8)", fontSize: "0.7rem", fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase" }}>
+              {section}
+            </Typography>
+            <Typography sx={{ color: "#FFFFFF", fontWeight: 700, fontSize: "1.05rem", lineHeight: 1.3 }} noWrap>
+              {title}
+            </Typography>
+          </Box>
+        </Box>
+        <IconButton
+          onClick={onClose}
+          disabled={loading}
+          aria-label="Close"
+          sx={{ color: "#FFFFFF", bgcolor: "rgba(255,255,255,0.16)", "&:hover": { bgcolor: "rgba(255,255,255,0.28)" } }}
+        >
+          <Close fontSize="small" />
+        </IconButton>
+      </Box>
 
-      <DialogContent sx={{ pt: 1 }}>
-        <Typography variant="body2" sx={{ color: themeConfig.textMuted, mb: requireReason ? 2 : 0 }}>
+      <Box sx={{ px: 3, py: 2.75 }}>
+        <Typography sx={{ color: themeConfig.textMain, fontSize: "0.95rem", lineHeight: 1.6 }}>
           {message}
         </Typography>
-
         {requireReason && (
           <TextField
             fullWidth
             multiline
-            rows={3}
+            minRows={3}
+            label="Reason"
             placeholder={reasonPlaceholder}
             value={reasonValue}
             onChange={(e) => onReasonChange && onReasonChange(e.target.value)}
-            sx={{
-              "& .MuiOutlinedInput-root": {
-                borderRadius: "12px",
-                bgcolor: themeConfig.bgMain,
-              },
-            }}
+            sx={{ mt: 2, "& .MuiOutlinedInput-root": { borderRadius: "10px" } }}
           />
         )}
-      </DialogContent>
+      </Box>
 
-      <DialogActions sx={{ p: 2, gap: 1 }}>
-        <Button onClick={onClose} disabled={loading} sx={{ color: themeConfig.textMuted, borderRadius: "10px" }}>
+      <DialogActions
+        sx={{
+          px: 2.5,
+          py: 1.75,
+          gap: 1,
+          borderTop: `1px solid ${themeConfig.border}`,
+          bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
+        }}
+      >
+        <Button
+          onClick={onClose}
+          disabled={loading}
+          variant="outlined"
+          sx={{
+            minWidth: 104,
+            height: 40,
+            borderRadius: "10px",
+            textTransform: "none",
+            fontWeight: 700,
+            color: themeConfig.textMain,
+            borderColor: themeConfig.border,
+          }}
+        >
           {cancelLabel}
         </Button>
         <Button
@@ -103,21 +142,17 @@ export default function ConfirmDialog({
           disabled={loading || (requireReason && !reasonValue?.trim())}
           onClick={onConfirm}
           sx={{
-            background: isDanger
-              ? `linear-gradient(135deg, ${themeConfig.danger} 0%, #B91C1C 100%)`
-              : `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-            borderRadius: "12px",
+            minWidth: 104,
+            height: 40,
+            borderRadius: "10px",
+            textTransform: "none",
             fontWeight: 700,
-            boxShadow: isDanger
-              ? "0 4px 14px rgba(220, 38, 38, 0.3)"
-              : `0 4px 14px ${themeConfig.primaryGlow}`,
-            "&:hover": {
-              background: isDanger ? "#991B1B" : themeConfig.primaryDark,
-              transform: "translateY(-1px)",
-            },
+            boxShadow: "none",
+            bgcolor: accent,
+            "&:hover": { bgcolor: isDanger ? "#B91C1C" : themeConfig.primaryDark, boxShadow: "none" },
           }}
         >
-          {loading ? "Processing..." : confirmLabel}
+          {loading ? "Please wait…" : confirmLabel}
         </Button>
       </DialogActions>
     </Dialog>

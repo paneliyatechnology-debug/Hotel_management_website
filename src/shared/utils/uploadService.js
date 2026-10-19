@@ -3,7 +3,7 @@ import { LIVE_API_URL } from '../../config/api.js';
 const LIVE_BASE_URL = (
   (typeof process !== 'undefined' && (process.env?.NEXT_PUBLIC_LIVE_API_URL || process.env?.NEXT_PUBLIC_API_URL)) ||
   LIVE_API_URL ||
-  'https://accomplished-smile-dev.up.railway.app'
+  'https://hotelmanagementbackendnew-production.up.railway.app'
 ).replace(/\/+$/, '');
 
 /**

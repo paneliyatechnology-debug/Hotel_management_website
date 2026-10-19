@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 
-const TARGET_BASE_URL = "https://accomplished-smile-dev.up.railway.app";
+const TARGET_BASE_URL = (
+  process.env.NEXT_PUBLIC_LIVE_API_URL ||
+  "https://hotelmanagementbackendnew-production.up.railway.app"
+).replace(/\/+$/, "");
 
 async function proxyRequest(request, context) {
   try {

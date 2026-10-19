@@ -2,14 +2,17 @@
  * 🛠️ API Environment Configuration
  * 
  * Connected to Hotel Management Backend (TradeNexa Architecture - MySQL Knex)
- * Live Base URL: https://accomplished-smile-dev.up.railway.app
+ * Live Base URL: https://hotelmanagementbackendnew-production.up.railway.app
  */
 import { getCookie, setCookie, clearAuthCookies, getActiveHotelId } from '../shared/utils/cookieAuth.js';
 
 export const ENVIRONMENT = "LIVE"; // 👉 Toggle "LOCAL" or "LIVE" here
 
 export const LOCAL_API_URL = "http://localhost:5000";
-export const LIVE_API_URL = "https://accomplished-smile-dev.up.railway.app";
+export const LIVE_API_URL = (
+  (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_LIVE_API_URL) ||
+  "https://hotelmanagementbackendnew-production.up.railway.app"
+).replace(/\/+$/, "");
 
 export const LOCAL_ADMIN_URL = "http://localhost:3001";
 export const LIVE_ADMIN_URL = "https://hotel-management-admin-livid.vercel.app";
@@ -1737,16 +1740,22 @@ async function executeApiRequest(endpoint, options = {}) {
     fullUrl = cleanEndpoint
       .replace(/^https?:\/\/(localhost|127\.0\.0\.1):5000/, currentBase)
       .replace(/^https?:\/\/hotel-management-backend-9qf5\.onrender\.com/, currentBase)
-      .replace(/^https?:\/\/hotelmanagementbackend-dev\.up\.railway\.app/, currentBase);
+      .replace(/^https?:\/\/hotelmanagementbackend-dev\.up\.railway\.app/, currentBase)
+      .replace(/^https?:\/\/accomplished-smile-dev\.up\.railway\.app/, currentBase);
   } else {
     fullUrl = `${currentBase}/${cleanEndpoint.replace(/^\/+/, "")}`;
   }
 
   // Safety guard: prevent any stale render or old dev domain from ever being contacted
-  if (fullUrl.includes("hotel-management-backend-9qf5.onrender.com") || fullUrl.includes("hotelmanagementbackend-dev.up.railway.app")) {
+  if (
+    fullUrl.includes("hotel-management-backend-9qf5.onrender.com") ||
+    fullUrl.includes("hotelmanagementbackend-dev.up.railway.app") ||
+    fullUrl.includes("accomplished-smile-dev.up.railway.app")
+  ) {
     fullUrl = fullUrl
       .replace("https://hotel-management-backend-9qf5.onrender.com", LIVE_API_URL)
-      .replace("https://hotelmanagementbackend-dev.up.railway.app", LIVE_API_URL);
+      .replace("https://hotelmanagementbackend-dev.up.railway.app", LIVE_API_URL)
+      .replace("https://accomplished-smile-dev.up.railway.app", LIVE_API_URL);
   }
 
   // Pre-flight check for /check-out: Ensure paid_amount matches booking due if 0 or empty was passed

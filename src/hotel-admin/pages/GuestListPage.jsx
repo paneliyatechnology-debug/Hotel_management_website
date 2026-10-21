@@ -38,6 +38,7 @@ import {
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useSocket } from "@/shared/context/SocketContext";
+import { mergeBookingEvent } from "@/shared/utils/liveSync";
 import { toast } from "@/shared/utils/toast";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
@@ -160,7 +161,11 @@ export default function GuestListPage({
   const [bookingDetails, setBookingDetails] = useState({});
   const [serverPage, setServerPage] = useState(null);
 
-  // Real-Time Socket Auto-Sync
+  const [liveTick, setLiveTick] = useState(0);
+
+  // Real-Time Socket Auto-Sync.
+  // This page lists bookings from its own paginated API call and caches per-booking details,
+  // so a live event must reload both of them, not only the dashboard data passed in as props.
   useSocket(
     [
       "BOOKING_CREATED",
@@ -169,12 +174,40 @@ export default function GuestListPage({
       "PAYMENT_RECORDED",
       "GUEST_UPDATED",
       "ROOM_UPDATED",
-      "DASHBOARD_SYNC",
     ],
     () => {
+      setBookingDetails({});
+      setLiveTick((tick) => tick + 1);
       if (onRefresh) onRefresh();
     }
   );
+
+  // booking:updated carries the whole booking (create, update, payment, check-out, status change, delete):
+  // show it in the list at once, the reload above then confirms it.
+  useSocket(["booking:updated"], (payload) => {
+    const id = payload?.id ?? payload?._id;
+    if (id === undefined || id === null) return;
+    const key = String(id);
+
+    setBookingDetails((prev) => {
+      const next = { ...prev };
+      if (payload.deleted_at) delete next[key];
+      else next[key] = payload;
+      return next;
+    });
+
+    setServerPage((prev) => {
+      if (!prev) return prev; // list comes from the dashboard props, which are patched by the dashboard
+      const exists = prev.list.some((item) => String(item.id ?? item._id) === key);
+      const isNewOnFirstPage = !payload.deleted_at && page === 0 && statusFilter === "ALL" && !searchQuery.trim();
+      if (!exists && !isNewOnFirstPage) return prev;
+
+      let total = prev.total;
+      if (!exists) total += 1;
+      else if (payload.deleted_at) total = Math.max(0, total - 1);
+      return { list: mergeBookingEvent(prev.list, payload).slice(0, rowsPerPage), total };
+    });
+  });
 
   // List the bookings API records (check-in / check-out stays) as they arrive.
   const unifiedGuests = useMemo(() => {
@@ -256,7 +289,7 @@ export default function GuestListPage({
     return () => {
       cancelled = true;
     };
-  }, [page, rowsPerPage, searchQuery, statusFilter]);
+  }, [page, rowsPerPage, searchQuery, statusFilter, liveTick]);
 
   useEffect(() => {
     const missing = unifiedGuests.filter((g) => {

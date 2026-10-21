@@ -32,6 +32,7 @@ import SettingsView from "@/shared/components/SettingsView";
 import dynamic from "next/dynamic";
 import { CircularProgress } from "@mui/material";
 import { useSocket } from "@/shared/context/SocketContext";
+import { applyRoomStatusEvent, mergeBookingEvent } from "@/shared/utils/liveSync";
 
 const ComponentSpinner = () => (
   <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 8 }}>
@@ -349,13 +350,11 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
   useSocket(
     [
       "ROOM_UPDATED",
-      "room:category_counts",
       "BOOKING_CREATED",
       "BOOKING_UPDATED",
       "GUEST_CHECKED_OUT",
       "PAYMENT_RECORDED",
       "GUEST_UPDATED",
-      "DASHBOARD_SYNC",
       "SIGNATURE_SUBMITTED",
       "HOTEL_UPDATED",
       "SUBSCRIPTION_UPDATED",
@@ -364,6 +363,20 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
       fetchFrontDeskData(true);
     }
   );
+
+  // Live backend events: update the screen the moment the event arrives
+  // (the legacy listener above reloads once afterwards as a safety net)
+  useSocket(["room:status", "booking:updated", "dashboard:updated"], (payload, eventName) => {
+    if (eventName === "room:status") {
+      setRooms((prev) => applyRoomStatusEvent(prev, payload));
+    } else if (eventName === "booking:updated") {
+      setBookings((prev) =>
+        mergeBookingEvent(prev, payload, (booking) => extractBookings({ bookings: [booking] })[0])
+      );
+    } else if (eventName === "dashboard:updated" && payload?.data && typeof payload.data === "object") {
+      setDashboardData((prev) => ({ ...(prev || {}), ...payload.data }));
+    }
+  });
 
   const showToast = (message, severity = "success") => {
     toast.show(message, severity);

@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from "react";
 import { io } from "socket.io-client";
 import { getApiBaseUrl, LIVE_API_URL } from "@/config/api";
+import { getActiveHotelId } from "@/shared/utils/cookieAuth";
 
 const SocketContext = createContext({
   socket: null,
@@ -19,8 +20,36 @@ const SocketContext = createContext({
 const SOCKET_URL = (LIVE_API_URL || "https://hotelmanagementbackendnew-production.up.railway.app").replace(/\/+$/, "");
 
 export const SOCKET_ENABLED = true;
+// Logs connection problems and live events in the browser console (development only)
+const DEBUG_SOCKET = process.env.NODE_ENV !== "production";
+
+// Backend socket events (channel hotel:<hotel_id>), see the backend socket guide:
+//   room:status            one room changed            -> room object
+//   room:status_breakdown  hotel-wide status counts    -> { hotel_id, room_status_breakdown }
+//   room:category_counts   per-category counts         -> { hotel_id, room_categories, room_status_summary }
+//   booking:updated        full booking (GET /bookings/:id shape)
+//   dashboard:updated      { hotel_id, date_range, data } (GET /dashboard shape for the user's role)
+const LIVE_EVENTS = [
+  "room:status",
+  "room:status_breakdown",
+  "room:category_counts",
+  "booking:updated",
+  "dashboard:updated",
+];
+
+// Screens written before these events existed listen for the legacy names below.
+// Every live event also fires the matching legacy events (flagged as `isLiveAlias`) so those screens
+// refresh without changes. useSocket() merges a burst of them into one callback.
+const LIVE_ALIASES = {
+  "room:status": ["ROOM_UPDATED"],
+  "room:status_breakdown": ["ROOM_UPDATED"],
+  "room:category_counts": ["ROOM_UPDATED"],
+  "booking:updated": ["BOOKING_UPDATED", "GUEST_UPDATED", "PAYMENT_RECORDED"],
+  "dashboard:updated": ["DASHBOARD_SYNC"],
+};
 
 const HOTEL_ADMIN_EVENTS = [
+  ...LIVE_EVENTS,
   "ROOM_UPDATED",
   "room:category_counts",
   "BOOKING_CREATED",
@@ -44,6 +73,7 @@ const HOTEL_ADMIN_EVENTS = [
 ];
 
 const RECEPTION_EVENTS = [
+  ...LIVE_EVENTS,
   "ROOM_UPDATED",
   "room:category_counts",
   "BOOKING_CREATED",
@@ -61,6 +91,7 @@ const RECEPTION_EVENTS = [
 ];
 
 const SUPER_ADMIN_EVENTS = [
+  ...LIVE_EVENTS, // a super admin connected to one hotel receives that hotel's live events
   "HOTEL_REGISTERED",
   "NEW_TRIAL_REQUEST",
   "TRIAL_REQUEST_APPROVED",
@@ -182,7 +213,7 @@ export function SocketProvider({ children }) {
     }
 
     const apiBase = getApiBaseUrl();
-    const socketUrl = apiBase && /localhost:5000|127\.0\.0\.1:5000/.test(apiBase) ? apiBase : SOCKET_URL;
+    const socketUrl = apiBase && /localhost:\d+|127\.0\.0\.1:\d+/.test(apiBase) ? apiBase : SOCKET_URL;
 
     const { token } = readSession();
     const socket = io(socketUrl, {
@@ -191,7 +222,20 @@ export function SocketProvider({ children }) {
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      auth: { token },
+      // Evaluated on every (re)connect so a refreshed token or a switched hotel is always used.
+      // The backend joins the client to hotel:<hotel_id> from the token; a SUPER_ADMIN must send hotel_id.
+      auth: (cb) => {
+        const session = readSession();
+        const payload = { token: session.token };
+        if (session.role === "SUPER_ADMIN") {
+          const activeHotel = getActiveHotelId();
+          if (activeHotel) {
+            payload.hotel_id = activeHotel;
+            payload.hotelId = activeHotel;
+          }
+        }
+        cb(payload);
+      },
       query: token ? { token } : {},
     });
 
@@ -199,7 +243,13 @@ export function SocketProvider({ children }) {
 
     socket.on("connect", () => {
       setIsConnected(true);
+      if (DEBUG_SOCKET) console.info("[socket] connected to", socketUrl);
       joinRoom();
+    });
+
+    socket.on("connect_error", (err) => {
+      // The backend refuses the connection when the token is missing/expired or the user has no hotel
+      if (DEBUG_SOCKET) console.warn("[socket] connection refused:", err?.message || err, "->", socketUrl);
     });
 
     socket.on("joined_room", (data) => {
@@ -264,20 +314,40 @@ export function SocketProvider({ children }) {
     const ALL_EVENTS = [...new Set([...HOTEL_ADMIN_EVENTS, ...RECEPTION_EVENTS, ...SUPER_ADMIN_EVENTS])];
     const bindRoleEvents = () => {
       ALL_EVENTS.forEach((evtName) => socket.off(evtName));
-      eventsForRole(readSession().role).forEach((evtName) => {
+      [...new Set(eventsForRole(readSession().role))].forEach((evtName) => {
         socket.on(evtName, (payload) => {
           const { role, hotelId } = readSession();
-          if (role !== "SUPER_ADMIN" && !isForThisHotel(payload, hotelId)) return;
+          const accepted = role === "SUPER_ADMIN" || isForThisHotel(payload, hotelId);
+          if (DEBUG_SOCKET && LIVE_EVENTS.includes(evtName)) {
+            console.info(`[socket] ${evtName}`, accepted ? "" : `(ignored: hotel ${payload?.hotel_id} is not ${hotelId})`, payload);
+          }
+          if (!accepted) return;
           setLastEvent({ name: evtName, payload, timestamp: Date.now() });
           window.dispatchEvent(new CustomEvent(`socket:${evtName}`, { detail: payload }));
           window.dispatchEvent(new CustomEvent("socket:any", { detail: { name: evtName, payload } }));
+
+          // Also wake the screens that still listen for the legacy event names
+          (LIVE_ALIASES[evtName] || []).forEach((legacyName) => {
+            const aliasEvent = new CustomEvent(`socket:${legacyName}`, { detail: payload });
+            aliasEvent.isLiveAlias = true;
+            window.dispatchEvent(aliasEvent);
+          });
         });
       });
     };
     bindRoleEvents();
 
+    // Token or hotel changed (login, logout, hotel switch): reconnect so the backend re-joins the right hotel channel
+    let connectedKey = `${readSession().token}|${getActiveHotelId() || ""}`;
     const handleAuthChange = () => {
       bindRoleEvents();
+      const nextKey = `${readSession().token}|${getActiveHotelId() || ""}`;
+      if (nextKey !== connectedKey) {
+        connectedKey = nextKey;
+        socket.disconnect();
+        socket.connect();
+        return;
+      }
       joinRoom();
     };
     const handleWindowFocus = () => {
@@ -346,17 +416,27 @@ export function useSocket(eventSubscriptions = [], callback) {
     if (!eventsKey || typeof window === "undefined") return;
     const events = eventsKey.split(",").filter(Boolean);
 
+    // One backend action fires several live events at once (room:status x N, booking:updated, dashboard:updated...).
+    // The alias events they raise for legacy listeners are merged into a single callback.
+    let aliasTimer = null;
     const handlers = events.map((evtName) => {
       const handler = (e) => {
-        if (callbackRef.current) {
-          callbackRef.current(e.detail, evtName);
+        if (!callbackRef.current) return;
+        if (e.isLiveAlias) {
+          clearTimeout(aliasTimer);
+          aliasTimer = setTimeout(() => {
+            if (callbackRef.current) callbackRef.current(e.detail, evtName);
+          }, 300);
+          return;
         }
+        callbackRef.current(e.detail, evtName);
       };
       window.addEventListener(`socket:${evtName}`, handler);
       return { evtName, handler };
     });
 
     return () => {
+      clearTimeout(aliasTimer);
       handlers.forEach(({ evtName, handler }) => {
         window.removeEventListener(`socket:${evtName}`, handler);
       });

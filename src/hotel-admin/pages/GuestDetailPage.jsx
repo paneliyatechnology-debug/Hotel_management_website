@@ -180,6 +180,14 @@ export default function GuestDetailPage({
     () => setDetailTick((tick) => tick + 1)
   );
 
+  // booking:updated carries the full booking: show it instantly when it is this booking
+  useSocket(["booking:updated"], (payload) => {
+    const updatedId = payload?.id ?? payload?._id;
+    if (updatedId && effectiveId && String(updatedId) === String(effectiveId)) {
+      setBookingDetail((prev) => ({ ...(prev || {}), ...payload }));
+    }
+  });
+
   // Fetch full details, and again whenever a live socket event arrives
   useEffect(() => {
     if (!effectiveId) return;

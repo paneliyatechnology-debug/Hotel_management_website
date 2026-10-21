@@ -9,6 +9,7 @@ import { getActiveHotelId } from "@/shared/utils/cookieAuth";
 import dynamic from "next/dynamic";
 import { CircularProgress } from "@mui/material";
 import { useSocket } from "@/shared/context/SocketContext";
+import { applyRoomStatusEvent, mergeBookingEvent } from "@/shared/utils/liveSync";
 
 function extractRecords(res) {
   const payload = res?.data !== undefined ? res.data : res;
@@ -375,14 +376,8 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
   // Real-Time Socket Auto-Sync across all operational mutations & subscription changes
   useSocket(
     [
-      "ROOM_UPDATED",
-      "room:category_counts",
       "BOOKING_CREATED",
-      "BOOKING_UPDATED",
       "GUEST_CHECKED_OUT",
-      "PAYMENT_RECORDED",
-      "GUEST_UPDATED",
-      "DASHBOARD_SYNC",
       "HANDOVER_SETTLED",
       "STAFF_CREATED",
       "STAFF_UPDATED",
@@ -402,11 +397,32 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
     }
   );
 
+  // Backend live events (room:status / booking:updated and their legacy aliases):
+  // one debounced reload of the open tab, rooms and categories as a safety net
+  useSocket(["ROOM_UPDATED", "BOOKING_UPDATED", "PAYMENT_RECORDED", "GUEST_UPDATED"], () => {
+    fetchAllData();
+    reloadRoomsList();
+  });
+
   useSocket(["room:category_counts"], (payload) => {
     const activeHotelId = getActiveHotelId();
     const eventHotelId = payload?.hotel_id || payload?.hotelId;
     if (eventHotelId && activeHotelId && String(eventHotelId) !== String(activeHotelId)) return;
     setRoomTypes((current) => mergeCategoryCounts(current, payload));
+  });
+
+  // Apply the payload instantly, before the reload above finishes
+  useSocket(["room:status", "booking:updated", "dashboard:updated"], (payload, eventName) => {
+    if (eventName === "room:status") {
+      setRooms((prev) => applyRoomStatusEvent(prev, payload));
+    } else if (eventName === "booking:updated") {
+      setBookings((prev) => mergeBookingEvent(prev, payload));
+    } else if (eventName === "dashboard:updated" && payload?.data && typeof payload.data === "object") {
+      setDashboardData((prev) => {
+        const next = adaptHotelDashboard(payload.data);
+        return prev?.subscription && !payload.data.subscription ? { ...next, subscription: prev.subscription } : next;
+      });
+    }
   });
 
   const showToast = (message, severity = "success") => {

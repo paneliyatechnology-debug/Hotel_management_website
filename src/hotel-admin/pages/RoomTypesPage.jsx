@@ -24,7 +24,6 @@ import {
   TableRow,
 } from "@mui/material";
 import { AppDialogHeader, AppDialogFooter, dialogPaperSx, dialogCancelButtonSx, dialogPrimaryButtonSx } from "@/shared/components/AppDialog";
-import StatCard from "@/shared/components/StatCard";
 import {
   Add,
   ArrowBack,
@@ -351,11 +350,6 @@ export default function RoomTypesPage({
   // Summary Metrics — prefer the category API totals, then the loaded room list.
   const summaryCounts = categoryStatusCounts(roomTypes.summary ? { room_status_counts: roomTypes.summary } : null, rooms);
   const totalRoomsCount = summaryCounts.total;
-  const planLabel = isTrial
-    ? `Trial · ${totalRoomsCount} of 5 rooms`
-    : `${planName.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())} · ${totalRoomsCount} ${totalRoomsCount === 1 ? "room" : "rooms"}`;
-
-
   // Helper to open Add Room modal with preselected Category
   const openAddCategory = () => {
     setTypeErrors({});
@@ -536,73 +530,103 @@ export default function RoomTypesPage({
 
   return (
     <Box sx={{ width: "100%", minWidth: 0, maxWidth: "100%", overflowX: "hidden", px: { xs: 1.5, sm: 2.5, md: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
-      <Box sx={{ mb: 2.5 }}>
-        <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 1.5, mb: 2 }}>
-          <Box>
-            <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "1rem" }}>
-              Add a category, then add rooms.
-            </Typography>
-            <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.82rem", mt: 0.4 }}>
-              {planLabel}
-            </Typography>
-          </Box>
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.25 }}>
-            {roomTypes.length > 0 && (
-              <Button
-                variant="outlined"
-                startIcon={<Add />}
-                onClick={() => handleOpenAddRoomForCategory(null)}
+      <Box
+        sx={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 2,
+          mb: 3,
+        }}
+      >
+        <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5, minWidth: 0 }}>
+          {[
+            { label: "Total rooms", value: totalRoomsCount, icon: <MeetingRoom sx={{ fontSize: 20 }} /> },
+            { label: "Categories", value: roomTypes.length, icon: <Category sx={{ fontSize: 20 }} /> },
+          ].map((item) => (
+            <Box
+              key={item.label}
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1.5,
+                height: 56,
+                pl: 1.25,
+                pr: 2.5,
+                borderRadius: "12px",
+                border: `1px solid ${themeConfig.border}`,
+                bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.04)",
+              }}
+            >
+              <Box
                 sx={{
-                  height: 40,
+                  width: 36,
+                  height: 36,
+                  flexShrink: 0,
                   borderRadius: "10px",
-                  textTransform: "none",
-                  fontWeight: 700,
-                  px: 2,
-                  color: themeConfig.primaryDark,
-                  borderColor: themeConfig.border,
-                  bgcolor: isDarkMode ? "transparent" : "#FFFFFF",
-                  "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne || "#F4F7F6" },
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: themeConfig.primary,
+                  bgcolor: themeConfig.champagne || "#EAF6F3",
                 }}
               >
-                Add room
-              </Button>
-            )}
+                {item.icon}
+              </Box>
+              <Box>
+                <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.7rem", fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", lineHeight: 1.2 }}>
+                  {item.label}
+                </Typography>
+                <Typography sx={{ color: themeConfig.textMain, fontWeight: 800, fontSize: "1.2rem", lineHeight: 1.3 }}>
+                  {item.value}
+                </Typography>
+              </Box>
+            </Box>
+          ))}
+        </Box>
+
+        <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.25 }}>
+          {roomTypes.length > 0 && (
             <Button
-              variant="contained"
+              variant="outlined"
               startIcon={<Add />}
-              onClick={openAddCategory}
+              onClick={() => handleOpenAddRoomForCategory(null)}
               sx={{
                 height: 40,
                 borderRadius: "10px",
                 textTransform: "none",
                 fontWeight: 700,
                 px: 2,
-                boxShadow: "none",
-                bgcolor: themeConfig.primary,
-                "&:hover": { bgcolor: themeConfig.primaryDark, boxShadow: "none" },
+                color: themeConfig.primaryDark,
+                borderColor: themeConfig.border,
+                bgcolor: isDarkMode ? "transparent" : "#FFFFFF",
+                "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne || "#F4F7F6" },
               }}
             >
-              Add category
+              Add room
             </Button>
-          </Box>
-        </Box>
-
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
-            gap: 2,
-            width: "100%",
-            minWidth: 0,
-            maxWidth: { sm: 560 },
-            "& > *": { minWidth: 0, maxWidth: "100%" },
-          }}
-        >
-          <StatCard hideFooter title="Total rooms" value={totalRoomsCount} icon={<MeetingRoom />} color="#0F766E" />
-          <StatCard hideFooter title="Categories" value={roomTypes.length} icon={<Category />} color="#0F766E" />
+          )}
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={openAddCategory}
+            sx={{
+              height: 40,
+              borderRadius: "10px",
+              textTransform: "none",
+              fontWeight: 700,
+              px: 2,
+              boxShadow: "none",
+              bgcolor: themeConfig.primary,
+              "&:hover": { bgcolor: themeConfig.primaryDark, boxShadow: "none" },
+            }}
+          >
+            Add category
+          </Button>
         </Box>
       </Box>
-
 
       <Card
         sx={{

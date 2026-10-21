@@ -339,19 +339,16 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
         <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, justifyContent: "space-between", alignItems: { xs: "stretch", sm: "center" }, gap: 2, mb: 2.5 }}>
           <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, alignItems: { xs: "stretch", sm: "center" }, gap: 1.5 }}>
             {onBackToDashboard && (
-              <Button
-                variant="outlined"
-                startIcon={<ArrowBack />}
+              <IconButton
+                aria-label="Back to dashboard"
+                title="Back to dashboard"
                 onClick={onBackToDashboard}
                 sx={{
-                  width: { xs: "100%", sm: "auto" },
+                  alignSelf: { xs: "flex-start", sm: "center" },
+                  width: 40,
+                  height: 40,
                   borderRadius: "12px",
-                  fontWeight: 800,
-                  fontSize: "0.82rem",
-                  px: 2,
-                  py: 0.9,
-                  justifyContent: "center",
-                  borderColor: themeConfig.border,
+                  border: `1px solid ${themeConfig.border}`,
                   color: themeConfig.textMain,
                   bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
                   "&:hover": {
@@ -362,8 +359,8 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                   transition: "all 0.2s ease-in-out",
                 }}
               >
-                Back to Dashboard
-              </Button>
+                <ArrowBack fontSize="small" />
+              </IconButton>
             )}
             <Box>
               <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: "-0.5px", fontSize: { xs: "1.2rem", sm: "1.5rem" } }}>

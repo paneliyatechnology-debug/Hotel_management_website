@@ -50,7 +50,6 @@ import {
   Receipt,
   ReceiptLong,
   CalendarMonth,
-  LocationOn,
   Security,
   Payments,
   WhatsApp,
@@ -678,11 +677,6 @@ export default function HotelOverviewPage({
     window.open(`https://wa.me/${targetPhone}?text=${msgText}`, "_blank");
   };
 
-  // Greeting according to local time
-  const currentHour = new Date(nowTime).getHours();
-  const timeGreeting = currentHour < 12 ? "Good Morning" : currentHour < 17 ? "Good Afternoon" : "Good Evening";
-  const liveClockString = new Date(nowTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
-
   // Show Full Dedicated Revenue Details Page when requested
   if (showRevenueDetailsView) {
     return (
@@ -700,112 +694,9 @@ export default function HotelOverviewPage({
   return (
     <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
       {/* ========================================================================= */}
-      {/* 1. HERO COMMAND RIBBON with LIVE CLOCK & SAAS TELEMETRY                   */}
-      {/* ========================================================================= */}
-      <Box
-        sx={{
-          mb: 3,
-          p: { xs: 2, sm: 2.5, md: 3 },
-          borderRadius: { xs: "18px", sm: "24px" },
-          background: `linear-gradient(135deg, ${themeConfig.primaryDark || "#0C273B"} 0%, ${themeConfig.primary || "#0B8EE0"} 100%)`,
-          color: "#FFFFFF",
-          boxShadow: `0 16px 36px -10px ${themeConfig.primaryGlow || "rgba(11, 142, 224, 0.4)"}, inset 0 1px 1px rgba(255,255,255,0.4)`,
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <Box
-          sx={{
-            position: "absolute",
-            top: "-50%",
-            right: "-15%",
-            width: "450px",
-            height: "450px",
-            background: "radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%)",
-            pointerEvents: "none",
-          }}
-        />
-
-        <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, justifyContent: "space-between", alignItems: { xs: "stretch", sm: "center" }, gap: 2, position: "relative", zIndex: 1 }}>
-          <Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.8, flexWrap: "wrap" }}>
-              <Typography
-                variant="caption"
-                sx={{
-                  fontWeight: 800,
-                  letterSpacing: 1,
-                  textTransform: "uppercase",
-                  color: "rgba(255,255,255,0.9)",
-                  fontSize: { xs: "0.65rem", sm: "0.72rem" },
-                }}
-              >
-                {timeGreeting} &bull; Live Operations Center
-              </Typography>
-            </Box>
-
-            <Typography variant="h4" sx={{ fontWeight: 900, color: "#FFFFFF", letterSpacing: -0.5, fontSize: { xs: "1.25rem", sm: "1.8rem" } }}>
-              {dashboardData?.hotel?.name || user?.hotel?.name || "MYOWNPMS"}
-            </Typography>
-            {user?.hotel?.city ? (
-              <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.8)", mt: 0.5, fontSize: { xs: "0.78rem", sm: "0.85rem" }, display: "flex", alignItems: "center", gap: 0.6 }}>
-                <LocationOn sx={{ fontSize: 15 }} />
-                <span>{user.hotel.city}</span>
-              </Typography>
-            ) : null}
-          </Box>
-
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "space-between", sm: "flex-end" } }}>
-            {/* Live Clock Badge */}
-            <Box
-              sx={{
-                px: 2,
-                py: 0.9,
-                borderRadius: "14px",
-                bgcolor: "rgba(0,0,0,0.25)",
-                backdropFilter: "blur(8px)",
-                border: "1px solid rgba(255,255,255,0.15)",
-                display: "flex",
-                alignItems: "center",
-                gap: 1,
-              }}
-            >
-              <Box className="live-pulse-3d" />
-              <Typography variant="caption" sx={{ fontWeight: 800, color: "#FFFFFF", fontSize: "0.82rem", letterSpacing: 0.5 }}>
-                {liveClockString}
-              </Typography>
-            </Box>
-          </Box>
-        </Box>
-      </Box>
-
-      {/* ========================================================================= */}
       {/* 4. FINANCIAL & REVENUE TELEMETRY (4 STAT CARDS - PHOTO 2 DESIGN)          */}
       {/* ========================================================================= */}
       <Box sx={{ mb: 3.5 }}>
-        <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, alignItems: { xs: "flex-start", sm: "center" }, justifyContent: "space-between", gap: 1.5, mb: 2, flexWrap: "wrap" }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-            <Avatar sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", color: "#10B981", width: 32, height: 32, borderRadius: "8px" }}>
-              <CurrencyRupee sx={{ fontSize: 18 }} />
-            </Avatar>
-            <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: { xs: "0.95rem", sm: "1.05rem" } }}>
-              Financial &amp; Revenue Telemetry
-            </Typography>
-          </Box>
-          <Chip
-            label="Live Real-time Audit"
-            size="small"
-            sx={{
-              fontWeight: 800,
-              fontSize: "0.72rem",
-              borderRadius: "8px",
-              bgcolor: "rgba(16, 185, 129, 0.12)",
-              color: "#059669",
-              border: "1px solid rgba(16, 185, 129, 0.3)",
-              maxWidth: "100%",
-            }}
-          />
-        </Box>
-
         <Box
           sx={{
             display: "grid",
@@ -815,14 +706,11 @@ export default function HotelOverviewPage({
         >
           {/* Card 1: Today's Revenue */}
           <StatCard
+            hideFooter
             title="TODAY'S REVENUE"
             value={todayRevenue}
-            subtitle={liveTodayRevNum > 0 ? "Verified collections today" : "No new billing transactions today"}
             icon={<CurrencyRupee />}
             color="#10B981"
-            trend="Live Counter"
-            trendType="up"
-            badgeText="Counter"
             onClick={() => {
               setRevenueFilterMode("TODAY");
               setShowRevenueDetailsView(true);
@@ -831,14 +719,11 @@ export default function HotelOverviewPage({
 
           {/* Card 2: Weekly Total Earnings */}
           <StatCard
+            hideFooter
             title="WEEKLY TOTAL EARNINGS"
             value={weeklyEarnings}
-            subtitle="7-day rolling revenue aggregate"
             icon={<TrendingUp />}
             color="#0B8EE0"
-            trend="Last 7 Days"
-            trendType="up"
-            badgeText="Weekly Total"
             onClick={() => {
               setRevenueFilterMode("THIS_WEEK");
               setShowRevenueDetailsView(true);
@@ -847,22 +732,20 @@ export default function HotelOverviewPage({
 
           {/* Card 3: Total Guests */}
           <StatCard
+            hideFooter
             title="TOTAL GUESTS"
             value={`${liveTotalGuests} Guests`}
-            subtitle={`${liveInHouseGuests} in-house • ${ops.checkedInToday || 0} checked in today • ${ops.checkedOutToday || 0} checked out`}
             icon={<Person />}
             color="#8B5CF6"
-            badgeText="Total"
           />
 
           {/* Card 4: Monthly Revenue */}
           <StatCard
+            hideFooter
             title="MONTHLY REVENUE"
             value={monthlyRevenue}
-            subtitle="Current billing cycle"
             icon={<AccountBalanceWallet />}
             color="#F59E0B"
-            badgeText="Monthly Total"
             onClick={() => {
               setRevenueFilterMode("THIS_MONTH");
               setShowRevenueDetailsView(true);

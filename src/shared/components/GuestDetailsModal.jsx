@@ -3,37 +3,30 @@
 import React, { useMemo, useState, useEffect } from "react";
 import {
   Dialog,
-  DialogTitle,
   DialogContent,
-  DialogActions,
   Box,
   Typography,
   Button,
   IconButton,
   CircularProgress,
-  Chip,
-  Paper,
-  Grid,
   Tabs,
   Tab,
   Avatar,
 } from "@mui/material";
-import {
-  Close,
-  Person,
-  Phone,
-  Bed,
-  CalendarToday,
-  AccountBalanceWallet,
-  Description,
-  Draw,
-  Payments,
-  Hotel,
-  LocationOn,
-  Email,
-} from "@/shared/icons";
+import { Close, Hotel } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
+import {
+  dialogPaperSx,
+  dialogPrimaryButtonSx,
+  AppDialogHeader,
+  AppDialogFooter,
+} from "@/shared/components/AppDialog";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
+import { computeBookingBill } from "@/shared/utils/billingUtils";
+
+/* ------------------------------------------------------------------ */
+/* Data helpers                                                        */
+/* ------------------------------------------------------------------ */
 
 function unwrapBooking(res) {
   if (!res || typeof res !== "object") return null;
@@ -92,125 +85,191 @@ function toUrl(entry) {
   );
 }
 
+function mediaLabel(url, fallback, index) {
+  const name = String(url || "").split("?")[0].split("/").pop() || "";
+  const lower = name.toLowerCase();
+  if (lower.includes("front_id")) return "ID front";
+  if (lower.includes("back_id")) return "ID back";
+  const docMatch = lower.match(/id_doc[_-]?(\d+)/);
+  if (docMatch) return `ID document ${docMatch[1]}`;
+  return `${fallback} ${index + 1}`;
+}
+
 function collectMedia(sources, fallbackLabel) {
   const seen = new Set();
   const items = [];
-  sources.flatMap((source) => parseMaybeList(source)).forEach((entry, idx) => {
+  sources.flatMap((source) => parseMaybeList(source)).forEach((entry) => {
     const url = toUrl(entry);
     if (!url || seen.has(url)) return;
     seen.add(url);
-    items.push({ url, label: mediaLabel(url, fallbackLabel, items.length || idx) });
+    items.push({ url, label: mediaLabel(url, fallbackLabel, items.length) });
   });
   return items;
 }
 
-function mediaLabel(url, fallback, index) {
-  const name = String(url || "").split("?")[0].split("/").pop() || "";
-  const lower = name.toLowerCase();
-  if (lower.includes("front_id")) return "ID Front";
-  if (lower.includes("back_id")) return "ID Back";
-  const docMatch = lower.match(/id_doc[_-]?(\d+)/);
-  if (docMatch) return `ID Document ${docMatch[1]}`;
-  if (lower.includes("signature")) return `Signature ${index + 1}`;
-  return `${fallback} ${index + 1}`;
+/* ------------------------------------------------------------------ */
+/* Formatting                                                          */
+/* ------------------------------------------------------------------ */
+
+function num(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
 }
 
 function formatMoney(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return "₹0.00";
-  return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `₹${num(value).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
-function formatDate(value) {
-  if (!value && value !== 0) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+function humanize(value) {
+  const s = String(value || "").replace(/[_-]+/g, " ").trim().toLowerCase();
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : "—";
 }
 
+const DATE_TIME_OPTS = { day: "2-digit", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true };
+
+// Real moments in time (actual check-in/out, payments, created at) -> viewer's local time
 function formatDateTime(value) {
-  if (!value && value !== 0) return "—";
+  if (!value) return "—";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+  return d.toLocaleString("en-IN", DATE_TIME_OPTS);
 }
 
-function statusColor(status) {
+// Scheduled stay times are saved as hotel wall-clock values (e.g. 14:00Z = 2:00 PM) -> show them as saved
+function formatScheduled(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString("en-IN", { ...DATE_TIME_OPTS, timeZone: "UTC" });
+}
+
+const TONES = {
+  success: { bg: "#ECFDF5", color: "#047857", border: "#A7F3D0" },
+  warning: { bg: "#FFFBEB", color: "#B45309", border: "#FDE68A" },
+  danger: { bg: "#FEF2F2", color: "#B42318", border: "#FECACA" },
+  neutral: { bg: "#F1F5F9", color: "#475569", border: "#E2E8F0" },
+  info: { bg: "#F0FDFA", color: "#0F766E", border: "#99F6E4" },
+};
+
+function statusTone(status) {
   const s = String(status || "").toUpperCase();
-  if (s.includes("CHECKED_IN") || s === "IN-HOUSE" || s === "PAID") return "success";
-  if (s.includes("CHECKED_OUT") || s === "DEPARTED") return "default";
-  if (s.includes("PARTIAL") || s.includes("DUE") || s.includes("PENDING")) return "warning";
-  if (s.includes("CANCEL")) return "error";
+  if (s.includes("CANCEL") || s.includes("FAIL") || s.includes("REFUND")) return "danger";
+  if (s.includes("PARTIAL") || s.includes("PENDING") || s.includes("DUE") || s.includes("UNPAID")) return "warning";
+  if (s.includes("CHECKED_OUT") || s === "DEPARTED") return "neutral";
+  if (s.includes("CHECKED_IN") || s === "IN-HOUSE" || s === "PAID" || s === "SUCCESS") return "success";
   return "info";
 }
 
-function InfoField({ label, value, themeConfig, accent }) {
+function Pill({ label, tone }) {
+  const t = TONES[tone] || TONES.info;
+  return (
+    <Box
+      component="span"
+      sx={{
+        display: "inline-flex",
+        alignItems: "center",
+        height: 24,
+        px: 1.25,
+        borderRadius: "999px",
+        fontSize: "0.72rem",
+        fontWeight: 600,
+        whiteSpace: "nowrap",
+        bgcolor: t.bg,
+        color: t.color,
+        border: `1px solid ${t.border}`,
+      }}
+    >
+      {label}
+    </Box>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Small building blocks                                               */
+/* ------------------------------------------------------------------ */
+
+function Section({ title, children, themeConfig }) {
   return (
     <Box>
       <Typography
-        variant="caption"
-        sx={{ color: themeConfig?.textMuted, fontWeight: 700, letterSpacing: 0.4, display: "block" }}
+        sx={{
+          fontWeight: 700,
+          fontSize: "0.85rem",
+          color: themeConfig.textMain,
+          pb: 1,
+          mb: 2,
+          borderBottom: `1px solid ${themeConfig.border}`,
+        }}
       >
-        {label}
+        {title}
       </Typography>
-      <Typography
-        variant="body2"
-        sx={{ fontWeight: 800, color: accent || themeConfig?.textMain, mt: 0.25, wordBreak: "break-word" }}
-      >
+      {children}
+    </Box>
+  );
+}
+
+function Field({ label, value, themeConfig, accent }) {
+  return (
+    <Box sx={{ minWidth: 0 }}>
+      <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.74rem", fontWeight: 600, mb: 0.25 }}>{label}</Typography>
+      <Typography sx={{ color: accent || themeConfig.textMain, fontSize: "0.9rem", fontWeight: 600, wordBreak: "break-word" }}>
         {value || "—"}
       </Typography>
     </Box>
   );
 }
 
-function EmptyState({ text, themeConfig }) {
+function FieldGrid({ children, columns = 2 }) {
   return (
-    <Box sx={{ py: 4, textAlign: "center" }}>
-      <Typography variant="body2" sx={{ color: themeConfig?.textMuted, fontWeight: 600 }}>
-        {text}
-      </Typography>
+    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: `repeat(${columns}, 1fr)` }, gap: 2.5 }}>{children}</Box>
+  );
+}
+
+function EmptyNote({ text, themeConfig }) {
+  return (
+    <Box sx={{ py: 5, textAlign: "center" }}>
+      <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.88rem", fontWeight: 500 }}>{text}</Typography>
     </Box>
   );
 }
 
-function MediaGrid({ items, fallbackLabel, themeConfig, onPreview }) {
-  if (!items.length) {
-    return <EmptyState text={`No ${fallbackLabel.toLowerCase()} attached.`} themeConfig={themeConfig} />;
-  }
+function MediaGrid({ items, emptyText, themeConfig, onPreview }) {
+  if (!items.length) return <EmptyNote text={emptyText} themeConfig={themeConfig} />;
   return (
-    <Grid container spacing={1.5}>
+    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2, 1fr)", sm: "repeat(3, 1fr)", md: "repeat(4, 1fr)" }, gap: 1.5 }}>
       {items.map((item, idx) => (
-        <Grid key={`${item.url}-${idx}`} size={{ xs: 6, sm: 4, md: 3 }}>
-          <Paper
-            elevation={0}
-            onClick={() => onPreview(item)}
-            sx={{
-              overflow: "hidden",
-              borderRadius: "12px",
-              border: `1px solid ${themeConfig?.border || "#E2E8F0"}`,
-              cursor: "pointer",
-              bgcolor: themeConfig?.bgCard,
-              "&:hover": { boxShadow: "0 8px 20px rgba(0,0,0,0.12)" },
+        <Box
+          key={`${item.url}-${idx}`}
+          onClick={() => onPreview(item)}
+          sx={{
+            overflow: "hidden",
+            borderRadius: "12px",
+            border: `1px solid ${themeConfig.border}`,
+            cursor: "pointer",
+            bgcolor: "#FFFFFF",
+            transition: "border-color 120ms ease, box-shadow 120ms ease",
+            "&:hover": { borderColor: "#99D5C9", boxShadow: "0 6px 16px rgba(15,23,42,0.08)" },
+          }}
+        >
+          <Box
+            component="img"
+            src={item.url}
+            alt={item.label}
+            onError={(e) => {
+              e.currentTarget.style.opacity = "0.25";
             }}
-          >
-            <Box
-              component="img"
-              src={item.url}
-              alt={item.label}
-              onError={(e) => {
-                e.currentTarget.style.opacity = "0.25";
-              }}
-              sx={{ width: "100%", height: 110, objectFit: "cover", display: "block", bgcolor: "#0F172A" }}
-            />
-            <Typography variant="caption" sx={{ display: "block", px: 1, py: 0.75, fontWeight: 700, color: themeConfig?.textMain }}>
-              {item.label}
-            </Typography>
-          </Paper>
-        </Grid>
+            sx={{ width: "100%", height: 104, objectFit: "cover", display: "block", bgcolor: "#F1F5F9" }}
+          />
+          <Typography sx={{ px: 1.25, py: 0.9, fontSize: "0.76rem", fontWeight: 600, color: themeConfig.textMain }}>{item.label}</Typography>
+        </Box>
       ))}
-    </Grid>
+    </Box>
   );
 }
+
+/* ------------------------------------------------------------------ */
+/* Component                                                           */
+/* ------------------------------------------------------------------ */
 
 export default function GuestDetailsModal({
   open = false,
@@ -220,7 +279,6 @@ export default function GuestDetailsModal({
   hotelSettings = null,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
-  const mutedCard = isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC";
 
   const [loading, setLoading] = useState(false);
   const [apiData, setApiData] = useState(null);
@@ -294,21 +352,14 @@ export default function GuestDetailsModal({
   const booking = apiData || guestData || {};
   const guestObj = booking.guest || booking.guestData || {};
 
-  const name =
-    booking.primary_guest_name ||
-    guestObj.name ||
-    guestObj.fullName ||
-    booking.guestName ||
-    guestData?.name ||
-    "Guest";
-
+  const name = booking.primary_guest_name || guestObj.name || guestObj.fullName || booking.guestName || guestData?.name || "Guest";
   const secondaryName = booking.secondary_guest_name || guestObj.secondaryName || "";
-  const phone = booking.mobile_number || guestObj.phone || guestObj.mobileNumber || booking.phone || guestData?.phone || "—";
-  const email = booking.email || guestObj.email || guestData?.email || "—";
-  const address = booking.address || guestObj.address || "—";
-  const bookingNumber = booking.booking_number || booking.bookingNumber || "—";
-  const stayStatus = booking.booking_status || booking.status || guestData?.status || "—";
-  const payStatus = booking.payment_status || "—";
+  const phone = booking.mobile_number || guestObj.phone || guestObj.mobileNumber || booking.phone || guestData?.phone || "";
+  const email = booking.email || guestObj.email || guestData?.email || "";
+  const address = booking.address || guestObj.address || "";
+  const bookingNumber = booking.booking_number || booking.bookingNumber || "";
+  const stayStatus = booking.booking_status || booking.status || guestData?.status || "";
+  const payStatus = booking.payment_status || "";
 
   const rooms = Array.isArray(booking.rooms) ? booking.rooms : [];
   const roomLabel =
@@ -316,7 +367,7 @@ export default function GuestDetailsModal({
     booking.roomNumber ||
     booking.roomAssigned ||
     guestData?.roomAssigned ||
-    "—";
+    "";
 
   const images = collectMedia(
     [
@@ -352,65 +403,100 @@ export default function GuestDetailsModal({
     "Signature"
   );
 
-  const payments = Array.isArray(booking.payment_history) ? booking.payment_history : booking.paymentHistory || [];
-  const notes = (booking.notes || "").trim();
+  const payments = useMemo(() => {
+    const list = Array.isArray(booking.payment_history) ? booking.payment_history : booking.paymentHistory || [];
+    return [...list].sort((a, b) => new Date(a.received_at || 0) - new Date(b.received_at || 0));
+  }, [booking.payment_history, booking.paymentHistory]);
 
-  const dueAmount = Number(booking.due_amount ?? booking.dueAmount ?? 0);
+  const notes = String(booking.notes || "").trim();
+
+  /* ---- billing numbers (GST is applied on room charge - discount + extras + late fee) ---- */
+  const bill = computeBookingBill(booking);
+  const baseAmount = bill.base;
+  const discount = bill.discount;
+  const extraCharges = bill.extra;
+  const lateCharge = bill.late;
+  const lateHours = bill.lateHours;
+  const taxable = bill.taxable;
+  const gstRate = bill.gstRate;
+  const gstAmount = bill.gstAmount;
+  const cgstAmount = bill.cgst;
+  const sgstAmount = bill.sgst;
+  const igstAmount = bill.igst;
+  const totalAmount = bill.total;
+  const paidAmount = bill.paid;
+  const dueAmount = bill.due;
+
+  const guestsLabel = [
+    `${num(booking.adults) || 1} ${num(booking.adults) > 1 ? "adults" : "adult"}`,
+    num(booking.children) > 0 ? `${num(booking.children)} ${num(booking.children) > 1 ? "children" : "child"}` : "",
+  ].filter(Boolean).join(", ");
+
+  const nights = booking.number_of_nights ?? booking.nights;
+
+  const billRow = (label, value, opts = {}) => (
+    <Box
+      key={label}
+      sx={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "baseline",
+        gap: 2,
+        py: 0.75,
+        ...(opts.strong ? { mt: 0.75, pt: 1.5, borderTop: `1px solid ${themeConfig.border}` } : {}),
+      }}
+    >
+      <Box sx={{ minWidth: 0 }}>
+        <Typography component="span" sx={{ color: themeConfig.textMain, fontSize: opts.strong ? "0.95rem" : "0.88rem", fontWeight: opts.strong ? 700 : 500 }}>
+          {label}
+        </Typography>
+        {opts.hint ? (
+          <Typography component="span" sx={{ color: themeConfig.textMuted, fontSize: "0.78rem", ml: 1 }}>
+            {opts.hint}
+          </Typography>
+        ) : null}
+      </Box>
+      <Typography sx={{ color: opts.color || themeConfig.textMain, fontSize: opts.strong ? "1rem" : "0.88rem", fontWeight: opts.strong ? 700 : 600, whiteSpace: "nowrap" }}>
+        {value}
+      </Typography>
+    </Box>
+  );
+
+  const hotelName = booking.hotel?.name || hotelSettings?.name || hotelSettings?.hotelName || "";
 
   return (
     <>
       <Dialog
         open={open}
         onClose={onClose}
-        maxWidth="md"
+        maxWidth="sm"
         fullWidth
-        slotProps={{
-          paper: {
-            sx: {
-              borderRadius: "18px",
-              border: `1px solid ${themeConfig?.border || "#E2E8F0"}`,
-              bgcolor: themeConfig?.bgCard || (isDarkMode ? "#0F172A" : "#FFFFFF"),
-              boxShadow: "0 20px 50px rgba(0,0,0,0.25)",
-              overflow: "hidden",
-              maxHeight: "92vh",
-            },
-          },
-        }}
+        slotProps={{ paper: { sx: { ...dialogPaperSx(themeConfig, isDarkMode), maxHeight: "92vh" } } }}
       >
-        <DialogTitle
-          sx={{
-            m: 0,
-            p: 2,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            bgcolor: mutedCard,
-            borderBottom: `1px solid ${themeConfig?.border || "#E2E8F0"}`,
-          }}
-        >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, minWidth: 0 }}>
-            <Avatar sx={{ width: 36, height: 36, bgcolor: themeConfig?.primary || "#0B8EE0", fontWeight: 800 }}>
+        <AppDialogHeader
+          eyebrow={bookingNumber || "Booking"}
+          title={name}
+          icon={
+            <Avatar sx={{ width: 40, height: 40, bgcolor: themeConfig.primary, fontWeight: 700, fontSize: "1rem" }}>
               {String(name).charAt(0).toUpperCase()}
             </Avatar>
-            <Box sx={{ minWidth: 0 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-                <Typography variant="h6" sx={{ fontWeight: 800, fontSize: "1.05rem" }}>
-                  Guest Details
-                </Typography>
-                <Chip label={stayStatus} size="small" color={statusColor(stayStatus)} sx={{ fontWeight: 800, fontSize: "0.68rem", height: 22 }} />
-                <Chip label={payStatus} size="small" color={statusColor(payStatus)} variant="outlined" sx={{ fontWeight: 800, fontSize: "0.68rem", height: 22 }} />
-              </Box>
-              <Typography variant="caption" sx={{ color: themeConfig?.textMuted, fontWeight: 700 }}>
-                {bookingNumber} · Room {roomLabel}
-              </Typography>
-            </Box>
-          </Box>
-          <IconButton aria-label="close" onClick={onClose} size="small" sx={{ color: themeConfig?.textMuted || "#64748B" }}>
-            <Close fontSize="small" />
-          </IconButton>
-        </DialogTitle>
+          }
+          onClose={onClose}
+        />
 
-        <Box sx={{ px: 1, borderBottom: `1px solid ${themeConfig?.border || "#E2E8F0"}` }}>
+        {/* Status strip */}
+        <Box sx={{ px: 3, py: 1.5, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", borderBottom: `1px solid ${themeConfig.border}` }}>
+          {stayStatus ? <Pill label={humanize(stayStatus)} tone={statusTone(stayStatus)} /> : null}
+          {payStatus ? <Pill label={humanize(payStatus)} tone={statusTone(payStatus)} /> : null}
+          {roomLabel ? (
+            <Typography sx={{ ml: 0.5, color: themeConfig.textMuted, fontSize: "0.82rem", fontWeight: 500 }}>
+              Room {roomLabel}
+              {nights ? ` · ${nights} ${Number(nights) === 1 ? "night" : "nights"}` : ""}
+            </Typography>
+          ) : null}
+        </Box>
+
+        <Box sx={{ px: 1.5, borderBottom: `1px solid ${themeConfig.border}` }}>
           <Tabs
             value={tab}
             onChange={(_, v) => setTab(v)}
@@ -419,285 +505,219 @@ export default function GuestDetailsModal({
             allowScrollButtonsMobile
             sx={{
               minHeight: 44,
-              "& .MuiTab-root": {
-                minHeight: 44,
-                textTransform: "none",
-                fontWeight: 800,
-                fontSize: "0.82rem",
-                color: themeConfig?.textMuted,
-              },
-              "& .Mui-selected": { color: `${themeConfig?.primary || "#0B8EE0"} !important` },
-              "& .MuiTabs-indicator": { bgcolor: themeConfig?.primary || "#0B8EE0" },
+              "& .MuiTab-root": { minHeight: 44, textTransform: "none", fontWeight: 600, fontSize: "0.86rem", color: themeConfig.textMuted },
+              "& .Mui-selected": { color: `${themeConfig.primary} !important` },
+              "& .MuiTabs-indicator": { bgcolor: themeConfig.primary, height: 2 },
             }}
           >
-            <Tab value="overview" icon={<Person sx={{ fontSize: 16 }} />} iconPosition="start" label="Overview" />
-            <Tab value="stay" icon={<Bed sx={{ fontSize: 16 }} />} iconPosition="start" label="Stay" />
-            <Tab value="billing" icon={<AccountBalanceWallet sx={{ fontSize: 16 }} />} iconPosition="start" label="Billing" />
-            <Tab value="payments" icon={<Payments sx={{ fontSize: 16 }} />} iconPosition="start" label={`Payments (${payments.length})`} />
-            <Tab value="documents" icon={<Description sx={{ fontSize: 16 }} />} iconPosition="start" label={`Documents (${images.length + signatures.length})`} />
-            <Tab value="notes" icon={<Draw sx={{ fontSize: 16 }} />} iconPosition="start" label="Notes" />
+            <Tab value="overview" label="Overview" />
+            <Tab value="billing" label="Billing" />
+            <Tab value="payments" label={`Payments (${payments.length})`} />
+            <Tab value="documents" label={`Documents (${images.length + signatures.length})`} />
           </Tabs>
         </Box>
 
-        <DialogContent sx={{ p: 2.5 }}>
+        <DialogContent sx={{ minHeight: 320 }}>
           {loading ? (
-            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1.5 }}>
-              <CircularProgress size={36} sx={{ color: themeConfig?.primary || "#0B8EE0" }} />
-              <Typography variant="body2" sx={{ color: themeConfig?.textMuted, fontWeight: 600 }}>
-                Loading booking details...
-              </Typography>
+            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 8, gap: 1.5 }}>
+              <CircularProgress size={32} sx={{ color: themeConfig.primary }} />
+              <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.88rem" }}>Loading booking details...</Typography>
             </Box>
           ) : (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
               {error && (
-                <Box
-                  sx={{
-                    p: 1.5,
-                    borderRadius: "10px",
-                    bgcolor: "rgba(239, 68, 68, 0.1)",
-                    border: "1px solid rgba(239, 68, 68, 0.3)",
-                    color: "#EF4444",
-                    fontSize: "0.85rem",
-                    fontWeight: 700,
-                  }}
-                >
-                  {error}. Showing available local details.
+                <Box sx={{ p: 1.5, borderRadius: "10px", bgcolor: "#FEF2F2", border: "1px solid #FECACA", color: "#B42318", fontSize: "0.84rem", fontWeight: 600 }}>
+                  {error}. Showing the details available on this device.
                 </Box>
               )}
 
               {tab === "overview" && (
-                <Paper elevation={0} sx={{ p: 2, borderRadius: "12px", border: `1px solid ${themeConfig?.border || "#E2E8F0"}`, bgcolor: mutedCard }}>
-                  <Grid container spacing={2}>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <InfoField label="FULL NAME" value={name} themeConfig={themeConfig} />
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <InfoField label="SECONDARY GUEST" value={secondaryName || "—"} themeConfig={themeConfig} />
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.75 }}>
-                        <Phone sx={{ fontSize: 16, mt: 1.6, color: themeConfig?.textMuted }} />
-                        <InfoField label="MOBILE" value={phone} themeConfig={themeConfig} />
+                <>
+                  <Section title="Guest" themeConfig={themeConfig}>
+                    <FieldGrid>
+                      <Field label="Main guest" value={name} themeConfig={themeConfig} />
+                      <Field label="Second guest" value={secondaryName} themeConfig={themeConfig} />
+                      <Field label="Mobile number" value={phone} themeConfig={themeConfig} />
+                      <Field label="Email address" value={email} themeConfig={themeConfig} />
+                      <Box sx={{ gridColumn: { sm: "1 / -1" } }}>
+                        <Field label="Address" value={address} themeConfig={themeConfig} />
                       </Box>
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.75 }}>
-                        <Email sx={{ fontSize: 16, mt: 1.6, color: themeConfig?.textMuted }} />
-                        <InfoField label="EMAIL" value={email} themeConfig={themeConfig} />
-                      </Box>
-                    </Grid>
-                    <Grid size={{ xs: 12 }}>
-                      <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.75 }}>
-                        <LocationOn sx={{ fontSize: 16, mt: 1.6, color: themeConfig?.textMuted }} />
-                        <InfoField label="ADDRESS" value={address} themeConfig={themeConfig} />
-                      </Box>
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <InfoField label="BOOKING NO." value={bookingNumber} themeConfig={themeConfig} />
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.75 }}>
-                        <Hotel sx={{ fontSize: 16, mt: 1.6, color: themeConfig?.textMuted }} />
-                        <InfoField label="HOTEL" value={booking.hotel?.name || hotelSettings?.name || "—"} themeConfig={themeConfig} />
-                      </Box>
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <InfoField label="CREATED BY" value={booking.creator?.name ? `${booking.creator.name} (${booking.creator.role || "STAFF"})` : "—"} themeConfig={themeConfig} />
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <InfoField label="CREATED AT" value={formatDateTime(booking.created_at || booking.createdAt)} themeConfig={themeConfig} />
-                    </Grid>
-                  </Grid>
-                </Paper>
-              )}
+                    </FieldGrid>
+                  </Section>
 
-              {tab === "stay" && (
-                <Paper elevation={0} sx={{ p: 2, borderRadius: "12px", border: `1px solid ${themeConfig?.border || "#E2E8F0"}`, bgcolor: mutedCard }}>
-                  <Grid container spacing={2}>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.75 }}>
-                        <CalendarToday sx={{ fontSize: 16, mt: 1.6, color: themeConfig?.textMuted }} />
-                        <InfoField label="CHECK-IN" value={formatDate(booking.check_in_date || booking.checkInDate)} themeConfig={themeConfig} />
-                      </Box>
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <InfoField label="CHECK-OUT" value={formatDate(booking.check_out_date || booking.checkOutDate)} themeConfig={themeConfig} />
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <InfoField label="ACTUAL CHECK-IN" value={formatDateTime(booking.actual_check_in)} themeConfig={themeConfig} />
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <InfoField label="ACTUAL CHECK-OUT" value={formatDateTime(booking.actual_check_out)} themeConfig={themeConfig} />
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 3 }}>
-                      <InfoField label="NIGHTS" value={booking.number_of_nights ?? "—"} themeConfig={themeConfig} />
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 3 }}>
-                      <InfoField label="ADULTS" value={booking.adults ?? "—"} themeConfig={themeConfig} />
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 3 }}>
-                      <InfoField label="CHILDREN" value={booking.children ?? 0} themeConfig={themeConfig} />
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 3 }}>
-                      <InfoField label="LATE HOURS" value={booking.late_checkout_hours ?? 0} themeConfig={themeConfig} />
-                    </Grid>
-                  </Grid>
+                  <Section title="Stay" themeConfig={themeConfig}>
+                    <FieldGrid>
+                      <Field label="Check-in" value={formatScheduled(booking.check_in_date || booking.checkInDate)} themeConfig={themeConfig} />
+                      <Field label="Check-out" value={formatScheduled(booking.check_out_date || booking.checkOutDate)} themeConfig={themeConfig} />
+                      {booking.actual_check_in ? (
+                        <Field label="Actual check-in" value={formatDateTime(booking.actual_check_in)} themeConfig={themeConfig} />
+                      ) : null}
+                      {booking.actual_check_out ? (
+                        <Field label="Actual check-out" value={formatDateTime(booking.actual_check_out)} themeConfig={themeConfig} />
+                      ) : null}
+                      <Field label="Nights" value={nights ?? "—"} themeConfig={themeConfig} />
+                      <Field label="Guests" value={guestsLabel} themeConfig={themeConfig} />
+                    </FieldGrid>
 
-                  <Typography variant="caption" sx={{ display: "block", mt: 2.5, mb: 1, fontWeight: 800, color: themeConfig?.textMuted }}>
-                    ASSIGNED ROOMS
-                  </Typography>
-                  {rooms.length === 0 ? (
-                    <Typography variant="body2" sx={{ fontWeight: 700 }}>Room {roomLabel}</Typography>
-                  ) : (
-                    <Grid container spacing={1.2}>
-                      {rooms.map((room) => (
-                        <Grid key={room.id || room.room_number} size={{ xs: 12, sm: 6 }}>
-                          <Box sx={{ p: 1.4, borderRadius: "10px", border: `1px solid ${themeConfig?.border || "#E2E8F0"}`, bgcolor: themeConfig?.bgCard || "#fff" }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig?.primary || "#0B8EE0" }}>
-                              Room {room.room_number || room.roomNumber}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: themeConfig?.textMuted, fontWeight: 700, display: "block" }}>
-                              {room.room_type_name || room.roomTypeName || "Room"} · Floor {room.floor ?? "—"}
-                            </Typography>
+                    <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.74rem", fontWeight: 600, mt: 2.5, mb: 1 }}>Rooms</Typography>
+                    {rooms.length === 0 ? (
+                      <Typography sx={{ fontSize: "0.9rem", fontWeight: 600, color: themeConfig.textMain }}>
+                        {roomLabel ? `Room ${roomLabel}` : "—"}
+                      </Typography>
+                    ) : (
+                      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" }, gap: 1.25 }}>
+                        {rooms.map((room) => (
+                          <Box
+                            key={room.id || room.room_number}
+                            sx={{ display: "flex", alignItems: "center", gap: 1.25, p: 1.25, borderRadius: "12px", border: `1px solid ${themeConfig.border}`, bgcolor: "#F8FAFC" }}
+                          >
+                            <Hotel sx={{ fontSize: 18, color: themeConfig.primary }} />
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography sx={{ fontWeight: 700, fontSize: "0.88rem", color: themeConfig.textMain }}>
+                                Room {room.room_number || room.roomNumber}
+                              </Typography>
+                              <Typography sx={{ fontSize: "0.76rem", color: themeConfig.textMuted }}>
+                                {room.room_type_name || room.roomTypeName || "Room"} · Floor {room.floor ?? "—"}
+                              </Typography>
+                            </Box>
                           </Box>
-                        </Grid>
-                      ))}
-                    </Grid>
-                  )}
-                </Paper>
+                        ))}
+                      </Box>
+                    )}
+                  </Section>
+
+                  {notes ? (
+                    <Section title="Notes" themeConfig={themeConfig}>
+                      <Typography sx={{ fontSize: "0.88rem", fontWeight: 500, whiteSpace: "pre-wrap", color: themeConfig.textMain, lineHeight: 1.7 }}>
+                        {notes}
+                      </Typography>
+                    </Section>
+                  ) : null}
+
+                  <Section title="Booking" themeConfig={themeConfig}>
+                    <FieldGrid>
+                      <Field label="Booking number" value={bookingNumber} themeConfig={themeConfig} />
+                      <Field label="Hotel" value={hotelName} themeConfig={themeConfig} />
+                      <Field
+                        label="Created by"
+                        value={booking.creator?.name ? `${booking.creator.name}${booking.creator.role ? ` (${humanize(booking.creator.role)})` : ""}` : ""}
+                        themeConfig={themeConfig}
+                      />
+                      <Field label="Created on" value={formatDateTime(booking.created_at || booking.createdAt)} themeConfig={themeConfig} />
+                    </FieldGrid>
+                  </Section>
+                </>
               )}
 
               {tab === "billing" && (
-                <Paper elevation={0} sx={{ p: 2, borderRadius: "12px", border: `1px solid ${themeConfig?.border || "#E2E8F0"}`, bgcolor: mutedCard }}>
-                  <Grid container spacing={2}>
-                    <Grid size={{ xs: 6, sm: 4 }}>
-                      <InfoField label="BASE" value={formatMoney(booking.base_amount ?? booking.baseAmount)} themeConfig={themeConfig} />
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 4 }}>
-                      <InfoField label="TAXABLE" value={formatMoney(booking.taxable_amount)} themeConfig={themeConfig} />
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 4 }}>
-                      <InfoField label="DISCOUNT" value={formatMoney(booking.discount_amount)} themeConfig={themeConfig} />
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 4 }}>
-                      <InfoField label={`GST (${booking.gst_rate ?? 0}%)`} value={formatMoney(booking.gst_amount ?? booking.tax_amount)} themeConfig={themeConfig} />
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 4 }}>
-                      <InfoField label={`CGST (${booking.cgst_rate ?? 0}%)`} value={formatMoney(booking.cgst_amount)} themeConfig={themeConfig} />
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 4 }}>
-                      <InfoField label={`SGST (${booking.sgst_rate ?? 0}%)`} value={formatMoney(booking.sgst_amount)} themeConfig={themeConfig} />
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 4 }}>
-                      <InfoField label="EXTRA CHARGES" value={formatMoney(booking.extra_charges_total)} themeConfig={themeConfig} />
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 4 }}>
-                      <InfoField label="LATE CHECKOUT" value={formatMoney(booking.late_checkout_charge)} themeConfig={themeConfig} />
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 4 }}>
-                      <InfoField label="TOTAL" value={formatMoney(booking.total_amount ?? booking.totalAmount)} themeConfig={themeConfig} accent={themeConfig?.primary || "#0B8EE0"} />
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 4 }}>
-                      <InfoField label="PAID" value={formatMoney(booking.paid_amount ?? booking.paidAmount)} themeConfig={themeConfig} accent="#10B981" />
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 4 }}>
-                      <InfoField
-                        label="DUE"
-                        value={formatMoney(dueAmount)}
-                        themeConfig={themeConfig}
-                        accent={dueAmount > 0 ? "#EF4444" : "#10B981"}
-                      />
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 4 }}>
-                      <InfoField label="PAYMENT STATUS" value={payStatus} themeConfig={themeConfig} />
-                    </Grid>
-                  </Grid>
-                </Paper>
+                <Section title="Bill calculation" themeConfig={themeConfig}>
+                  <Box sx={{ p: 2.5, borderRadius: "12px", border: `1px solid ${themeConfig.border}`, bgcolor: "#FFFFFF" }}>
+                    {billRow("Room charges", formatMoney(baseAmount), { hint: "Before tax" })}
+                    {billRow("Discount", discount > 0 ? `-${formatMoney(discount)}` : formatMoney(0), { color: discount > 0 ? "#047857" : undefined })}
+                    {billRow("Extra charges", extraCharges > 0 ? `+${formatMoney(extraCharges)}` : formatMoney(0))}
+                    {billRow("Late check-out charges", lateCharge > 0 ? `+${formatMoney(lateCharge)}` : formatMoney(0), { hint: lateHours ? `${lateHours}h` : "" })}
+                    {billRow("Taxable amount", formatMoney(taxable), { strong: true })}
+                    {igstAmount > 0
+                      ? billRow("IGST", `+${formatMoney(igstAmount)}`, { hint: `${gstRate}%` })
+                      : cgstAmount > 0 || sgstAmount > 0
+                        ? [
+                            billRow("CGST", `+${formatMoney(cgstAmount)}`, { hint: `${num(booking.cgst_rate) || gstRate / 2}%` }),
+                            billRow("SGST", `+${formatMoney(sgstAmount)}`, { hint: `${num(booking.sgst_rate) || gstRate / 2}%` }),
+                          ]
+                        : gstAmount > 0 && billRow("GST", `+${formatMoney(gstAmount)}`, { hint: `${gstRate}%` })}
+                    {billRow("Total bill", formatMoney(totalAmount), { strong: true })}
+                    {billRow("Paid", `-${formatMoney(paidAmount)}`, { color: "#047857" })}
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        mt: 1.25,
+                        px: 1.5,
+                        py: 1,
+                        borderRadius: "10px",
+                        bgcolor: dueAmount > 0 ? "#FEF2F2" : "#ECFDF5",
+                      }}
+                    >
+                      <Typography sx={{ fontWeight: 700, fontSize: "0.9rem", color: dueAmount > 0 ? "#B42318" : "#047857" }}>
+                        {dueAmount > 0 ? "Balance due" : "Fully settled"}
+                      </Typography>
+                      <Typography sx={{ fontWeight: 700, fontSize: "1.05rem", color: dueAmount > 0 ? "#B42318" : "#047857" }}>
+                        {formatMoney(dueAmount)}
+                      </Typography>
+                    </Box>
+                    <Typography sx={{ mt: 1.5, color: themeConfig.textMuted, fontSize: "0.76rem", lineHeight: 1.6 }}>
+                      {`${formatMoney(baseAmount)} - ${formatMoney(discount)} discount + ${formatMoney(extraCharges)} extra + ${formatMoney(lateCharge)} late check-out = ${formatMoney(taxable)}; + ${gstRate}% GST ${formatMoney(gstAmount)} = ${formatMoney(totalAmount)}`}
+                    </Typography>
+                  </Box>
+                </Section>
               )}
 
               {tab === "payments" && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.2 }}>
+                <Section title="Payment history" themeConfig={themeConfig}>
                   {payments.length === 0 ? (
-                    <EmptyState text="No payment history for this booking." themeConfig={themeConfig} />
+                    <EmptyNote text="No payments recorded for this booking." themeConfig={themeConfig} />
                   ) : (
-                    payments.map((p) => (
-                      <Paper
-                        key={p.id || `${p.received_at}-${p.amount}`}
-                        elevation={0}
-                        sx={{ p: 1.6, borderRadius: "12px", border: `1px solid ${themeConfig?.border || "#E2E8F0"}`, bgcolor: mutedCard }}
-                      >
-                        <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
-                          <Box>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                              {formatMoney(p.amount)} · {p.payment_method || "—"}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: themeConfig?.textMuted, fontWeight: 700 }}>
-                              {p.source || "PAYMENT"} · {p.received_by?.name || "Staff"} · {formatDateTime(p.received_at)}
-                            </Typography>
+                    <>
+                      <Box sx={{ borderRadius: "12px", border: `1px solid ${themeConfig.border}`, overflow: "hidden" }}>
+                        {payments.map((p, idx) => (
+                          <Box
+                            key={p.id || `${p.received_at}-${p.amount}`}
+                            sx={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              gap: 2,
+                              px: 2,
+                              py: 1.5,
+                              borderTop: idx === 0 ? "none" : `1px solid ${themeConfig.border}`,
+                            }}
+                          >
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography sx={{ fontWeight: 700, fontSize: "0.92rem", color: themeConfig.textMain }}>
+                                {formatMoney(p.amount)}
+                                <Typography component="span" sx={{ ml: 1, fontSize: "0.8rem", fontWeight: 500, color: themeConfig.textMuted }}>
+                                  {humanize(p.payment_method)}
+                                </Typography>
+                              </Typography>
+                              <Typography sx={{ fontSize: "0.76rem", color: themeConfig.textMuted, mt: 0.25 }}>
+                                {humanize(p.source || "Payment")} · {p.received_by?.name || "Staff"} · {formatDateTime(p.received_at)}
+                              </Typography>
+                            </Box>
+                            <Pill label={humanize(p.status)} tone={statusTone(p.status)} />
                           </Box>
-                          <Chip label={p.status || "—"} size="small" color={statusColor(p.status)} sx={{ fontWeight: 800, fontSize: "0.7rem" }} />
-                        </Box>
-                      </Paper>
-                    ))
+                        ))}
+                      </Box>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", mt: 1.5, px: 0.5 }}>
+                        <Typography sx={{ fontSize: "0.86rem", fontWeight: 600, color: themeConfig.textMuted }}>Total received</Typography>
+                        <Typography sx={{ fontSize: "0.92rem", fontWeight: 700, color: "#047857" }}>
+                          {formatMoney(payments.reduce((sum, p) => sum + num(p.amount), 0))}
+                        </Typography>
+                      </Box>
+                    </>
                   )}
-                </Box>
+                </Section>
               )}
 
               {tab === "documents" && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
-                  <Box>
-                    <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig?.textMuted, display: "block", mb: 1 }}>
-                      ID PHOTOS ({images.length})
-                    </Typography>
-                    <MediaGrid items={images} fallbackLabel="ID photos" themeConfig={themeConfig} onPreview={setPreview} />
-                  </Box>
-                  <Box>
-                    <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig?.textMuted, display: "block", mb: 1 }}>
-                      SIGNATURES ({signatures.length})
-                    </Typography>
-                    <MediaGrid items={signatures} fallbackLabel="Signatures" themeConfig={themeConfig} onPreview={setPreview} />
-                  </Box>
-                </Box>
-              )}
-
-              {tab === "notes" && (
-                <Paper elevation={0} sx={{ p: 2, borderRadius: "12px", border: `1px solid ${themeConfig?.border || "#E2E8F0"}`, bgcolor: mutedCard }}>
-                  {notes ? (
-                    <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: "pre-wrap", color: themeConfig?.textMain, lineHeight: 1.7 }}>
-                      {notes}
-                    </Typography>
-                  ) : (
-                    <EmptyState text="No notes recorded for this booking." themeConfig={themeConfig} />
-                  )}
-                  <Typography variant="caption" sx={{ display: "block", mt: 2, color: themeConfig?.textMuted, fontWeight: 700 }}>
-                    Last updated {formatDateTime(booking.updated_at)}
-                  </Typography>
-                </Paper>
+                <>
+                  <Section title={`ID photos (${images.length})`} themeConfig={themeConfig}>
+                    <MediaGrid items={images} emptyText="No ID photos attached." themeConfig={themeConfig} onPreview={setPreview} />
+                  </Section>
+                  <Section title={`Signatures (${signatures.length})`} themeConfig={themeConfig}>
+                    <MediaGrid items={signatures} emptyText="No signature attached." themeConfig={themeConfig} onPreview={setPreview} />
+                  </Section>
+                </>
               )}
             </Box>
           )}
         </DialogContent>
 
-        <DialogActions
-          sx={{
-            p: 1.5,
-            borderTop: `1px solid ${themeConfig?.border || "#E2E8F0"}`,
-            bgcolor: mutedCard,
-          }}
-        >
-          <Button
-            onClick={onClose}
-            variant="contained"
-            sx={{
-              borderRadius: "10px",
-              fontWeight: 800,
-              bgcolor: themeConfig?.primary || "#0B8EE0",
-              px: 3,
-            }}
-          >
+        <AppDialogFooter>
+          <Button onClick={onClose} variant="contained" sx={dialogPrimaryButtonSx(themeConfig)}>
             Close
           </Button>
-        </DialogActions>
+        </AppDialogFooter>
       </Dialog>
 
       <Dialog
@@ -707,20 +727,13 @@ export default function GuestDetailsModal({
         slotProps={{ paper: { sx: { borderRadius: "16px", p: 1.5, bgcolor: "#0F172A" } } }}
       >
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#F8FAFC" }}>
-            {preview?.label || "Preview"}
-          </Typography>
+          <Typography sx={{ fontWeight: 600, fontSize: "0.9rem", color: "#F8FAFC" }}>{preview?.label || "Preview"}</Typography>
           <IconButton size="small" onClick={() => setPreview(null)} sx={{ color: "#FFF" }}>
             <Close fontSize="small" />
           </IconButton>
         </Box>
         {preview?.url && (
-          <Box
-            component="img"
-            src={preview.url}
-            alt={preview.label}
-            sx={{ width: "100%", maxHeight: "75vh", objectFit: "contain", borderRadius: "10px" }}
-          />
+          <Box component="img" src={preview.url} alt={preview.label} sx={{ width: "100%", maxHeight: "75vh", objectFit: "contain", borderRadius: "10px" }} />
         )}
       </Dialog>
     </>

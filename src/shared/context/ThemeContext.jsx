@@ -325,6 +325,16 @@ export function buildMuiTheme(themeConfig, mode = "light") {
           },
         },
       },
+      // Field labels sit above the input (not floating inside the border)
+      MuiFormControl: {
+        styleOverrides: {
+          root: {
+            "& label[data-shrink=false] + .MuiInputBase-formControl .MuiInputBase-input::placeholder": {
+              opacity: "0.5 !important",
+            },
+          },
+        },
+      },
       MuiInputLabel: {
         styleOverrides: {
           root: {
@@ -333,18 +343,50 @@ export function buildMuiTheme(themeConfig, mode = "light") {
             "&.Mui-focused": {
               color: themeConfig.primary,
             },
+            "&&.MuiInputLabel-outlined": {
+              position: "static",
+              transform: "none",
+              display: "block",
+              maxWidth: "100%",
+              overflow: "visible",
+              whiteSpace: "normal",
+              fontSize: "0.78rem",
+              lineHeight: 1.4,
+              marginBottom: 6,
+              pointerEvents: "auto",
+            },
+            "& .MuiInputLabel-asterisk": {
+              color: "#B42318",
+            },
+            "&&.Mui-error": {
+              color: themeConfig.textMuted,
+            },
+          },
+        },
+      },
+      MuiFormHelperText: {
+        styleOverrides: {
+          root: {
+            marginLeft: 2,
+            marginRight: 2,
+            fontSize: "0.72rem",
           },
         },
       },
       MuiOutlinedInput: {
         styleOverrides: {
           root: {
+            // Label is rendered above the field, so the outline needs no notch
+            "& legend": {
+              display: "none",
+            },
             borderRadius: 12,
             backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "#FFFFFF",
             color: themeConfig.textMain,
             boxShadow: isDark ? "none" : "inset 0 1px 3px rgba(0, 0, 0, 0.02)",
             transition: "all 0.2s ease",
             "& fieldset": {
+              top: 0,
               borderColor: themeConfig.border,
             },
             "&:hover fieldset": {
@@ -385,12 +427,57 @@ export function buildMuiTheme(themeConfig, mode = "light") {
       MuiDialog: {
         styleOverrides: {
           paper: {
-            borderRadius: 22,
+            borderRadius: 16,
+            overflow: "hidden",
+            backgroundImage: "none",
             backgroundColor: themeConfig.bgCard || (isDark ? "#0E312C" : "#FFFFFF"),
-            boxShadow: isDark
-              ? "0 24px 48px -12px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(20, 184, 166, 0.15)"
-              : "0 24px 48px -12px rgba(12, 39, 59, 0.22), 0 12px 24px -8px rgba(12, 39, 59, 0.1), inset 0 1px 1px rgba(255, 255, 255, 0.95)",
+            boxShadow: isDark ? "none" : "0 12px 32px rgba(15, 23, 42, 0.12)",
             border: `1px solid ${themeConfig.border}`,
+          },
+        },
+      },
+      MuiDialogTitle: {
+        styleOverrides: {
+          root: {
+            padding: "16px 20px",
+            fontWeight: 700,
+            fontSize: "1.05rem",
+            lineHeight: 1.3,
+            color: themeConfig.textMain,
+            backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "#F0FDFA",
+            borderBottom: `1px solid ${themeConfig.border}`,
+          },
+        },
+      },
+      MuiDialogContent: {
+        styleOverrides: {
+          root: {
+            padding: "24px",
+            // MUI removes the top padding when content follows a title; keep breathing room under the header
+            "&&": {
+              paddingTop: 24,
+            },
+          },
+          dividers: {
+            borderTop: "none",
+            borderBottom: "none",
+          },
+        },
+      },
+      MuiDialogActions: {
+        styleOverrides: {
+          root: {
+            padding: "14px 20px",
+            gap: 8,
+            backgroundColor: isDark ? "rgba(255,255,255,0.03)" : "#F8FAFC",
+            borderTop: `1px solid ${themeConfig.border}`,
+            "& .MuiButton-root": {
+              minHeight: 40,
+              borderRadius: 10,
+              textTransform: "none",
+              fontWeight: 700,
+              boxShadow: "none",
+            },
           },
         },
       },

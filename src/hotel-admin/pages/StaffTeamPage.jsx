@@ -8,9 +8,7 @@ import {
   Button,
   Chip,
   Dialog,
-  DialogTitle,
   DialogContent,
-  DialogActions,
   TextField,
   InputAdornment,
   Avatar,
@@ -37,12 +35,11 @@ import {
   Visibility,
   Phone,
   Badge as IdBadge,
-  Close,
-  People,
   AccessTime,
   Email,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
+import { AppDialogHeader, AppDialogFooter, dialogPaperSx, dialogCancelButtonSx, dialogPrimaryButtonSx } from "@/shared/components/AppDialog";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import { formatTime12Hour } from "@/shared/utils/timeUtils";
@@ -95,7 +92,6 @@ export default function StaffTeamPage({
   const totalManagers = staffList.filter((s) => (s.role || "").toUpperCase().includes("MANAGER")).length;
   const totalHousekeeping = staffList.filter((s) => (s.role || "").toUpperCase().includes("HOUSEKEEPING")).length;
   const totalAccountants = staffList.filter((s) => (s.role || "").toUpperCase().includes("ACCOUNTANT")).length;
-  const totalActive = staffList.filter((s) => s.status === "ACTIVE" || !s.status).length;
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -204,83 +200,14 @@ export default function StaffTeamPage({
     "& .MuiFormHelperText-root": { mx: 0.5 },
   };
 
+  const openAddStaff = () => setStaffModal({
+    open: true,
+    mode: "ADD",
+    data: getInitialStaffForm ? getInitialStaffForm() : { name: "", email: "", phone: "", role: "RECEPTIONIST", shift: "Morning (07:00 - 15:00)", status: "ACTIVE" },
+  });
+
   return (
     <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
-      <Box
-        sx={{
-          mb: 2.5,
-          px: { xs: 2.25, md: 3 },
-          py: { xs: 2.25, md: 2.75 },
-          borderRadius: "16px",
-          color: "#FFFFFF",
-          position: "relative",
-          overflow: "hidden",
-          background: `linear-gradient(120deg, ${themeConfig.primaryDark || "#0C273B"} 0%, ${themeConfig.primary || "#0F766E"} 100%)`,
-          boxShadow: `0 10px 24px -12px ${themeConfig.primaryGlow || "rgba(15, 118, 110, 0.45)"}`,
-        }}
-      >
-        <Box
-          sx={{
-            position: "absolute",
-            top: -80,
-            right: -40,
-            width: 220,
-            height: 220,
-            borderRadius: "50%",
-            bgcolor: "rgba(255,255,255,0.08)",
-            pointerEvents: "none",
-          }}
-        />
-        <Box sx={{ position: "relative", display: "flex", flexDirection: { xs: "column", sm: "row" }, justifyContent: "space-between", alignItems: { xs: "stretch", sm: "center" }, gap: 2 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.75 }}>
-            <Box
-              sx={{
-                width: 46,
-                height: 46,
-                borderRadius: "12px",
-                display: "grid",
-                placeItems: "center",
-                flexShrink: 0,
-                bgcolor: "rgba(255,255,255,0.14)",
-                border: "1px solid rgba(255,255,255,0.18)",
-              }}
-            >
-              <People sx={{ fontSize: 22, color: "#FFFFFF" }} />
-            </Box>
-            <Box>
-              <Typography sx={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: 1.1, textTransform: "uppercase", color: "rgba(255,255,255,0.78)" }}>
-                Staff directory
-              </Typography>
-              <Typography sx={{ fontWeight: 700, fontSize: { xs: "1.35rem", sm: "1.55rem" }, lineHeight: 1.2, letterSpacing: -0.3, color: "#FFFFFF" }}>
-                Staff
-              </Typography>
-              <Typography sx={{ mt: 0.45, fontSize: "0.88rem", color: "rgba(255,255,255,0.86)" }}>
-                {staffList.length} {staffList.length === 1 ? "member" : "members"} · {totalActive} active
-              </Typography>
-            </Box>
-          </Box>
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={() => setStaffModal({ open: true, mode: "ADD", data: getInitialStaffForm ? getInitialStaffForm() : { name: "", email: "", phone: "", role: "RECEPTIONIST", shift: "Morning (07:00 - 15:00)", status: "ACTIVE" } })}
-            sx={{
-              width: { xs: "100%", sm: "auto" },
-              borderRadius: "10px",
-              textTransform: "none",
-              fontWeight: 700,
-              px: 2.25,
-              py: 1.05,
-              color: themeConfig.primaryDark || "#0C273B",
-              bgcolor: "#FFFFFF",
-              boxShadow: "none",
-              "&:hover": { bgcolor: "#F8FAFC", boxShadow: "none" },
-            }}
-          >
-            Add staff
-          </Button>
-        </Box>
-      </Box>
-
       <Paper
         sx={{
           borderRadius: "16px",
@@ -293,11 +220,11 @@ export default function StaffTeamPage({
       >
         <Box
           sx={{
-            p: 2,
+            px: { xs: 2, sm: 2.5 },
+            py: 2,
             display: "flex",
-            flexDirection: { xs: "column", lg: "row" },
-            alignItems: { xs: "stretch", lg: "center" },
-            justifyContent: "space-between",
+            flexWrap: "wrap",
+            alignItems: "center",
             gap: 1.5,
             borderBottom: `1px solid ${themeConfig.border}`,
           }}
@@ -308,11 +235,10 @@ export default function StaffTeamPage({
           value={staffSearch}
           onChange={(e) => setStaffSearch(e.target.value)}
           sx={{
-            width: "100%",
-            flex: { lg: "1 1 280px" },
-            minWidth: 0,
-            maxWidth: { lg: 420 },
+            flex: { xs: "1 1 100%", sm: "1 1 280px" },
+            maxWidth: { sm: 360 },
             "& .MuiOutlinedInput-root": {
+              height: 40,
               borderRadius: "10px",
               bgcolor: themeConfig.bgMain,
             },
@@ -328,61 +254,57 @@ export default function StaffTeamPage({
           }}
         />
 
-        <Box
+        <TextField
+          select
+          size="small"
+          value={staffRoleFilter || "ALL"}
+          onChange={(e) => setStaffRoleFilter(e.target.value)}
           sx={{
-            display: "flex",
-            gap: 1,
-            flexWrap: "wrap",
-            alignItems: "center",
-            justifyContent: { xs: "flex-start", lg: "flex-end" },
-            py: 0.5,
-            width: "100%",
-            minWidth: 0,
+            width: { xs: "100%", sm: 210 },
+            "& .MuiOutlinedInput-root": {
+              height: 40,
+              borderRadius: "10px",
+              bgcolor: themeConfig.bgMain,
+            },
           }}
         >
-          {[
-            { id: "ALL", label: `All Staff (${staffList.length})` },
-            { id: "RECEPTIONIST", label: `Receptionists (${totalReceptionists})` },
-            { id: "MANAGER", label: `Managers (${totalManagers})` },
-            { id: "HOUSEKEEPING", label: `Housekeeping (${totalHousekeeping})` },
-            { id: "ACCOUNTANT", label: `Accountants (${totalAccountants})` },
-          ].map((role) => {
-            const isSelected = staffRoleFilter === role.id;
-            return (
-              <Chip
-                key={role.id}
-                label={role.label}
-                clickable
-                onClick={() => setStaffRoleFilter(role.id)}
-                sx={{
-                  fontWeight: 600,
-                  borderRadius: "999px",
-                  fontSize: "0.78rem",
-                  height: 32,
-                  flexShrink: 0,
-                  bgcolor: isSelected ? themeConfig.primary : "transparent",
-                  color: isSelected ? "#FFFFFF" : themeConfig.textMain,
-                  border: `1px solid ${isSelected ? themeConfig.primary : themeConfig.border}`,
-                  "&:hover": {
-                    bgcolor: isSelected ? themeConfig.primaryDark : themeConfig.bgMain,
-                  },
-                }}
-              />
-            );
-          })}
-        </Box>
+          <MenuItem value="ALL">All roles ({staffList.length})</MenuItem>
+          <MenuItem value="RECEPTIONIST">Receptionist ({totalReceptionists})</MenuItem>
+          <MenuItem value="MANAGER">Manager ({totalManagers})</MenuItem>
+          <MenuItem value="HOUSEKEEPING">Housekeeping ({totalHousekeeping})</MenuItem>
+          <MenuItem value="ACCOUNTANT">Accountant ({totalAccountants})</MenuItem>
+        </TextField>
+        <Button
+          variant="contained"
+          startIcon={<Add />}
+          onClick={openAddStaff}
+          sx={{
+            height: 40,
+            ml: { sm: "auto" },
+            borderRadius: "10px",
+            textTransform: "none",
+            fontWeight: 700,
+            px: 2.25,
+            boxShadow: "none",
+            bgcolor: themeConfig.primary,
+            whiteSpace: "nowrap",
+            "&:hover": { bgcolor: themeConfig.primaryDark, boxShadow: "none" },
+          }}
+        >
+          Add
+        </Button>
         </Box>
 
-        <TableContainer sx={{ width: "100%", overflowX: "auto" }}>
+        <TableContainer sx={{ width: "100%", overflowX: "auto", borderRadius: 0, border: "none", boxShadow: "none", bgcolor: "transparent" }}>
         <Table size="medium" sx={{ width: "100%", minWidth: 720 }}>
           <TableHead>
             <TableRow>
-              {["Name", "Role", "Phone", "Status"].map((heading) => (
-                <TableCell key={heading} sx={{ fontWeight: 700, fontSize: "0.72rem", letterSpacing: 0.7, textTransform: "uppercase", color: themeConfig.primaryDark, py: 1.6, borderBottom: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne || "#F4F7F6" }}>
+              {["Name", "Role", "Phone", "Status"].map((heading, index) => (
+                <TableCell key={heading} sx={{ fontWeight: 700, fontSize: "0.72rem", letterSpacing: "0.06em", textTransform: "uppercase", color: themeConfig.primaryDark, py: 1.75, px: 2.5, pl: index === 0 ? 3 : 2.5, borderRadius: 0, borderBottom: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne || "#F4F7F6", whiteSpace: "nowrap" }}>
                   {heading}
                 </TableCell>
               ))}
-              <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.72rem", letterSpacing: 0.7, textTransform: "uppercase", color: themeConfig.primaryDark, py: 1.6, borderBottom: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne || "#F4F7F6" }}>
+              <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.72rem", letterSpacing: "0.06em", textTransform: "uppercase", color: themeConfig.primaryDark, py: 1.75, px: 2.5, pr: 3, borderRadius: 0, borderBottom: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne || "#F4F7F6", whiteSpace: "nowrap" }}>
                 Actions
               </TableCell>
             </TableRow>
@@ -390,8 +312,9 @@ export default function StaffTeamPage({
           <TableBody>
             {staffCount === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} sx={{ py: 6, textAlign: "center" }}>
+                <TableCell colSpan={5} sx={{ p: 0, borderBottom: "none" }}>
                   <EmptyState
+                    embedded
                     title="No staff members"
                     description={staffList.length === 0 ? "Add a staff member to start building your team." : "No staff members match this search."}
                   />
@@ -416,7 +339,7 @@ export default function StaffTeamPage({
                     "& td": { borderBottom: `1px solid ${themeConfig.border}` },
                   }}
                 >
-                  <TableCell sx={{ py: 1.6 }}>
+                  <TableCell sx={{ py: 1.75, pl: 3, pr: 2.5 }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                       <Avatar
                         sx={{
@@ -441,7 +364,7 @@ export default function StaffTeamPage({
                     </Box>
                   </TableCell>
 
-                  <TableCell>
+                  <TableCell sx={{ py: 1.75, px: 2.5 }}>
                     <Chip
                       label={meta.shortLabel || staff.role || "Receptionist"}
                       size="small"
@@ -455,14 +378,14 @@ export default function StaffTeamPage({
                     />
                   </TableCell>
 
-                  <TableCell>
+                  <TableCell sx={{ py: 1.75, px: 2.5 }}>
                     <Typography sx={{ fontWeight: 600, color: themeConfig.textMain, fontSize: "0.9rem" }}>
                       {staff.phone || "—"}
                     </Typography>
                   </TableCell>
 
-                  <TableCell>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <TableCell sx={{ py: 1.75, px: 2.5 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       {onToggleStaffStatus && (
                         <Switch
                           size="small"
@@ -481,8 +404,8 @@ export default function StaffTeamPage({
                     </Box>
                   </TableCell>
 
-                  <TableCell align="right">
-                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+                  <TableCell align="right" sx={{ py: 1.75, pl: 2.5, pr: 2.5 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.25 }}>
                       <Tooltip title="View profile">
                         <IconButton size="small" onClick={() => setViewStaffModal({ open: true, staff })} sx={actionSx}>
                           <Visibility fontSize="small" />
@@ -548,37 +471,18 @@ export default function StaffTeamPage({
         onClose={() => setStaffModal({ ...staffModal, open: false })}
         maxWidth="md"
         fullWidth
-        slotProps={{
-          paper: {
-            sx: {
-              borderRadius: "24px",
-              p: 1.5,
-              border: `1px solid ${themeConfig.border}`,
-              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-              boxShadow: isDarkMode ? "0 20px 50px rgba(0,0,0,0.6)" : "0 20px 50px rgba(0,0,0,0.18)",
-            },
-          },
-        }}
+        slotProps={{ paper: { sx: dialogPaperSx(themeConfig, isDarkMode) } }}
       >
         <form onSubmit={onSaveStaff}>
-          <DialogTitle component="div" sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", pb: 1 }}>
-            <Box>
-              <Typography component="div" variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain, letterSpacing: -0.2 }}>
-                {staffModal.mode === "ADD" ? "Add Staff Member" : "Edit Staff Member"}
-              </Typography>
-              <Typography variant="body2" sx={{ color: themeConfig.textMuted, mt: 0.4 }}>
-                {staffModal.mode === "ADD"
-                  ? "Create a login and assign a role and shift."
-                  : staffModal.data?.name || "Update this staff member’s details."}
-              </Typography>
-            </Box>
-            <IconButton onClick={() => setStaffModal({ ...staffModal, open: false })} aria-label="Close" sx={{ borderRadius: "10px", mt: -0.5 }}>
-              <Close />
-            </IconButton>
-          </DialogTitle>
+          <AppDialogHeader
+            eyebrow={staffModal.mode === "ADD" ? "New staff" : "Staff details"}
+            title={staffModal.mode === "ADD" ? "Add staff member" : "Edit staff member"}
+            icon={<IdBadge sx={{ fontSize: 20 }} />}
+            onClose={() => setStaffModal({ ...staffModal, open: false })}
+          />
 
-          <DialogContent dividers sx={{ borderColor: themeConfig.border, pt: 2.5 }}>
-            <Grid container spacing={2.5}>
+          <DialogContent>
+            <Grid container spacing={3}>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
@@ -613,7 +517,7 @@ export default function StaffTeamPage({
                   onChange={(e) => setStaffModal({ ...staffModal, data: { ...staffModal.data, email: e.target.value } })}
                   placeholder="Email address"
                   error={emailInvalid}
-                  helperText={emailInvalid ? "Enter a valid email address" : "Used for staff login"}
+                  helperText={emailInvalid ? "Enter a valid email address" : ""}
                   slotProps={{
                     inputLabel: { shrink: true },
                     input: {
@@ -643,7 +547,7 @@ export default function StaffTeamPage({
                   helperText={
                     staffModal.data?.phone && staffModal.data.phone.length !== 10
                       ? `${staffModal.data.phone.length} of 10 digits entered`
-                      : "10-digit mobile number"
+                      : ""
                   }
                   placeholder="10-digit mobile number"
                   slotProps={{
@@ -691,7 +595,7 @@ export default function StaffTeamPage({
               </Grid>
 
               <Grid size={{ xs: 12 }}>
-                <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 0.6 }}>
+                <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1 }}>
                   <Button
                     size="small"
                     variant="text"
@@ -831,28 +735,14 @@ export default function StaffTeamPage({
             </Grid>
           </DialogContent>
 
-          <DialogActions sx={{ p: 2.5, flexDirection: { xs: "column-reverse", sm: "row" }, gap: 1.5 }}>
-            <Button onClick={() => setStaffModal({ ...staffModal, open: false })} sx={{ width: { xs: "100%", sm: "auto" }, borderRadius: "10px", fontWeight: 700 }}>
+          <AppDialogFooter>
+            <Button onClick={() => setStaffModal({ ...staffModal, open: false })} variant="outlined" sx={dialogCancelButtonSx(themeConfig, isDarkMode)}>
               Cancel
             </Button>
-            <Button
-              type="submit"
-              variant="contained"
-              className="btn-3d"
-              sx={{
-                width: { xs: "100%", sm: "auto" },
-                background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                color: "#FFFFFF",
-                fontWeight: 800,
-                borderRadius: "12px",
-                px: 3,
-                justifyContent: "center",
-                boxShadow: `0 4px 14px ${themeConfig.primaryGlow}`,
-              }}
-            >
-              {staffModal.mode === "ADD" ? "Add Staff Member" : "Save Changes"}
+            <Button type="submit" variant="contained" sx={dialogPrimaryButtonSx(themeConfig)}>
+              {staffModal.mode === "ADD" ? "Add staff member" : "Save changes"}
             </Button>
-          </DialogActions>
+          </AppDialogFooter>
         </form>
       </Dialog>
 
@@ -864,18 +754,7 @@ export default function StaffTeamPage({
         onClose={() => setViewStaffModal({ open: false, staff: null })}
         maxWidth="sm"
         fullWidth
-        slotProps={{
-          paper: {
-            sx: {
-              borderRadius: "24px",
-              p: 0,
-              border: `1px solid ${themeConfig.border}`,
-              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-              boxShadow: isDarkMode ? "0 20px 50px rgba(0,0,0,0.6)" : "0 20px 50px rgba(0,0,0,0.18)",
-              overflow: "hidden",
-            },
-          },
-        }}
+        slotProps={{ paper: { sx: dialogPaperSx(themeConfig, isDarkMode) } }}
       >
         {viewStaffModal.staff && (() => {
           const profile = viewStaffModal.staff;
@@ -890,51 +769,12 @@ export default function StaffTeamPage({
 
           return (
             <Box>
-              <Box
-                sx={{
-                  px: 3,
-                  py: 2.5,
-                  background: `linear-gradient(135deg, ${themeConfig.primaryDark || "#0C273B"} 0%, ${themeConfig.primary || "#0B8EE0"} 100%)`,
-                  color: "#FFFFFF",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 2,
-                }}
-              >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0 }}>
-                  <Avatar
-                    sx={{
-                      width: 56,
-                      height: 56,
-                      borderRadius: "16px",
-                      bgcolor: "#FFFFFF",
-                      color: themeConfig.primaryDark,
-                      fontWeight: 800,
-                      fontSize: "1.25rem",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {(profile.name || "S").charAt(0).toUpperCase()}
-                  </Avatar>
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography sx={{ fontWeight: 800, fontSize: "1.15rem", lineHeight: 1.25, color: "#FFFFFF" }} noWrap>
-                      {profile.name}
-                    </Typography>
-                    <Typography sx={{ mt: 0.4, color: "rgba(255,255,255,0.88)", fontSize: "0.82rem" }}>
-                      {roleMeta.shortLabel || roleMeta.label}
-                      {staffId ? ` · Staff ID ${staffId}` : ""}
-                    </Typography>
-                  </Box>
-                </Box>
-                <IconButton
-                  onClick={() => setViewStaffModal({ open: false, staff: null })}
-                  aria-label="Close"
-                  sx={{ color: "#FFFFFF", bgcolor: "rgba(255,255,255,0.16)", "&:hover": { bgcolor: "rgba(255,255,255,0.28)" } }}
-                >
-                  <Close fontSize="small" />
-                </IconButton>
-              </Box>
+              <AppDialogHeader
+                eyebrow={`${roleMeta.shortLabel || roleMeta.label}${staffId ? ` · ${staffId}` : ""}`}
+                title={profile.name || "Staff member"}
+                icon={<Typography sx={{ fontWeight: 800, fontSize: "0.95rem" }}>{(profile.name || "S").charAt(0).toUpperCase()}</Typography>}
+                onClose={() => setViewStaffModal({ open: false, staff: null })}
+              />
 
               <Box sx={{ px: 3, py: 1 }}>
                 {details.map((item) => (
@@ -980,22 +820,11 @@ export default function StaffTeamPage({
                 </Box>
               </Box>
 
-              <DialogActions sx={{ px: 3, py: 2, borderTop: `1px solid ${themeConfig.border}` }}>
-                <Button
-                  onClick={() => setViewStaffModal({ open: false, staff: null })}
-                  variant="contained"
-                  sx={{
-                    borderRadius: "10px",
-                    fontWeight: 700,
-                    textTransform: "none",
-                    px: 2.5,
-                    bgcolor: themeConfig.primary,
-                    "&:hover": { bgcolor: themeConfig.primaryDark },
-                  }}
-                >
+              <AppDialogFooter>
+                <Button onClick={() => setViewStaffModal({ open: false, staff: null })} variant="contained" sx={dialogPrimaryButtonSx(themeConfig)}>
                   Close
                 </Button>
-              </DialogActions>
+              </AppDialogFooter>
             </Box>
           );
         })()}

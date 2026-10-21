@@ -185,7 +185,16 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
   };
 
   const extractRoomTypes = (res) => {
-    const raw = res?.data?.roomTypes || res?.data?.room_types || res?.roomTypes || res?.data || res || [];
+    const raw =
+      res?.data?.room_categories ||
+      res?.data?.roomCategories ||
+      res?.data?.roomTypes ||
+      res?.data?.room_types ||
+      res?.room_categories ||
+      res?.roomTypes ||
+      res?.data ||
+      res ||
+      [];
     const list = Array.isArray(raw) ? raw : [];
     return list.map((rt) => {
       const id = String(rt.id || rt._id || "");
@@ -252,7 +261,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         endpointsToFetch.push(
           apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD, skipCache).then((res) => res?.data && setDashboardData(res.data)),
           apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?page=1&limit=100`, skipCache).then((res) => setRooms(extractRooms(res))),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES, skipCache).then((res) => setRoomTypes(extractRoomTypes(res))),
+          apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES}?page=1&limit=100`, skipCache).then((res) => setRoomTypes(extractRoomTypes(res))),
           apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`, skipCache).then((res) => {
             setBookings(extractBookings(res));
             setBookingsError("");
@@ -264,7 +273,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
           endpointsToFetch.push(
             apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD, skipCache).then((res) => res?.data && setDashboardData(res.data)),
             apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?page=1&limit=100`, skipCache).then((res) => setRooms(extractRooms(res))),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES, skipCache).then((res) => setRoomTypes(extractRoomTypes(res))),
+            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES}?page=1&limit=100`, skipCache).then((res) => setRoomTypes(extractRoomTypes(res))),
             apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`, skipCache).then((res) => {
             setBookings(extractBookings(res));
             setBookingsError("");
@@ -282,7 +291,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         } else if (tabIndex === 2) {
           endpointsToFetch.push(
             apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?page=1&limit=100`, skipCache).then((res) => setRooms(extractRooms(res))),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES, skipCache).then((res) => setRoomTypes(extractRoomTypes(res))),
+            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES}?page=1&limit=100`, skipCache).then((res) => setRoomTypes(extractRoomTypes(res))),
             apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`, skipCache).then((res) => setBookings(extractBookings(res)))
           );
         } else if (tabIndex === 3) {
@@ -434,12 +443,15 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         actual_check_in: combineLocalDateTime(checkInData.checkInDate, checkInData.checkInTime),
         adults: Number(checkInData.adults) || (1 + (checkInData.accompanyingGuests?.length || 0)),
         children: Number(checkInData.children) || 0,
-        base_amount: Number(checkInData.baseAmount || checkInData.total || 0),
-        discount_amount: Number(checkInData.discountAmount) || 0,
+        // Room charge before tax and extras (before discount); GST is applied on (base_amount - discount_amount)
+        base_amount: Number.isFinite(Number(checkInData.baseAmount)) ? Number(checkInData.baseAmount) : 0,
+        discount_amount: Number(checkInData.appliedDiscount ?? checkInData.discountAmount) || 0,
         extra_charges_total: Number(secDepAmt) || 0,
-        gst_rate: Number(checkInData.gstRate) || 18,
-        paid_amount: Number(checkInData.paid !== undefined ? checkInData.paid : checkInData.total || 0),
-        notes: checkInData.paymentNote || `${checkInData.paymentMethod || "CASH"} settlement at check-in`,
+        gst_rate: Number.isFinite(Number(checkInData.gstRate)) ? Number(checkInData.gstRate) : 18,
+        paid_amount: Number(checkInData.paid) || 0,
+        payment_method: checkInData.paymentMethod || "CASH",
+        transaction_id: checkInData.transactionId || "",
+        notes: checkInData.paymentNote || `${checkInData.paymentMethod || "CASH"} advance at check-in`,
         // Document & Signature photos (converted to binary Blobs and sent via FormData)
         front_image: checkInData.frontImage || (checkInData.idImages && checkInData.idImages[0]) || checkInData.idProofImage || "",
         back_image: checkInData.backImage || (checkInData.idImages && checkInData.idImages[1]) || checkInData.idProofBackImage || "",
@@ -617,22 +629,23 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         ? Number(settlementData.settlementPaymentAmount)
         : bookingDue;
 
-      // Safety guard: if amount is 0 but booking has an outstanding due, use the booking's due amount
-      if ((!amount || amount === 0) && bookingDue > 0) {
+      // Fallback to the booking's due only when the caller did not specify an amount
+      if (settlementData.settlementPaymentAmount === undefined && (!amount || amount === 0) && bookingDue > 0) {
         amount = bookingDue;
       }
 
       const method = settlementData.paymentMethod || "CASH";
+      const defaultNote = `Checked out and settled via ${method}${settlementData.transactionId ? ` (Ref: ${settlementData.transactionId})` : ""}`;
 
       const res = await apiRequest(API_ENDPOINTS.RECEPTIONIST.CHECKOUT(bookingId), {
         method: "POST",
         body: {
           paid_amount: Number(amount) || 0,
-          due_amount: bookingDue,
-          settlement_payment_amount: Number(amount) || 0,
+          payment_method: method,
+          extra_charges_total: Number(settlementData.extraCharges) || 0,
           late_checkout_charge: Number(settlementData.lateCheckoutFee) || 0,
           late_checkout_hours: Number(settlementData.lateCheckoutHours) || 0,
-          notes: `Checked out and settled via ${method}${settlementData.transactionId ? ` (Ref: ${settlementData.transactionId})` : ""}`,
+          notes: settlementData.notes ? String(settlementData.notes).trim() : defaultNote,
         },
       });
       showToast(res.message || "Booking checked out successfully! Room marked for cleaning.");
@@ -932,7 +945,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
       <Dialog
         open={posChargeDialog.open}
         onClose={() => setPosChargeDialog({ ...posChargeDialog, open: false })}
-        slotProps={{ paper: { sx: { borderRadius: "20px", p: 1, border: `1px solid ${themeConfig.border}`, maxWidth: 480, width: "100%" } } }}
+        slotProps={{ paper: { sx: { borderRadius: "16px", border: `1px solid ${themeConfig.border}`, maxWidth: 480, width: "100%", overflow: "hidden" } } }}
       >
         <form onSubmit={handleAddPosCharge}>
           <DialogTitle component="div" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
@@ -1007,7 +1020,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
       <Dialog
         open={invoiceModal.open}
         onClose={() => setInvoiceModal({ open: false, booking: null })}
-        slotProps={{ paper: { sx: { borderRadius: "20px", p: 3, maxWidth: 680, border: `1px solid ${themeConfig.border}` } } }}
+        slotProps={{ paper: { sx: { borderRadius: "16px", maxWidth: 680, border: `1px solid ${themeConfig.border}`, overflow: "hidden" } } }}
       >
         {invoiceModal.booking && (() => {
           const b = invoiceModal.booking;
@@ -1227,10 +1240,10 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
           slotProps={{
             paper: {
               sx: {
-                borderRadius: "20px",
-                p: 2.5,
+                borderRadius: "16px",
                 bgcolor: themeConfig.bgCard,
-                border: `1.5px solid ${themeConfig.border}`,
+                border: `1px solid ${themeConfig.border}`,
+                overflow: "hidden",
               },
             },
           }}

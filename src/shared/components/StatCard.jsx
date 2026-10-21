@@ -14,6 +14,7 @@ export default function StatCard({
   color,
   badgeText,
   onClick,
+  hideFooter = false,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
   const cardColor = color || themeConfig.primary;
@@ -24,7 +25,7 @@ export default function StatCard({
       sx={{
         borderRadius: "22px",
         height: "100%",
-        minHeight: 180,
+        minHeight: hideFooter ? 0 : 180,
         display: "flex",
         flexDirection: "column",
         cursor: onClick ? "pointer" : "default",
@@ -151,6 +152,8 @@ export default function StatCard({
           </Typography>
         </Box>
 
+        {!hideFooter && (
+        <>
         {/* Dotted Divider - Guaranteed Identical Horizontal Alignment */}
         <Box
           sx={{
@@ -232,6 +235,8 @@ export default function StatCard({
             )}
           </Box>
         </Box>
+        </>
+        )}
       </CardContent>
     </Card>
   );

@@ -379,10 +379,8 @@ export default function DashboardLayout({
                 </IconButton>
               )}
 
-              <Typography variant="subtitle1" sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: { xs: "0.85rem", sm: "0.95rem" }, textTransform: "capitalize", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {user?.role === "SUPER_ADMIN"
-                  ? "MYOWNPMS"
-                  : user?.hotel?.name || "Hotel Management Portal"}
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: { xs: "0.95rem", sm: "1.05rem" }, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {navItems[activeTab]?.label || "Dashboard"}
               </Typography>
             </Box>
 

@@ -986,7 +986,7 @@ export default function PaymentLedgerView({
       <Dialog
         open={collectModalOpen}
         onClose={() => !collectLoading && setCollectModalOpen(false)}
-        slotProps={{ paper: { sx: { borderRadius: "20px", p: 2, maxWidth: 520, border: `1px solid ${themeConfig.border}` } } }}
+        slotProps={{ paper: { sx: { borderRadius: "16px", maxWidth: 520, border: `1px solid ${themeConfig.border}`, overflow: "hidden" } } }}
       >
         <DialogTitle component="div" sx={{ fontWeight: 900, color: themeConfig.textMain, pb: 1 }}>
           💰 Collect Folio Payment
@@ -1185,7 +1185,7 @@ export default function PaymentLedgerView({
       <Dialog
         open={receiptModal.open}
         onClose={() => setReceiptModal({ open: false, payment: null })}
-        slotProps={{ paper: { sx: { borderRadius: "20px", p: 3, maxWidth: 580, border: `1px solid ${themeConfig.border}` } } }}
+        slotProps={{ paper: { sx: { borderRadius: "16px", maxWidth: 580, border: `1px solid ${themeConfig.border}`, overflow: "hidden" } } }}
       >
         {receiptModal.payment && (
           <Box id="printable-payment-receipt" sx={{ p: 1 }}>

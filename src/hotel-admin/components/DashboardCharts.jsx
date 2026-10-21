@@ -802,10 +802,10 @@ export function DailyTargetGauge({ currentRevenue = 0, targetRevenue = 0, onUpda
         fullWidth
         PaperProps={{
           sx: {
-            borderRadius: "20px",
+            borderRadius: "16px",
             bgcolor: isDarkMode ? "#1E293B" : "#FFFFFF",
             border: `1px solid ${themeConfig.border}`,
-            p: 1,
+            overflow: "hidden",
           },
         }}
       >

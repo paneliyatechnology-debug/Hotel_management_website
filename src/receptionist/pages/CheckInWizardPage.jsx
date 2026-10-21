@@ -675,8 +675,6 @@ export default function CheckInWizardPage({
       rate: tariff,
       discountAmount: disc,
       total: netTot,
-      paid: netTot,
-      due: 0,
     }));
     setStepError("");
   };
@@ -716,20 +714,32 @@ export default function CheckInWizardPage({
   const securityDepositAmount = checkInData.collectSecurityDeposit ? (Number(checkInData.securityDepositAmount) || 1000) : 0;
   const calculatedGrandTotal = priceAfterDiscount + displayCgst + displaySgst + displayIgst + securityDepositAmount;
 
-  // Auto-fill Advance Amount Paid with full Total including GST (Base + CGST 9% + SGST 9%)
+  // Keep total and balance due in sync with the advance entered by the receptionist
+  // Billing flow: base amount (before tax, before discount) -> discount -> GST on the discounted amount -> extras (deposit)
+  const effectiveGstRate = Number(gstBookingResult.roomBreakdowns?.[0]?.gstRate ?? 18) || 0;
   useEffect(() => {
-    if (!checkInData.isPaidManuallyEdited) {
-      setCheckInData((prev) => {
-        if (prev.paid === calculatedGrandTotal && prev.total === calculatedGrandTotal) return prev;
-        return {
-          ...prev,
-          total: calculatedGrandTotal,
-          paid: calculatedGrandTotal,
-          due: 0,
-        };
-      });
-    }
-  }, [calculatedGrandTotal, checkInData.isPaidManuallyEdited]);
+    const advance = Number(checkInData.paid) || 0;
+    const due = Math.max(0, calculatedGrandTotal - advance);
+    setCheckInData((prev) => {
+      if (
+        prev.total === calculatedGrandTotal &&
+        prev.due === due &&
+        prev.baseAmount === baseTariffTotal &&
+        prev.appliedDiscount === discountApplied &&
+        prev.gstRate === effectiveGstRate
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        total: calculatedGrandTotal,
+        due,
+        baseAmount: baseTariffTotal,
+        appliedDiscount: discountApplied,
+        gstRate: effectiveGstRate,
+      };
+    });
+  }, [calculatedGrandTotal, checkInData.paid, baseTariffTotal, discountApplied, effectiveGstRate]);
 
   // Aadhaar 12-Digit Format & Validation Helpers
   const formatAadhaarNumber = (val) => {
@@ -1053,7 +1063,7 @@ export default function CheckInWizardPage({
   };
 
   // Date and Time Check-in / Checkout Handlers
-  const handleCheckInDateChange = (inDateVal) => {
+  const handleCheckInDateChange = (inDateVal, inTimeVal) => {
     if (!inDateVal) return;
     const [y, m, d] = inDateVal.split("-").map(Number);
     const d1 = new Date(y, m - 1, d);
@@ -1070,13 +1080,12 @@ export default function CheckInWizardPage({
     setCheckInData((prev) => ({
       ...prev,
       checkInDate: inDateVal,
+      ...(inTimeVal ? { checkInTime: inTimeVal, isCustomCheckInTime: true } : {}),
       checkOutDate: outDateStr,
       checkOutTime: prev.checkOutTime || hotelSettings?.checkOutTime || "12:00",
       numberOfNights: n,
       discountAmount: disc,
       total: netTot,
-      paid: netTot,
-      due: 0,
     }));
   };
 
@@ -1110,12 +1119,10 @@ export default function CheckInWizardPage({
       checkOutTime: prev.checkOutTime || hotelSettings?.checkOutTime || "12:00",
       discountAmount: disc,
       total: netTot,
-      paid: netTot,
-      due: 0,
     }));
   };
 
-  const handleCheckOutDateChange = (outDateVal) => {
+  const handleCheckOutDateChange = (outDateVal, outTimeVal) => {
     if (!outDateVal) return;
     const inDateStr = checkInData.checkInDate || getTodayLocalDate();
     const [y1, m1, d1] = inDateStr.split("-").map(Number);
@@ -1133,12 +1140,10 @@ export default function CheckInWizardPage({
     setCheckInData((prev) => ({
       ...prev,
       checkOutDate: outDateVal,
-      checkOutTime: prev.checkOutTime || hotelSettings?.checkOutTime || "12:00",
+      checkOutTime: outTimeVal || prev.checkOutTime || hotelSettings?.checkOutTime || "12:00",
       numberOfNights: n,
       discountAmount: disc,
       total: netTot,
-      paid: netTot,
-      due: 0,
     }));
   };
 
@@ -1317,45 +1322,84 @@ export default function CheckInWizardPage({
     toast.show(msg, severity);
   };
 
+  // Step 1 field validation (returns { field: message })
+  const validatePrimaryGuest = (data = checkInData) => {
+    const errors = {};
+    const name = String(data.fullName || "").trim();
+    if (!name) errors.fullName = "Main guest name is required";
+    else if (name.length < 2 || !/^[\p{L}][\p{L} .'-]*$/u.test(name)) errors.fullName = "Enter a valid name using letters only";
+
+    const mobile = String(data.mobile || "").replace(/\D/g, "");
+    if (!mobile) errors.mobile = "Mobile number is required";
+    else if (!/^[6-9]\d{9}$/.test(mobile)) errors.mobile = "Enter a valid 10-digit mobile number";
+
+    const email = String(data.email || "").trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) errors.email = "Enter a valid email address";
+
+    if (!data.frontImage && mainGuestDocs.length === 0) errors.frontImage = "Upload at least one ID document";
+
+    const sig = data.signature;
+    if (!sig || (typeof sig === "string" && !sig.trim())) errors.signature = "Guest signature is required";
+    return errors;
+  };
+
+  const validateField = (key) => {
+    const message = validatePrimaryGuest()[key];
+    setFieldErrors((prev) => ({ ...prev, [key]: message || false }));
+  };
+
+  const clearFieldError = (key) => {
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: false } : prev));
+  };
+
+  // Section header: title with a thin line underneath
+  const renderSectionHeader = (title, required = false) => (
+    <Box sx={{ flex: 1, minWidth: 0, pb: 1.25, mb: 2.5, borderBottom: `1px solid ${themeConfig.border}` }}>
+      <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "1rem", lineHeight: 1.3 }}>
+        {title}
+        {required && <span style={{ color: "#DC2626", marginLeft: 4 }}>*</span>}
+      </Typography>
+    </Box>
+  );
+
+  const stayNightsCount = Number(checkInData.numberOfNights) || nights || 1;
+  const grossRoomCharge = (Number(checkInData.rate) || 0) * stayNightsCount * (selectedRoomsList.length || 1);
+  const rateError = Number(checkInData.rate) > 0 ? "" : "Enter a rate greater than 0";
+  const discountError = Number(checkInData.discountAmount) > grossRoomCharge ? "Discount cannot exceed the room charges" : "";
+  const advancePaid = Number(checkInData.paid) || 0;
+  const balanceDue = Math.max(0, calculatedGrandTotal - advancePaid);
+  const paidError = advancePaid > calculatedGrandTotal ? "Advance cannot exceed the total amount" : "";
+  const paymentMethodLabel = { CASH: "Cash", ONLINE: "Online", CARD: "Card", UPI: "UPI", BANK_TRANSFER: "Bank transfer" }[checkInData.paymentMethod || "UPI"] || "Cash";
+
+  const renderReviewTile = (title, children) => (
+    <Box sx={{ height: "100%", p: 2, borderRadius: "12px", border: `1px solid ${themeConfig.border}`, bgcolor: themeConfig.bgCard || "#FFFFFF" }}>
+      <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, mb: 0.75 }}>
+        {title}
+      </Typography>
+      {children}
+    </Box>
+  );
+
   const handleNext = () => {
     setStepError("");
     setFieldErrors({});
 
-    // Step 1 (Index 0): Primary Guest & Member Photos & Signature Validation
+    // Step 1 (Index 0): Primary guest, ID document and signature validation
     if (activeStep === 0) {
-      const isNameMissing = !checkInData.fullName?.trim();
-      const isMobileMissing = !checkInData.mobile?.trim();
-      const isFrontIdMissing = !checkInData.frontImage && mainGuestDocs.length === 0;
-      const isSignatureMissing = !checkInData.signature || (typeof checkInData.signature === "string" && !checkInData.signature.trim());
-
-      if (isNameMissing || isMobileMissing || isFrontIdMissing || isSignatureMissing) {
-        const newErrors = {};
-        if (isNameMissing) newErrors.fullName = true;
-        if (isMobileMissing) newErrors.mobile = true;
-        if (isFrontIdMissing) newErrors.frontImage = true;
-        if (isSignatureMissing) newErrors.signature = true;
-        setFieldErrors(newErrors);
-
-        if (isNameMissing) {
-          showErrorAlert("⚠️ Name Required: Please enter the Primary Guest's Full Name.");
-          scrollToElement("field-primary-fullname");
-          return;
-        }
-        if (isMobileMissing) {
-          showErrorAlert("⚠️ Mobile Number Required: Please enter the Primary Guest's Mobile Number.");
-          scrollToElement("field-primary-mobile");
-          return;
-        }
-        if (isFrontIdMissing) {
-          showErrorAlert("⚠️ ID Upload Required: Primary Guest ID document photo is required before proceeding.");
-          scrollToElement("main-guest-id-section");
-          return;
-        }
-        if (isSignatureMissing) {
-          showErrorAlert("⚠️ Signature Required: Primary Guest digital signature is required before proceeding.");
-          scrollToElement("guest-signature-section");
-          return;
-        }
+      const errors = validatePrimaryGuest();
+      const order = [
+        ["fullName", "field-primary-fullname"],
+        ["mobile", "field-primary-mobile"],
+        ["email", "field-primary-email"],
+        ["frontImage", "main-guest-id-section"],
+        ["signature", "guest-signature-section"],
+      ];
+      const firstInvalid = order.find(([key]) => errors[key]);
+      if (firstInvalid) {
+        setFieldErrors(errors);
+        showErrorAlert(errors[firstInvalid[0]]);
+        scrollToElement(firstInvalid[1]);
+        return;
       }
     }
 
@@ -1392,11 +1436,11 @@ export default function CheckInWizardPage({
 
     // Step 3 (Index 2): Billing & Settlement (100% Auto Advance Settlement)
     if (activeStep === 2) {
-      setCheckInData((prev) => ({
-        ...prev,
-        paid: calculatedGrandTotal,
-        due: 0,
-      }));
+      if (rateError || discountError || paidError) {
+        showErrorAlert(rateError || discountError || paidError);
+        scrollToElement("payment-advance-section");
+        return;
+      }
     }
 
     setActiveStep((prev) => Math.min(prev + 1, CHECKIN_STEPS.length - 1));
@@ -1425,18 +1469,17 @@ export default function CheckInWizardPage({
   return (
     <Box id="checkin-wizard-top" sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 } }}>
       <Card
-        className="card-3d"
         sx={{
           p: { xs: 2.5, sm: 4 },
-          borderRadius: "24px",
+          borderRadius: "16px",
           bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 12px 30px -5px rgba(12, 39, 59, 0.08), inset 0 1px 1px #FFFFFF",
+          boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 24px rgba(15, 23, 42, 0.08)",
           maxWidth: 1020,
           mx: "auto",
         }}
       >
-        {/* Wizard Header Banner */}
+        {/* Page header */}
         <Box
           sx={{
             display: "flex",
@@ -1444,136 +1487,117 @@ export default function CheckInWizardPage({
             alignItems: { xs: "flex-start", sm: "center" },
             flexWrap: "wrap",
             gap: 2,
-            mb: 2.5,
-            pb: 2,
+            mb: 3,
+            pb: 2.5,
             borderBottom: `1px solid ${themeConfig.border}`,
           }}
         >
           <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", mb: 0.5 }}>
-              <Typography
-                variant="h5"
-                sx={{
-                  fontWeight: 900,
-                  color: themeConfig.textMain,
-                  letterSpacing: -0.5,
-                  fontSize: { xs: "1.2rem", sm: "1.45rem" },
-                  lineHeight: 1.25,
-                }}
-              >
-                Express Check-In &amp; Guest Allocation
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+              <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: { xs: "1.1rem", sm: "1.25rem" }, lineHeight: 1.3 }}>
+                Express check-in
               </Typography>
               {isVipGuest && (
                 <Chip
                   icon={<Star sx={{ "&&": { color: "#F59E0B" } }} />}
-                  label="VIP Returning Guest (10% Discount)"
+                  label="Returning guest · 10% discount"
                   size="small"
                   sx={{
-                    bgcolor: "rgba(245, 158, 11, 0.12)",
+                    bgcolor: "#FFFBEB",
                     color: "#B45309",
-                    fontWeight: 800,
-                    fontSize: "0.74rem",
-                    border: "1px solid rgba(245, 158, 11, 0.3)",
+                    fontWeight: 700,
+                    fontSize: "0.72rem",
+                    border: "1px solid #FDE68A",
                   }}
                 />
               )}
             </Box>
-            <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontSize: { xs: "0.8rem", sm: "0.85rem" } }}>
-              Fill guest details, add accompanying members, configure stay duration, and complete allocation.
+            <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.82rem", mt: 0.5 }}>
+              Add guest details, choose the stay and complete check-in.
             </Typography>
           </Box>
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, flexShrink: 0 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
             <Button
               variant="text"
-              size="small"
               onClick={handleClearFormDraft}
               startIcon={<Refresh sx={{ fontSize: 16 }} />}
               sx={{
+                minHeight: 40,
                 borderRadius: "10px",
-                fontWeight: 800,
-                fontSize: "0.78rem",
+                fontWeight: 600,
+                fontSize: "0.82rem",
                 color: themeConfig.textMuted,
                 textTransform: "none",
                 whiteSpace: "nowrap",
-                "&:hover": { color: "#EF4444", bgcolor: "rgba(239, 68, 68, 0.08)" },
+                "&:hover": { color: "#B42318", bgcolor: "#FEF2F2" },
               }}
             >
-              Reset Form
+              Reset form
             </Button>
             {onBackToRooms && (
               <Button
                 variant="outlined"
-                startIcon={<ArrowBack />}
+                startIcon={<ArrowBack sx={{ fontSize: 18 }} />}
                 onClick={onBackToRooms}
                 sx={{
-                  borderRadius: "12px",
-                  fontWeight: 800,
+                  minHeight: 40,
+                  borderRadius: "10px",
+                  fontWeight: 700,
                   fontSize: "0.82rem",
                   borderColor: themeConfig.border,
                   color: themeConfig.textMain,
                   bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
                   whiteSpace: "nowrap",
                   textTransform: "none",
-                  "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
+                  boxShadow: "none",
+                  "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary, boxShadow: "none" },
                 }}
               >
-                Back to Rooms
+                Back to rooms
               </Button>
             )}
           </Box>
         </Box>
 
         {/* ========================================================================= */}
-        {/* LUXURY STEP-BY-STEP CONNECTED HORIZONTAL STEPPER (EQUAL SEGMENTS & TRACK) */}
+        {/* STEP INDICATOR                                                         */}
         {/* ========================================================================= */}
-        <Box sx={{ mb: 3.5, mt: 1, px: { xs: 0.5, sm: 2 } }}>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "flex-start",
-              justifyContent: "space-between",
-              position: "relative",
-              width: "100%",
-            }}
-          >
-            {/* Background Base Track Line */}
+        <Box sx={{ mb: 4, px: { xs: 0, sm: 2 } }}>
+          <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", position: "relative", width: "100%" }}>
+            {/* Track */}
             <Box
               sx={{
                 position: "absolute",
-                top: 22,
+                top: 18,
                 left: "12.5%",
                 right: "12.5%",
-                height: 4,
+                height: 2,
                 bgcolor: isDarkMode ? "rgba(255,255,255,0.12)" : "#E2E8F0",
                 borderRadius: "10px",
                 transform: "translateY(-50%)",
                 zIndex: 0,
               }}
             >
-              {/* Active Filled Progress Line */}
               <Box
                 sx={{
                   height: "100%",
                   width: `${(activeStep / (CHECKIN_STEPS.length - 1)) * 100}%`,
-                  background: "linear-gradient(90deg, #10B981 0%, #0B8EE0 100%)",
-                  boxShadow: "0 0 10px rgba(16, 185, 129, 0.6)",
+                  bgcolor: themeConfig.primary,
                   borderRadius: "10px",
-                  transition: "width 0.45s cubic-bezier(0.16, 1, 0.3, 1)",
+                  transition: "width 0.35s ease",
                 }}
               />
             </Box>
 
-            {/* 4 Step Nodes (Equally Spaced with zIndex: 1) */}
             {CHECKIN_STEPS.map((label, index) => {
               const isCompleted = activeStep > index;
               const isCurrent = activeStep === index;
-
               const stepIcons = [
-                <Person key="p" sx={{ fontSize: 20 }} />,
-                <AccessTime key="t" sx={{ fontSize: 20 }} />,
-                <CreditCard key="c" sx={{ fontSize: 20 }} />,
-                <VerifiedUser key="v" sx={{ fontSize: 20 }} />,
+                <Person key="p" sx={{ fontSize: 18 }} />,
+                <AccessTime key="t" sx={{ fontSize: 18 }} />,
+                <CreditCard key="c" sx={{ fontSize: 18 }} />,
+                <VerifiedUser key="v" sx={{ fontSize: 18 }} />,
               ];
 
               return (
@@ -1592,70 +1616,35 @@ export default function CheckInWizardPage({
                     zIndex: 1,
                   }}
                 >
-                  <Avatar
+                  <Box
                     sx={{
-                      width: 44,
-                      height: 44,
-                      fontSize: "0.92rem",
-                      fontWeight: 900,
-                      bgcolor: isCompleted
-                        ? "#10B981"
-                        : isCurrent
-                          ? themeConfig.primary
-                          : isDarkMode ? "#1E293B" : "#FFFFFF",
-                      color: isCompleted || isCurrent ? "#FFFFFF" : isDarkMode ? "#94A3B8" : "#64748B",
-                      border: isCurrent
-                        ? `3px solid ${isDarkMode ? "#0E312C" : "#FFFFFF"}`
-                        : isCompleted
-                          ? `3px solid ${isDarkMode ? "#0E312C" : "#FFFFFF"}`
-                          : `3px solid ${isDarkMode ? "rgba(255,255,255,0.15)" : "#E2E8F0"}`,
-                      boxShadow: isCurrent
-                        ? `0 0 0 4px ${themeConfig.primaryGlow || "rgba(11, 142, 224, 0.25)"}, 0 6px 16px rgba(11, 142, 224, 0.35)`
-                        : isCompleted
-                          ? "0 0 0 4px rgba(16, 185, 129, 0.2), 0 4px 12px rgba(16, 185, 129, 0.25)"
-                          : "0 2px 8px rgba(0,0,0,0.06)",
-                      transition: "all 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
-                      transform: isCurrent ? "scale(1.08)" : "scale(1)",
+                      width: 36,
+                      height: 36,
+                      borderRadius: "50%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                       mb: 1,
+                      bgcolor: isCompleted ? themeConfig.primary : (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                      color: isCompleted ? "#FFFFFF" : isCurrent ? themeConfig.primary : themeConfig.textMuted,
+                      border: `2px solid ${isCompleted || isCurrent ? themeConfig.primary : (isDarkMode ? "rgba(255,255,255,0.15)" : "#E2E8F0")}`,
+                      boxShadow: isCurrent ? `0 0 0 4px ${isDarkMode ? "rgba(15,118,110,0.25)" : "#CCFBF1"}` : "none",
+                      transition: "all 0.25s ease",
                     }}
                   >
-                    {isCompleted ? <Check sx={{ fontSize: 22, fontWeight: 900 }} /> : stepIcons[index]}
-                  </Avatar>
-
-                  {/* Step Title & Status */}
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      fontWeight: isCurrent ? 900 : isCompleted ? 800 : 700,
-                      color: isCurrent
-                        ? themeConfig.primary
-                        : isCompleted
-                          ? "#059669"
-                          : themeConfig.textMuted,
-                      fontSize: "0.72rem",
-                      textAlign: "center",
-                      lineHeight: 1.2,
-                      letterSpacing: "0.03em",
-                      textTransform: "uppercase",
-                    }}
-                  >
+                    {isCompleted ? <Check sx={{ fontSize: 18 }} /> : stepIcons[index]}
+                  </Box>
+                  <Typography sx={{ fontSize: "0.65rem", fontWeight: 600, color: themeConfig.textMuted, lineHeight: 1.2 }}>
                     Step {index + 1}
                   </Typography>
-
                   <Typography
-                    variant="body2"
                     sx={{
-                      fontWeight: isCurrent ? 800 : isCompleted ? 700 : 600,
-                      color: isCurrent
-                        ? themeConfig.textMain
-                        : isCompleted
-                          ? themeConfig.textMain
-                          : themeConfig.textMuted,
-                      fontSize: { xs: "0.75rem", sm: "0.82rem" },
+                      fontSize: { xs: "0.72rem", sm: "0.8rem" },
+                      fontWeight: isCurrent ? 700 : 600,
+                      color: isCurrent || isCompleted ? themeConfig.textMain : themeConfig.textMuted,
                       textAlign: "center",
                       lineHeight: 1.3,
-                      mt: 0.3,
-                      whiteSpace: { xs: "normal", sm: "nowrap" },
+                      mt: 0.25,
                     }}
                   >
                     {label}
@@ -1670,345 +1659,252 @@ export default function CheckInWizardPage({
         {/* STEP 1 (Index 0): PRIMARY GUEST PROFILE, MEMBER PHOTOS & SIGNATURE        */}
         {/* ========================================================================= */}
         {activeStep === 0 && (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
-            {/* GUEST PROFILE CARD */}
-            <Paper
-              className="card-3d"
-              sx={{
-                p: { xs: 2, sm: 3 },
-                borderRadius: "16px",
-                bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-                border: `1.5px solid ${themeConfig.border}`,
-                boxShadow: isDarkMode ? "none" : "0 6px 20px rgba(0,0,0,0.03)",
-              }}
-            >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 2 }}>
-                <Avatar sx={{ bgcolor: themeConfig.primary, color: "#FFFFFF", width: 34, height: 34, fontWeight: 900 }}>
-                  1
-                </Avatar>
-                <div>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-                    Step 1 — Primary Guest & Check-In Details
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                    Primary guest information, room tariff rate, ID photos, accompanying member photos, and digital signature
-                  </Typography>
-                </div>
-              </Box>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 3.5 }}>
+            {/* GUEST DETAILS */}
+            <Box>
+              {renderSectionHeader("Guest details")}
 
               <Grid container spacing={2}>
-                {/* 1. Primary Guest Full Name */}
                 <Grid id="field-primary-fullname" size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     size="small"
-                    label="Primary Guest Full Name *"
-                    placeholder="e.g. Rahul Sharma"
+                    required
+                    autoComplete="off"
+                    label="Main guest name"
+                    placeholder="Name as on ID proof"
                     value={checkInData.fullName || ""}
                     onChange={(e) => {
                       setCheckInData({ ...checkInData, fullName: e.target.value });
-                      if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, fullName: false }));
+                      clearFieldError("fullName");
                     }}
-                    required
+                    onBlur={() => validateField("fullName")}
                     error={Boolean(fieldErrors.fullName)}
-                    helperText={fieldErrors.fullName ? "⚠️ Primary Guest Full Name is required" : ""}
+                    helperText={typeof fieldErrors.fullName === "string" ? fieldErrors.fullName : ""}
                   />
                 </Grid>
 
-                {/* 2. Guest Name (Optional) */}
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     size="small"
-                    label="Guest Name (Optional)"
-                    placeholder="e.g. Priya Sharma"
+                    autoComplete="off"
+                    label="Guest name"
+                    placeholder="Only if different from main guest"
                     value={checkInData.guestName || ""}
                     onChange={(e) => setCheckInData({ ...checkInData, guestName: e.target.value })}
                   />
                 </Grid>
 
-                {/* 3. WhatsApp Mobile Number */}
                 <Grid id="field-primary-mobile" size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     size="small"
-                    label="WhatsApp Mobile Number *"
-                    placeholder="9876543210"
+                    required
+                    autoComplete="off"
+                    label="WhatsApp number"
+                    placeholder="10-digit mobile number"
                     value={checkInData.mobile || ""}
                     onChange={(e) => {
                       const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
                       handlePhoneChange(digits);
-                      if (digits.trim()) setFieldErrors((prev) => ({ ...prev, mobile: false }));
+                      clearFieldError("mobile");
                     }}
-                    required
+                    onBlur={() => validateField("mobile")}
                     error={Boolean(fieldErrors.mobile)}
+                    helperText={typeof fieldErrors.mobile === "string" ? fieldErrors.mobile : ""}
                     slotProps={{
+                      htmlInput: { inputMode: "numeric", maxLength: 10 },
                       input: {
                         startAdornment: (
                           <InputAdornment position="start">
                             <WhatsApp sx={{ color: "#25D366", fontSize: 18, mr: 0.5 }} />
-                            <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, mr: 0.5 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: themeConfig.textMain }}>
                               +91
                             </Typography>
                           </InputAdornment>
                         ),
                       },
                     }}
-                    helperText={
-                      fieldErrors.mobile ? (
-                        <Typography component="span" variant="caption" sx={{ fontSize: "0.68rem", color: "#EF4444", fontWeight: 800 }}>
-                          ⚠️ 10-digit WhatsApp Mobile Number is required
-                        </Typography>
-                      ) : (
-                        <Typography component="span" variant="caption" sx={{ fontSize: "0.68rem", color: themeConfig.textMuted }}>
-                          📱 Auto-lookup on 10 digits
-                        </Typography>
-                      )
-                    }
                   />
                 </Grid>
 
-                {/* 4. Email Address */}
-                <Grid size={{ xs: 12, sm: 6 }}>
+                <Grid id="field-primary-email" size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     size="small"
-                    label="Email Address"
-                    placeholder="e.g. rahul.sharma@example.com"
+                    type="email"
+                    autoComplete="off"
+                    label="Email address"
+                    placeholder="name@example.com"
                     value={checkInData.email || ""}
-                    onChange={(e) => setCheckInData({ ...checkInData, email: e.target.value })}
+                    onChange={(e) => {
+                      setCheckInData({ ...checkInData, email: e.target.value });
+                      clearFieldError("email");
+                    }}
+                    onBlur={() => validateField("email")}
+                    error={Boolean(fieldErrors.email)}
+                    helperText={typeof fieldErrors.email === "string" ? fieldErrors.email : ""}
                   />
                 </Grid>
               </Grid>
+            </Box>
 
-              {/* PRIMARY GUEST MULTI-SELECT ID DOCUMENTS UPLOAD SECTION */}
-              <Box
-                id="main-guest-id-section"
-                sx={{
-                  mt: 2.5,
-                  pt: 2,
-                  p: (fieldErrors.frontImage || (stepError && !checkInData.frontImage && mainGuestDocs.length === 0)) ? 1.5 : 0,
-                  borderRadius: "14px",
-                  borderTop: (fieldErrors.frontImage || (stepError && !checkInData.frontImage && mainGuestDocs.length === 0)) ? "none" : `1px dashed ${themeConfig.border}`,
-                  border: (fieldErrors.frontImage || (stepError && !checkInData.frontImage && mainGuestDocs.length === 0)) ? "2px solid #EF4444" : undefined,
-                  bgcolor: (fieldErrors.frontImage || (stepError && !checkInData.frontImage && mainGuestDocs.length === 0)) ? "rgba(239, 68, 68, 0.04)" : "transparent",
-                  transition: "all 0.3s ease",
-                }}
-              >
-                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5, flexWrap: "wrap", gap: 1 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 1 }}>
-                    <CloudUpload sx={{ fontSize: 18, color: themeConfig.primary }} />
-                    Primary Guest — ID Card / Documents Upload *
-                  </Typography>
+            {/* ID DOCUMENTS */}
+            <Box id="main-guest-id-section">
+              {renderSectionHeader("ID documents", true)}
 
-                  <Button
-                    variant="contained"
-                    component="label"
-                    startIcon={<CloudUpload />}
-                    size="small"
+              {mainGuestDocs.length === 0 ? (
+                <Box
+                  component="label"
+                  sx={{
+                    p: 3,
+                    borderRadius: "14px",
+                    border: `1.5px dashed ${fieldErrors.frontImage ? "#DC2626" : themeConfig.border}`,
+                    bgcolor: fieldErrors.frontImage ? "rgba(220, 38, 38, 0.03)" : isDarkMode ? "rgba(255,255,255,0.02)" : "#F8FAFC",
+                    textAlign: "center",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 0.75,
+                    cursor: "pointer",
+                    transition: "border-color 0.15s ease, background-color 0.15s ease",
+                    "&:hover": { borderColor: themeConfig.primary, bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F0FDFA" },
+                  }}
+                >
+                  <input type="file" hidden multiple accept="image/*" onChange={handleMainGuestMultiUpload} />
+                  <Box
                     sx={{
-                      borderRadius: "10px",
-                      fontWeight: 800,
-                      bgcolor: themeConfig.primary,
-                      fontSize: "0.8rem",
-                      px: 2,
-                      py: 0.6,
-                      "&:hover": { bgcolor: themeConfig.primaryDark },
+                      width: 40,
+                      height: 40,
+                      borderRadius: "12px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      bgcolor: themeConfig.champagne,
+                      color: themeConfig.primary,
                     }}
                   >
-                    + Upload ID Documents
-                    <input
-                      type="file"
-                      hidden
-                      multiple
-                      accept="image/*"
-                      onChange={handleMainGuestMultiUpload}
-                    />
-                  </Button>
+                    <CloudUpload sx={{ fontSize: 22 }} />
+                  </Box>
+                  <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.9rem" }}>Upload ID documents</Typography>
+                  <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.75rem" }}>
+                    Click to choose photos. Front and back, JPG or PNG
+                  </Typography>
                 </Box>
-
-                {mainGuestDocs.length === 0 ? (
+              ) : (
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "repeat(2, 1fr)", sm: "repeat(3, 1fr)", md: "repeat(4, 1fr)" },
+                    gap: 1.5,
+                  }}
+                >
+                  {mainGuestDocs.map((imgSrc, idx) => (
+                    <Box
+                      key={idx}
+                      sx={{
+                        position: "relative",
+                        height: 130,
+                        borderRadius: "12px",
+                        overflow: "hidden",
+                        border: `1px solid ${themeConfig.border}`,
+                        bgcolor: "#0F172A",
+                      }}
+                    >
+                      <Box
+                        component="img"
+                        src={imgSrc}
+                        alt={`Guest document ${idx + 1}`}
+                        onClick={() => setPreviewImageSrc(imgSrc)}
+                        sx={{ width: "100%", height: "100%", objectFit: "cover", cursor: "pointer", transition: "transform 0.2s ease", "&:hover": { transform: "scale(1.04)" } }}
+                      />
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveMainGuestDoc(idx);
+                        }}
+                        sx={{ position: "absolute", top: 6, right: 6, bgcolor: "rgba(255,255,255,0.92)", color: "#B42318", width: 26, height: 26, "&:hover": { bgcolor: "#FEE2E2" } }}
+                      >
+                        <Close sx={{ fontSize: 15 }} />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        onClick={() => setPreviewImageSrc(imgSrc)}
+                        sx={{ position: "absolute", top: 6, left: 6, bgcolor: "rgba(255,255,255,0.92)", color: themeConfig.textMain, width: 26, height: 26, "&:hover": { bgcolor: "#FFFFFF" } }}
+                      >
+                        <Visibility sx={{ fontSize: 15 }} />
+                      </IconButton>
+                      <Box
+                        sx={{
+                          position: "absolute",
+                          bottom: 6,
+                          left: 6,
+                          px: 1,
+                          py: 0.2,
+                          borderRadius: 999,
+                          fontSize: "0.66rem",
+                          fontWeight: 700,
+                          color: "#FFFFFF",
+                          bgcolor: idx === 0 ? themeConfig.primary : "rgba(15, 23, 42, 0.8)",
+                        }}
+                      >
+                        {idx === 0 ? "Primary ID" : `Document ${idx + 1}`}
+                      </Box>
+                    </Box>
+                  ))}
                   <Box
                     component="label"
                     sx={{
-                      p: 3,
-                      borderRadius: "14px",
-                      border: `2px dashed ${fieldErrors.frontImage ? "#EF4444" : themeConfig.border}`,
-                      bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#F8FAFC",
-                      textAlign: "center",
+                      height: 130,
+                      borderRadius: "12px",
+                      border: `1.5px dashed ${themeConfig.border}`,
                       display: "flex",
                       flexDirection: "column",
                       alignItems: "center",
-                      gap: 1,
+                      justifyContent: "center",
+                      gap: 0.5,
                       cursor: "pointer",
-                      transition: "all 0.2s ease",
-                      "&:hover": {
-                        borderColor: themeConfig.primary,
-                        bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F1F5F9",
-                      },
+                      color: themeConfig.primary,
+                      transition: "border-color 0.15s ease, background-color 0.15s ease",
+                      "&:hover": { borderColor: themeConfig.primary, bgcolor: "#F0FDFA" },
                     }}
                   >
-                    <input
-                      type="file"
-                      hidden
-                      multiple
-                      accept="image/*"
-                      onChange={handleMainGuestMultiUpload}
-                    />
-                    <Avatar sx={{ bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, width: 44, height: 44, mb: 0.5 }}>
-                      <CloudUpload sx={{ fontSize: 24 }} />
-                    </Avatar>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                      Click to Select & Upload Guest ID Documents
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                      Select one or multiple photos (Aadhaar, Passport, DL, Voter ID, Front & Back)
-                    </Typography>
+                    <input type="file" hidden multiple accept="image/*" onChange={handleMainGuestMultiUpload} />
+                    <CloudUpload sx={{ fontSize: 22 }} />
+                    <Typography sx={{ fontSize: "0.78rem", fontWeight: 700 }}>Add more</Typography>
                   </Box>
-                ) : (
-                  <Box sx={{ mt: 1.5 }}>
-                    <Box
-                      sx={{
-                        display: "grid",
-                        gridTemplateColumns: {
-                          xs: "1fr",
-                          sm: "repeat(2, 1fr)",
-                          md: "repeat(3, 1fr)",
-                          lg: "repeat(4, 1fr)",
-                        },
-                        gap: 1.5,
-                      }}
-                    >
-                      {mainGuestDocs.map((imgSrc, idx) => (
-                        <Box
-                          key={idx}
-                          sx={{
-                            position: "relative",
-                            height: 140,
-                            borderRadius: "12px",
-                            overflow: "hidden",
-                            border: "1.5px solid #10B981",
-                            boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
-                            bgcolor: "#000",
-                          }}
-                        >
-                          <Box
-                            component="img"
-                            src={imgSrc}
-                            alt={`Guest Document #${idx + 1}`}
-                            onClick={() => setPreviewImageSrc(imgSrc)}
-                            sx={{
-                              width: "100%",
-                              height: "100%",
-                              objectFit: "cover",
-                              cursor: "pointer",
-                              transition: "transform 0.2s ease",
-                              "&:hover": { transform: "scale(1.04)" },
-                            }}
-                          />
+                </Box>
+              )}
+              {typeof fieldErrors.frontImage === "string" && (
+                <Typography sx={{ mt: 0.75, color: "#DC2626", fontSize: "0.75rem", fontWeight: 600 }}>{fieldErrors.frontImage}</Typography>
+              )}
+            </Box>
 
-                          {/* Delete Button */}
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRemoveMainGuestDoc(idx);
-                            }}
-                            sx={{
-                              position: "absolute",
-                              top: 6,
-                              right: 6,
-                              bgcolor: "rgba(239,68,68,0.9)",
-                              color: "#FFF",
-                              width: 26,
-                              height: 26,
-                              "&:hover": { bgcolor: "#DC2626" },
-                            }}
-                          >
-                            <Close sx={{ fontSize: 16 }} />
-                          </IconButton>
-
-                          {/* Zoom Button */}
-                          <IconButton
-                            size="small"
-                            onClick={() => setPreviewImageSrc(imgSrc)}
-                            sx={{
-                              position: "absolute",
-                              top: 6,
-                              left: 6,
-                              bgcolor: "rgba(0,0,0,0.6)",
-                              color: "#FFF",
-                              width: 26,
-                              height: 26,
-                              "&:hover": { bgcolor: "rgba(0,0,0,0.85)" },
-                            }}
-                          >
-                            <Visibility sx={{ fontSize: 15 }} />
-                          </IconButton>
-
-                          {/* Label badge */}
-                          <Chip
-                            label={idx === 0 ? "Primary ID" : `Document #${idx + 1}`}
-                            size="small"
-                            sx={{
-                              position: "absolute",
-                              bottom: 6,
-                              left: 6,
-                              bgcolor: idx === 0 ? "#10B981" : "rgba(15, 23, 42, 0.85)",
-                              color: "#FFF",
-                              fontWeight: 800,
-                              fontSize: "0.68rem",
-                              height: 22,
-                            }}
-                          />
-                        </Box>
-                      ))}
-                    </Box>
-                  </Box>
-                )}
-              </Box>
-
-
-
-              {/* DIGITAL SIGNATURE PAD SECTION */}
-              <Box
-                id="guest-signature-section"
-                sx={{
-                  mt: 3,
-                  pt: 2.5,
-                  borderTop: `1.5px dashed ${fieldErrors.signature ? "#EF4444" : themeConfig.border}`,
-                  p: fieldErrors.signature ? 2 : 0,
-                  borderRadius: fieldErrors.signature ? "16px" : 0,
-                  border: fieldErrors.signature ? `2px solid #EF4444` : undefined,
-                  bgcolor: fieldErrors.signature ? "rgba(239, 68, 68, 0.04)" : undefined,
-                  transition: "all 0.2s ease",
+            {/* SIGNATURE */}
+            <Box id="guest-signature-section">
+              {renderSectionHeader("Guest signature", true)}
+              <DigitalSignaturePad
+                required
+                error={Boolean(fieldErrors.signature)}
+                helperText={typeof fieldErrors.signature === "string" ? fieldErrors.signature : ""}
+                signerName={checkInData.fullName || "Primary guest"}
+                value={checkInData.signature}
+                signature={checkInData.signature}
+                onChange={(sig) => {
+                  setCheckInData((prev) => ({ ...prev, signature: sig }));
+                  if (sig) clearFieldError("signature");
                 }}
-              >
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: fieldErrors.signature ? "#EF4444" : themeConfig.textMain, mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
-                  <Draw sx={{ fontSize: 18, color: fieldErrors.signature ? "#EF4444" : themeConfig.primary }} />
-                  Guest Digital Signature *
-                </Typography>
-                <DigitalSignaturePad
-                  required
-                  error={Boolean(fieldErrors.signature)}
-                  helperText="Primary Guest digital signature is required before proceeding to the next step."
-                  signerName={checkInData.fullName || "Primary Guest"}
-                  value={checkInData.signature}
-                  signature={checkInData.signature}
-                  onChange={(sig) => {
-                    setCheckInData((prev) => ({ ...prev, signature: sig }));
-                    if (sig) setFieldErrors((prev) => ({ ...prev, signature: false }));
-                  }}
-                  onSave={(sig) => {
-                    setCheckInData((prev) => ({ ...prev, signature: sig }));
-                    if (sig) setFieldErrors((prev) => ({ ...prev, signature: false }));
-                  }}
-                  onClear={() => {
-                    setCheckInData((prev) => ({ ...prev, signature: "" }));
-                  }}
-                />
-              </Box>
-            </Paper>
+                onSave={(sig) => {
+                  setCheckInData((prev) => ({ ...prev, signature: sig }));
+                  if (sig) clearFieldError("signature");
+                }}
+                onClear={() => {
+                  setCheckInData((prev) => ({ ...prev, signature: "" }));
+                }}
+              />
+            </Box>
           </Box>
         )}
 
@@ -2016,209 +1912,102 @@ export default function CheckInWizardPage({
         {/* STEP 2 (Index 1): STAY DURATION & TIMINGS SCHEDULE                        */}
         {/* ========================================================================= */}
         {activeStep === 1 && (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 3.5 }}>
-            {/* Section 1: Stay Timings & Schedule */}
-            <Paper
-              className="card-3d"
-              sx={{
-                p: 3,
-                borderRadius: "20px",
-                bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-                border: `1.5px solid ${themeConfig.border}`,
-              }}
-            >
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2.5, flexWrap: "wrap", gap: 1 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                  <Avatar sx={{ bgcolor: themeConfig.primary, color: "#FFFFFF", width: 34, height: 34 }}>
-                    <AccessTime sx={{ fontSize: 20 }} />
-                  </Avatar>
-                  <div>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-                      Stay Duration & Timings Schedule
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                      Check-Out Time: {formatTime12Hour(checkInData.checkOutTime || hotelSettings?.checkOutTime || "12:00")}
-                    </Typography>
-                  </div>
-                </Box>
+          <Box>
+            {renderSectionHeader("Stay schedule")}
 
-                <Chip
-                  label={`Stay: ${checkInData.numberOfNights || nights || 1} Night(s)`}
-                  size="small"
-                  sx={{ bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, fontWeight: 800 }}
-                />
+            {allExistingBookingsForSelectedRooms.length > 0 && (
+              <Box sx={{ p: 1.5, mb: 2.5, borderRadius: "12px", bgcolor: "#FFFBEB", border: "1px solid #FDE68A" }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                  <EventBusy sx={{ color: "#B45309", fontSize: 18 }} />
+                  <Typography sx={{ fontWeight: 700, color: "#B45309", fontSize: "0.8rem" }}>
+                    Already booked for the selected room(s)
+                  </Typography>
+                </Box>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8 }}>
+                  {allExistingBookingsForSelectedRooms.map((eb, idx) => {
+                    const isConflict = isStayOverlapping(
+                      checkInData.checkInDate || getTodayLocalDate(),
+                      checkInData.checkOutDate,
+                      eb.checkInDate,
+                      eb.checkOutDate
+                    );
+                    return (
+                      <Chip
+                        key={idx}
+                        size="small"
+                        label={`Room ${eb.roomNumber}: ${formatDisplayDate(eb.checkInDate)} to ${formatDisplayDate(eb.checkOutDate)}`}
+                        sx={{
+                          fontWeight: 600,
+                          fontSize: "0.72rem",
+                          bgcolor: isConflict ? "#FEF2F2" : "#FFFFFF",
+                          color: isConflict ? "#B42318" : "#B45309",
+                          border: `1px solid ${isConflict ? "#FECACA" : "#FDE68A"}`,
+                        }}
+                      />
+                    );
+                  })}
+                </Box>
               </Box>
+            )}
 
-              {/* 📅 Clear view of already reserved dates for the selected room(s) */}
-              {allExistingBookingsForSelectedRooms.length > 0 && (
-                <Box
-                  sx={{
-                    p: 1.5,
-                    mb: 2.5,
-                    borderRadius: "12px",
-                    bgcolor: isDarkMode ? "rgba(217, 119, 6, 0.12)" : "rgba(245, 158, 11, 0.1)",
-                    border: "1.5px solid rgba(217, 119, 6, 0.35)",
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  required
+                  label="Check-in date & time"
+                  type="datetime-local"
+                  value={`${checkInData.checkInDate || getTodayLocalDate()}T${String((checkInData.isCustomCheckInTime ? checkInData.checkInTime : liveTime) || "00:00").slice(0, 5)}`}
+                  onChange={(e) => {
+                    const [datePart, timePart] = String(e.target.value || "").split("T");
+                    handleCheckInDateChange(datePart, timePart);
                   }}
-                >
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.8 }}>
-                    <EventBusy sx={{ color: "#D97706", fontSize: 18 }} />
-                    <Typography variant="caption" sx={{ fontWeight: 900, color: "#D97706", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                      Existing Reservations for Selected Room(s):
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8 }}>
-                    {allExistingBookingsForSelectedRooms.map((eb, idx) => {
-                      const isConflict = isStayOverlapping(
-                        checkInData.checkInDate || getTodayLocalDate(),
-                        checkInData.checkOutDate,
-                        eb.checkInDate,
-                        eb.checkOutDate
-                      );
-                      return (
-                        <Chip
-                          key={idx}
-                          size="small"
-                          label={`Room #${eb.roomNumber}: ${formatDisplayDate(eb.checkInDate)} to ${formatDisplayDate(eb.checkOutDate)} (${eb.guestName})`}
-                          sx={{
-                            fontWeight: 800,
-                            fontSize: "0.74rem",
-                            bgcolor: isConflict ? "#DC2626" : "rgba(217, 119, 6, 0.18)",
-                            color: isConflict ? "#FFFFFF" : "#B45309",
-                            border: `1px solid ${isConflict ? "#B91C1C" : "rgba(217, 119, 6, 0.4)"}`,
-                          }}
-                        />
-                      );
-                    })}
-                  </Box>
-                </Box>
-              )}
-
-              <Grid container spacing={2}>
-                {/* Check-In Date (Today - DD-MM-YYYY) */}
-                <Grid size={{ xs: 12, sm: 2.5 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Check-In Date (Today)"
-                    value={formatDDMMYYYY(getTodayLocalDate())}
-                    slotProps={{
-                      input: {
-                        readOnly: true,
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <CalendarMonth sx={{ fontSize: 18, color: themeConfig.primary }} />
-                          </InputAdornment>
-                        ),
-                      },
-                      inputLabel: { shrink: true },
-                    }}
-                    error={conflictingRooms.length > 0}
-                    helperText={conflictingRooms.length > 0 ? "⚠️ Room is already occupied!" : "Instant Check-In Today"}
-                  />
-                </Grid>
-
-                {/* Check-In Time (12-Hour AM/PM) */}
-                <Grid size={{ xs: 12, sm: 2.5 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label={checkInData.isCustomCheckInTime ? "Check-In Time (12h)" : "Check-In Time (Live 12h)"}
-                    value={formatTime12Hour(checkInData.isCustomCheckInTime ? checkInData.checkInTime : liveTime)}
-                    slotProps={{
-                      inputLabel: { shrink: true },
-                      input: {
-                        readOnly: true,
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <AccessTime sx={{ fontSize: 18, color: themeConfig.primary }} />
-                          </InputAdornment>
-                        ),
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <Tooltip title="Reset to live ticking clock">
-                              <IconButton
-                                size="small"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setCheckInData({ ...checkInData, checkInTime: getCurrentLocalTime(), isCustomCheckInTime: false });
-                                }}
-                              >
-                                <Refresh sx={{ fontSize: 16 }} />
-                              </IconButton>
-                            </Tooltip>
-                          </InputAdornment>
-                        ),
-                      },
-                    }}
-                  />
-                </Grid>
-
-                {/* Number of Nights */}
-                <Grid size={{ xs: 6, sm: 2 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Nights Count"
-                    type="number"
-                    slotProps={{ htmlInput: { min: 1 } }}
-                    placeholder="1"
-                    value={checkInData.numberOfNights ?? 1}
-                    onChange={(e) => handleNightsChange(e.target.value)}
-                  />
-                </Grid>
-
-                {/* Check-Out Date */}
-                <Grid size={{ xs: 6, sm: 2.5 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Check-Out Date"
-                    type="date"
-                    error={conflictingRooms.length > 0}
-                    value={checkInData.checkOutDate || ""}
-                    onChange={(e) => handleCheckOutDateChange(e.target.value)}
-                    slotProps={{ inputLabel: { shrink: true } }}
-                    helperText={
-                      conflictingRooms.length > 0
-                        ? "⚠️ Overlaps with booked stay"
-                        : `Out: ${formatDDMMYYYY(checkInData.checkOutDate)} (${formatTime12Hour(checkInData.checkOutTime || hotelSettings?.checkOutTime || "12:00")})`
-                    }
-                  />
-                </Grid>
-
-                {/* Check-Out Time (12-Hour Select) */}
-                <Grid size={{ xs: 12, sm: 2.5 }}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel shrink>Check-Out Time (12h)</InputLabel>
-                    <Select
-                      value={formatTime12Hour(checkInData.checkOutTime || hotelSettings?.checkOutTime || "12:00")}
-                      onChange={(e) => {
-                        const time24 = formatTime24Hour(e.target.value);
-                        setCheckInData({ ...checkInData, checkOutTime: time24 });
-                      }}
-                      label="Check-Out Time (12h)"
-                      notched
-                      startAdornment={
-                        <InputAdornment position="start" sx={{ ml: 0.5 }}>
-                          <AccessTime sx={{ fontSize: 18, color: themeConfig.primary }} />
-                        </InputAdornment>
-                      }
-                    >
-                      {[
-                        "08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM", "11:30 AM",
-                        "12:00 PM", "12:30 PM", "01:00 PM", "01:30 PM", "02:00 PM",
-                        "02:30 PM", "03:00 PM", "03:30 PM", "04:00 PM", "05:00 PM",
-                        "06:00 PM", "07:00 PM", "08:00 PM", "09:00 PM", "10:00 PM", "11:00 PM"
-                      ].map((t12) => (
-                        <MenuItem key={t12} value={t12}>
-                          {t12}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
+                  slotProps={{ inputLabel: { shrink: true } }}
+                  error={conflictingRooms.length > 0}
+                  helperText={conflictingRooms.length > 0 ? "Room is already booked for these dates" : ""}
+                />
               </Grid>
-            </Paper>
+
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  required
+                  label="Number of nights"
+                  type="number"
+                  placeholder="1"
+                  slotProps={{ htmlInput: { min: 1, step: 1 } }}
+                  value={checkInData.numberOfNights ?? 1}
+                  onChange={(e) => handleNightsChange(e.target.value)}
+                  error={Number(checkInData.numberOfNights ?? 1) < 1}
+                  helperText={Number(checkInData.numberOfNights ?? 1) < 1 ? "Enter at least 1 night" : ""}
+                />
+              </Grid>
+
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  required
+                  label="Check-out date & time"
+                  type="datetime-local"
+                  error={conflictingRooms.length > 0}
+                  value={`${checkInData.checkOutDate || ""}T${String(checkInData.checkOutTime || hotelSettings?.checkOutTime || "12:00").slice(0, 5)}`.replace(/^T.*/, "")}
+                  onChange={(e) => {
+                    const [datePart, timePart] = String(e.target.value || "").split("T");
+                    handleCheckOutDateChange(datePart, timePart);
+                  }}
+                  slotProps={{
+                    inputLabel: { shrink: true },
+                    htmlInput: {
+                      min: `${checkInData.checkInDate || getTodayLocalDate()}T${String(checkInData.checkInTime || "00:00").slice(0, 5)}`,
+                    },
+                  }}
+                  helperText={conflictingRooms.length > 0 ? "Overlaps with an existing booking" : ""}
+                />
+              </Grid>
+            </Grid>
           </Box>
         )}
 
@@ -2227,95 +2016,8 @@ export default function CheckInWizardPage({
         {/* ========================================================================= */}
         {activeStep === 2 && (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 3.5 }}>
-            <Paper
-              id="payment-advance-section"
-              className="card-3d"
-              sx={{
-                p: 3,
-                borderRadius: "20px",
-                bgcolor: "#FFFFFF",
-                border: `1.5px solid ${themeConfig.border}`,
-              }}
-            >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 2.5 }}>
-                <Avatar sx={{ bgcolor: themeConfig.primary, color: "#FFFFFF", width: 34, height: 34 }}>
-                  <CreditCard sx={{ fontSize: 20 }} />
-                </Avatar>
-                <div>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-                    Tariff Calculation & Advance Settlement
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                    Set nightly room rate, apply discounts, security deposit, and record initial payment
-                  </Typography>
-                </div>
-              </Box>
-
-              {/* Billing Breakdown Table */}
-              <TableContainer sx={{ mb: 3, borderRadius: "14px", border: `1px solid ${themeConfig.border}`, overflowX: "auto" }}>
-                <Table size="small" sx={{ minWidth: 550 }}>
-                  <TableHead sx={{ bgcolor: themeConfig.champagne }}>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 800, whiteSpace: "nowrap" }}>Description</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 800, whiteSpace: "nowrap" }}>Details</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 800, whiteSpace: "nowrap" }}>Amount (₹)</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 700 }}>
-                        Room Rate ({selectedRoomsList.map((r) => `#${r.roomNumber}`).join(", ") || checkInData.roomNumber})
-                        {discountApplied > 0 ? ` • Discount ₹${discountApplied.toLocaleString("en-IN")}` : ""}
-                      </TableCell>
-                      <TableCell align="right">
-                        ₹{Number(checkInData.rate) || 0} × {checkInData.numberOfNights || nights || 1} Night(s){selectedRoomsList.length > 1 ? ` × ${selectedRoomsList.length} Rooms` : ""}
-                      </TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 800 }}>
-                        ₹{priceAfterDiscount.toLocaleString("en-IN")}
-                      </TableCell>
-                    </TableRow>
-
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 700 }}>CGST</TableCell>
-                      <TableCell align="right">9%</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 800 }}>
-                        ₹{displayCgst.toLocaleString("en-IN")}
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 700 }}>SGST</TableCell>
-                      <TableCell align="right">9%</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 800 }}>
-                        ₹{displaySgst.toLocaleString("en-IN")}
-                      </TableCell>
-                    </TableRow>
-
-                    {checkInData.collectSecurityDeposit && (
-                      <TableRow>
-                        <TableCell sx={{ fontWeight: 700 }}>
-                          Refundable Security Deposit
-                        </TableCell>
-                        <TableCell align="right">Refunded at Checkout</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 800 }}>
-                          +₹{(Number(checkInData.securityDepositAmount) || 1000).toLocaleString("en-IN")}
-                        </TableCell>
-                      </TableRow>
-                    )}
-
-                    <TableRow sx={{ bgcolor: themeConfig.champagne }}>
-                      <TableCell sx={{ fontWeight: 900, fontSize: "1rem" }}>
-                        Total (Rate + CGST + SGST)
-                      </TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 800 }}>
-                        All Taxes & Fees Included
-                      </TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 900, fontSize: "1.1rem", color: themeConfig.primary }}>
-                        ₹{calculatedGrandTotal.toLocaleString("en-IN")}
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </TableContainer>
+            <Box id="payment-advance-section">
+              {renderSectionHeader("Billing and payment")}
 
               {/* Adjustments & Inputs */}
               <Grid container spacing={2}>
@@ -2324,11 +2026,16 @@ export default function CheckInWizardPage({
                   <TextField
                     fullWidth
                     size="small"
-                    label="Nightly Tariff Rate (₹)"
-                    placeholder="e.g. 3500"
-                    value={checkInData.rate ?? 3000}
+                    required
+                    autoComplete="off"
+                    label="Rate per night (₹)"
+                    placeholder="Amount per night"
+                    value={checkInData.rate ? checkInData.rate : ""}
+                    error={Boolean(rateError)}
+                    helperText={rateError}
+                    slotProps={{ htmlInput: { inputMode: "numeric" } }}
                     onChange={(e) => {
-                      const newRate = Number(e.target.value) || 0;
+                      const newRate = Number(e.target.value.replace(/\D/g, "").slice(0, 7)) || 0;
                       setCheckInData({
                         ...checkInData,
                         rate: newRate,
@@ -2343,11 +2050,15 @@ export default function CheckInWizardPage({
                   <TextField
                     fullWidth
                     size="small"
-                    label="Special Discount (₹)"
-                    placeholder="e.g. 500"
-                    value={checkInData.discountAmount ?? 0}
+                    autoComplete="off"
+                    label="Discount (₹)"
+                    placeholder="0"
+                    value={checkInData.discountAmount ? checkInData.discountAmount : ""}
+                    error={Boolean(discountError)}
+                    helperText={discountError}
+                    slotProps={{ htmlInput: { inputMode: "numeric" } }}
                     onChange={(e) => {
-                      const disc = Number(e.target.value) || 0;
+                      const disc = Number(e.target.value.replace(/\D/g, "").slice(0, 7)) || 0;
                       setCheckInData({
                         ...checkInData,
                         discountAmount: disc,
@@ -2363,91 +2074,142 @@ export default function CheckInWizardPage({
                     select
                     fullWidth
                     size="small"
-                    label="Payment Method"
+                    label="Payment method"
                     value={checkInData.paymentMethod || "UPI"}
                     onChange={(e) => setCheckInData({ ...checkInData, paymentMethod: e.target.value })}
                   >
-                    <MenuItem value="UPI">UPI / QR Code (PhonePe/GPay)</MenuItem>
-                    <MenuItem value="CASH">Cash at Front Desk</MenuItem>
-                    <MenuItem value="CARD">Credit / Debit Card (POS)</MenuItem>
-                    <MenuItem value="NET_BANKING">Net Banking / NEFT</MenuItem>
+                    <MenuItem value="CASH">Cash</MenuItem>
+                    <MenuItem value="UPI">UPI</MenuItem>
+                    <MenuItem value="CARD">Card</MenuItem>
+                    <MenuItem value="ONLINE">Online</MenuItem>
+                    <MenuItem value="BANK_TRANSFER">Bank transfer</MenuItem>
                   </TextField>
                 </Grid>
 
+                {/* Advance payment (sent as paid_amount) */}
+                <Grid size={{ xs: 12, sm: 4 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    autoComplete="off"
+                    label="Advance paid (₹)"
+                    placeholder="0"
+                    value={checkInData.paid ? checkInData.paid : ""}
+                    error={Boolean(paidError)}
+                    helperText={paidError}
+                    slotProps={{ htmlInput: { inputMode: "numeric" } }}
+                    onChange={(e) => {
+                      const amount = Number(e.target.value.replace(/\D/g, "").slice(0, 7)) || 0;
+                      setCheckInData({ ...checkInData, paid: amount, isPaidManuallyEdited: true });
+                    }}
+                  />
+                </Grid>
+
+                {(checkInData.paymentMethod || "UPI") !== "CASH" && (
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      autoComplete="off"
+                      label="Reference number"
+                      placeholder="Transaction or reference no."
+                      value={checkInData.transactionId || ""}
+                      onChange={(e) => setCheckInData({ ...checkInData, transactionId: e.target.value })}
+                    />
+                  </Grid>
+                )}
               </Grid>
 
-              {checkInData.paymentMethod === "CARD" && (
-                <Box sx={{ mt: 2, p: 2, borderRadius: "14px", border: `1px solid ${themeConfig.border}`, bgcolor: "#F8FAFC" }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>Card Details</Typography>
-                  <Grid container spacing={2}>
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                      <TextField select fullWidth size="small" label="Card Type" value={checkInData.cardType || "VISA"} onChange={(e) => setCheckInData({ ...checkInData, cardType: e.target.value })}>
-                        <MenuItem value="VISA">Visa</MenuItem>
-                        <MenuItem value="MASTERCARD">Mastercard</MenuItem>
-                        <MenuItem value="RUPAY">RuPay</MenuItem>
-                        <MenuItem value="AMEX">Amex</MenuItem>
-                      </TextField>
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                      <TextField fullWidth size="small" label="Last 4 Digits" placeholder="1234" slotProps={{ htmlInput: { maxLength: 4 } }} value={checkInData.cardLast4 || ""} onChange={(e) => setCheckInData({ ...checkInData, cardLast4: e.target.value.replace(/\D/g, "").slice(0, 4) })} />
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                      <TextField fullWidth size="small" label="Card Holder Name" value={checkInData.cardHolder || ""} onChange={(e) => setCheckInData({ ...checkInData, cardHolder: e.target.value })} />
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <TextField fullWidth size="small" label="POS / Approval Reference" value={checkInData.transactionId || ""} onChange={(e) => setCheckInData({ ...checkInData, transactionId: e.target.value })} />
-                    </Grid>
-                  </Grid>
+              {/* Bill summary */}
+              <Box sx={{ mt: 3, p: 2.5, borderRadius: "12px", border: `1px solid ${themeConfig.border}`, bgcolor: "#FFFFFF" }}>
+                <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.85rem", mb: 1.5 }}>
+                  Bill summary
+                </Typography>
+                {[
+                  {
+                    label: `Room charges (${selectedRoomsList.map((r) => `#${r.roomNumber}`).join(", ") || checkInData.roomNumber})`,
+                    hint: `₹${(Number(checkInData.rate) || 0).toLocaleString("en-IN")} × ${checkInData.numberOfNights || nights || 1} ${(checkInData.numberOfNights || nights || 1) === 1 ? "night" : "nights"}${selectedRoomsList.length > 1 ? ` × ${selectedRoomsList.length} rooms` : ""}`,
+                    value: `₹${(priceAfterDiscount + discountApplied).toLocaleString("en-IN")}`,
+                    show: true,
+                  },
+                  {
+                    label: "Discount",
+                    value: `-₹${discountApplied.toLocaleString("en-IN")}`,
+                    color: "#047857",
+                    show: discountApplied > 0,
+                  },
+                  {
+                    label: "Taxable amount",
+                    hint: "After discount",
+                    value: `₹${priceAfterDiscount.toLocaleString("en-IN")}`,
+                    show: discountApplied > 0,
+                  },
+                  { label: "CGST", hint: `${effectiveGstRate / 2}%`, value: `₹${displayCgst.toLocaleString("en-IN")}`, show: displayIgst === 0 },
+                  { label: "SGST", hint: `${effectiveGstRate / 2}%`, value: `₹${displaySgst.toLocaleString("en-IN")}`, show: displayIgst === 0 },
+                  { label: "IGST", hint: `${effectiveGstRate}%`, value: `₹${displayIgst.toLocaleString("en-IN")}`, show: displayIgst > 0 },
+                  {
+                    label: "Security deposit",
+                    hint: "Refundable at check-out",
+                    value: `₹${(Number(checkInData.securityDepositAmount) || 1000).toLocaleString("en-IN")}`,
+                    show: Boolean(checkInData.collectSecurityDeposit),
+                  },
+                ]
+                  .filter((row) => row.show)
+                  .map((row) => (
+                    <Box key={row.label} sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 2, py: 0.9 }}>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography component="span" sx={{ color: themeConfig.textMain, fontSize: "0.88rem", fontWeight: 500 }}>
+                          {row.label}
+                        </Typography>
+                        {row.hint ? (
+                          <Typography component="span" sx={{ color: themeConfig.textMuted, fontSize: "0.78rem", ml: 1 }}>
+                            {row.hint}
+                          </Typography>
+                        ) : null}
+                      </Box>
+                      <Typography sx={{ color: row.color || themeConfig.textMain, fontSize: "0.88rem", fontWeight: 600, whiteSpace: "nowrap" }}>
+                        {row.value}
+                      </Typography>
+                    </Box>
+                  ))}
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 1, pt: 1.5, borderTop: `1px solid ${themeConfig.border}` }}>
+                  <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.95rem" }}>Total (incl. GST)</Typography>
+                  <Typography sx={{ fontWeight: 700, color: themeConfig.primary, fontSize: "1.25rem" }}>
+                    ₹{calculatedGrandTotal.toLocaleString("en-IN")}
+                  </Typography>
                 </Box>
-              )}
-
-              {(checkInData.paymentMethod || "UPI") === "UPI" && (
-                <Box sx={{ mt: 2, p: 2, borderRadius: "14px", border: `1px solid ${themeConfig.border}`, bgcolor: "#F8FAFC" }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>UPI Details</Typography>
-                  <Grid container spacing={2}>
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                      <TextField select fullWidth size="small" label="UPI App" value={checkInData.upiApp || "PHONEPE"} onChange={(e) => setCheckInData({ ...checkInData, upiApp: e.target.value })}>
-                        <MenuItem value="PHONEPE">PhonePe</MenuItem>
-                        <MenuItem value="GPAY">Google Pay</MenuItem>
-                        <MenuItem value="PAYTM">Paytm</MenuItem>
-                        <MenuItem value="OTHER">Other</MenuItem>
-                      </TextField>
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 8 }}>
-                      <TextField fullWidth size="small" label="UPI Transaction ID" placeholder="e.g. 402918482" value={checkInData.transactionId || ""} onChange={(e) => setCheckInData({ ...checkInData, transactionId: e.target.value })} />
-                    </Grid>
-                  </Grid>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 2, pt: 1.25 }}>
+                  <Typography sx={{ color: themeConfig.textMain, fontSize: "0.88rem", fontWeight: 500 }}>
+                    Advance paid
+                    <Typography component="span" sx={{ color: themeConfig.textMuted, fontSize: "0.78rem", ml: 1 }}>
+                      {paymentMethodLabel}
+                    </Typography>
+                  </Typography>
+                  <Typography sx={{ color: "#047857", fontSize: "0.88rem", fontWeight: 600 }}>
+                    -₹{advancePaid.toLocaleString("en-IN")}
+                  </Typography>
                 </Box>
-              )}
-
-              {checkInData.paymentMethod === "CASH" && (
-                <Box sx={{ mt: 2, p: 2, borderRadius: "14px", border: `1px solid ${themeConfig.border}`, bgcolor: "#F8FAFC" }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>Cash Details</Typography>
-                  <Grid container spacing={2}>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <TextField fullWidth size="small" label="Cash Received (₹)" type="number" value={checkInData.cashReceived ?? ""} onChange={(e) => setCheckInData({ ...checkInData, cashReceived: e.target.value })} />
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <TextField fullWidth size="small" label="Note" value={checkInData.transactionId || ""} onChange={(e) => setCheckInData({ ...checkInData, transactionId: e.target.value })} />
-                    </Grid>
-                  </Grid>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    mt: 1.25,
+                    px: 1.5,
+                    py: 1,
+                    borderRadius: "10px",
+                    bgcolor: balanceDue > 0 ? "#FEF2F2" : "#ECFDF5",
+                  }}
+                >
+                  <Typography sx={{ fontWeight: 700, fontSize: "0.9rem", color: balanceDue > 0 ? "#B42318" : "#047857" }}>
+                    Balance due
+                  </Typography>
+                  <Typography sx={{ fontWeight: 700, fontSize: "1.05rem", color: balanceDue > 0 ? "#B42318" : "#047857" }}>
+                    ₹{balanceDue.toLocaleString("en-IN")}
+                  </Typography>
                 </Box>
-              )}
-
-              {checkInData.paymentMethod === "NET_BANKING" && (
-                <Box sx={{ mt: 2, p: 2, borderRadius: "14px", border: `1px solid ${themeConfig.border}`, bgcolor: "#F8FAFC" }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>Bank Transfer Details</Typography>
-                  <Grid container spacing={2}>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <TextField fullWidth size="small" label="Bank Name" value={checkInData.bankName || ""} onChange={(e) => setCheckInData({ ...checkInData, bankName: e.target.value })} />
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <TextField fullWidth size="small" label="UTR / Reference No." value={checkInData.transactionId || ""} onChange={(e) => setCheckInData({ ...checkInData, transactionId: e.target.value })} />
-                    </Grid>
-                  </Grid>
-                </Box>
-              )}
-            </Paper>
+              </Box>
+            </Box>
           </Box>
         )}
 
@@ -2455,214 +2217,150 @@ export default function CheckInWizardPage({
         {/* STEP 4 (Index 3): PREVIEW & FINAL CHECK-IN CONFIRMATION                   */}
         {/* ========================================================================= */}
         {activeStep === 3 && (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 3.5 }}>
-            <Paper
-              className="card-3d"
-              sx={{
-                p: 3.5,
-                borderRadius: "20px",
-                bgcolor: "#FFFFFF",
-                border: `1.5px solid ${themeConfig.border}`,
-              }}
-            >
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: { xs: "flex-start", sm: "center" }, flexDirection: { xs: "column", sm: "row" }, gap: 1.5, mb: 3, pb: 2, borderBottom: `2px solid ${themeConfig.primary}` }}>
-                <div>
-                  <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-                    Folio Pre-Checkin Summary & Registry Review
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                    Verify primary guest, accompanying members, stay schedule, room allocation, and settlement details
-                  </Typography>
-                </div>
-                <Chip
-                  label="Ready for Check-In"
-                  color="success"
-                  sx={{ fontWeight: 900 }}
-                />
-              </Box>
+          <Box>
+            {renderSectionHeader("Review and confirm")}
 
-              {/* 1. Primary Guest Details */}
-              <Box sx={{ mb: 3, p: 2, borderRadius: "14px", bgcolor: themeConfig.champagne }}>
-                <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.primaryDark, textTransform: "uppercase", display: "block", mb: 1 }}>
-                  Primary / Main Guest Folio Holder:
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>Full Name:</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-                      {checkInData.fullName || "N/A"}
+            <Grid container spacing={2} sx={{ mb: 2.5 }}>
+              <Grid size={{ xs: 12, md: 4 }}>
+                {renderReviewTile(
+                  "Guest",
+                  <>
+                    <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.95rem" }}>
+                      {checkInData.fullName || "Not added"}
                     </Typography>
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>WhatsApp Number:</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 0.5 }}>
-                      <WhatsApp sx={{ color: "#25D366", fontSize: 16 }} />
-                      {checkInData.mobile ? `+91 ${checkInData.mobile}` : "N/A"}
+                    <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.8rem", mt: 0.25 }}>
+                      {checkInData.mobile ? `+91 ${checkInData.mobile}` : "No mobile number"}
                     </Typography>
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>Guest Signature:</Typography>
-                    {checkInData.signature ? (
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, mt: 0.3 }}>
-                        <Chip
-                          icon={<CheckCircle sx={{ fontSize: "14px !important", color: "#10B981 !important" }} />}
-                          label="Signed & Verified"
-                          size="small"
-                          sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", color: "#10B981", fontWeight: 900, fontSize: "0.72rem", height: 24 }}
-                        />
-                        <Chip
-                          icon={<Visibility sx={{ fontSize: "14px !important" }} />}
-                          label="View"
-                          size="small"
-                          clickable
-                          onClick={() => setPreviewImageSrc(checkInData.signature)}
-                          sx={{ bgcolor: "rgba(11, 142, 224, 0.12)", color: "#0B8EE0", fontWeight: 800, fontSize: "0.72rem", height: 24 }}
-                        />
-                      </Box>
-                    ) : (
-                      <Chip
-                        label="⚠️ Missing (Required)"
-                        size="small"
-                        clickable
-                        onClick={() => {
-                          setActiveStep(0);
-                          scrollToElement("guest-signature-section");
-                        }}
-                        sx={{ bgcolor: "#FEE2E2", color: "#DC2626", fontWeight: 900, fontSize: "0.72rem", border: "1px solid #FCA5A5", height: 24, mt: 0.3 }}
-                      />
-                    )}
-                  </Grid>
-                </Grid>
-              </Box>
-
-              {/* 2. Uploaded Document Verification */}
-              {checkInData.accompanyingGuests && checkInData.accompanyingGuests.length > 0 && (
-                <Paper sx={{ mb: 3, p: 2, borderRadius: "14px", border: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#FFFFFF" }}>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1.5 }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                      <Avatar sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", color: "#10B981", width: 38, height: 38 }}>
-                        <CheckCircle sx={{ fontSize: 22 }} />
-                      </Avatar>
-                      <div>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-                          Uploaded Member Documents & ID Verification
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                          {checkInData.accompanyingGuests.length} Document Photo(s) Attached & Verified
-                        </Typography>
-                      </div>
-                    </Box>
-
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-                      {checkInData.accompanyingGuests.map((m, idx) => {
-                        const imgSrc = m.frontImage || (m.images && m.images[0]) || "";
-                        return (
+                    {checkInData.email ? (
+                      <Typography noWrap sx={{ color: themeConfig.textMuted, fontSize: "0.8rem" }}>{checkInData.email}</Typography>
+                    ) : null}
+                    <Box sx={{ mt: 1, display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+                      {checkInData.signature ? (
+                        <>
                           <Chip
-                            key={m.id || idx}
-                            icon={<Visibility sx={{ fontSize: "14px !important" }} />}
-                            label={`Doc #${idx + 1}`}
+                            icon={<CheckCircle sx={{ fontSize: "14px !important", color: "#047857 !important" }} />}
+                            label="Signed"
+                            size="small"
+                            sx={{ bgcolor: "#ECFDF5", color: "#047857", fontWeight: 700, fontSize: "0.72rem", border: "1px solid #A7F3D0" }}
+                          />
+                          <Chip
+                            label="View signature"
                             size="small"
                             clickable
-                            onClick={() => setPreviewImageSrc(imgSrc)}
-                            sx={{
-                              bgcolor: "rgba(11, 142, 224, 0.12)",
-                              color: "#0B8EE0",
-                              fontWeight: 800,
-                              fontSize: "0.72rem",
-                              height: 26,
-                              "&:hover": { bgcolor: "rgba(11, 142, 224, 0.22)" },
-                            }}
+                            onClick={() => setPreviewImageSrc(checkInData.signature)}
+                            sx={{ bgcolor: "#F8FAFC", color: themeConfig.textMain, fontWeight: 600, fontSize: "0.72rem", border: `1px solid ${themeConfig.border}` }}
                           />
-                        );
-                      })}
-                      <Chip
-                        icon={<CheckCircle sx={{ fontSize: "14px !important", color: "#10B981 !important" }} />}
-                        label="Verified"
-                        size="small"
-                        sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", color: "#10B981", fontWeight: 900, fontSize: "0.72rem", height: 26 }}
-                      />
+                        </>
+                      ) : (
+                        <Chip
+                          label="Signature missing"
+                          size="small"
+                          clickable
+                          onClick={() => {
+                            setActiveStep(0);
+                            setTimeout(() => scrollToElement("guest-signature-section"), 150);
+                          }}
+                          sx={{ bgcolor: "#FEF2F2", color: "#B42318", fontWeight: 700, fontSize: "0.72rem", border: "1px solid #FECACA" }}
+                        />
+                      )}
                     </Box>
-                  </Box>
-                </Paper>
-              )}
-
-              {/* 3. Stay & Room Allocation Details */}
-              <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <Paper sx={{ p: 2, borderRadius: "14px", border: `1px solid ${themeConfig.border}` }}>
-                    <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.primaryDark, textTransform: "uppercase", display: "block", mb: 0.8 }}>
-                      Stay Schedule:
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                      In: {formatDDMMYYYY(checkInData.checkInDate || getTodayLocalDate())} &bull; {formatTime12Hour(checkInData.checkInTime || liveTime)}
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                      Out: {formatDDMMYYYY(checkInData.checkOutDate)} &bull; {formatTime12Hour(checkInData.checkOutTime || hotelSettings?.checkOutTime || "12:00")}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                      Duration: {checkInData.numberOfNights || nights || 1} Night(s)
-                    </Typography>
-                  </Paper>
-                </Grid>
-
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <Paper sx={{ p: 2, borderRadius: "14px", border: `1px solid ${themeConfig.border}` }}>
-                    <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.primaryDark, textTransform: "uppercase", display: "block", mb: 0.8 }}>
-                      Room Allocation:
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.primary }}>
-                      Room {selectedRoomsList.map((r) => `#${r.roomNumber}`).join(", ") || checkInData.roomNumber}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block" }}>
-                      Category: {selectedRoomsList.map((r) => getRoomCategoryName(r)).join(", ") || checkInData.roomType || "Standard Room"}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                      Party: {totalPartySize} Guest(s) (1 Primary + {currentMembersCount} Member{currentMembersCount !== 1 ? "s" : ""})
-                    </Typography>
-                  </Paper>
-                </Grid>
+                  </>
+                )}
               </Grid>
 
-              {/* 4. Payment Settlement Summary */}
-              <Box sx={{ p: 2, borderRadius: "14px", bgcolor: "rgba(16, 185, 129, 0.06)", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
-                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1, mb: 1.5 }}>
-                  <div>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 800, textTransform: "uppercase" }}>
-                      Total Amount (Grand Total):
+              <Grid size={{ xs: 12, md: 4 }}>
+                {renderReviewTile(
+                  "Stay",
+                  <>
+                    <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.95rem" }}>
+                      {checkInData.numberOfNights || nights || 1} {(checkInData.numberOfNights || nights || 1) === 1 ? "night" : "nights"}
                     </Typography>
-                    <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.primaryDark }}>
-                      ₹{calculatedGrandTotal.toLocaleString()}
+                    <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.8rem", mt: 0.25 }}>
+                      In: {formatDDMMYYYY(checkInData.checkInDate || getTodayLocalDate())}, {formatTime12Hour(checkInData.checkInTime || liveTime)}
                     </Typography>
-                  </div>
+                    <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.8rem" }}>
+                      Out: {formatDDMMYYYY(checkInData.checkOutDate)}, {formatTime12Hour(checkInData.checkOutTime || hotelSettings?.checkOutTime || "12:00")}
+                    </Typography>
+                  </>
+                )}
+              </Grid>
 
-                  <div>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 800, textTransform: "uppercase" }}>
-                      Amount Paid ({checkInData.paymentMethod || "UPI"}):
+              <Grid size={{ xs: 12, md: 4 }}>
+                {renderReviewTile(
+                  "Room",
+                  <>
+                    <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.95rem" }}>
+                      Room {selectedRoomsList.map((r) => r.roomNumber).join(", ") || checkInData.roomNumber}
                     </Typography>
-                    <Typography variant="h5" sx={{ fontWeight: 900, color: "#10B981" }}>
-                      ₹{(checkInData.paid ?? calculatedGrandTotal).toLocaleString()}
+                    <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.8rem", mt: 0.25 }}>
+                      {selectedRoomsList.map((r) => getRoomCategoryName(r)).join(", ") || checkInData.roomType || "Standard room"}
                     </Typography>
-                  </div>
+                    <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.8rem" }}>
+                      {totalPartySize} {totalPartySize === 1 ? "guest" : "guests"}
+                    </Typography>
+                  </>
+                )}
+              </Grid>
+            </Grid>
 
-                  <div>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 800, textTransform: "uppercase" }}>
-                      Balance Due:
-                    </Typography>
-                    <Typography variant="h5" sx={{ fontWeight: 900, color: Math.max(0, calculatedGrandTotal - (checkInData.paid ?? calculatedGrandTotal)) > 0 ? themeConfig.danger : "#10B981" }}>
-                      ₹{Math.max(0, calculatedGrandTotal - (checkInData.paid ?? calculatedGrandTotal)).toLocaleString()}
-                    </Typography>
-                  </div>
+            {checkInData.accompanyingGuests && checkInData.accompanyingGuests.length > 0 && (
+              <Box sx={{ mb: 2.5, p: 2, borderRadius: "12px", border: `1px solid ${themeConfig.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1.5 }}>
+                <Typography sx={{ fontWeight: 600, color: themeConfig.textMain, fontSize: "0.85rem" }}>
+                  Member documents ({checkInData.accompanyingGuests.length})
+                </Typography>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                  {checkInData.accompanyingGuests.map((m, idx) => {
+                    const imgSrc = m.frontImage || (m.images && m.images[0]) || "";
+                    return (
+                      <Chip
+                        key={m.id || idx}
+                        icon={<Visibility sx={{ fontSize: "14px !important" }} />}
+                        label={`Document ${idx + 1}`}
+                        size="small"
+                        clickable
+                        onClick={() => setPreviewImageSrc(imgSrc)}
+                        sx={{ bgcolor: "#F8FAFC", color: themeConfig.textMain, fontWeight: 600, fontSize: "0.72rem", border: `1px solid ${themeConfig.border}` }}
+                      />
+                    );
+                  })}
                 </Box>
+              </Box>
+            )}
 
-                {/* Auto-filled 100% Advance Settlement & GST breakdown alert as requested */}
-                <Box sx={{ p: 1.2, borderRadius: "10px", bgcolor: "rgba(16, 185, 129, 0.12)", border: "1px solid rgba(16, 185, 129, 0.35)", display: "flex", alignItems: "center", gap: 1 }}>
-                  <CheckCircle sx={{ color: "#10B981", fontSize: 18, flexShrink: 0 }} />
-                  <Typography variant="caption" sx={{ fontWeight: 900, color: "#065F46" }}>
-                    ✅ Paid in Full — 100% Advance Settlement Auto-Filled (Includes CGST {totalCgstAmount > 0 ? "9%" : "0%"} + SGST {totalSgstAmount > 0 ? "9%" : "0%"} GST Tax)
+            {/* Payment summary */}
+            <Box sx={{ p: 2, borderRadius: "12px", bgcolor: "#F0FDFA", border: `1px solid ${themeConfig.border}` }}>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 2 }}>
+                <Box>
+                  <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 600 }}>Total amount</Typography>
+                  <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "1.2rem" }}>
+                    ₹{calculatedGrandTotal.toLocaleString("en-IN")}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 600 }}>
+                    Advance paid ({paymentMethodLabel})
+                  </Typography>
+                  <Typography sx={{ fontWeight: 700, color: "#047857", fontSize: "1.2rem" }}>
+                    ₹{advancePaid.toLocaleString("en-IN")}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 600 }}>Balance due</Typography>
+                  <Typography
+                    sx={{
+                      fontWeight: 700,
+                      fontSize: "1.2rem",
+                      color: balanceDue > 0 ? "#B42318" : "#047857",
+                    }}
+                  >
+                    ₹{balanceDue.toLocaleString("en-IN")}
                   </Typography>
                 </Box>
               </Box>
-            </Paper>
+              <Typography sx={{ mt: 1.5, color: themeConfig.textMuted, fontSize: "0.75rem" }}>
+                Total includes CGST {totalCgstAmount > 0 ? "9%" : "0%"} and SGST {totalSgstAmount > 0 ? "9%" : "0%"}.
+              </Typography>
+            </Box>
           </Box>
         )}
 
@@ -2670,121 +2368,81 @@ export default function CheckInWizardPage({
         <Box
           sx={{
             display: "flex",
-            justify: "space-between",
+            justifyContent: "space-between",
             alignItems: "center",
             flexDirection: { xs: "column-reverse", sm: "row" },
-            gap: 2,
+            gap: 1.5,
             mt: 4,
-            pt: 3,
+            pt: 2.5,
             borderTop: `1px solid ${themeConfig.border}`,
           }}
         >
           <Button
-            fullWidth={false}
             variant="outlined"
             disabled={activeStep === 0}
             onClick={handleBack}
-            startIcon={<ArrowBack />}
+            startIcon={<ArrowBack sx={{ fontSize: 18 }} />}
             sx={{
-              borderRadius: "12px",
-              fontWeight: 800,
-              px: 3,
-              py: 1,
+              minHeight: 40,
+              borderRadius: "10px",
+              fontWeight: 700,
+              fontSize: "0.85rem",
+              textTransform: "none",
+              boxShadow: "none",
+              px: 2.5,
               borderColor: themeConfig.border,
               color: themeConfig.textMain,
               width: { xs: "100%", sm: "auto" },
+              "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.border, boxShadow: "none" },
             }}
           >
-            {activeStep === 1
-              ? "Back to Guest Profile & ID"
-              : activeStep === 2
-                ? "Back to Stay Schedule"
-                : activeStep === 3
-                  ? "Back to Billing & Settlement"
-                  : "Back"}
+            Back
           </Button>
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "stretch", sm: "flex-end" } }}>
-            {activeStep === 0 && !checkInData.frontImage && mainGuestDocs.length === 0 && (
-              <Chip
-                label="Primary ID Upload Required"
-                size="small"
-                sx={{
-                  bgcolor: "#FEF2F2",
-                  color: "#DC2626",
-                  fontWeight: 800,
-                  fontSize: "0.72rem",
-                  border: "1px solid #FCA5A5",
-                  display: { xs: "none", sm: "inline-flex" },
-                }}
-              />
-            )}
-            {activeStep === 0 && (!checkInData.signature || (typeof checkInData.signature === "string" && !checkInData.signature.trim())) && (
-              <Chip
-                label="Guest Signature Required *"
-                size="small"
-                sx={{
-                  bgcolor: "#FEF2F2",
-                  color: "#DC2626",
-                  fontWeight: 800,
-                  fontSize: "0.72rem",
-                  border: "1px solid #FCA5A5",
-                  display: { xs: "none", sm: "inline-flex" },
-                }}
-              />
-            )}
-
-            {activeStep < CHECKIN_STEPS.length - 1 ? (
-              <Button
-                fullWidth
-                variant="contained"
-                onClick={handleNext}
-                endIcon={<ArrowForward />}
-                className="btn-3d"
-                sx={{
-                  background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                  color: "#FFFFFF",
-                  fontWeight: 900,
-                  borderRadius: "12px",
-                  px: { xs: 2.5, sm: 3.5 },
-                  py: 1.1,
-                  boxShadow: `0 6px 16px ${themeConfig.primaryGlow}`,
-                  width: { xs: "100%", sm: "auto" },
-                }}
-              >
-                {activeStep === 0
-                  ? "Continue to Stay Schedule"
-                  : activeStep === 1
-                    ? "Continue to Billing & Settlement"
-                    : "Continue to Review & Check-In"}
-              </Button>
-            ) : (
-              <Button
-                fullWidth
-                variant="contained"
-                onClick={handleTriggerFinalCheckIn}
-                disabled={isCheckInSubmitting}
-                startIcon={isCheckInSubmitting ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : <CheckCircle />}
-                className="btn-3d"
-                sx={{
-                  background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
-                  color: "#FFFFFF",
-                  fontWeight: 900,
-                  borderRadius: "12px",
-                  px: { xs: 3, sm: 4 },
-                  py: 1.2,
-                  fontSize: "0.95rem",
-                  boxShadow: "0 8px 24px rgba(16, 185, 129, 0.35)",
-                  width: { xs: "100%", sm: "auto" },
-                  "&:hover": {
-                    background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
-                  },
-                }}
-              >
-                {isCheckInSubmitting ? "Creating Booking..." : "Confirm & Complete Check-In"}
-              </Button>
-            )}
-          </Box>
+          {activeStep < CHECKIN_STEPS.length - 1 ? (
+            <Button
+              variant="contained"
+              onClick={handleNext}
+              endIcon={<ArrowForward sx={{ fontSize: 18 }} />}
+              sx={{
+                minHeight: 40,
+                borderRadius: "10px",
+                fontWeight: 700,
+                fontSize: "0.85rem",
+                textTransform: "none",
+                boxShadow: "none",
+                px: 3,
+                bgcolor: themeConfig.primary,
+                color: "#FFFFFF",
+                width: { xs: "100%", sm: "auto" },
+                "&:hover": { bgcolor: themeConfig.primaryDark, boxShadow: "none" },
+              }}
+            >
+              Continue
+            </Button>
+          ) : (
+            <Button
+              variant="contained"
+              onClick={handleTriggerFinalCheckIn}
+              disabled={isCheckInSubmitting}
+              startIcon={isCheckInSubmitting ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : <CheckCircle sx={{ fontSize: 18 }} />}
+              sx={{
+                minHeight: 40,
+                borderRadius: "10px",
+                fontWeight: 700,
+                fontSize: "0.85rem",
+                textTransform: "none",
+                boxShadow: "none",
+                px: 3,
+                bgcolor: themeConfig.primary,
+                color: "#FFFFFF",
+                width: { xs: "100%", sm: "auto" },
+                "&:hover": { bgcolor: themeConfig.primaryDark, boxShadow: "none" },
+              }}
+            >
+              {isCheckInSubmitting ? "Creating booking..." : "Confirm check-in"}
+            </Button>
+          )}
         </Box>
       </Card>
 

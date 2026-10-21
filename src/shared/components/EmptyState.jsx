@@ -12,13 +12,19 @@ export default function EmptyState({
   actionLabel,
   actionText,
   onAction,
+  embedded = false,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
   const label = actionLabel || actionText;
 
   return (
     <Box
-      sx={{
+      sx={embedded ? {
+        py: 6,
+        px: 3,
+        textAlign: "center",
+        bgcolor: "transparent",
+      } : {
         py: 8,
         px: 3,
         textAlign: "center",

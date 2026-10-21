@@ -54,6 +54,7 @@ import {
 } from "@/shared/icons";
 import dynamic from "next/dynamic";
 import { useAppTheme } from "@/shared/context/ThemeContext";
+import { AppDialogHeader, AppDialogFooter, dialogPaperSx, dialogPrimaryButtonSx } from "@/shared/components/AppDialog";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import StatCard from "@/shared/components/StatCard";
@@ -626,63 +627,17 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
         onClose={() => setSelectedHotelModal({ open: false, hotel: null, loading: false, details: null })}
         maxWidth="md"
         fullWidth
-        slotProps={{
-          paper: {
-            sx: {
-              borderRadius: "24px",
-              p: 0,
-              border: `1px solid ${themeConfig.border}`,
-              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-              overflow: "hidden",
-            },
-          },
-        }}
+        slotProps={{ paper: { sx: dialogPaperSx(themeConfig, isDarkMode) } }}
       >
         {selectedHotelModal.hotel && (
           <Box>
             {/* Modal Header */}
-            <Box
-              sx={{
-                p: { xs: 2, sm: 3 },
-                background: "linear-gradient(135deg, #3B0764 0%, #7E22CE 100%)",
-                color: "#FFFFFF",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                flexWrap: "wrap",
-                gap: 1.5,
-              }}
-            >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
-                <Avatar
-                  sx={{
-                    width: 52,
-                    height: 52,
-                    borderRadius: "14px",
-                    bgcolor: "rgba(255,255,255,0.2)",
-                    color: "#FFFFFF",
-                    fontWeight: 900,
-                    fontSize: "1.3rem",
-                  }}
-                >
-                  {(selectedHotelModal.hotel.name || "H").charAt(0).toUpperCase()}
-                </Avatar>
-                <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 800, color: "#FFFFFF", lineHeight: 1.2 }}>
-                    {selectedHotelModal.hotel.name}
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.85)" }}>
-                    Hotel Code: {selectedHotelModal.hotel.hotelCode || selectedHotelModal.hotel._id?.slice(-6)} &bull; Joined: {new Date(selectedHotelModal.hotel.createdAt || Date.now()).toLocaleDateString("en-IN")}
-                  </Typography>
-                </Box>
-              </Box>
-              <IconButton
-                onClick={() => setSelectedHotelModal({ open: false, hotel: null, loading: false, details: null })}
-                sx={{ color: "#FFFFFF", bgcolor: "rgba(255,255,255,0.15)", "&:hover": { bgcolor: "rgba(255,255,255,0.3)" } }}
-              >
-                <Close fontSize="small" />
-              </IconButton>
-            </Box>
+            <AppDialogHeader
+              eyebrow="Hotel"
+              title={selectedHotelModal.hotel.name || "Hotel"}
+              icon={<Typography sx={{ fontWeight: 800 }}>{(selectedHotelModal.hotel.name || "H").charAt(0).toUpperCase()}</Typography>}
+              onClose={() => setSelectedHotelModal({ open: false, hotel: null, loading: false, details: null })}
+            />
 
             {/* Modal Body */}
             <Box sx={{ p: { xs: 1.5, sm: 3 } }}>
@@ -880,21 +835,15 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
               )}
             </Box>
 
-            <DialogActions sx={{ p: 2.5, bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : themeConfig.champagne }}>
+            <AppDialogFooter>
               <Button
                 onClick={() => setSelectedHotelModal({ open: false, hotel: null, loading: false, details: null })}
                 variant="contained"
-                sx={{
-                  borderRadius: "12px",
-                  fontWeight: 800,
-                  bgcolor: "#7E22CE",
-                  "&:hover": { bgcolor: "#6B21A8" },
-                  px: 3,
-                }}
+                sx={dialogPrimaryButtonSx(themeConfig)}
               >
-                Close Inspector
+                Close
               </Button>
-            </DialogActions>
+            </AppDialogFooter>
           </Box>
         )}
       </Dialog>

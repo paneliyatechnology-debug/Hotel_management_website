@@ -2325,7 +2325,7 @@ export default function ReceptionistOverviewPage({
         onClose={() => !checkoutModal.isSubmitting && setCheckoutModal({ open: false, item: null, paymentMethod: "CASH", settlementAmount: 0, isSubmitting: false })}
         maxWidth="sm"
         fullWidth
-        slotProps={{ paper: { sx: { borderRadius: "20px", p: 1 } } }}
+        slotProps={{ paper: { sx: { borderRadius: "16px", overflow: "hidden" } } }}
       >
         <DialogTitle sx={{ fontWeight: 900, pb: 1, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <Box>

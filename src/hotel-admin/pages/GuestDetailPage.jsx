@@ -51,6 +51,7 @@ import {
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { formatTime12Hour } from "@/shared/utils/timeUtils";
+import { computeBookingBill } from "@/shared/utils/billingUtils";
 import { toast } from "@/shared/utils/toast";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
@@ -93,6 +94,14 @@ function toUrl(entry) {
     entry.signature ||
     ""
   );
+}
+
+function humanizeLabel(value) {
+  if (!value) return "";
+  return String(value)
+    .replace(/[_-]+/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function formatCurrency(val) {
@@ -260,7 +269,9 @@ export default function GuestDetailPage({
   }, [b.nights, checkInDate, checkOutDate]);
 
   // Financials
-  const totalAmount = Number(b.total_amount ?? b.totalAmount ?? b.grand_total ?? 0);
+  // Total bill = base - discount + extra charges + late check-out, then GST on that amount
+  const bill = computeBookingBill(b);
+  const totalAmount = bill.hasBase ? bill.total : Number(b.total_amount ?? b.totalAmount ?? b.grand_total ?? 0);
   const paidAmount = Number(
     b.paid_amount ??
       b.paidAmount ??
@@ -269,50 +280,60 @@ export default function GuestDetailPage({
       b.advancePaid ??
       0
   );
-  const dueAmount = Number(
-    b.due_amount ??
-      b.dueAmount ??
-      Math.max(0, totalAmount - paidAmount)
-  );
+  const dueAmount = bill.hasBase
+    ? Math.max(0, totalAmount - paidAmount)
+    : Number(b.due_amount ?? b.dueAmount ?? Math.max(0, totalAmount - paidAmount));
 
-  const imageList = useMemo(() => {
+  const mediaSections = useMemo(() => {
     const seen = new Set();
-    const urls = [];
-    const push = (entry) => {
-      const url = toUrl(entry);
-      if (!url || seen.has(url)) return;
-      seen.add(url);
-      urls.push(url);
+    const collect = (sources, fallback) => {
+      const items = [];
+      sources.forEach((source) =>
+        parseMaybeList(source).forEach((entry) => {
+          const url = toUrl(entry);
+          if (!url || seen.has(url)) return;
+          seen.add(url);
+          items.push({ url, label: `${fallback} ${items.length + 1}` });
+        })
+      );
+      return items;
     };
-    [
-      b.images,
-      g.images,
-      b.documents,
-      g.documents,
-      b.signatures,
-      g.signatures,
-      b.id_images,
-      b.front_image,
-      b.frontImage,
-      b.back_image,
-      b.backImage,
-      b.id_proof_image,
-      b.id_proof_back_image,
-      g.frontImage,
-      g.backImage,
-      g.front_image,
-      g.back_image,
-      g.idProof?.frontImage,
-      g.idProof?.backImage,
-      b.signature,
-      g.signature,
-    ].forEach((source) => parseMaybeList(source).forEach(push));
-    return urls;
+    const signatures = collect(
+      [b.signatures, g.signatures, b.signature, b.guest_signature, b.guestSignature, g.signature],
+      "Signature"
+    );
+    const idProofs = collect(
+      [
+        b.id_images,
+        b.idImages,
+        b.front_image,
+        b.frontImage,
+        b.back_image,
+        b.backImage,
+        b.id_proof_image,
+        b.id_proof_back_image,
+        g.frontImage,
+        g.backImage,
+        g.front_image,
+        g.back_image,
+        g.idProof?.frontImage,
+        g.idProof?.backImage,
+        b.images,
+        g.images,
+        b.documents,
+        g.documents,
+      ],
+      "ID proof"
+    );
+    return [
+      { key: "id", title: "ID proofs", description: "Identity documents uploaded at check-in.", items: idProofs },
+      { key: "sig", title: "Signatures", description: "Guest signature captured at check-in.", items: signatures },    ];
   }, [b, g]);
+  const imageCount = mediaSections.reduce((sum, section) => sum + section.items.length, 0);
 
   // Payment transactions
   const paymentsList = useMemo(() => {
-    const list = parseMaybeList(b.payments || b.payment_transactions || b.transactions);
+    const list = parseMaybeList(b.payment_history || b.payments || b.payment_transactions || b.transactions);
     if (list.length > 0) return list;
     if (paidAmount > 0) {
       return [
@@ -646,10 +667,9 @@ export default function GuestDetailPage({
           }}
         >
           <Tab icon={<HotelIcon fontSize="small" />} iconPosition="start" label="Stay & Room Details" />
-          <Tab icon={<Description fontSize="small" />} iconPosition="start" label={`Images (${imageList.length})`} />
+          <Tab icon={<Description fontSize="small" />} iconPosition="start" label={`Images (${imageCount})`} />
           <Tab icon={<Receipt fontSize="small" />} iconPosition="start" label="Folio & Billing" />
           <Tab icon={<Payments fontSize="small" />} iconPosition="start" label={`Payment Ledger (${paymentsList.length})`} />
-          <Tab icon={<Person fontSize="small" />} iconPosition="start" label="Guest Profile & Address" />
         </Tabs>
       </Paper>
 
@@ -723,6 +743,17 @@ export default function GuestDetailPage({
                     </Typography>
                     <Typography variant="body1" sx={{ fontWeight: 800, color: themeConfig.textMain, mt: 0.3 }}>
                       {b.adults || g.adults || 2} Adult(s) {b.children || g.children ? `, ${b.children || g.children} Child` : ""}
+                    </Typography>
+                  </Grid>
+
+                  <Grid size={{ xs: 12 }}>
+                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+                      Address
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 800, color: themeConfig.textMain, mt: 0.3 }}>
+                      {[g.address || g.residential_address || b.address, g.city, g.state, g.pincode || g.zip]
+                        .filter(Boolean)
+                        .join(", ") || "Not provided"}
                     </Typography>
                   </Grid>
 
@@ -831,46 +862,86 @@ export default function GuestDetailPage({
       )}
 
       {activeTab === 1 && (
-        <Card
-          elevation={0}
-          sx={{
-            borderRadius: "16px",
-            bgcolor: themeConfig.bgCard,
-            border: `1px solid ${themeConfig.border}`,
-          }}
-        >
-          <CardContent sx={{ p: 3 }}>
-            {imageList.length === 0 ? (
-              <EmptyState title="No images" description="No images are attached to this stay." />
-            ) : (
-              <Grid container spacing={2}>
-                {imageList.map((url) => (
-                  <Grid size={{ xs: 12, sm: 6, md: 3 }} key={url}>
-                    <Paper
-                      elevation={0}
-                      onClick={() => setPreviewUrl(url)}
-                      sx={{
-                        borderRadius: "14px",
-                        overflow: "hidden",
-                        border: `1px solid ${themeConfig.border}`,
-                        cursor: "pointer",
-                        bgcolor: "#0F172A",
-                        "&:hover": { borderColor: themeConfig.primary },
-                      }}
-                    >
-                      <Box
-                        component="img"
-                        src={url}
-                        alt=""
-                        sx={{ width: "100%", height: 180, objectFit: "cover", display: "block" }}
-                      />
-                    </Paper>
-                  </Grid>
-                ))}
-              </Grid>
-            )}
-          </CardContent>
-        </Card>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          {imageCount === 0 ? (
+            <Card
+              elevation={0}
+              sx={{ borderRadius: "16px", bgcolor: themeConfig.bgCard, border: `1px solid ${themeConfig.border}` }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <EmptyState title="No documents" description="No ID proofs or signatures are attached to this stay." />
+              </CardContent>
+            </Card>
+          ) : (
+            mediaSections
+              .map((section) => (
+                <Card
+                  key={section.key}
+                  elevation={0}
+                  sx={{ borderRadius: "16px", bgcolor: themeConfig.bgCard, border: `1px solid ${themeConfig.border}` }}
+                >
+                  <CardContent sx={{ p: 3 }}>
+                    <Box sx={{ pb: 1.5, mb: 2.5, borderBottom: `1px solid ${themeConfig.border}` }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+                          {section.title}
+                        </Typography>
+                        <Chip
+                          size="small"
+                          label={section.items.length}
+                          sx={{ height: 22, fontWeight: 800, bgcolor: themeConfig.bgSoft || "#F0FDFA", color: themeConfig.primary }}
+                        />
+                      </Box>
+                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 600 }}>
+                        {section.description}
+                      </Typography>
+                    </Box>
+                    {section.items.length === 0 ? (
+                      <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontWeight: 600 }}>
+                        {section.key === "sig" ? "No signature attached." : "No ID proof attached."}
+                      </Typography>
+                    ) : (
+                      <Grid container spacing={2}>
+                        {section.items.map((item) => (
+                          <Grid size={{ xs: 12, sm: 6, md: 3 }} key={item.url}>
+                            <Paper
+                              elevation={0}
+                              onClick={() => setPreviewUrl(item.url)}
+                              sx={{
+                                borderRadius: "14px",
+                                overflow: "hidden",
+                                border: `1px solid ${themeConfig.border}`,
+                                cursor: "pointer",
+                                bgcolor: section.key === "sig" ? "#FFFFFF" : "#F8FAFC",
+                                "&:hover": { borderColor: themeConfig.primary },
+                              }}
+                            >
+                              <Box
+                                component="img"
+                                src={item.url}
+                                alt={item.label}
+                                sx={{
+                                  width: "100%",
+                                  height: 160,
+                                  objectFit: section.key === "sig" ? "contain" : "cover",
+                                  display: "block",
+                                }}
+                              />
+                              <Box sx={{ px: 1.5, py: 1, borderTop: `1px solid ${themeConfig.border}` }}>
+                                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                                  {item.label}
+                                </Typography>
+                              </Box>
+                            </Paper>
+                          </Grid>
+                        ))}
+                      </Grid>
+                    )}
+                  </CardContent>
+                </Card>
+              ))
+          )}
+        </Box>
       )}
 
       {/* TAB 2: FOLIO & BILLING */}
@@ -887,56 +958,67 @@ export default function GuestDetailPage({
             >
               <CardContent sx={{ p: 3 }}>
                 <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 2 }}>
-                  Folio Charges Breakdown
+                  Bill calculation
                 </Typography>
 
-                <TableContainer>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Item / Description</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Qty / Nights</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Amount</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      <TableRow>
-                        <TableCell sx={{ fontWeight: 700, color: themeConfig.textMain }}>
-                          Room Tariff ({roomType} - Room {roomAssigned})
-                        </TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 700, color: themeConfig.textMain }}>
-                          {nights} Night{nights > 1 ? "s" : ""}
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                          {formatCurrency(totalAmount)}
-                        </TableCell>
-                      </TableRow>
-
-                      {b.additional_charges && b.additional_charges.length > 0 &&
-                        b.additional_charges.map((charge, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell sx={{ color: themeConfig.textMain }}>
-                              {charge.description || `Extra Charge #${idx + 1}`}
-                            </TableCell>
-                            <TableCell align="center">{charge.quantity || 1}</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 700 }}>
-                              {formatCurrency(charge.amount || 0)}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      }
-
-                      <TableRow sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#F8FAFC" }}>
-                        <TableCell colSpan={2} sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-                          Total Billed Amount
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "1.05rem" }}>
-                          {formatCurrency(totalAmount)}
-                        </TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                <Box>
+                  {bill.hasBase ? (
+                    <>
+                      {[
+                        { label: "Room charges", hint: `${nights} night${nights > 1 ? "s" : ""} · before tax`, value: formatCurrency(bill.base), show: true },
+                        { label: "Discount", value: bill.discount > 0 ? `-${formatCurrency(bill.discount)}` : formatCurrency(0), color: bill.discount > 0 ? "#047857" : undefined, show: true },
+                        { label: "Extra charges", value: bill.extra > 0 ? `+${formatCurrency(bill.extra)}` : formatCurrency(0), show: true },
+                        {
+                          label: "Late check-out charges",
+                          hint: bill.lateHours ? `${bill.lateHours}h` : "",
+                          value: bill.late > 0 ? `+${formatCurrency(bill.late)}` : formatCurrency(0),
+                          show: true,
+                        },
+                        { label: "Taxable amount", value: formatCurrency(bill.taxable), strong: true, show: true },
+                        { label: `CGST (${bill.gstRate / 2}%)`, value: `+${formatCurrency(bill.cgst)}`, show: bill.cgst > 0 },
+                        { label: `SGST (${bill.gstRate / 2}%)`, value: `+${formatCurrency(bill.sgst)}`, show: bill.sgst > 0 },
+                        { label: `IGST (${bill.gstRate}%)`, value: `+${formatCurrency(bill.igst)}`, show: bill.igst > 0 },
+                        { label: "Total bill", hint: "Taxable amount + GST", value: formatCurrency(bill.total), strong: true, show: true },
+                      ]
+                        .filter((row) => row.show)
+                        .map((row) => (
+                          <Box
+                            key={row.label}
+                            sx={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "baseline",
+                              gap: 2,
+                              py: 0.9,
+                              ...(row.strong ? { mt: 0.5, pt: 1.5, borderTop: `1px solid ${themeConfig.border}` } : {}),
+                            }}
+                          >
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography component="span" sx={{ color: themeConfig.textMain, fontSize: row.strong ? "0.95rem" : "0.88rem", fontWeight: row.strong ? 700 : 500 }}>
+                                {row.label}
+                              </Typography>
+                              {row.hint ? (
+                                <Typography component="span" sx={{ color: themeConfig.textMuted, fontSize: "0.78rem", ml: 1 }}>
+                                  {row.hint}
+                                </Typography>
+                              ) : null}
+                            </Box>
+                            <Typography sx={{ color: row.color || themeConfig.textMain, fontSize: row.strong ? "1rem" : "0.88rem", fontWeight: row.strong ? 700 : 600, whiteSpace: "nowrap" }}>
+                              {row.value}
+                            </Typography>
+                          </Box>
+                        ))}
+                      <Typography sx={{ mt: 1.5, color: themeConfig.textMuted, fontSize: "0.76rem", lineHeight: 1.6 }}>
+                        {`${formatCurrency(bill.base)} - ${formatCurrency(bill.discount)} discount + ${formatCurrency(bill.extra)} extra + ${formatCurrency(bill.late)} late check-out = ${formatCurrency(bill.taxable)}; + ${bill.gstRate}% GST ${formatCurrency(bill.gstAmount)} = ${formatCurrency(bill.total)}`}
+                      </Typography>
+                    </>
+                  ) : (
+                    <Box sx={{ display: "flex", justifyContent: "space-between", py: 0.9 }}>
+                      <Typography sx={{ fontWeight: 700, color: themeConfig.textMain }}>Total bill</Typography>
+                      <Typography sx={{ fontWeight: 700, color: themeConfig.textMain }}>{formatCurrency(totalAmount)}</Typography>
+                    </Box>
+                  )}
+                </Box>
               </CardContent>
             </Card>
           </Grid>
@@ -956,6 +1038,17 @@ export default function GuestDetailPage({
                 </Typography>
 
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                    <Typography variant="body2" sx={{ color: themeConfig.textMuted }}>Extra charges</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>{formatCurrency(bill.extra)}</Typography>
+                  </Box>
+                  <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                    <Typography variant="body2" sx={{ color: themeConfig.textMuted }}>
+                      Late check-out charges{bill.lateHours ? ` (${bill.lateHours}h)` : ""}
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>{formatCurrency(bill.late)}</Typography>
+                  </Box>
+                  <Divider />
                   <Box sx={{ display: "flex", justifyContent: "space-between" }}>
                     <Typography variant="body2" sx={{ color: themeConfig.textMuted }}>Gross Total</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>{formatCurrency(totalAmount)}</Typography>
@@ -1018,7 +1111,8 @@ export default function GuestDetailPage({
                     <TableRow>
                       <TableCell sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Date & Time</TableCell>
                       <TableCell sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Payment Mode</TableCell>
-                      <TableCell sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Reference / TXN ID</TableCell>
+                      <TableCell sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Source</TableCell>
+                      <TableCell sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Received By</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Amount Paid</TableCell>
                       <TableCell align="center" sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Status</TableCell>
                     </TableRow>
@@ -1027,7 +1121,7 @@ export default function GuestDetailPage({
                     {paymentsList.map((tx, idx) => (
                       <TableRow key={idx}>
                         <TableCell sx={{ color: themeConfig.textMain, fontWeight: 600 }}>
-                          {formatDateTime(tx.created_at || tx.createdAt || checkInDate)}
+                          {formatDateTime(tx.received_at || tx.created_at || tx.createdAt || checkInDate)}
                         </TableCell>
                         <TableCell>
                           <Chip
@@ -1036,8 +1130,14 @@ export default function GuestDetailPage({
                             sx={{ fontWeight: 800, textTransform: "uppercase" }}
                           />
                         </TableCell>
-                        <TableCell sx={{ color: themeConfig.textMuted, fontFamily: "monospace" }}>
-                          {tx.reference || tx.transactionId || tx.id || "—"}
+                        <TableCell sx={{ color: themeConfig.textMain, fontWeight: 600 }}>
+                          {humanizeLabel(tx.source || tx.payment_source) || "—"}
+                        </TableCell>
+                        <TableCell sx={{ color: themeConfig.textMain, fontWeight: 600 }}>
+                          {tx.received_by?.name ||
+                            (typeof tx.received_by === "string" ? tx.received_by : "") ||
+                            tx.received_by_name ||
+                            "—"}
                         </TableCell>
                         <TableCell align="right" sx={{ fontWeight: 900, color: "#059669" }}>
                           {formatCurrency(tx.amount || 0)}
@@ -1056,98 +1156,6 @@ export default function GuestDetailPage({
                 </Table>
               </TableContainer>
             )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* TAB 4: GUEST PROFILE & ADDRESS */}
-      {activeTab === 4 && (
-        <Card
-          elevation={0}
-          sx={{
-            borderRadius: "16px",
-            bgcolor: themeConfig.bgCard,
-            border: `1px solid ${themeConfig.border}`,
-          }}
-        >
-          <CardContent sx={{ p: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 2 }}>
-              Full Guest Profile & Residential Information
-            </Typography>
-
-            <Grid container spacing={3}>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                  Full Legal Name
-                </Typography>
-                <Typography variant="body1" sx={{ fontWeight: 800, color: themeConfig.textMain, mt: 0.3 }}>
-                  {guestName}
-                </Typography>
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                  Contact Phone
-                </Typography>
-                <Typography variant="body1" sx={{ fontWeight: 800, color: themeConfig.textMain, mt: 0.3 }}>
-                  {guestPhone || "Not provided"}
-                </Typography>
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                  Email Address
-                </Typography>
-                <Typography variant="body1" sx={{ fontWeight: 800, color: themeConfig.textMain, mt: 0.3 }}>
-                  {guestEmail || "Not provided"}
-                </Typography>
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                  Nationality
-                </Typography>
-                <Typography variant="body1" sx={{ fontWeight: 800, color: themeConfig.textMain, mt: 0.3 }}>
-                  {g.nationality || "Indian"}
-                </Typography>
-              </Grid>
-
-              <Grid size={{ xs: 12 }}>
-                <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                  Residential Address
-                </Typography>
-                <Typography variant="body1" sx={{ fontWeight: 800, color: themeConfig.textMain, mt: 0.3 }}>
-                  {g.address || g.residential_address || "No residential address recorded."}
-                </Typography>
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                  City
-                </Typography>
-                <Typography variant="body1" sx={{ fontWeight: 800, color: themeConfig.textMain, mt: 0.3 }}>
-                  {g.city || "—"}
-                </Typography>
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                  State
-                </Typography>
-                <Typography variant="body1" sx={{ fontWeight: 800, color: themeConfig.textMain, mt: 0.3 }}>
-                  {g.state || "—"}
-                </Typography>
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                  Pincode
-                </Typography>
-                <Typography variant="body1" sx={{ fontWeight: 800, color: themeConfig.textMain, mt: 0.3 }}>
-                  {g.pincode || g.zip || "—"}
-                </Typography>
-              </Grid>
-            </Grid>
           </CardContent>
         </Card>
       )}

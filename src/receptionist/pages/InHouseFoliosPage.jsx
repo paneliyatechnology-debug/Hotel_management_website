@@ -63,6 +63,7 @@ import EmptyState from "@/shared/components/EmptyState";
 import StatCard from "@/shared/components/StatCard";
 import { formatTime12Hour, calculateOverstayFee } from "@/shared/utils/timeUtils";
 import { folioMoney, loadBookingDetail } from "@/shared/utils/folioMoney";
+import { computeCheckoutBill } from "@/shared/utils/billingUtils";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
 import { toast } from "@/shared/utils/toast";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
@@ -359,8 +360,7 @@ export default function InHouseFoliosPage({
     const overstay = calculateOverstayFee(detail, hotelSettings, { selectedOption: defaultOption });
     const posChargesTotal = (detail.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
     const lateFee = overstay?.lateFee || 0;
-    const money = folioMoney(detail);
-    const due = Math.max(0, money.total + posChargesTotal + lateFee - money.paid);
+    const due = computeCheckoutBill(detail, posChargesTotal, lateFee).due;
 
     setCheckoutDialog({
       open: true,
@@ -388,8 +388,7 @@ export default function InHouseFoliosPage({
     const overstay = calculateOverstayFee(checkoutDialog.booking, hotelSettings, { selectedOption: newOption });
     const posChargesTotal = (checkoutDialog.booking.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
     const lateFee = overstay?.lateFee || 0;
-    const money = folioMoney(checkoutDialog.booking);
-    const due = Math.max(0, money.total + posChargesTotal + lateFee - money.paid);
+    const due = computeCheckoutBill(checkoutDialog.booking, posChargesTotal, lateFee).due;
 
     setCheckoutDialog((prev) => ({
       ...prev,
@@ -407,6 +406,7 @@ export default function InHouseFoliosPage({
         paymentMethod: checkoutDialog.paymentMethod,
         settlementPaymentAmount: Number(checkoutDialog.amount) || 0,
         lateCheckoutFee: Number(checkoutDialog.lateFee) || 0,
+        extraCharges: folioBill.extra,
         lateCheckoutType: checkoutDialog.overstay?.lateCheckoutType || checkoutDialog.lateOption || "none",
         lateCheckoutHours: checkoutDialog.overstay?.chargeableHours || 0,
         lateCheckoutMinutes: checkoutDialog.overstay?.overdueMinutes || 0,
@@ -438,6 +438,13 @@ export default function InHouseFoliosPage({
       setTimeout(() => setCopiedUpi(false), 2500);
     }
   };
+
+  // Room tariff already includes GST; GST applies only on extra (POS) charges and late check-out fee
+  const folioBill = computeCheckoutBill(
+    checkoutDialog.booking,
+    (checkoutDialog.booking?.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0),
+    checkoutDialog.lateFee
+  );
 
   // UPI QR String for settlement
   const upiSettlementAmount = checkoutDialog.amount > 0 ? checkoutDialog.amount : 0;
@@ -971,7 +978,7 @@ export default function InHouseFoliosPage({
       <Dialog
         open={checkoutDialog.open}
         onClose={() => setCheckoutDialog({ open: false, booking: null, paymentMethod: "CASH", amount: 0, transactionId: "", paymentReference: "" })}
-        slotProps={{ paper: { sx: { borderRadius: "22px", p: 2, maxWidth: 520, border: `1px solid ${themeConfig.border}` } } }}
+        slotProps={{ paper: { sx: { borderRadius: "16px", maxWidth: 520, border: `1px solid ${themeConfig.border}`, overflow: "hidden" } } }}
       >
         <DialogTitle component="div" sx={{ fontWeight: 900, color: themeConfig.textMain, pb: 1, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span>
@@ -1233,13 +1240,23 @@ export default function InHouseFoliosPage({
                     {/* Base Room Stay Tariff */}
                     <TableRow>
                       <TableCell sx={{ fontSize: "0.82rem", color: themeConfig.textMain }}>
-                        <strong>Room Stay Tariff</strong>
+                        <strong>Room Charges</strong> <span style={{ color: themeConfig.textMuted, fontSize: "0.72rem" }}>(before tax)</span>
                         <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
                           {checkoutDialog.booking?.roomType?.name || "Room"} &bull; {checkoutDialog.booking?.checkInDate || "In"} to {checkoutDialog.booking?.checkOutDate || "Out"}
                         </Typography>
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.85rem" }}>
-                        ₹{folioMoney(checkoutDialog.booking).base.toLocaleString("en-IN")}
+                        ₹{folioBill.base.toLocaleString("en-IN")}
+                      </TableCell>
+                    </TableRow>
+
+                    {/* Discount */}
+                    <TableRow>
+                      <TableCell sx={{ fontSize: "0.82rem", color: themeConfig.textMain }}>
+                        <strong>Discount</strong>
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.85rem", color: folioBill.discount > 0 ? "#059669" : themeConfig.textMain }}>
+                        {folioBill.discount > 0 ? `-₹${folioBill.discount.toLocaleString("en-IN")}` : "₹0"}
                       </TableCell>
                     </TableRow>
 
@@ -1272,13 +1289,36 @@ export default function InHouseFoliosPage({
                       </TableRow>
                     ))}
 
+                    {/* Taxable amount = room charges - discount + extra charges + late check-out; GST applies on it */}
+                    <TableRow>
+                      <TableCell sx={{ fontSize: "0.82rem", color: themeConfig.textMain }}>
+                        <strong>Taxable Amount</strong>
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
+                          Room - discount + extra charges + late check-out
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 800, fontSize: "0.85rem" }}>
+                        ₹{folioBill.taxable.toLocaleString("en-IN")}
+                      </TableCell>
+                    </TableRow>
+                    {[["CGST", folioBill.cgst], ["SGST", folioBill.sgst]].map(([label, amt]) => (
+                      <TableRow key={label}>
+                        <TableCell sx={{ fontSize: "0.82rem", color: themeConfig.textMain }}>
+                          <strong>{label}</strong> <span style={{ color: themeConfig.textMuted, fontSize: "0.72rem" }}>({folioBill.gstRate / 2}%)</span>
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.85rem" }}>
+                          +₹{amt.toLocaleString("en-IN")}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+
                     {/* Grand Total */}
                     <TableRow sx={{ bgcolor: themeConfig.champagne }}>
                       <TableCell sx={{ fontWeight: 900, fontSize: "0.85rem", color: themeConfig.textMain }}>
                         Total Folio Bill
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: 900, fontSize: "0.92rem", color: themeConfig.textMain }}>
-                        ₹{(folioMoney(checkoutDialog.booking).total + (checkoutDialog.lateFee || 0) + ((checkoutDialog.booking?.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0))).toLocaleString("en-IN")}
+                        ₹{folioBill.billTotal.toLocaleString("en-IN")}
                       </TableCell>
                     </TableRow>
 
@@ -1288,7 +1328,7 @@ export default function InHouseFoliosPage({
                         <strong>Advance Payment Paid at Check-In</strong>
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: 800, color: "#059669", fontSize: "0.85rem" }}>
-                        -₹{Number(checkoutDialog.booking?.paidAmount ?? checkoutDialog.booking?.paid_amount ?? 0).toLocaleString()}
+                        -₹{folioBill.paid.toLocaleString("en-IN")}
                       </TableCell>
                     </TableRow>
 
@@ -1527,7 +1567,7 @@ export default function InHouseFoliosPage({
       <Dialog
         open={detailsModal.open}
         onClose={() => setDetailsModal({ open: false, booking: null })}
-        slotProps={{ paper: { sx: { borderRadius: "22px", p: 2, maxWidth: 600, border: `1px solid ${themeConfig.border}` } } }}
+        slotProps={{ paper: { sx: { borderRadius: "16px", maxWidth: 600, border: `1px solid ${themeConfig.border}`, overflow: "hidden" } } }}
       >
         <DialogTitle component="div" sx={{ fontWeight: 900, color: themeConfig.textMain, pb: 1, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span>Folio #{detailsModal.booking?.bookingNumber} Ledger Details</span>

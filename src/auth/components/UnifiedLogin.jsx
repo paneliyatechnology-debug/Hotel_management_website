@@ -11,9 +11,7 @@ import {
   Alert,
   CircularProgress,
   Dialog,
-  DialogTitle,
   DialogContent,
-  DialogActions,
   Divider,
   Chip,
   InputAdornment,
@@ -29,11 +27,12 @@ import {
 } from "@/shared/icons";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useAppTheme } from "@/shared/context/ThemeContext";
+import { AppDialogHeader, AppDialogFooter, dialogCancelButtonSx, dialogPrimaryButtonSx } from "@/shared/components/AppDialog";
 import { toast } from "@/shared/utils/toast";
 import { setAuthCookies, clearAuthCookies } from "@/shared/utils/cookieAuth";
 
 export default function UnifiedLogin({ onLoginSuccess }) {
-  const { themeConfig } = useAppTheme();
+  const { themeConfig, isDarkMode } = useAppTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -512,10 +511,17 @@ export default function UnifiedLogin({ onLoginSuccess }) {
 
       {/* Forgot Password Dialog */}
       <Dialog open={forgotOpen} onClose={() => setForgotOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle component="div" sx={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 1 }}>
-          <KeyIcon sx={{ color: themeConfig.primary }} />
-          Reset Password
-        </DialogTitle>
+        <AppDialogHeader
+          eyebrow="Account"
+          title="Reset password"
+          icon={<KeyIcon sx={{ fontSize: 20 }} />}
+          onClose={() => {
+            setForgotOpen(false);
+            setForgotMsg("");
+            setForgotError("");
+            setForgotEmail("");
+          }}
+        />
         <DialogContent>
           <Box sx={{ mt: 0.5 }}>
             {forgotMsg ? (
@@ -593,7 +599,7 @@ export default function UnifiedLogin({ onLoginSuccess }) {
             )}
           </Box>
         </DialogContent>
-        <DialogActions sx={{ p: 2.5, pt: 1 }}>
+        <AppDialogFooter>
           <Button
             onClick={() => {
               setForgotOpen(false);
@@ -601,22 +607,17 @@ export default function UnifiedLogin({ onLoginSuccess }) {
               setForgotError("");
               setForgotEmail("");
             }}
-            color="inherit"
-            sx={{ fontWeight: 700 }}
+            variant="outlined"
+            sx={dialogCancelButtonSx(themeConfig, isDarkMode)}
           >
             {forgotMsg ? "Close" : "Cancel"}
           </Button>
           {!forgotMsg && (
-            <Button
-              onClick={handleSendOtp}
-              variant="contained"
-              disabled={forgotLoading}
-              sx={{ bgcolor: themeConfig.primary, "&:hover": { bgcolor: themeConfig.primaryDark }, fontWeight: 800, textTransform: "none", px: 2.5 }}
-            >
-              {forgotLoading ? <CircularProgress size={20} color="inherit" /> : "Send Reset Link"}
+            <Button onClick={handleSendOtp} variant="contained" disabled={forgotLoading} sx={dialogPrimaryButtonSx(themeConfig)}>
+              {forgotLoading ? <CircularProgress size={20} color="inherit" /> : "Send reset link"}
             </Button>
           )}
-        </DialogActions>
+        </AppDialogFooter>
       </Dialog>
 
 
@@ -631,10 +632,11 @@ export default function UnifiedLogin({ onLoginSuccess }) {
         maxWidth="xs"
         fullWidth
       >
-        <DialogTitle component="div" sx={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 1 }}>
-          <KeyIcon sx={{ color: themeConfig.primary }} />
-          First-Time Password Update
-        </DialogTitle>
+        <AppDialogHeader
+          eyebrow="Account"
+          title="Update your password"
+          icon={<KeyIcon sx={{ fontSize: 20 }} />}
+        />
         <DialogContent>
           <Typography variant="body2" sx={{ color: themeConfig.textMuted, mb: 2 }}>
             For account security, please create a new permanent password before accessing your dashboard.
@@ -695,17 +697,11 @@ export default function UnifiedLogin({ onLoginSuccess }) {
             }}
           />
         </DialogContent>
-        <DialogActions sx={{ p: 2.5 }}>
-          <Button
-            onClick={handleChangePassword}
-            variant="contained"
-            fullWidth
-            disabled={changeLoading}
-            sx={{ bgcolor: themeConfig.primary, "&:hover": { bgcolor: themeConfig.primaryDark } }}
-          >
-            {changeLoading ? <CircularProgress size={20} color="inherit" /> : "Save New Password"}
+        <AppDialogFooter>
+          <Button onClick={handleChangePassword} variant="contained" disabled={changeLoading} sx={dialogPrimaryButtonSx(themeConfig)}>
+            {changeLoading ? <CircularProgress size={20} color="inherit" /> : "Save new password"}
           </Button>
-        </DialogActions>
+        </AppDialogFooter>
       </Dialog>
     </Box>
   );

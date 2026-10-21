@@ -82,12 +82,16 @@ function normalizeRoomTypes(res) {
   const raw = res?.data ?? res;
   const list = Array.isArray(raw)
     ? raw
-    : Array.isArray(raw?.room_types)
-      ? raw.room_types
-      : Array.isArray(raw?.roomTypes)
-        ? raw.roomTypes
-        : [];
-  return list.map((cat) => {
+    : Array.isArray(raw?.room_categories)
+      ? raw.room_categories
+      : Array.isArray(raw?.roomCategories)
+        ? raw.roomCategories
+        : Array.isArray(raw?.room_types)
+          ? raw.room_types
+          : Array.isArray(raw?.roomTypes)
+            ? raw.roomTypes
+            : [];
+  const mapped = list.map((cat) => {
     const name =
       readLabel(cat?.name) ||
       readLabel(cat?.title) ||
@@ -96,6 +100,28 @@ function normalizeRoomTypes(res) {
       readLabel(cat?.room_type_name);
     return { ...cat, _id: cat?._id || cat?.id, id: cat?.id || cat?._id, name };
   });
+  mapped.summary = raw?.room_status_summary || raw?.roomStatusSummary || null;
+  mapped.total = Number(raw?.total ?? mapped.length);
+  return mapped;
+}
+
+function mergeCategoryCounts(current, payload) {
+  const incoming = payload?.room_categories || payload?.roomCategories || [];
+  const byId = new Map(incoming.map((cat) => [String(cat?.id || cat?._id), cat]));
+  const next = (Array.isArray(current) ? current : []).map((cat) => {
+    const update = byId.get(String(cat?.id || cat?._id));
+    if (!update) return cat;
+    const counts = update.room_status_counts || update.roomStatusCounts;
+    return counts ? { ...cat, room_status_counts: counts, roomStatusCounts: counts } : cat;
+  });
+  incoming.forEach((cat) => {
+    const id = String(cat?.id || cat?._id || "");
+    if (!id || next.some((item) => String(item?.id || item?._id) === id)) return;
+    next.push({ ...cat, _id: cat?._id || cat?.id, id: cat?.id || cat?._id, name: cat?.name || "" });
+  });
+  next.summary = payload?.room_status_summary || payload?.roomStatusSummary || current?.summary || null;
+  next.total = current?.total ?? next.length;
+  return next;
 }
 
 const ComponentSpinner = () => (
@@ -254,7 +280,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
           apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => setBookings(extractRecords(res))),
           apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => setGuests(extractRecords(res))),
-          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES).then((res) => setRoomTypes(normalizeRoomTypes(res))),
+          apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=100`).then((res) => setRoomTypes(normalizeRoomTypes(res))),
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings)),
           reloadStaffList()
         );
@@ -264,7 +290,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
           endpointsToFetch.push(
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(adaptHotelDashboard(res.data))),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES).then((res) => setRoomTypes(normalizeRoomTypes(res))),
+            apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=100`).then((res) => setRoomTypes(normalizeRoomTypes(res))),
             apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => setBookings(extractRecords(res))),
             apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => setGuests(extractRecords(res))),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
@@ -294,7 +320,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
           endpointsToFetch.push(
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(adaptHotelDashboard(res.data))),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES).then((res) => setRoomTypes(normalizeRoomTypes(res)))
+            apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=100`).then((res) => setRoomTypes(normalizeRoomTypes(res)))
           );
         }
         // Route 5: SUBSCRIPTION
@@ -343,7 +369,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
   const reloadRoomsList = async () => {
     const [roomsRes, typesRes] = await Promise.all([
       apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS, { forceRefresh: true, skipDeduplication: true }),
-      apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES, { forceRefresh: true, skipDeduplication: true }),
+      apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=100`, { forceRefresh: true, skipDeduplication: true }),
     ]);
     setRooms(asRoomList(roomsRes));
     setRoomTypes(normalizeRoomTypes(typesRes));
@@ -381,6 +407,13 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       reloadRoomsList();
     }
   );
+
+  useSocket(["room:category_counts"], (payload) => {
+    const activeHotelId = getActiveHotelId();
+    const eventHotelId = payload?.hotel_id || payload?.hotelId;
+    if (eventHotelId && activeHotelId && String(eventHotelId) !== String(activeHotelId)) return;
+    setRoomTypes((current) => mergeCategoryCounts(current, payload));
+  });
 
   const showToast = (message, severity = "success") => {
     toast.show(message, severity);

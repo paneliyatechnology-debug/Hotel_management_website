@@ -1,24 +1,8 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback } from "react";
-import {
-  Box,
-  Typography,
-  Paper,
-  Button,
-  Chip,
-  TextField,
-  Tabs,
-  Tab,
-} from "@mui/material";
-import {
-  Refresh,
-  CheckCircle,
-  Create,
-  TextFields,
-  Draw,
-  CloudUpload,
-} from "@/shared/icons";
+import { Box, Typography, Button, TextField } from "@mui/material";
+import { Refresh, CheckCircle, Create, TextFields, CloudUpload } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import SignaturePad from "@/shared/components/SignaturePad";
 
@@ -122,257 +106,160 @@ export default function DigitalSignaturePad({
     }
   };
 
+  const modes = [
+    { value: "UPLOAD", label: "Upload", icon: <CloudUpload sx={{ fontSize: 16 }} /> },
+    { value: "DRAW", label: "Draw", icon: <Create sx={{ fontSize: 16 }} /> },
+    { value: "TYPE", label: "Type", icon: <TextFields sx={{ fontSize: 16 }} /> },
+  ];
+
+  const showError = error && !hasSignature;
+  const areaBorder = showError ? "#DC2626" : hasSignature ? themeConfig.primary : themeConfig.border || "#CCFBF1";
+
   return (
-    <Paper
-      elevation={0}
-      sx={{
-        p: { xs: 1.5, sm: 2.2 },
-        borderRadius: "16px",
-        border: `1.5px solid ${hasSignature ? "#10B981" : error ? "#EF4444" : themeConfig.border || "#E2E8F0"}`,
-        bgcolor: error && !hasSignature 
-          ? (isDarkMode ? "rgba(239, 68, 68, 0.08)" : "rgba(239, 68, 68, 0.03)") 
-          : (themeConfig.bgCard || (isDarkMode ? "#162032" : "#FFFFFF")),
-        boxShadow: hasSignature
-          ? "0 4px 14px rgba(16, 185, 129, 0.12)"
-          : error
-            ? "0 0 0 3px rgba(239, 68, 68, 0.15)"
-            : isDarkMode
-              ? "0 4px 14px rgba(0,0,0,0.3)"
-              : "0 2px 8px rgba(0,0,0,0.03)",
-        transition: "all 0.2s ease",
-      }}
-    >
-      {/* Header */}
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          gap: 1,
-          mb: 1.5,
-        }}
-      >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0, flex: 1 }}>
-          <Box
-            sx={{
-              p: 0.8,
-              borderRadius: "10px",
-              bgcolor: hasSignature ? "rgba(16, 185, 129, 0.12)" : error ? "rgba(239, 68, 68, 0.15)" : "rgba(197, 160, 89, 0.14)",
-              color: hasSignature ? "#059669" : error ? "#EF4444" : themeConfig.primary || "#C5A059",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            <Draw sx={{ fontSize: 20 }} />
-          </Box>
-          <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Typography
-              variant="subtitle2"
-              sx={{
-                fontWeight: 900,
-                color: error && !hasSignature ? "#EF4444" : (themeConfig.textMain || "#0F172A"),
-                lineHeight: 1.25,
-                fontSize: { xs: "0.82rem", sm: "0.9rem" },
-                wordBreak: "break-word",
-              }}
-            >
-              {title} {required && <span style={{ color: "#EF4444" }}>*</span>}
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{
-                color: themeConfig.textMuted || "#64748B",
-                fontWeight: 700,
-                display: "block",
-                fontSize: { xs: "0.68rem", sm: "0.72rem" },
-                noWrap: true,
-              }}
-            >
-              {signerName ? `${signerName} • ${signerRole}` : signerRole}
-            </Typography>
-          </Box>
-        </Box>
-
-        <Chip
-          icon={
-            hasSignature ? (
-              <CheckCircle style={{ fontSize: 13, color: "#059669" }} />
-            ) : error ? (
-              <Create style={{ fontSize: 13, color: "#DC2626" }} />
-            ) : (
-              <Create style={{ fontSize: 13, color: "#D97706" }} />
-            )
-          }
-          label={hasSignature ? "Signed" : error ? "Signature Required *" : required ? "Required *" : "Pending"}
-          size="small"
+    <Box>
+      {/* Mode switch + status */}
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1, mb: 1.5 }}>
+        <Box
           sx={{
-            fontWeight: 800,
-            fontSize: "0.68rem",
-            height: 24,
-            flexShrink: 0,
-            bgcolor: hasSignature 
-              ? "rgba(16, 185, 129, 0.12)" 
-              : error 
-                ? "rgba(239, 68, 68, 0.14)" 
-                : "rgba(245, 158, 11, 0.12)",
-            color: hasSignature 
-              ? "#059669" 
-              : error 
-                ? "#DC2626" 
-                : "#B45309",
-            border: `1px solid ${hasSignature ? "rgba(16, 185, 129, 0.3)" : error ? "rgba(239, 68, 68, 0.35)" : "rgba(245, 158, 11, 0.3)"}`,
-          }}
-        />
-      </Box>
-
-      {/* Mode Switch: Upload Image, Draw, or Type */}
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: 1,
-          mb: 1.2,
-        }}
-      >
-        <Tabs
-          value={mode}
-          onChange={(_, val) => setMode(val)}
-          sx={{
-            minHeight: 32,
-            "& .MuiTab-root": {
-              minHeight: 32,
-              py: 0.3,
-              px: { xs: 1, sm: 1.5 },
-              fontSize: { xs: "0.7rem", sm: "0.75rem" },
-              fontWeight: 800,
-              textTransform: "none",
-              borderRadius: "8px",
-            },
+            display: "inline-flex",
+            p: 0.5,
+            gap: 0.5,
+            borderRadius: "12px",
+            bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9",
+            border: `1px solid ${themeConfig.border || "#E2E8F0"}`,
           }}
         >
-          <Tab
-            value="UPLOAD"
-            icon={<CloudUpload sx={{ fontSize: 14 }} />}
-            iconPosition="start"
-            label="Upload Image"
-          />
-          <Tab
-            value="DRAW"
-            icon={<Create sx={{ fontSize: 14 }} />}
-            iconPosition="start"
-            label="Screen Draw"
-          />
-          <Tab
-            value="TYPE"
-            icon={<TextFields sx={{ fontSize: 14 }} />}
-            iconPosition="start"
-            label="Type"
-          />
-        </Tabs>
+          {modes.map((item) => {
+            const active = mode === item.value;
+            return (
+              <Button
+                key={item.value}
+                size="small"
+                startIcon={item.icon}
+                onClick={() => setMode(item.value)}
+                sx={{
+                  minHeight: 32,
+                  px: 1.75,
+                  borderRadius: "9px",
+                  fontSize: "0.8rem",
+                  fontWeight: 700,
+                  textTransform: "none",
+                  boxShadow: "none",
+                  color: active ? themeConfig.primaryDark || themeConfig.primary : themeConfig.textMuted,
+                  bgcolor: active ? (isDarkMode ? themeConfig.primary : "#FFFFFF") : "transparent",
+                  "&:hover": { bgcolor: active ? undefined : "rgba(15, 23, 42, 0.04)", boxShadow: "none" },
+                }}
+              >
+                {item.label}
+              </Button>
+            );
+          })}
+        </Box>
 
         {hasSignature && (
-          <Button
-            size="small"
-            startIcon={<Refresh sx={{ fontSize: 13 }} />}
-            onClick={handleClear}
-            sx={{
-              fontSize: "0.72rem",
-              fontWeight: 800,
-              color: "#EF4444",
-              textTransform: "none",
-              px: 1,
-              py: 0.3,
-              borderRadius: "6px",
-              bgcolor: "rgba(239, 68, 68, 0.06)",
-              "&:hover": { bgcolor: "rgba(239, 68, 68, 0.15)" },
-            }}
-          >
-            Clear
-          </Button>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, color: "#047857", fontSize: "0.8rem", fontWeight: 700 }}>
+              <CheckCircle sx={{ fontSize: 16 }} />
+              Signed
+            </Box>
+            <Button
+              size="small"
+              startIcon={<Refresh sx={{ fontSize: 14 }} />}
+              onClick={handleClear}
+              sx={{
+                minHeight: 32,
+                px: 1.25,
+                borderRadius: "9px",
+                fontSize: "0.8rem",
+                fontWeight: 700,
+                textTransform: "none",
+                color: "#B42318",
+                "&:hover": { bgcolor: "#FEF2F2" },
+              }}
+            >
+              Clear
+            </Button>
+          </Box>
         )}
       </Box>
 
       {mode === "UPLOAD" && (
         <Box
           sx={{
-            p: { xs: 1.5, sm: 2 },
+            p: { xs: 2, sm: 3 },
             borderRadius: "14px",
-            bgcolor: isDarkMode ? "#0B1120" : "#F8FAFC",
-            border: `1.5px dashed ${hasSignature ? "#10B981" : "#CBD5E1"}`,
+            bgcolor: showError ? "rgba(220, 38, 38, 0.03)" : isDarkMode ? "rgba(255,255,255,0.02)" : "#F8FAFC",
+            border: `1.5px dashed ${areaBorder}`,
             textAlign: "center",
           }}
         >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            hidden
-            onChange={handleImageUpload}
-          />
+          <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleImageUpload} />
           {activeSig ? (
-            <Box sx={{ py: 1 }}>
-              <Box
-                sx={{
-                  mt: 0.5,
-                  p: 1,
-                  bgcolor: "#FFF",
-                  borderRadius: "10px",
-                  border: "1px solid #E2E8F0",
-                  display: "inline-block",
-                  maxWidth: 320,
-                }}
-              >
-                <img
-                  src={activeSig}
-                  alt="Uploaded signature"
-                  style={{ width: "100%", maxHeight: 140, objectFit: "contain" }}
-                />
-              </Box>
-              <Typography variant="caption" sx={{ display: "block", mt: 1, color: "#059669", fontWeight: 800 }}>
-                Signature image uploaded
-              </Typography>
+            <Box
+              sx={{
+                p: 1,
+                bgcolor: "#FFFFFF",
+                borderRadius: "10px",
+                border: `1px solid ${themeConfig.border || "#E2E8F0"}`,
+                display: "inline-block",
+                maxWidth: 320,
+                width: "100%",
+              }}
+            >
+              <img src={activeSig} alt="Signature" style={{ width: "100%", maxHeight: 140, objectFit: "contain", display: "block" }} />
             </Box>
           ) : (
-            <Box sx={{ py: 2 }}>
-              <CloudUpload sx={{ fontSize: 36, color: themeConfig.primary || "#C5A059", mb: 1 }} />
-              <Typography variant="body2" sx={{ fontWeight: 800, mb: 1.2, color: themeConfig.textMain }}>
-                Upload a signature image
-              </Typography>
-              <Button
-                variant="contained"
-                size="small"
-                onClick={() => fileInputRef.current?.click()}
+            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.75 }}>
+              <Box
                 sx={{
-                  textTransform: "none",
-                  fontWeight: 800,
-                  borderRadius: "8px",
-                  background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
+                  width: 40,
+                  height: 40,
+                  borderRadius: "12px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  bgcolor: themeConfig.champagne || "#F0FDFA",
+                  color: themeConfig.primary,
                 }}
               >
-                Choose Image
+                <CloudUpload sx={{ fontSize: 22 }} />
+              </Box>
+              <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.9rem" }}>Upload signature image</Typography>
+              <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.75rem" }}>JPG or PNG, up to 5 MB</Typography>
+              <Button
+                variant="outlined"
+                onClick={() => fileInputRef.current?.click()}
+                sx={{
+                  mt: 0.75,
+                  minHeight: 36,
+                  px: 2.5,
+                  borderRadius: "10px",
+                  fontWeight: 700,
+                  fontSize: "0.82rem",
+                  textTransform: "none",
+                  boxShadow: "none",
+                  borderColor: themeConfig.primary,
+                  color: themeConfig.primary,
+                  "&:hover": { bgcolor: themeConfig.champagne || "#F0FDFA", borderColor: themeConfig.primary, boxShadow: "none" },
+                }}
+              >
+                Choose image
               </Button>
               {uploadError && (
-                <Typography variant="caption" sx={{ display: "block", mt: 1, color: "#DC2626", fontWeight: 700 }}>
-                  {uploadError}
-                </Typography>
+                <Typography sx={{ color: "#DC2626", fontSize: "0.75rem", fontWeight: 600 }}>{uploadError}</Typography>
               )}
             </Box>
           )}
         </Box>
       )}
 
-      {/* MODE 2: DIRECT DRAW CANVAS AREA */}
       {mode === "DRAW" && (
-        <Box sx={{ mt: 1 }}>
+        <Box sx={{ borderRadius: "14px", border: `1.5px dashed ${areaBorder}`, overflow: "hidden" }}>
           <SignaturePad
             ref={sigPadRef}
             height={180}
             color={isDarkMode ? "#38BDF8" : themeConfig.textMain || "#0F172A"}
-            placeholder="Sign here using touchscreen or mouse"
+            placeholder="Sign here using a finger, stylus or mouse"
             onSignChange={(signed, dataUrl) => {
               if (signed) {
                 const imgUrl = dataUrl || sigPadRef.current?.toDataURL();
@@ -385,79 +272,53 @@ export default function DigitalSignaturePad({
         </Box>
       )}
 
-      {/* MODE 3: TYPED NAME IN CURSIVE STYLE */}
       {mode === "TYPE" && (
-        <Box sx={{ mt: 1 }}>
+        <Box>
           <TextField
             fullWidth
             size="small"
-            placeholder="Type your full name"
+            label="Name"
+            placeholder="Type the guest's full name"
             value={typedName}
             onChange={handleTypedChange}
-            sx={{
-              mb: 1,
-              "& input": {
-                fontWeight: 800,
-                fontSize: "0.85rem",
-              },
-            }}
+            sx={{ mb: 1.5 }}
           />
-          {typedName && (
-            <Box
-              sx={{
-                p: 2,
-                borderRadius: "12px",
-                bgcolor: isDarkMode ? "#0B1120" : "#F8FAFC",
-                border: "1.5px dashed #CBD5E1",
-                textAlign: "center",
-              }}
-            >
+          <Box
+            sx={{
+              p: 2,
+              minHeight: 84,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "14px",
+              bgcolor: showError ? "rgba(220, 38, 38, 0.03)" : isDarkMode ? "rgba(255,255,255,0.02)" : "#F8FAFC",
+              border: `1.5px dashed ${areaBorder}`,
+              textAlign: "center",
+            }}
+          >
+            {typedName ? (
               <Typography
                 sx={{
                   fontFamily: "'Brush Script MT', 'Caveat', 'Dancing Script', cursive, sans-serif",
-                  fontSize: { xs: "1.5rem", sm: "1.8rem" },
+                  fontSize: { xs: "1.6rem", sm: "1.9rem" },
                   color: isDarkMode ? "#38BDF8" : "#0F172A",
                   lineHeight: 1.2,
                 }}
               >
                 {typedName}
               </Typography>
-              <Typography
-                variant="caption"
-                sx={{ color: "#64748B", fontSize: "0.65rem", fontWeight: 700, mt: 0.5, display: "block" }}
-              >
-                Generated Electronic E-Signature
-              </Typography>
-            </Box>
-          )}
+            ) : (
+              <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.8rem" }}>Your signature preview appears here</Typography>
+            )}
+          </Box>
         </Box>
       )}
 
-      {/* Footer info */}
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 1, flexWrap: "wrap", gap: 0.5 }}>
-        <Typography
-          variant="caption"
-          sx={{ color: themeConfig.textMuted || "#94A3B8", fontSize: "0.65rem", fontWeight: 700 }}
-        >
-          🔒 Legally binding digital acknowledgement • Mobile & Touch Supported
+      {showError && (
+        <Typography sx={{ mt: 0.75, color: "#DC2626", fontSize: "0.75rem", fontWeight: 600 }}>
+          {helperText || "Guest signature is required"}
         </Typography>
-
-        {error && !hasSignature && (
-          <Typography
-            variant="caption"
-            sx={{
-              color: "#EF4444",
-              fontWeight: 800,
-              fontSize: "0.72rem",
-              display: "flex",
-              alignItems: "center",
-              gap: 0.5,
-            }}
-          >
-            ⚠️ {helperText || "Guest digital signature is required before proceeding."}
-          </Typography>
-        )}
-      </Box>
-    </Paper>
+      )}
+    </Box>
   );
 }

@@ -918,9 +918,16 @@ function prepareRequestBody(body, endpoint) {
 
     const checkOutPayload = {
       paid_amount: isNaN(resolvedPaidAmount) ? 0 : resolvedPaidAmount,
+      extra_charges_total: Number(parsedBody.extra_charges_total ?? parsedBody.extraChargesTotal ?? parsedBody.extraCharges ?? 0) || 0,
       late_checkout_charge: Number(parsedBody.late_checkout_charge ?? parsedBody.lateCheckoutFee ?? 0),
       late_checkout_hours: Number(parsedBody.late_checkout_hours ?? parsedBody.lateCheckoutHours ?? 0),
     };
+    // Payment method accepted by the API: CASH, ONLINE, CARD, UPI, BANK_TRANSFER
+    const rawMethod = String(parsedBody.payment_method ?? parsedBody.paymentMethod ?? "").trim().toUpperCase();
+    const normalizedMethod = rawMethod === "NET_BANKING" ? "BANK_TRANSFER" : rawMethod;
+    if (["CASH", "ONLINE", "CARD", "UPI", "BANK_TRANSFER"].includes(normalizedMethod)) {
+      checkOutPayload.payment_method = normalizedMethod;
+    }
     if (parsedBody.notes) checkOutPayload.notes = String(parsedBody.notes);
     return checkOutPayload;
   }

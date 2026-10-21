@@ -68,6 +68,7 @@ import {
   Close,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
+import { AppDialogHeader, AppDialogFooter, dialogPaperSx, dialogCancelButtonSx, dialogPrimaryButtonSx } from "@/shared/components/AppDialog";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { toast } from "@/shared/utils/toast";
 import {
@@ -1398,17 +1399,7 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
         onClose={() => setSupportModalOpen(false)}
         maxWidth="sm"
         fullWidth
-        slotProps={{
-          paper: {
-            sx: {
-              borderRadius: "24px",
-              p: 1.5,
-              border: `1px solid ${themeConfig.border}`,
-              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-              boxShadow: "0 24px 50px rgba(0,0,0,0.2)",
-            },
-          },
-        }}
+        slotProps={{ paper: { sx: dialogPaperSx(themeConfig, isDarkMode) } }}
       >
         <form
           onSubmit={(e) => {
@@ -1423,32 +1414,12 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
             }, 800);
           }}
         >
-          <DialogTitle component="div" sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-              <Avatar
-                sx={{
-                  bgcolor: themeConfig.primary,
-                  color: "#FFFFFF",
-                  width: 40,
-                  height: 40,
-                  borderRadius: "12px",
-                }}
-              >
-                <SupportAgent sx={{ fontSize: 22 }} />
-              </Avatar>
-              <Box>
-                <Typography variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain, lineHeight: 1.2 }}>
-                  24/7 Customer Support Desk
-                </Typography>
-                <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                  Submit an urgent ticket or contact our engineering hotline
-                </Typography>
-              </Box>
-            </Box>
-            <IconButton onClick={() => setSupportModalOpen(false)} sx={{ borderRadius: "10px" }}>
-              <Close />
-            </IconButton>
-          </DialogTitle>
+          <AppDialogHeader
+            eyebrow="Support"
+            title="Customer support"
+            icon={<SupportAgent sx={{ fontSize: 20 }} />}
+            onClose={() => setSupportModalOpen(false)}
+          />
 
           <DialogContent dividers sx={{ borderColor: themeConfig.border }}>
             <Grid container spacing={2}>
@@ -1518,26 +1489,14 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
             </Grid>
           </DialogContent>
 
-          <DialogActions sx={{ p: 2.5, flexDirection: { xs: "column-reverse", sm: "row" }, gap: 1, "& .MuiButton-root": { width: { xs: "100%", sm: "auto" } } }}>
-            <Button onClick={() => setSupportModalOpen(false)} sx={{ borderRadius: "10px", fontWeight: 700 }}>
+          <AppDialogFooter>
+            <Button onClick={() => setSupportModalOpen(false)} variant="outlined" sx={dialogCancelButtonSx(themeConfig, isDarkMode)}>
               Cancel
             </Button>
-            <Button
-              type="submit"
-              variant="contained"
-              disabled={submittingTicket}
-              sx={{
-                background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                color: "#FFFFFF",
-                fontWeight: 800,
-                borderRadius: "12px",
-                px: 3,
-                boxShadow: `0 4px 14px ${themeConfig.primaryGlow}`,
-              }}
-            >
-              {submittingTicket ? <CircularProgress size={22} color="inherit" /> : "Submit Support Ticket"}
+            <Button type="submit" variant="contained" disabled={submittingTicket} sx={dialogPrimaryButtonSx(themeConfig)}>
+              {submittingTicket ? <CircularProgress size={22} color="inherit" /> : "Submit ticket"}
             </Button>
-          </DialogActions>
+          </AppDialogFooter>
         </form>
       </Dialog>
     </Box>

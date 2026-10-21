@@ -634,9 +634,8 @@ export default function GovtIdCompliancePage({
         slotProps={{
           paper: {
             sx: {
-              borderRadius: "20px",
-              boxShadow: themeConfig.shadowModal,
-              p: 1,
+              borderRadius: "16px",
+              overflow: "hidden",
             },
           },
         }}

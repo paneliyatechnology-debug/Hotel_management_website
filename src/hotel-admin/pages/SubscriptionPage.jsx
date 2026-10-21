@@ -39,6 +39,7 @@ import {
   CorporateFare,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
+import { AppDialogHeader, AppDialogFooter, dialogPaperSx, dialogCancelButtonSx, dialogPrimaryButtonSx } from "@/shared/components/AppDialog";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useLiveCountdown } from "@/shared/utils/countdown";
 import { toast } from "@/shared/utils/toast";
@@ -649,16 +650,7 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
         onClose={() => setHelpDialogOpen(false)}
         maxWidth="sm"
         fullWidth
-        slotProps={{
-          paper: {
-            sx: {
-              borderRadius: "24px",
-              p: 1.5,
-              border: `1px solid ${themeConfig.border}`,
-              boxShadow: "0 24px 50px rgba(0,0,0,0.18)",
-            },
-          },
-        }}
+        slotProps={{ paper: { sx: dialogPaperSx(themeConfig, isDarkMode) } }}
       >
         {ticketSent ? (
           <Box sx={{ p: 4, textAlign: "center" }}>
@@ -674,14 +666,12 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
           </Box>
         ) : (
           <form onSubmit={handleSendTicket}>
-            <DialogTitle component="div" sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <Typography variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                Request {typeof selectedPlan === "object" ? selectedPlan?.name : selectedPlan || "Plan Activation"}
-              </Typography>
-              <IconButton onClick={() => setHelpDialogOpen(false)} sx={{ borderRadius: "10px" }}>
-                <Close />
-              </IconButton>
-            </DialogTitle>
+            <AppDialogHeader
+              eyebrow="Subscription"
+              title={`Request ${typeof selectedPlan === "object" ? selectedPlan?.name : selectedPlan || "plan activation"}`}
+              icon={<SupportAgent sx={{ fontSize: 20 }} />}
+              onClose={() => setHelpDialogOpen(false)}
+            />
 
             <DialogContent dividers sx={{ borderColor: themeConfig.border }}>
               <Grid container spacing={2}>
@@ -738,27 +728,14 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
               </Grid>
             </DialogContent>
 
-            <DialogActions sx={{ p: 2.5 }}>
-              <Button onClick={() => setHelpDialogOpen(false)} sx={{ borderRadius: "10px", fontWeight: 700 }}>
+            <AppDialogFooter>
+              <Button onClick={() => setHelpDialogOpen(false)} variant="outlined" sx={dialogCancelButtonSx(themeConfig, isDarkMode)}>
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                variant="contained"
-                className="btn-3d"
-                startIcon={<Send />}
-                sx={{
-                  background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                  color: "#FFFFFF",
-                  fontWeight: 800,
-                  borderRadius: "12px",
-                  px: 3,
-                  boxShadow: `0 4px 14px ${themeConfig.primaryGlow}`,
-                }}
-              >
-                Submit Upgrade Request
+              <Button type="submit" variant="contained" startIcon={<Send />} sx={dialogPrimaryButtonSx(themeConfig)}>
+                Submit request
               </Button>
-            </DialogActions>
+            </AppDialogFooter>
           </form>
         )}
       </Dialog>

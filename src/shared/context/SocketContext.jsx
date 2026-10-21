@@ -179,6 +179,7 @@ export function SocketProvider({ children }) {
     // Real-Time Event Dispatchers to Window
     const realTimeEvents = [
       "ROOM_UPDATED",
+      "room:category_counts",
       "BOOKING_CREATED",
       "BOOKING_UPDATED",
       "GUEST_CHECKED_OUT",

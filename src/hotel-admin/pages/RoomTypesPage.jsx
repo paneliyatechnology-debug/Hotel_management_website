@@ -9,16 +9,12 @@ import {
   Button,
   Chip,
   Dialog,
-  DialogTitle,
   DialogContent,
-  DialogActions,
   TextField,
   Grid,
-  Divider,
   IconButton,
   MenuItem,
   Tooltip,
-  Avatar,
   Table,
   TableBody,
   TableCell,
@@ -27,10 +23,11 @@ import {
   TablePagination,
   TableRow,
 } from "@mui/material";
+import { AppDialogHeader, AppDialogFooter, dialogPaperSx, dialogCancelButtonSx, dialogPrimaryButtonSx } from "@/shared/components/AppDialog";
+import StatCard from "@/shared/components/StatCard";
 import {
   Add,
   ArrowBack,
-  Close,
   Edit,
   Delete,
   MeetingRoom,
@@ -49,36 +46,49 @@ import {
   LocalParking,
   FreeBreakfast,
   Check,
+  CleaningServices,
   Category,
-  Diamond,
-  FamilyRestroom,
-  Favorite,
 } from "@/shared/icons";
 
-const getCategoryIcon = (categoryName = "") => {
-  const name = (categoryName || "").toLowerCase();
-  if (name.includes("coupl") || name.includes("honey") || name.includes("romant") || name.includes("love")) {
-    return <Favorite sx={{ fontSize: 22, color: "#E11D48" }} />;
-  }
-  if (name.includes("fam") || name.includes("group")) {
-    return <FamilyRestroom sx={{ fontSize: 22, color: "#059669" }} />;
-  }
-  if (name.includes("sweet") || name.includes("suite") || name.includes("deluxe") || name.includes("vip") || name.includes("premium")) {
-    return <Diamond sx={{ fontSize: 22, color: "#D97706" }} />;
-  }
-  return <MeetingRoom sx={{ fontSize: 22, color: "#0F766E" }} />;
-};
+const CATEGORY_STATUSES = [
+  { key: "available", label: "Available", color: "#0F766E", bg: "#ECFDF5", border: "#A7F3D0" },
+  { key: "booked", label: "Booked", color: "#B45309", bg: "#FFFBEB", border: "#FDE68A" },
+  { key: "cleaning", label: "Cleaning", color: "#B42318", bg: "#FEF2F2", border: "#FECACA" },
+];
+
+function countFromRooms(roomList) {
+  const available = roomList.filter((room) => (room.status || "AVAILABLE") === "AVAILABLE").length;
+  const booked = roomList.filter((room) => room.status === "OCCUPIED" || room.status === "RESERVED").length;
+  const cleaning = roomList.filter((room) => room.status === "CLEANING" || room.status === "MAINTENANCE" || room.status === "BLOCKED").length;
+  return { available, booked, cleaning, total: roomList.length, fromApi: false };
+}
+
+function readCount(source, snakeKey, camelKey) {
+  const value = source?.[snakeKey] ?? source?.[camelKey];
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function categoryStatusCounts(category, fallbackRooms = []) {
+  const counts = category?.room_status_counts || category?.roomStatusCounts || category?.summary;
+  const hasCounts = counts && (
+    counts.available_count !== undefined ||
+    counts.availableCount !== undefined ||
+    counts.total_room_count !== undefined ||
+    counts.totalRoomCount !== undefined
+  );
+  if (!hasCounts) return countFromRooms(fallbackRooms);
+  const available = readCount(counts, "available_count", "availableCount");
+  const booked = readCount(counts, "reserved_count", "reservedCount") + readCount(counts, "occupied_count", "occupiedCount");
+  const cleaning = readCount(counts, "cleaning_count", "cleaningCount") + readCount(counts, "maintenance_count", "maintenanceCount") + readCount(counts, "blocked_count", "blockedCount");
+  const statedTotal = readCount(counts, "total_room_count", "totalRoomCount");
+  return { available, booked, cleaning, total: statedTotal || available + booked + cleaning, fromApi: true };
+}
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import EmptyState from "@/shared/components/EmptyState";
-import StatusChip from "@/shared/components/StatusChip";
 
-// Reusable Room GST Configuration Section Component (Disabled per requirement)
-export function RoomGstFields() {
-  return null;
-}
-
-// Standard Popular Hotel Amenities with Icons & Labels
+// Standard hotel amenities with icons and labels
 export const POPULAR_AMENITIES = [
   { label: "Free High-Speed WiFi", icon: <Wifi sx={{ fontSize: 16 }} /> },
   { label: "Air Conditioner (AC)", icon: <AcUnit sx={{ fontSize: 16 }} /> },
@@ -127,20 +137,22 @@ export default function RoomTypesPage({
 
   // Custom Amenity Input state for Room Modal & Type Modal
   const [customAmenityInput, setCustomAmenityInput] = useState("");
-  const [customTypeAmenityInput, setCustomTypeAmenityInput] = useState("");
   const [trialLimitModalOpen, setTrialLimitModalOpen] = useState(false);
   const [roomErrors, setRoomErrors] = useState({});
   const [typeErrors, setTypeErrors] = useState({});
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [categoryPage, setCategoryPage] = useState(0);
-  const [categoryRowsPerPage, setCategoryRowsPerPage] = useState(6);
+  const [categoryRowsPerPage, setCategoryRowsPerPage] = useState(10);
   const [roomPage, setRoomPage] = useState(0);
   const [roomRowsPerPage, setRoomRowsPerPage] = useState(5);
   const [serverRooms, setServerRooms] = useState(null);
 
+  const fieldLabelSx = { fontWeight: 600, color: themeConfig.textMuted, mb: 0.6, display: "block", fontSize: "0.78rem" };
+  const RequiredMark = () => <Box component="span" sx={{ color: "#B42318" }}> *</Box>;
   const fieldSx = (invalid) => ({
     "& .MuiOutlinedInput-root": {
-      borderRadius: "12px",
+      borderRadius: "10px",
+      height: 40,
       ...(invalid
         ? {
             "& fieldset": { borderColor: "#DC2626 !important", borderWidth: "2px" },
@@ -157,13 +169,13 @@ export default function RoomTypesPage({
     const data = roomModal.data || {};
     const blank = (value) => value === undefined || value === null || String(value).trim() === "";
     const errors = {};
-    if (blank(data.roomType)) errors.roomType = "Select a room category.";
+    if (blank(data.roomType)) errors.roomType = "Select a category.";
     if (blank(data.roomNumber)) errors.roomNumber = "Room number is required.";
     if (blank(data.floor)) errors.floor = "Floor is required.";
-    if (blank(data.bedType)) errors.bedType = "Bed setup is required.";
-    if (blank(data.bedCount)) errors.bedCount = "Total beds is required.";
+    if (blank(data.bedType)) errors.bedType = "Bed type is required.";
+    if (blank(data.bedCount)) errors.bedCount = "Beds are required.";
     if (blank(data.seatingCapacity)) errors.seatingCapacity = "Guest capacity is required.";
-    if (blank(data.customPricePerNight)) errors.customPricePerNight = "Daily price is required.";
+    if (blank(data.customPricePerNight)) errors.customPricePerNight = "Nightly rate is required.";
     setRoomErrors(errors);
     if (Object.keys(errors).length > 0) return;
     onSaveRoom(e);
@@ -184,19 +196,44 @@ export default function RoomTypesPage({
   const planName = (
     typeof planSource === "string"
       ? planSource
-      : planSource?.name || planSource?.title || planSource?.plan_name || "TRIAL"
-  ).toString().toUpperCase();
-  const isTrial = planName === "TRIAL" || planName === "FREE" || subscription?.status === "TRIAL";
+      : planSource?.name || planSource?.title || planSource?.plan_name || "Trial"
+  ).toString();
+  const normalizedPlan = planName.trim().toUpperCase();
+  const isTrial = normalizedPlan === "TRIAL" || normalizedPlan === "FREE" || String(subscription?.status || "").toUpperCase() === "TRIAL";
 
-  // Summary Metrics
-  const totalRoomsCount = rooms.length;
-  const availableRoomsCount = rooms.filter((r) => r.status === "AVAILABLE").length;
-  const occupiedRoomsCount = rooms.filter((r) => r.status === "OCCUPIED" || r.status === "RESERVED").length;
-  const maintenanceRoomsCount = rooms.filter((r) => r.status === "MAINTENANCE" || r.status === "CLEANING" || r.status === "BLOCKED").length;
+  // Summary Metrics — prefer the category API totals, then the loaded room list.
+  const summaryCounts = categoryStatusCounts(roomTypes.summary ? { room_status_counts: roomTypes.summary } : null, rooms);
+  const totalRoomsCount = summaryCounts.total;
+  const planLabel = isTrial
+    ? `Trial · ${totalRoomsCount} of 5 rooms`
+    : `${planName.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())} · ${totalRoomsCount} ${totalRoomsCount === 1 ? "room" : "rooms"}`;
+  const availableRoomsCount = summaryCounts.available;
+  const occupiedRoomsCount = summaryCounts.booked;
+  const maintenanceRoomsCount = summaryCounts.cleaning;
 
 
   // Helper to open Add Room modal with preselected Category
+  const openAddCategory = () => {
+    setTypeErrors({});
+    setTypeModal({
+      open: true,
+      mode: "ADD",
+      data: {
+        _id: "",
+        name: "",
+        basePrice: "",
+        maxAdults: "",
+        maxChildren: "",
+        bedCount: "",
+        bedType: "",
+        description: "",
+        amenities: [],
+      },
+    });
+  };
+
   const handleOpenAddRoomForCategory = (category) => {
+    if (!category && roomTypes.length === 0) return;
     if (isTrial && rooms.length >= 5) {
       setTrialLimitModalOpen(true);
       return;
@@ -211,34 +248,6 @@ export default function RoomTypesPage({
         _id: "",
         roomNumber: "",
         roomType: catId,
-        floor: "",
-        bedCount: "",
-        bedType: "",
-        seatingCapacity: "",
-        customPricePerNight: "",
-        status: "AVAILABLE",
-        notes: "",
-        amenities: [],
-      },
-    });
-  };
-
-  // Helper to open Add Room modal with preselected Floor
-  const handleOpenAddRoomForFloor = (floorNumber) => {
-    if (isTrial && rooms.length >= 5) {
-      setTrialLimitModalOpen(true);
-      return;
-    }
-
-    const defaultCat = roomTypes[0];
-
-    setRoomModal({
-      open: true,
-      mode: "ADD",
-      data: {
-        _id: "",
-        roomNumber: "",
-        roomType: defaultCat?._id || "",
         floor: "",
         bedCount: "",
         bedType: "",
@@ -292,36 +301,6 @@ export default function RoomTypesPage({
     }
   };
 
-  // Helper to toggle amenity in Category Modal
-  const toggleTypeAmenity = (amenityName) => {
-    const currentList = Array.isArray(typeModal.data?.amenities) ? [...typeModal.data.amenities] : [];
-    const index = currentList.indexOf(amenityName);
-    if (index > -1) {
-      currentList.splice(index, 1);
-    } else {
-      currentList.push(amenityName);
-    }
-    setTypeModal({
-      ...typeModal,
-      data: { ...typeModal.data, amenities: currentList },
-    });
-  };
-
-  // Helper to add custom amenity in Category Modal
-  const handleAddCustomTypeAmenity = () => {
-    const trimmed = customTypeAmenityInput.trim();
-    if (!trimmed) return;
-    const currentList = Array.isArray(typeModal.data?.amenities) ? [...typeModal.data.amenities] : [];
-    if (!currentList.includes(trimmed)) {
-      currentList.push(trimmed);
-      setTypeModal({
-        ...typeModal,
-        data: { ...typeModal.data, amenities: currentList },
-      });
-    }
-    setCustomTypeAmenityInput("");
-  };
-
   const selectedCategory = roomTypes.find((cat) => String(cat._id || cat.id) === String(selectedCategoryId)) || null;
   const selectedRooms = selectedCategory
     ? rooms.filter((r) => {
@@ -329,6 +308,7 @@ export default function RoomTypesPage({
         return String(typeId) === String(selectedCategory._id || selectedCategory.id) || (selectedCategory.name && (r.room_type_name || r.roomTypeName) === selectedCategory.name);
       })
     : [];
+  const selectedCategoryCounts = categoryStatusCounts(selectedCategory, selectedRooms);
   useEffect(() => {
     if (!selectedCategory) {
       setServerRooms(null);
@@ -361,379 +341,225 @@ export default function RoomTypesPage({
 
   return (
     <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
-      {/* ========================================================================= */}
-      {/* 3D MASTER COMMAND RIBBON                                                  */}
-      {/* ========================================================================= */}
-      <Box
-        sx={{
-          mb: 3.5,
-          p: { xs: 2.5, md: 3 },
-          borderRadius: "24px",
-          background: `linear-gradient(135deg, ${themeConfig.primaryDark || "#0C273B"} 0%, ${themeConfig.primary || "#0B8EE0"} 100%)`,
-          color: "#FFFFFF",
-          boxShadow: `0 16px 36px -10px ${themeConfig.primaryGlow || "rgba(11, 142, 224, 0.4)"}, inset 0 1px 1px rgba(255,255,255,0.4), inset 0 -2px 4px rgba(0,0,0,0.2)`,
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <Box
-          sx={{
-            position: "absolute",
-            top: "-50%",
-            right: "-15%",
-            width: "450px",
-            height: "450px",
-            background: "radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%)",
-            pointerEvents: "none",
-          }}
-        />
-
-        <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 2, position: "relative", zIndex: 1 }}>
+      <Box sx={{ mb: 2.5 }}>
+        <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 1.5, mb: 2 }}>
           <Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.8, flexWrap: "wrap" }}>
-              <Avatar
-                sx={{
-                  bgcolor: "rgba(255,255,255,0.18)",
-                  color: "#FFFFFF",
-                  width: 32,
-                  height: 32,
-                  backdropFilter: "blur(8px)",
-                  boxShadow: "inset 0 1px 1px rgba(255,255,255,0.6)",
-                }}
-              >
-                <Category sx={{ fontSize: 18 }} />
-              </Avatar>
-              <Chip
-                label="Category-Wise Rooms & Amenities Master"
-                size="small"
-                sx={{
-                  bgcolor: "rgba(255,255,255,0.2)",
-                  color: "#FFFFFF",
-                  fontWeight: 800,
-                  fontSize: "0.72rem",
-                  letterSpacing: 0.5,
-                  backdropFilter: "blur(6px)",
-                  border: "1px solid rgba(255,255,255,0.3)",
-                }}
-              />
-              {isTrial ? (
-                <Chip
-                  label={`Trial Plan: 5 Rooms Limit (${totalRoomsCount}/5 Created)`}
-                  size="small"
-                  sx={{
-                    bgcolor: totalRoomsCount >= 5 ? "#EF4444" : "#F59E0B",
-                    color: "#FFFFFF",
-                    fontWeight: 900,
-                    fontSize: "0.72rem",
-                  }}
-                />
-              ) : (
-                <Chip
-                  label={`${planName} Tier: Unlimited Rooms (${totalRoomsCount} Created)`}
-                  size="small"
-                  sx={{
-                    bgcolor: "#10B981",
-                    color: "#FFFFFF",
-                    fontWeight: 900,
-                    fontSize: "0.72rem",
-                  }}
-                />
-              )}
-            </Box>
-            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -0.8, color: "#FFFFFF", lineHeight: 1.2, fontSize: { xs: "1.5rem", sm: "2.1rem" } }}>
-              Room Category & Amenities Management
+            <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "1rem" }}>
+              Add a category, then add rooms.
             </Typography>
-            <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.85)", mt: 0.5, maxWidth: "680px", fontSize: { xs: "0.8rem", sm: "0.875rem" } }}>
-              Configure category-wise rooms, assign rich amenities (WiFi, AC, TV, Mini-bar, Jacuzzi), manage floor allocations, and customize tariffs.
+            <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.82rem", mt: 0.4 }}>
+              {planLabel}
             </Typography>
           </Box>
-
-          <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 1.5, width: { xs: "100%", sm: "auto" } }}>
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.25 }}>
+            {roomTypes.length > 0 && (
+              <Button
+                variant="outlined"
+                startIcon={<Add />}
+                onClick={() => handleOpenAddRoomForCategory(roomTypes[0])}
+                sx={{
+                  height: 40,
+                  borderRadius: "10px",
+                  textTransform: "none",
+                  fontWeight: 700,
+                  px: 2,
+                  color: themeConfig.primaryDark,
+                  borderColor: themeConfig.border,
+                  bgcolor: isDarkMode ? "transparent" : "#FFFFFF",
+                  "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne || "#F4F7F6" },
+                }}
+              >
+                Add room
+              </Button>
+            )}
             <Button
               variant="contained"
               startIcon={<Add />}
-              onClick={() => handleOpenAddRoomForCategory(roomTypes[0])}
-              className="btn-3d"
+              onClick={openAddCategory}
               sx={{
-                background: "linear-gradient(135deg, #FFFFFF 0%, #E6EFF8 100%)",
-                color: themeConfig.primaryDark,
-                fontWeight: 900,
-                borderRadius: "14px",
-                px: 2.6,
-                py: 1.2,
-                fontSize: "0.88rem",
-                width: { xs: "100%", sm: "auto" },
-                boxShadow: "0 8px 20px rgba(0,0,0,0.18), inset 0 1px 0 #FFFFFF",
-                border: "1px solid rgba(255,255,255,0.8)",
-                "&:hover": {
-                  background: "#FFFFFF",
-                  transform: "translateY(-2px)",
-                  boxShadow: "0 12px 26px rgba(0,0,0,0.24)",
-                },
+                height: 40,
+                borderRadius: "10px",
+                textTransform: "none",
+                fontWeight: 700,
+                px: 2,
+                boxShadow: "none",
+                bgcolor: themeConfig.primary,
+                "&:hover": { bgcolor: themeConfig.primaryDark, boxShadow: "none" },
               }}
             >
-              Add New Room
-            </Button>
-
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={() =>
-                setTypeModal({
-                  open: true,
-                  mode: "ADD",
-                  data: {
-                    _id: "",
-                    name: "",
-                    basePrice: "",
-                    maxAdults: "",
-                    maxChildren: "",
-                    bedCount: "",
-                    bedType: "",
-                    description: "",
-                    amenities: [],
-                  },
-                })
-              }
-              className="btn-3d"
-              sx={{
-                background: "linear-gradient(135deg, #FFFFFF 0%, #E6EFF8 100%)",
-                color: themeConfig.primaryDark,
-                fontWeight: 900,
-                borderRadius: "14px",
-                px: 2.6,
-                py: 1.2,
-                fontSize: "0.88rem",
-                width: { xs: "100%", sm: "auto" },
-                boxShadow: "0 8px 20px rgba(0,0,0,0.18), inset 0 1px 0 #FFFFFF",
-                border: "1px solid rgba(255,255,255,0.8)",
-                "&:hover": {
-                  background: "#FFFFFF",
-                  transform: "translateY(-2px)",
-                  boxShadow: "0 12px 26px rgba(0,0,0,0.24)",
-                },
-              }}
-            >
-              Create Room Category
+              Add category
             </Button>
           </Box>
         </Box>
 
-        {/* Live Metrics Strip */}
-        <Grid container spacing={2} sx={{ mt: 3, pt: 2, borderTop: "1px solid rgba(255,255,255,0.15)" }}>
-          <Grid size={{ xs: 6, sm: 3, md: 2.4 }}>
-            <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.75)", fontWeight: 700 }}>
-              TOTAL ROOMS
-            </Typography>
-            <Typography variant="h5" sx={{ fontWeight: 900, color: "#FFFFFF", fontSize: { xs: "1.3rem", sm: "1.5rem" } }}>
-              {totalRoomsCount}
-            </Typography>
-          </Grid>
-
-          <Grid size={{ xs: 6, sm: 3, md: 2.4 }}>
-            <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.75)", fontWeight: 700 }}>
-              AVAILABLE
-            </Typography>
-            <Typography variant="h5" sx={{ fontWeight: 900, color: "#4ADE80", fontSize: { xs: "1.3rem", sm: "1.5rem" } }}>
-              {availableRoomsCount}
-            </Typography>
-          </Grid>
-
-          <Grid size={{ xs: 6, sm: 3, md: 2.4 }}>
-            <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.75)", fontWeight: 700 }}>
-              OCCUPIED / RESERVED
-            </Typography>
-            <Typography variant="h5" sx={{ fontWeight: 900, color: "#FDE047", fontSize: { xs: "1.3rem", sm: "1.5rem" } }}>
-              {occupiedRoomsCount}
-            </Typography>
-          </Grid>
-
-          <Grid size={{ xs: 6, sm: 3, md: 2.4 }}>
-            <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.75)", fontWeight: 700 }}>
-              CLEANING / MAINT
-            </Typography>
-            <Typography variant="h5" sx={{ fontWeight: 900, color: "#F87171", fontSize: { xs: "1.3rem", sm: "1.5rem" } }}>
-              {maintenanceRoomsCount}
-            </Typography>
-          </Grid>
-
-          <Grid size={{ xs: 12, sm: 12, md: 2.4 }}>
-            <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.75)", fontWeight: 700 }}>
-              ROOM CATEGORIES
-            </Typography>
-            <Typography variant="h5" sx={{ fontWeight: 900, color: "#FFFFFF", fontSize: { xs: "1.3rem", sm: "1.5rem" } }}>
-              {roomTypes.length}
-            </Typography>
-          </Grid>
-        </Grid>
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(5, 1fr)" }, gap: 2 }}>
+          <StatCard hideFooter title="Total rooms" value={totalRoomsCount} icon={<MeetingRoom />} color="#10B981" />
+          <StatCard hideFooter title="Available" value={availableRoomsCount} icon={<Check />} color="#0B8EE0" />
+          <StatCard hideFooter title="Occupied" value={occupiedRoomsCount} icon={<KingBed />} color="#8B5CF6" />
+          <StatCard hideFooter title="Cleaning" value={maintenanceRoomsCount} icon={<CleaningServices />} color="#F59E0B" />
+          <StatCard hideFooter title="Categories" value={roomTypes.length} icon={<Category />} color="#0F766E" />
+        </Box>
       </Box>
 
 
       <Card
-        className="card-3d"
         sx={{
-          borderRadius: "22px",
+          borderRadius: "16px",
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 10px 30px -5px rgba(12, 39, 59, 0.08), inset 0 1px 1px #FFFFFF",
+          boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.04)",
           bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-          background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #F9FBFC 100%)",
         }}
       >
-        <CardContent sx={{ p: { xs: 2.5, sm: 3.5 } }}>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3, flexWrap: "wrap", gap: 2 }}>
-            <div>
-              <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5, fontSize: { xs: "1.15rem", sm: "1.45rem" }, lineHeight: 1.3, display: "flex", alignItems: "center", gap: 1 }}>
-                🏨 Room Categories &amp; Live Inventory
-              </Typography>
-              <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontSize: { xs: "0.78rem", sm: "0.85rem" }, mt: 0.3 }}>
-                Live vacant/booked telemetry and room inventory status across all categories.
-              </Typography>
-            </div>
-
-            {/* Add Category button hidden
-            <Button
-              variant="outlined"
-              startIcon={<Add />}
-              onClick={() =>
-                setTypeModal({
-                  open: true,
-                  mode: "ADD",
-                  data: {
-                    _id: "",
-                    name: "",
-                    basePrice: "",
-                    maxAdults: "",
-                    maxChildren: "",
-                    bedCount: "",
-                    bedType: "",
-                    description: "",
-                    amenities: [],
-                  },
-                })
-              }
-              sx={{
-                borderRadius: "12px",
-                fontWeight: 800,
-                fontSize: "0.82rem",
-                borderColor: themeConfig.border,
-                bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-                color: themeConfig.textMain,
-                width: { xs: "100%", sm: "auto" },
-                whiteSpace: "nowrap",
-                textTransform: "none",
-                "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
-              }}
-            >
-              Add Category
-            </Button>
-            */}
+        <CardContent sx={{ p: { xs: 1.5, sm: 2 }, "&:last-child": { pb: { xs: 1.5, sm: 2 } } }}>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexWrap: "wrap", gap: 1.5 }}>
+            {selectedCategory ? (
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
+                <Tooltip title="All categories" arrow>
+                  <IconButton
+                    onClick={() => { setSelectedCategoryId(null); setRoomPage(0); }}
+                    aria-label="All categories"
+                    sx={{ color: themeConfig.textMain, borderRadius: "10px", border: `1px solid ${themeConfig.border}` }}
+                  >
+                    <ArrowBack fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography noWrap sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "1.05rem", lineHeight: 1.3 }}>
+                    {selectedCategory.name}
+                  </Typography>
+                  <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.78rem" }}>
+                    {selectedCategoryCounts.total} {selectedCategoryCounts.total === 1 ? "room" : "rooms"}
+                  </Typography>
+                </Box>
+              </Box>
+            ) : (
+              <Box>
+                <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "1.05rem", lineHeight: 1.3 }}>
+                  Categories
+                </Typography>
+                <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.8rem", mt: 0.25 }}>
+                  Select a category to view its rooms.
+                </Typography>
+              </Box>
+            )}
           </Box>
 
           {roomTypes.length === 0 ? (
             <Box sx={{ py: 6 }}>
               <EmptyState
-                title="No Room Categories Found"
-                description="No rooms or categories configured yet in the hotel inventory."
+                title="No categories yet"
+                description="Add a category before you add rooms."
+                actionLabel="Add category"
+                onAction={openAddCategory}
               />
             </Box>
           ) : selectedCategory ? (
             <Box>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.5, mb: 2, flexWrap: "wrap" }}>
-                <Button
-                  startIcon={<ArrowBack />}
-                  onClick={() => { setSelectedCategoryId(null); setRoomPage(0); }}
-                  sx={{ fontWeight: 800, textTransform: "none", color: themeConfig.textMain, borderRadius: "10px" }}
-                >
-                  All Categories
-                </Button>
-                <Button
-                  variant="contained"
-                  size="small"
-                  startIcon={<Add />}
-                  onClick={() => handleOpenAddRoomForCategory(selectedCategory)}
-                  sx={{
-                    background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                    fontWeight: 800,
-                    borderRadius: "10px",
-                    textTransform: "none",
-                  }}
-                >
-                  Add Room to {selectedCategory.name}
-                </Button>
-              </Box>
-
-              <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 1.5 }}>
-                {selectedCategory.name} · {(serverRooms ? serverRooms.total : selectedRooms.length)} {(serverRooms ? serverRooms.total : selectedRooms.length) === 1 ? "Room" : "Rooms"}
-              </Typography>
-
               {(serverRooms ? serverRooms.total : selectedRooms.length) === 0 ? (
-                <EmptyState title="No rooms in this category" description={`Add a room under ${selectedCategory.name} to see it in this list.`} />
+                <EmptyState embedded title="No rooms in this category" description={`${selectedCategory.name} does not have any rooms yet.`} />
               ) : (
-                <TableContainer sx={{ border: `1px solid ${themeConfig.border}`, borderRadius: "14px" }}>
-                  <Table size="small">
+                <TableContainer sx={{ mx: { xs: -1.5, sm: -2 }, mb: { xs: -1.5, sm: -2 }, width: "auto", overflowX: "auto", borderRadius: 0, border: "none", boxShadow: "none", bgcolor: "transparent" }}>
+                  <Table size="medium" sx={{ width: "100%", minWidth: 640 }}>
                     <TableHead>
-                      <TableRow sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F4F9FD" }}>
-                        <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Room</TableCell>
-                        <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Floor</TableCell>
-                        <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Tariff</TableCell>
-                        <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Status</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMain }}>Actions</TableCell>
+                      <TableRow>
+                        {["Room", "Floor", "Nightly rate", "Status"].map((heading, index) => (
+                          <TableCell key={heading} sx={{ fontWeight: 700, fontSize: "0.72rem", letterSpacing: "0.06em", textTransform: "uppercase", color: themeConfig.primaryDark, py: 1.75, px: 2.5, pl: index === 0 ? 3 : 2.5, borderRadius: 0, borderBottom: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne || "#F4F7F6", whiteSpace: "nowrap" }}>
+                            {heading}
+                          </TableCell>
+                        ))}
+                        <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.72rem", letterSpacing: "0.06em", textTransform: "uppercase", color: themeConfig.primaryDark, py: 1.75, px: 2.5, pr: 3, borderRadius: 0, borderBottom: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne || "#F4F7F6", whiteSpace: "nowrap" }}>
+                          Actions
+                        </TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {pagedRooms.map((room) => {
                         const tariff = Number(room.customPricePerNight || selectedCategory.basePrice || room.basePrice || 0);
+                        const statusKey = String(room.status || "AVAILABLE").toUpperCase();
+                        const statusMeta = {
+                          AVAILABLE: { label: "Available", color: "#047857", bg: "#ECFDF5" },
+                          OCCUPIED: { label: "Occupied", color: "#B45309", bg: "#FFF6E8" },
+                          RESERVED: { label: "Reserved", color: "#B45309", bg: "#FFF6E8" },
+                          CLEANING: { label: "Cleaning", color: "#B42318", bg: "#FDECEC" },
+                          MAINTENANCE: { label: "Maintenance", color: "#B42318", bg: "#FDECEC" },
+                          BLOCKED: { label: "Blocked", color: themeConfig.textMuted, bg: "#F4F7F6" },
+                        }[statusKey] || { label: statusKey, color: themeConfig.textMuted, bg: "#F4F7F6" };
+                        const actionSx = {
+                          width: 32,
+                          height: 32,
+                          borderRadius: "8px",
+                          color: themeConfig.textMuted,
+                          "&:hover": { bgcolor: themeConfig.bgMain, color: themeConfig.textMain },
+                        };
                         return (
-                          <TableRow key={room._id || room.roomNumber} hover>
-                            <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
-                              Room {room.roomNumber}
+                          <TableRow
+                            key={room._id || room.roomNumber}
+                            sx={{
+                              "&:hover": { bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC" },
+                              "& td": { borderBottom: `1px solid ${themeConfig.border}` },
+                            }}
+                          >
+                            <TableCell sx={{ py: 1.75, pl: 3, pr: 2.5 }}>
+                              <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.92rem" }}>
+                                Room {room.roomNumber}
+                              </Typography>
                             </TableCell>
-                            <TableCell sx={{ fontWeight: 700, color: themeConfig.textMuted }}>
-                              Floor {room.floor || 1}
+                            <TableCell sx={{ py: 1.75, px: 2.5 }}>
+                              <Typography sx={{ fontWeight: 600, color: themeConfig.textMain, fontSize: "0.9rem" }}>
+                                Floor {room.floor || 1}
+                              </Typography>
                             </TableCell>
-                            <TableCell sx={{ fontWeight: 800, color: "#0F766E", whiteSpace: "nowrap" }}>
-                              ₹{tariff.toLocaleString("en-IN")}/night
+                            <TableCell sx={{ py: 1.75, px: 2.5 }}>
+                              <Typography sx={{ fontWeight: 700, color: "#0F766E", fontSize: "0.9rem", whiteSpace: "nowrap" }}>
+                                ₹{tariff.toLocaleString("en-IN")} / night
+                              </Typography>
                             </TableCell>
-                            <TableCell>
-                              <StatusChip status={room.status || "AVAILABLE"} size="small" />
+                            <TableCell sx={{ py: 1.75, px: 2.5 }}>
+                              <Chip
+                                label={statusMeta.label}
+                                size="small"
+                                sx={{ fontWeight: 600, borderRadius: "999px", bgcolor: statusMeta.bg, color: statusMeta.color }}
+                              />
                             </TableCell>
-                            <TableCell align="right">
-                              <Tooltip title="Edit room">
-                                <IconButton
-                                  size="small"
-                                  onClick={() =>
-                                    setRoomModal({
-                                      open: true,
-                                      mode: "EDIT",
-                                      data: {
-                                        _id: room._id,
-                                        roomNumber: room.roomNumber,
-                                        roomType: typeof room.roomType === "object" ? room.roomType._id : room.roomType,
-                                        floor: room.floor || 1,
-                                        bedCount: room.bedCount || 1,
-                                        bedType: room.bedType || "1 King Size Bed",
-                                        seatingCapacity: room.seatingCapacity || 2,
-                                        customPricePerNight: room.customPricePerNight || "",
-                                        status: room.status || "AVAILABLE",
-                                        notes: room.notes || "",
-                                        amenities: room.amenities || [],
-                                      },
-                                    })
-                                  }
-                                  sx={{ color: themeConfig.info, bgcolor: themeConfig.infoBg, borderRadius: "8px", mr: 0.5 }}
-                                >
-                                  <Edit sx={{ fontSize: 16 }} />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Delete room">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => onDeleteRoom && onDeleteRoom(room)}
-                                  sx={{ color: themeConfig.danger, bgcolor: themeConfig.dangerBg, borderRadius: "8px" }}
-                                >
-                                  <Delete sx={{ fontSize: 16 }} />
-                                </IconButton>
-                              </Tooltip>
+                            <TableCell align="right" sx={{ py: 1.75, pl: 2.5, pr: 2.5 }}>
+                              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.25 }}>
+                                <Tooltip title="Edit">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() =>
+                                      setRoomModal({
+                                        open: true,
+                                        mode: "EDIT",
+                                        data: {
+                                          _id: room._id,
+                                          roomNumber: room.roomNumber,
+                                          roomType: typeof room.roomType === "object" ? room.roomType._id : room.roomType,
+                                          floor: room.floor || 1,
+                                          bedCount: room.bedCount || 1,
+                                          bedType: room.bedType || "1 King Size Bed",
+                                          seatingCapacity: room.seatingCapacity || 2,
+                                          customPricePerNight: room.customPricePerNight || "",
+                                          status: room.status || "AVAILABLE",
+                                          notes: room.notes || "",
+                                          amenities: room.amenities || [],
+                                        },
+                                      })
+                                    }
+                                    sx={actionSx}
+                                  >
+                                    <Edit fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Remove">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => onDeleteRoom && onDeleteRoom(room)}
+                                    sx={{ ...actionSx, "&:hover": { bgcolor: themeConfig.dangerBg, color: themeConfig.danger } }}
+                                  >
+                                    <Delete fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </Box>
                             </TableCell>
                           </TableRow>
                         );
@@ -750,7 +576,17 @@ export default function RoomTypesPage({
                       setRoomRowsPerPage(parseInt(e.target.value, 10));
                       setRoomPage(0);
                     }}
-                    rowsPerPageOptions={[5, 10, 25]}
+                    rowsPerPageOptions={[5, 10, 25, 50]}
+                    sx={{
+                      borderTop: `1px solid ${themeConfig.border}`,
+                      bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                      "& .MuiTablePagination-toolbar": { px: { xs: 1, sm: 2 }, minHeight: 52 },
+                      "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": {
+                        fontWeight: 600,
+                        color: themeConfig.textMuted,
+                        fontSize: "0.8rem",
+                      },
+                    }}
                   />
                 </TableContainer>
               )}
@@ -761,12 +597,11 @@ export default function RoomTypesPage({
                 display: "grid",
                 gridTemplateColumns: {
                   xs: "1fr",
-                  sm: "1fr",
-                  md: "repeat(2, 1fr)",
-                  lg: "repeat(auto-fit, minmax(310px, 1fr))",
-                  xl: "repeat(3, 1fr)",
+                  sm: "repeat(2, 1fr)",
+                  md: "repeat(3, 1fr)",
+                  lg: "repeat(5, 1fr)",
                 },
-                gap: { xs: 2, sm: 2.5 },
+                gap: 1.5,
               }}
             >
               {pagedCategories.map((cat) => {
@@ -774,12 +609,9 @@ export default function RoomTypesPage({
                   const typeId = typeof r.roomType === "object" ? (r.roomType?._id || r.roomType?.id) : (r.roomType || r.room_type_id || r.roomTypeId);
                   return String(typeId) === String(cat._id || cat.id) || (cat.name && (r.room_type_name || r.roomTypeName) === cat.name);
                 });
-                const available = catRooms.filter((r) => (r.status || "AVAILABLE") === "AVAILABLE").length;
-                const booked = catRooms.filter((r) => r.status === "OCCUPIED" || r.status === "RESERVED").length;
-                const cleaning = catRooms.filter((r) => r.status === "CLEANING" || r.status === "MAINTENANCE" || r.status === "BLOCKED").length;
-                const totalRooms = catRooms.length;
-                const hasAvailable = available > 0;
-                const isAllBooked = available === 0 && totalRooms > 0;
+                const statusCounts = categoryStatusCounts(cat, catRooms);
+                const { available, booked, cleaning } = statusCounts;
+                const totalRooms = statusCounts.total;
                 const adultsCount = Number(cat.capacity?.adults || cat.maxAdults || cat.max_adults || 2);
                 const kidsCount = Number(cat.capacity?.children ?? cat.maxChildren ?? cat.max_children ?? 1);
                 const bedType = cat.bedType || cat.bed_type || "";
@@ -788,118 +620,43 @@ export default function RoomTypesPage({
                 return (
                   <Card
                     key={cat._id || cat.id || cat.name}
-                    className="card-3d"
                     onClick={() => { setSelectedCategoryId(cat._id || cat.id); setRoomPage(0); }}
                     sx={{
-                      p: { xs: 2, sm: 2.2, md: 2.5 },
-                      borderRadius: "20px",
+                      p: 2.25,
+                      borderRadius: "16px",
                       cursor: "pointer",
-                      border: `2px solid ${hasAvailable ? "rgba(13, 148, 136, 0.25)" : themeConfig.border}`,
+                      border: `1px solid ${themeConfig.border}`,
                       bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-                      background: isDarkMode
-                        ? (themeConfig.bgCard || "#0E312C")
-                        : (hasAvailable
-                          ? "linear-gradient(135deg, #FFFFFF 0%, #F4F9FD 100%)"
-                          : "linear-gradient(135deg, #FFFFFF 0%, #FAFAFA 100%)"),
-                      boxShadow: isDarkMode ? "none" : "0 8px 24px rgba(12, 39, 59, 0.06), inset 0 1px 1px #FFFFFF",
+                      boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 24px rgba(15, 23, 42, 0.08)",
                       display: "flex",
                       flexDirection: "column",
-                      justifyContent: "space-between",
                       gap: 2,
+                      transition: "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
+                      "&:hover": {
+                        borderColor: "#99D5C9",
+                        transform: "translateY(-2px)",
+                        boxShadow: isDarkMode ? "none" : "0 2px 6px rgba(15, 23, 42, 0.06), 0 16px 32px rgba(15, 23, 42, 0.1)",
+                      },
                     }}
                   >
-                    <div>
-                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.2, mb: 1.2 }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, minWidth: 0 }}>
-                          <Avatar
-                            sx={{
-                              bgcolor: "rgba(20, 184, 166, 0.12)",
-                              width: 42,
-                              height: 42,
-                              borderRadius: "12px",
-                              flexShrink: 0,
-                            }}
-                          >
-                            {getCategoryIcon(cat.name)}
-                          </Avatar>
-                          <Typography
-                            variant="h6"
-                            noWrap
-                            title={cat.name}
-                            sx={{ fontWeight: 900, color: themeConfig.textMain, lineHeight: 1.2, fontSize: { xs: "1rem", sm: "1.05rem" } }}
-                          >
-                            {cat.name}
+                    <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1, minWidth: 0 }}>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+                          <MeetingRoom sx={{ fontSize: 18, flexShrink: 0, color: themeConfig.primary }} />
+                          <Tooltip title={cat.name} arrow>
+                            <Typography noWrap sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "1.05rem", lineHeight: 1.3 }}>
+                              {cat.name}
+                            </Typography>
+                          </Tooltip>
+                        </Box>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mt: 0.5 }}>
+                          <KingBed sx={{ fontSize: 14, flexShrink: 0, color: themeConfig.textMuted }} />
+                          <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 600 }}>
+                            {totalRooms} {totalRooms === 1 ? "room" : "rooms"}
                           </Typography>
                         </Box>
                       </Box>
-
-                      <Box
-                        sx={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(3, 1fr)",
-                          gap: 1,
-                          mt: 2,
-                          p: 1.2,
-                          borderRadius: "14px",
-                          bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.025)",
-                          border: `1px solid ${themeConfig.border}`,
-                        }}
-                      >
-                        <Box sx={{ textAlign: "center", p: 0.8, borderRadius: "10px", bgcolor: "rgba(16, 185, 129, 0.08)" }}>
-                          <Typography variant="caption" sx={{ color: "#059669", fontWeight: 800, display: "block", fontSize: "0.65rem" }}>
-                            🟢 Available
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: 900, color: "#10B981", fontSize: "1.15rem", lineHeight: 1.2, mt: 0.2 }}>
-                            {available}
-                          </Typography>
-                        </Box>
-                        <Box sx={{ textAlign: "center", p: 0.8, borderRadius: "10px", bgcolor: "rgba(11, 142, 224, 0.08)" }}>
-                          <Typography variant="caption" sx={{ color: "#0284C7", fontWeight: 800, display: "block", fontSize: "0.65rem" }}>
-                            🔵 Booked
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: 900, color: "#0B8EE0", fontSize: "1.15rem", lineHeight: 1.2, mt: 0.2 }}>
-                            {booked}
-                          </Typography>
-                        </Box>
-                        <Box sx={{ textAlign: "center", p: 0.8, borderRadius: "10px", bgcolor: "rgba(217, 119, 6, 0.08)" }}>
-                          <Typography variant="caption" sx={{ color: "#D97706", fontWeight: 800, display: "block", fontSize: "0.65rem" }}>
-                            🟡 Cleaning
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: 900, color: "#D97706", fontSize: "1.15rem", lineHeight: 1.2, mt: 0.2 }}>
-                            {cleaning}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </div>
-
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pt: 1.5, borderTop: `1px solid ${themeConfig.border}`, gap: 1 }}>
-                      <Chip
-                        label={
-                          isAllBooked
-                            ? "🔴 100% Booked"
-                            : available > 0
-                              ? `🟢 ${available} Ready for Check-In`
-                              : "⚪ No Rooms"
-                        }
-                        size="small"
-                        sx={{
-                          fontWeight: 800,
-                          fontSize: "0.72rem",
-                          bgcolor: isAllBooked ? "rgba(239, 68, 68, 0.1)" : hasAvailable ? "rgba(16, 185, 129, 0.12)" : "rgba(0,0,0,0.05)",
-                          color: isAllBooked ? "#EF4444" : hasAvailable ? "#059669" : themeConfig.textMuted,
-                          borderRadius: "8px",
-                          border: "none",
-                        }}
-                      />
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                        <Typography variant="caption" sx={{ fontWeight: 800, color: "#0F766E", fontSize: "0.8rem", whiteSpace: "nowrap" }}>
-                          Total {totalRooms} {totalRooms === 1 ? "Room" : "Rooms"}
-                        </Typography>
-                        <Tooltip title={`Add room to ${cat.name}`}>
-                          <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleOpenAddRoomForCategory(cat); }} sx={{ color: "#0F766E" }}>
-                            <Add sx={{ fontSize: 16 }} />
-                          </IconButton>
-                        </Tooltip>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, flexShrink: 0, mt: -0.5, mr: -0.5 }}>
                         <Tooltip title="Edit category">
                           <IconButton
                             size="small"
@@ -921,17 +678,53 @@ export default function RoomTypesPage({
                                 },
                               });
                             }}
-                            sx={{ color: themeConfig.info }}
+                            sx={{ width: 32, height: 32, borderRadius: "8px", color: themeConfig.textMuted, "&:hover": { bgcolor: themeConfig.bgMain, color: themeConfig.textMain } }}
                           >
                             <Edit sx={{ fontSize: 16 }} />
                           </IconButton>
                         </Tooltip>
-                        <Tooltip title={`Delete ${cat.name}`}>
-                          <IconButton size="small" onClick={(e) => { e.stopPropagation(); onDeleteRoomType && onDeleteRoomType(cat); }} sx={{ color: themeConfig.danger }}>
+                        <Tooltip title="Remove category">
+                          <IconButton size="small" onClick={(e) => { e.stopPropagation(); onDeleteRoomType && onDeleteRoomType(cat); }} sx={{ width: 32, height: 32, borderRadius: "8px", color: themeConfig.textMuted, "&:hover": { bgcolor: themeConfig.dangerBg, color: themeConfig.danger } }}>
                             <Delete sx={{ fontSize: 16 }} />
                           </IconButton>
                         </Tooltip>
                       </Box>
+                    </Box>
+
+                    <Box
+                      sx={{
+                        display: "flex",
+                        height: 2,
+                        borderRadius: 999,
+                        overflow: "hidden",
+                        bgcolor: isDarkMode ? "rgba(255,255,255,0.08)" : "#F1F5F9",
+                      }}
+                    >
+                      {CATEGORY_STATUSES.map((item) =>
+                        statusCounts[item.key] > 0 && totalRooms > 0 ? (
+                          <Box key={item.key} sx={{ width: `${(statusCounts[item.key] / (available + booked + cleaning || 1)) * 100}%`, bgcolor: item.color, opacity: 0.85 }} />
+                        ) : null
+                      )}
+                    </Box>
+
+                    <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1 }}>
+                      {CATEGORY_STATUSES.map((item) => (
+                        <Box
+                          key={item.key}
+                          sx={{
+                            borderRadius: "12px",
+                            bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : item.bg,
+                            border: `1px solid ${isDarkMode ? themeConfig.border : item.border}`,
+                            boxShadow: isDarkMode ? "none" : "0 2px 8px rgba(15, 23, 42, 0.05)",
+                            py: 1.1,
+                            px: 0.5,
+                            textAlign: "center",
+                          }}
+                        >
+                          <Typography sx={{ fontWeight: 700, color: item.color, fontSize: "0.95rem", lineHeight: 1 }}>{statusCounts[item.key]}</Typography>
+                          <Typography sx={{ color: item.color, fontSize: "0.62rem", fontWeight: 600, mt: 0.6, lineHeight: 1.2 }}>{item.label}</Typography>
+                        </Box>
+                      ))}
                     </Box>
                   </Card>
                 );
@@ -949,8 +742,9 @@ export default function RoomTypesPage({
                 setCategoryRowsPerPage(parseInt(e.target.value, 10));
                 setCategoryPage(0);
               }}
-              rowsPerPageOptions={[6, 12, 24]}
-              labelRowsPerPage="Cards per page"
+              rowsPerPageOptions={[5, 10, 15, 20, 25]}
+              labelRowsPerPage="Categories per page"
+              sx={{ mt: 1.5, borderTop: `1px solid ${themeConfig.border}` }}
             />
           )}
         </CardContent>
@@ -964,45 +758,39 @@ export default function RoomTypesPage({
         onClose={() => setRoomModal({ ...roomModal, open: false })}
         maxWidth="md"
         fullWidth
-        slotProps={{
-          paper: {
-            sx: {
-              borderRadius: "24px",
-              p: 1.5,
-              border: `1px solid ${themeConfig.border}`,
-              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-              boxShadow: isDarkMode ? "0 24px 50px rgba(0,0,0,0.6)" : "0 24px 50px rgba(0,0,0,0.2)",
-            },
-          },
-        }}
+        slotProps={{ paper: { sx: dialogPaperSx(themeConfig, isDarkMode) } }}
       >
         <form noValidate onSubmit={submitRoom}>
-          <DialogTitle component="div" sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <Box>
-              <Typography component="div" variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-                {roomModal.mode === "ADD" ? "Create New Hotel Room" : `Edit Room ${roomModal.data?.roomNumber}`}
-              </Typography>
-              <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                Assign Category, customize amenities, set floor, and configure capacity.
-              </Typography>
-            </Box>
-            <IconButton onClick={() => setRoomModal({ ...roomModal, open: false })} sx={{ borderRadius: "10px" }}>
-              <Close />
-            </IconButton>
-          </DialogTitle>
+          <AppDialogHeader
+            eyebrow={roomModal.mode === "ADD" ? "New room" : "Room details"}
+            title={roomModal.mode === "ADD" ? "Add room" : `Edit room ${roomModal.data?.roomNumber || ""}`}
+            icon={<MeetingRoom sx={{ fontSize: 20 }} />}
+            onClose={() => setRoomModal({ ...roomModal, open: false })}
+          />
 
-          <DialogContent dividers sx={{ borderColor: themeConfig.border }}>
-            <Grid container spacing={2.5}>
+          <DialogContent>
+            <Grid container spacing={2}>
               {/* Room Category Selection */}
               <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                  Room Category / Type *
+                <Typography variant="caption" sx={fieldLabelSx}>
+                  Category<RequiredMark />
                 </Typography>
                 <TextField
                   select
+                  required
                   fullWidth
                   size="small"
-                  value={roomModal.data?.roomType ? (Number(roomModal.data.roomType) || roomModal.data.roomType) : (roomTypes[0] ? (Number(roomTypes[0]._id || roomTypes[0].id) || roomTypes[0]._id) : 15)}
+                  value={roomModal.data?.roomType ? (Number(roomModal.data.roomType) || roomModal.data.roomType) : ""}
+                  slotProps={{
+                    select: {
+                      displayEmpty: true,
+                      renderValue: (selected) => {
+                        if (!selected) return <Box component="span" sx={{ color: themeConfig.textMuted }}>Select a category</Box>;
+                        const match = roomTypes.find((rt) => String(rt._id || rt.id) === String(selected));
+                        return match?.name || selected;
+                      },
+                    },
+                  }}
                   onChange={(e) => {
                     const selectedCatId = Number(e.target.value) || e.target.value;
                     const catObj = roomTypes.find((t) => Number(t._id || t.id) === Number(selectedCatId));
@@ -1020,11 +808,12 @@ export default function RoomTypesPage({
                   error={Boolean(roomErrors.roomType)}
                   sx={fieldSx(Boolean(roomErrors.roomType))}
                 >
+                  <MenuItem value="" disabled>Select a category</MenuItem>
                   {roomTypes.map((rt) => {
                     const optVal = Number(rt._id || rt.id) || rt._id;
                     return (
                       <MenuItem key={rt._id || rt.id} value={optVal}>
-                        {rt.name}{(rt.basePrice > 0 || rt.base_price > 0) ? ` (Price: ₹${rt.basePrice || rt.base_price})` : ""}
+                        {rt.name}{(rt.basePrice > 0 || rt.base_price > 0) ? ` · ₹${Number(rt.basePrice || rt.base_price).toLocaleString("en-IN")} / night` : ""}
                       </MenuItem>
                     );
                   })}
@@ -1034,10 +823,11 @@ export default function RoomTypesPage({
 
               {/* Room Number */}
               <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                  Room Number *
+                <Typography variant="caption" sx={fieldLabelSx}>
+                  Room number<RequiredMark />
                 </Typography>
                 <TextField
+                  required
                   fullWidth
                   size="small"
                   value={roomModal.data?.roomNumber || ""}
@@ -1045,7 +835,7 @@ export default function RoomTypesPage({
                     setRoomErrors((prev) => ({ ...prev, roomNumber: "" }));
                     setRoomModal({ ...roomModal, data: { ...roomModal.data, roomNumber: e.target.value } });
                   }}
-                  placeholder="e.g. 101"
+                  placeholder="Enter the room number"
                   error={Boolean(roomErrors.roomNumber)}
                   helperText={roomErrors.roomNumber || ""}
                   sx={fieldSx(Boolean(roomErrors.roomNumber))}
@@ -1054,10 +844,11 @@ export default function RoomTypesPage({
 
               {/* Floor Level */}
               <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                  Floor Level *
+                <Typography variant="caption" sx={fieldLabelSx}>
+                  Floor<RequiredMark />
                 </Typography>
                 <TextField
+                  required
                   fullWidth
                   size="small"
                   value={roomModal.data?.floor ?? ""}
@@ -1065,7 +856,7 @@ export default function RoomTypesPage({
                     setRoomErrors((prev) => ({ ...prev, floor: "" }));
                     setRoomModal({ ...roomModal, data: { ...roomModal.data, floor: e.target.value } });
                   }}
-                  placeholder="e.g. 1, 2, Ground, 3"
+                  placeholder="Enter the floor"
                   error={Boolean(roomErrors.floor)}
                   helperText={roomErrors.floor || ""}
                   sx={fieldSx(Boolean(roomErrors.floor))}
@@ -1074,11 +865,12 @@ export default function RoomTypesPage({
 
               {/* Bed Configuration / Type */}
               <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                  🛏️ Bed Setup / Configuration *
+                <Typography variant="caption" sx={fieldLabelSx}>
+                  Bed type<RequiredMark />
                 </Typography>
                 <TextField
                   select
+                  required
                   fullWidth
                   size="small"
                   value={roomModal.data?.bedType || ""}
@@ -1099,22 +891,23 @@ export default function RoomTypesPage({
                   error={Boolean(roomErrors.bedType)}
                   sx={fieldSx(Boolean(roomErrors.bedType))}
                 >
-                  <MenuItem value="">Select bed setup</MenuItem>
+                  <MenuItem value="">Select a bed type</MenuItem>
                   {BED_OPTIONS.map((opt, i) => (
                     <MenuItem key={i} value={opt.label}>
-                      🛏️ {opt.label} ({opt.capacity} Guests Capacity)
+                      {opt.label} · {opt.capacity} guests
                     </MenuItem>
                   ))}
-                  <MenuItem value="Custom Setup">🛠️ Custom Bed Configuration</MenuItem>
+                  <MenuItem value="Custom Setup">Custom bed type</MenuItem>
                 </TextField>
               </Grid>
 
               {/* Number of Beds in Room */}
               <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                  🛏️ Total Beds in Room *
+                <Typography variant="caption" sx={fieldLabelSx}>
+                  Beds<RequiredMark />
                 </Typography>
                 <TextField
+                  required
                   fullWidth
                   size="small"
                   value={roomModal.data?.bedCount ?? ""}
@@ -1132,6 +925,7 @@ export default function RoomTypesPage({
                     });
                   }}
                   error={Boolean(roomErrors.bedCount)}
+                  placeholder="Enter the number of beds"
                   helperText={roomErrors.bedCount || ""}
                   sx={fieldSx(Boolean(roomErrors.bedCount))}
                 />
@@ -1139,10 +933,11 @@ export default function RoomTypesPage({
 
               {/* Seating / Guest Capacity (Bed-based) */}
               <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                  👥 Max Guest Capacity (Bed-based) *
+                <Typography variant="caption" sx={fieldLabelSx}>
+                  Guest capacity<RequiredMark />
                 </Typography>
                 <TextField
+                  required
                   fullWidth
                   size="small"
                   value={roomModal.data?.seatingCapacity ?? ""}
@@ -1150,7 +945,7 @@ export default function RoomTypesPage({
                     setRoomErrors((prev) => ({ ...prev, seatingCapacity: "" }));
                     setRoomModal({ ...roomModal, data: { ...roomModal.data, seatingCapacity: e.target.value } });
                   }}
-                  placeholder="e.g. 2, 3, 4"
+                  placeholder="Enter the guest capacity"
                   error={Boolean(roomErrors.seatingCapacity)}
                   helperText={roomErrors.seatingCapacity || ""}
                   sx={fieldSx(Boolean(roomErrors.seatingCapacity))}
@@ -1159,10 +954,11 @@ export default function RoomTypesPage({
 
               {/* Custom Price */}
               <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                  Daily Price per Night (₹)
+                <Typography variant="caption" sx={fieldLabelSx}>
+                  Nightly rate (₹)<RequiredMark />
                 </Typography>
                 <TextField
+                  required
                   fullWidth
                   size="small"
                   value={roomModal.data?.customPricePerNight ?? ""}
@@ -1170,7 +966,7 @@ export default function RoomTypesPage({
                     setRoomErrors((prev) => ({ ...prev, customPricePerNight: "" }));
                     setRoomModal({ ...roomModal, data: { ...roomModal.data, customPricePerNight: e.target.value } });
                   }}
-                  placeholder="e.g. 2500"
+                  placeholder="Enter the nightly rate"
                   error={Boolean(roomErrors.customPricePerNight)}
                   helperText={roomErrors.customPricePerNight || ""}
                   sx={fieldSx(Boolean(roomErrors.customPricePerNight))}
@@ -1179,8 +975,8 @@ export default function RoomTypesPage({
 
               {/* Initial Status */}
               <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                  Operational Status
+                <Typography variant="caption" sx={fieldLabelSx}>
+                  Status
                 </Typography>
                 <TextField
                   select
@@ -1188,28 +984,28 @@ export default function RoomTypesPage({
                   size="small"
                   value={roomModal.data?.status || "AVAILABLE"}
                   onChange={(e) => setRoomModal({ ...roomModal, data: { ...roomModal.data, status: e.target.value } })}
-                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
+                  sx={fieldSx(false)}
                 >
-                  <MenuItem value="AVAILABLE">AVAILABLE (Clean & Ready)</MenuItem>
-                  <MenuItem value="CLEANING">CLEANING (Housekeeping)</MenuItem>
-                  <MenuItem value="MAINTENANCE">MAINTENANCE (Repair Work)</MenuItem>
-                  <MenuItem value="OCCUPIED">OCCUPIED (In-House Guest)</MenuItem>
-                  <MenuItem value="BLOCKED">BLOCKED (Admin Lock)</MenuItem>
+                  <MenuItem value="AVAILABLE">Available</MenuItem>
+                  <MenuItem value="CLEANING">Cleaning</MenuItem>
+                  <MenuItem value="MAINTENANCE">Maintenance</MenuItem>
+                  <MenuItem value="OCCUPIED">Occupied</MenuItem>
+                  <MenuItem value="BLOCKED">Blocked</MenuItem>
                 </TextField>
               </Grid>
 
               {/* Notes */}
               <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                  Notes & Special Features
+                <Typography variant="caption" sx={fieldLabelSx}>
+                  Notes
                 </Typography>
                 <TextField
                   fullWidth
                   size="small"
                   value={roomModal.data?.notes || ""}
                   onChange={(e) => setRoomModal({ ...roomModal, data: { ...roomModal.data, notes: e.target.value } })}
-                  placeholder="e.g. Garden facing balcony, near elevator..."
-                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
+                  placeholder="Add a short note"
+                  sx={fieldSx(false)}
                 />
               </Grid>
 
@@ -1221,64 +1017,49 @@ export default function RoomTypesPage({
               <Grid size={{ xs: 12 }}>
                 <Box
                   sx={{
-                    p: 2.2,
-                    borderRadius: "16px",
-                    bgcolor: themeConfig.bgMain,
+                    p: 1.5,
+                    borderRadius: "12px",
+                    bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F7FBFA",
                     border: `1px solid ${themeConfig.border}`,
                   }}
                 >
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5, flexWrap: "wrap", gap: 1 }}>
-                    <Box>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-                        ✨ Room Amenities ({roomModal.data?.amenities?.length || 0} Selected)
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                        Click popular amenity badges below to add or remove them from this room.
-                      </Typography>
-                    </Box>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.25, gap: 1 }}>
+                    <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.9rem" }}>
+                      Amenities ({roomModal.data?.amenities?.length || 0})
+                    </Typography>
                     <Button
                       size="small"
-                      variant="outlined"
                       onClick={() => handleResetToCategoryAmenities(roomModal.data?.roomType)}
-                      sx={{ fontSize: "0.72rem", fontWeight: 800, borderRadius: "8px" }}
+                      sx={{ fontSize: "0.78rem", fontWeight: 700, textTransform: "none", color: themeConfig.primaryDark, minWidth: 0 }}
                     >
-                      Reset to Category Defaults
+                      Use category amenities
                     </Button>
                   </Box>
 
-                  {/* Selected Amenities Chips */}
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mb: 2, minHeight: 36 }}>
-                    {Array.isArray(roomModal.data?.amenities) && roomModal.data.amenities.length > 0 ? (
-                      roomModal.data.amenities.map((am, i) => (
+                  {Array.isArray(roomModal.data?.amenities) && roomModal.data.amenities.length > 0 && (
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 1.25 }}>
+                      {roomModal.data.amenities.map((am, i) => (
                         <Chip
                           key={i}
                           label={am}
                           onDelete={() => toggleRoomAmenity(am)}
                           size="small"
                           sx={{
-                            fontWeight: 800,
-                            bgcolor: themeConfig.primary,
-                            color: "#FFFFFF",
+                            fontWeight: 600,
+                            bgcolor: "#E7F6F2",
+                            color: "#0F766E",
                             borderRadius: "8px",
-                            boxShadow: `0 2px 6px ${themeConfig.primaryGlow}`,
-                            "& .MuiChip-deleteIcon": { color: "rgba(255,255,255,0.8)", "&:hover": { color: "#FFFFFF" } },
+                            "& .MuiChip-deleteIcon": { color: "#0F766E" },
                           }}
                         />
-                      ))
-                    ) : (
-                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontStyle: "italic", alignSelf: "center" }}>
-                        No amenities selected for this room. Click popular amenities below or add custom.
-                      </Typography>
-                    )}
-                  </Box>
+                      ))}
+                    </Box>
+                  )}
 
-                  <Divider sx={{ my: 1.5, borderColor: themeConfig.border }} />
-
-                  {/* Popular Amenity Quick-Add Pills */}
-                  <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, display: "block", mb: 1 }}>
-                    POPULAR AMENITY PRESETS (Click to Toggle):
+                  <Typography sx={{ ...fieldLabelSx, mb: 0.75 }}>
+                    Suggested
                   </Typography>
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mb: 2 }}>
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mb: 1.25 }}>
                     {POPULAR_AMENITIES.map((am, i) => {
                       const isSelected = Array.isArray(roomModal.data?.amenities) && roomModal.data.amenities.includes(am.label);
                       return (
@@ -1291,7 +1072,7 @@ export default function RoomTypesPage({
                           size="small"
                           sx={{
                             borderRadius: "8px",
-                            fontWeight: 700,
+                            fontWeight: 600,
                             fontSize: "0.75rem",
                             bgcolor: isSelected ? (themeConfig.primaryDark || "#115E59") : (isDarkMode ? "rgba(255,255,255,0.06)" : "#FFFFFF"),
                             color: isSelected ? "#FFFFFF" : themeConfig.textMain,
@@ -1310,7 +1091,7 @@ export default function RoomTypesPage({
                   <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
                     <TextField
                       size="small"
-                      placeholder="Add custom amenity (e.g. PlayStation 5, Private Pool)..."
+                      placeholder="Enter an amenity"
                       value={customAmenityInput}
                       onChange={(e) => setCustomAmenityInput(e.target.value)}
                       onKeyDown={(e) => {
@@ -1319,22 +1100,25 @@ export default function RoomTypesPage({
                           handleAddCustomRoomAmenity();
                         }
                       }}
-                      sx={{ flexGrow: 1, "& .MuiOutlinedInput-root": { borderRadius: "10px", bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#FFFFFF" } }}
+                      sx={{ flexGrow: 1, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#FFFFFF" } }}
                     />
                     <Button
                       variant="contained"
                       onClick={handleAddCustomRoomAmenity}
                       disabled={!customAmenityInput.trim()}
                       sx={{
+                        height: 40,
                         borderRadius: "10px",
-                        fontWeight: 800,
+                        fontWeight: 700,
                         bgcolor: themeConfig.primary,
                         color: "#FFFFFF",
                         px: 2,
+                        boxShadow: "none",
                         textTransform: "none",
+                        "&:hover": { bgcolor: themeConfig.primaryDark, boxShadow: "none" },
                       }}
                     >
-                      + Add
+                      Add
                     </Button>
                   </Box>
                 </Box>
@@ -1342,26 +1126,14 @@ export default function RoomTypesPage({
             </Grid>
           </DialogContent>
 
-          <DialogActions sx={{ p: 2.5, bgcolor: themeConfig.bgMain, flexDirection: { xs: "column-reverse", sm: "row" }, gap: 1, "& .MuiButton-root": { width: { xs: "100%", sm: "auto" } } }}>
-            <Button onClick={() => setRoomModal({ ...roomModal, open: false })} sx={{ borderRadius: "10px", fontWeight: 700 }}>
+          <AppDialogFooter>
+            <Button onClick={() => setRoomModal({ ...roomModal, open: false })} variant="outlined" sx={dialogCancelButtonSx(themeConfig, isDarkMode)}>
               Cancel
             </Button>
-            <Button
-              type="submit"
-              variant="contained"
-              className="btn-3d"
-              sx={{
-                background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                color: "#FFFFFF",
-                fontWeight: 900,
-                borderRadius: "12px",
-                px: 3.5,
-                boxShadow: `0 4px 14px ${themeConfig.primaryGlow}`,
-              }}
-            >
-              {roomModal.mode === "ADD" ? "Save & Create Room" : "Update Room"}
+            <Button type="submit" variant="contained" sx={dialogPrimaryButtonSx(themeConfig)}>
+              {roomModal.mode === "ADD" ? "Save room" : "Update room"}
             </Button>
-          </DialogActions>
+          </AppDialogFooter>
         </form>
       </Dialog>
 
@@ -1373,38 +1145,22 @@ export default function RoomTypesPage({
         onClose={() => setTypeModal({ ...typeModal, open: false })}
         maxWidth="md"
         fullWidth
-        slotProps={{
-          paper: {
-            sx: {
-              borderRadius: "22px",
-              p: 1.5,
-              border: `1px solid ${themeConfig.border}`,
-              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-              boxShadow: isDarkMode ? "0 24px 50px rgba(0,0,0,0.6)" : "0 24px 48px -12px rgba(12, 39, 59, 0.22)",
-            },
-          },
-        }}
+        slotProps={{ paper: { sx: dialogPaperSx(themeConfig, isDarkMode) } }}
       >
         <form noValidate onSubmit={submitCategory}>
-          <DialogTitle component="div" sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <Box>
-              <Typography component="div" variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                {typeModal.mode === "EDIT" ? `Edit Category "${typeModal.data?.name}"` : "Create New Room Category"}
-              </Typography>
-              <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                Set category name and description.
-              </Typography>
-            </Box>
-            <IconButton onClick={() => setTypeModal({ ...typeModal, open: false })} sx={{ borderRadius: "10px" }}>
-              <Close />
-            </IconButton>
-          </DialogTitle>
+          <AppDialogHeader
+            eyebrow={typeModal.mode === "EDIT" ? "Category details" : "New category"}
+            title={typeModal.mode === "EDIT" ? "Edit category" : "Add category"}
+            icon={<MeetingRoom sx={{ fontSize: 20 }} />}
+            onClose={() => setTypeModal({ ...typeModal, open: false })}
+          />
 
-          <DialogContent dividers sx={{ borderColor: themeConfig.border }}>
+          <DialogContent>
             <Grid container spacing={2}>
               <Grid size={{ xs: 12 }}>
                 <TextField
-                  label="Room Category Name"
+                  label="Category name"
+                  required
                   fullWidth
                   size="small"
                   value={typeModal.data.name}
@@ -1412,7 +1168,7 @@ export default function RoomTypesPage({
                     setTypeErrors((prev) => ({ ...prev, name: "" }));
                     setTypeModal({ ...typeModal, data: { ...typeModal.data, name: e.target.value } });
                   }}
-                  placeholder="e.g. Deluxe Room, Executive Suite, Family Room"
+                  placeholder="Deluxe room"
                   error={Boolean(typeErrors.name)}
                   helperText={typeErrors.name || ""}
                   sx={fieldSx(Boolean(typeErrors.name))}
@@ -1421,40 +1177,28 @@ export default function RoomTypesPage({
 
               <Grid size={{ xs: 12 }}>
                 <TextField
-                  label="Category Description (Optional)"
+                  label="Description"
                   multiline
                   rows={2}
                   fullWidth
                   size="small"
                   value={typeModal.data.description || ""}
                   onChange={(e) => setTypeModal({ ...typeModal, data: { ...typeModal.data, description: e.target.value } })}
-                  placeholder="King bed, sea view balcony, jacuzzi, complimentary buffet breakfast..."
+                  placeholder="King bed with a balcony"
                   sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
                 />
               </Grid>
             </Grid>
           </DialogContent>
 
-          <DialogActions sx={{ p: 2, gap: 1, flexDirection: { xs: "column-reverse", sm: "row" }, "& .MuiButton-root": { width: { xs: "100%", sm: "auto" } } }}>
-            <Button onClick={() => setTypeModal({ ...typeModal, open: false })} sx={{ borderRadius: "10px", fontWeight: 700 }}>
+          <AppDialogFooter>
+            <Button onClick={() => setTypeModal({ ...typeModal, open: false })} variant="outlined" sx={dialogCancelButtonSx(themeConfig, isDarkMode)}>
               Cancel
             </Button>
-            <Button
-              type="submit"
-              variant="contained"
-              className="btn-3d"
-              sx={{
-                background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                color: "#FFFFFF",
-                fontWeight: 800,
-                borderRadius: "12px",
-                px: 3,
-                boxShadow: `0 4px 14px ${themeConfig.primaryGlow}`,
-              }}
-            >
-              {typeModal.mode === "EDIT" ? "Update Category" : "Save Category"}
+            <Button type="submit" variant="contained" sx={dialogPrimaryButtonSx(themeConfig)}>
+              {typeModal.mode === "EDIT" ? "Update category" : "Save category"}
             </Button>
-          </DialogActions>
+          </AppDialogFooter>
         </form>
       </Dialog>
 
@@ -1466,71 +1210,37 @@ export default function RoomTypesPage({
         onClose={() => setTrialLimitModalOpen(false)}
         maxWidth="xs"
         fullWidth
-        slotProps={{
-          paper: {
-            sx: {
-              borderRadius: "24px",
-              p: 1,
-              bgcolor: isDarkMode ? "#0F172A" : "#FFFFFF",
-              boxShadow: "0 24px 48px -12px rgba(0,0,0,0.3)",
-            },
-          },
-        }}
+        slotProps={{ paper: { sx: dialogPaperSx(themeConfig, isDarkMode) } }}
       >
-        <DialogTitle component="div" sx={{ textAlign: "center", pt: 3, pb: 1 }}>
-          <Avatar
-            sx={{
-              width: 64,
-              height: 64,
-              mx: "auto",
-              mb: 2,
-              bgcolor: "rgba(245, 158, 11, 0.15)",
-              color: "#F59E0B",
-            }}
-          >
-            <Lock sx={{ fontSize: 34 }} />
-          </Avatar>
-          <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-            Free Trial Limit Reached (5/5 Rooms)
-          </Typography>
-        </DialogTitle>
-        <DialogContent sx={{ textAlign: "center", pb: 2 }}>
+        <AppDialogHeader
+          eyebrow="Rooms"
+          title="Trial limit reached"
+          icon={<Lock sx={{ fontSize: 20 }} />}
+          onClose={() => setTrialLimitModalOpen(false)}
+        />
+        <DialogContent>
           <Typography variant="body2" sx={{ color: themeConfig.textMuted, lineHeight: 1.6 }}>
-            The <b>Free Trial</b> plan allows creating up to <b>5 custom rooms</b>. You currently have 5 rooms created.
+            The trial plan includes up to 5 rooms. This hotel already has 5 rooms.
           </Typography>
           <Typography variant="body2" sx={{ color: themeConfig.textMuted, mt: 1.5, fontWeight: 600 }}>
-            To create additional rooms and unlock unlimited room management, please upgrade to a Premium plan!
+            Upgrade the plan to add more rooms.
           </Typography>
         </DialogContent>
-        <DialogActions sx={{ justifyContent: "center", pb: 3, px: 3, gap: 1.5 }}>
-          <Button
-            onClick={() => setTrialLimitModalOpen(false)}
-            variant="outlined"
-            sx={{ borderRadius: "12px", fontWeight: 700, px: 2.5 }}
-          >
+        <AppDialogFooter>
+          <Button onClick={() => setTrialLimitModalOpen(false)} variant="outlined" sx={dialogCancelButtonSx(themeConfig, isDarkMode)}>
             Cancel
           </Button>
           <Button
             onClick={() => {
               setTrialLimitModalOpen(false);
-              if (typeof onTabChange === "function") {
-                onTabChange("subscriptions");
-              }
+              if (typeof onTabChange === "function") onTabChange("subscriptions");
             }}
             variant="contained"
-            className="btn-3d"
-            sx={{
-              borderRadius: "12px",
-              fontWeight: 900,
-              px: 3,
-              bgcolor: "#F59E0B",
-              color: "#FFFFFF",
-              "&:hover": { bgcolor: "#D97706" },
-            }}
+            sx={dialogPrimaryButtonSx(themeConfig)}
           >
-            Upgrade to Premium Plan →
+            View plans
           </Button>
-        </DialogActions>
+        </AppDialogFooter>
       </Dialog>
     </Box>
   );

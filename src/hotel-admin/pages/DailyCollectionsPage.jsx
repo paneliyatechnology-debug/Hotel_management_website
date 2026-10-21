@@ -1090,7 +1090,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
       <Dialog
         open={handoverModalOpen}
         onClose={() => !settling && setHandoverModalOpen(false)}
-        slotProps={{ paper: { sx: { borderRadius: "20px", p: 2, maxWidth: 480, border: `1px solid ${themeConfig.border}` } } }}
+        slotProps={{ paper: { sx: { borderRadius: "16px", maxWidth: 480, border: `1px solid ${themeConfig.border}`, overflow: "hidden" } } }}
       >
         <DialogTitle component="div" sx={{ fontWeight: 900, color: themeConfig.textMain, pb: 1 }}>
           🤝 Confirm Cash Drawer Settlement into Vault
@@ -1152,7 +1152,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
       <Dialog
         open={voucherModal.open}
         onClose={() => setVoucherModal({ open: false, record: null })}
-        slotProps={{ paper: { sx: { borderRadius: "20px", p: 3, maxWidth: 540, border: `1px solid ${themeConfig.border}` } } }}
+        slotProps={{ paper: { sx: { borderRadius: "16px", maxWidth: 540, border: `1px solid ${themeConfig.border}`, overflow: "hidden" } } }}
       >
         {voucherModal.record && (
           <Box sx={{ p: 1 }}>

@@ -55,12 +55,15 @@ import { useSocket } from "@/shared/context/SocketContext";
 import { toast } from "@/shared/utils/toast";
 import EmptyState from "@/shared/components/EmptyState";
 
+import { folioMoney } from "@/shared/utils/folioMoney";
+
 function bookingsToCollections(list) {
   const rows = (Array.isArray(list) ? list : [])
     .map((b) => {
-      const amount = Number(b.paid_amount ?? b.paidAmount ?? 0);
+      const money = folioMoney(b);
+      const amount = money.paid || money.total;
       const method = String(b.payment_method || b.paymentMethod || "CASH").toUpperCase();
-      const when = b.actual_check_in || b.created_at || b.createdAt;
+      const when = b.actual_check_in || b.actualCheckIn || b.created_at || b.createdAt || b.check_in_date || b.checkInDate;
       return {
         receiptNumber: b.booking_number || b.bookingNumber || b.id,
         timeStr: when ? new Date(when).toLocaleString("en-IN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" }) : "",
@@ -69,7 +72,7 @@ function bookingsToCollections(list) {
         guestPhone: b.mobile_number || b.phone || "—",
         bookingNumber: b.booking_number || b.bookingNumber || b.id,
         paymentMethod: method,
-        paymentType: amount > 0 ? "Paid amount" : "No payment",
+        paymentType: money.paid > 0 ? "Paid amount" : "Booking total",
         note: b.notes || "",
         amount,
         collectedByName: b.creator?.name || "Front Desk",
@@ -102,6 +105,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
   const { themeConfig, isDarkMode } = useAppTheme();
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [data, setData] = useState(null);
 
   // Backend Pagination & Search Filters
@@ -133,12 +137,14 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
       hl = handoverRowsPerPage
     ) => {
       setLoading(true);
+      setLoadError("");
       try {
-        const res = await apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS);
+        const res = await apiRequest(`${API_ENDPOINTS.BOOKINGS.ALL}?page=${p}&limit=${Math.min(l, 100)}`, { forceRefresh: true });
         const list = Array.isArray(res?.data) ? res.data : res?.data?.bookings || [];
         setData(bookingsToCollections(list));
       } catch (err) {
         console.error("Failed to load daily collections:", err);
+        setLoadError(err?.message || "Could not load collections.");
       } finally {
         setLoading(false);
       }
@@ -285,6 +291,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
         gap: { xs: 2, sm: 2.5, md: 3 },
       }}
     >
+      {loadError ? <Alert severity="error">{loadError}</Alert> : null}
       {/* Header */}
       <Box
         sx={{

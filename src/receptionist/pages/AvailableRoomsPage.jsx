@@ -613,7 +613,7 @@ export default function AvailableRoomsPage({
   };
 
   return (
-    <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 2.5 }, pb: { xs: 12, md: 4 } }}>
+    <Box sx={{ width: "100%", minWidth: 0, maxWidth: "100%", overflowX: "hidden", px: { xs: 1.5, sm: 2.5, md: 3 }, py: { xs: 2, sm: 2.5 }, pb: { xs: 12, md: 4 } }}>
       {actionError ? (
         <Typography sx={{ mb: 1.5, color: "#DC2626", fontWeight: 700, fontSize: "0.85rem" }}>{actionError}</Typography>
       ) : null}
@@ -757,10 +757,12 @@ export default function AvailableRoomsPage({
                   display: "grid",
                   gridTemplateColumns: {
                     xs: "1fr",
-                    sm: "repeat(2, 1fr)",
-                    lg: "repeat(5, 1fr)",
+                    sm: "repeat(2, minmax(0, 1fr))",
+                    lg: "repeat(3, minmax(0, 1fr))",
                   },
-                  gap: 2.5,
+                  gap: 2,
+                  minWidth: 0,
+                  width: "100%",
                 }}
               >
                 {filteredCategories.slice(cardPage * cardRowsPerPage, cardPage * cardRowsPerPage + cardRowsPerPage).map((cat) => {
@@ -914,7 +916,7 @@ export default function AvailableRoomsPage({
           <Box
             sx={{
               display: "grid",
-              gridTemplateColumns: { xs: "1fr", sm: "minmax(220px, 320px) 180px 180px" },
+              gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) 160px 160px" },
               gap: 1.5,
               alignItems: "center",
               mb: 2.5,
@@ -1014,9 +1016,11 @@ export default function AvailableRoomsPage({
               <Box
                 sx={{
                   display: "grid",
-                  gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(3, 1fr)", lg: "repeat(5, 1fr)" },
+                  gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(3, minmax(0, 1fr))" },
                   alignContent: "start",
-                  gap: 2.5,
+                  gap: 2,
+                  minWidth: 0,
+                  width: "100%",
                 }}
               >
                 {filteredCategoryRooms.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((room) => {

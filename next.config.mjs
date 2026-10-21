@@ -1,5 +1,10 @@
 /** @type {import('next').NextConfig} */
-const BACKEND_URL = process.env.BACKEND_PROXY_URL || "http://127.0.0.1:5000";
+const BACKEND_URL = (
+  process.env.BACKEND_PROXY_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  process.env.NEXT_PUBLIC_LIVE_API_URL ||
+  "https://hotelmanagementbackendnew-production.up.railway.app"
+).trim().replace(/\/+$/, "");
 
 const nextConfig = {
   allowedDevOrigins: [
@@ -22,6 +27,14 @@ const nextConfig = {
       {
         source: "/api/signature-sync",
         destination: "http://127.0.0.1:3001/api/signature-sync",
+      },
+      {
+        source: "/api/:path*",
+        destination: `${BACKEND_URL}/api/:path*`,
+      },
+      {
+        source: "/health",
+        destination: `${BACKEND_URL}/health`,
       },
     ];
   },

@@ -25,6 +25,7 @@ export default function RegisterHotelPage() {
   const [formData, setFormData] = useState({
     hotelName: "",
     hotelType: "",
+    customHotelType: "",
     ownerName: "",
     roomCount: "",
     email: "",
@@ -102,6 +103,7 @@ export default function RegisterHotelPage() {
     if (step === 1) {
       if (!formData.hotelName.trim()) errors.hotelName = "Hotel name is required.";
       if (!formData.hotelType) errors.hotelType = "Select a hotel type.";
+      else if (formData.hotelType === "Custom" && !formData.customHotelType.trim()) errors.hotelType = "Enter your hotel type.";
       if (!formData.ownerName.trim()) errors.ownerName = "Owner name is required.";
       if (!formData.roomCount || !Number.isFinite(rooms) || rooms < 1) errors.roomCount = "Enter at least 1 room.";
       if (!formData.email.trim()) errors.email = "Email is required.";
@@ -187,7 +189,7 @@ export default function RegisterHotelPage() {
         country: "India",
         pincode: cleanPincode,
         totalRooms: Number(formData.roomCount),
-        hotelType: formData.hotelType,
+        hotelType: formData.hotelType === "Custom" ? formData.customHotelType.trim() : formData.hotelType,
         website: (formData.website || "").trim(),
       };
 
@@ -475,9 +477,20 @@ export default function RegisterHotelPage() {
                                 <option>Business Hotel</option>
                                 <option>Heritage Palace</option>
                                 <option>Bed &amp; Breakfast</option>
+                                <option value="Custom">Custom hotel type</option>
                               </select>
                               <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
                             </div>
+                            {formData.hotelType === "Custom" && (
+                              <input
+                                type="text"
+                                required
+                                placeholder="Enter your hotel type"
+                                value={formData.customHotelType}
+                                onChange={(e) => updateField("customHotelType", e.target.value)}
+                                className={`mt-2 w-full px-3.5 py-2.5 rounded-xl border text-xs font-medium focus:ring-2 outline-none transition-all placeholder:text-slate-300 ${fieldErrors.hotelType ? "border-red-400 bg-red-50/40 focus:ring-red-300" : "border-slate-200 bg-[#F8FAFC] focus:ring-[#00C2A8] focus:border-[#00C2A8]"}`}
+                              />
+                            )}
                             {fieldErrors.hotelType && <p className="text-[10px] text-red-600 mt-1 font-semibold">{fieldErrors.hotelType}</p>}
                           </div>
 
@@ -748,7 +761,7 @@ export default function RegisterHotelPage() {
                           <h4 className="font-bold text-[#073832] text-sm">Registration Summary</h4>
                           <div className="grid grid-cols-2 gap-2 text-slate-700">
                             <div><span className="text-slate-500">Hotel Name:</span> <strong>{formData.hotelName || "Not set"}</strong></div>
-                            <div><span className="text-slate-500">Hotel Type:</span> <strong>{formData.hotelType}</strong></div>
+                            <div><span className="text-slate-500">Hotel Type:</span> <strong>{formData.hotelType === "Custom" ? formData.customHotelType : formData.hotelType}</strong></div>
                             <div><span className="text-slate-500">Owner Name:</span> <strong>{formData.ownerName || "Not set"}</strong></div>
                             <div><span className="text-slate-500">Email:</span> <strong>{formData.email || "Not set"}</strong></div>
                             <div><span className="text-slate-500">Phone:</span> <strong>{formData.phone || "Not set"}</strong></div>

@@ -340,7 +340,7 @@ export default function RoomTypesPage({
   const pagedCategories = roomTypes.slice(categoryPage * categoryRowsPerPage, categoryPage * categoryRowsPerPage + categoryRowsPerPage);
 
   return (
-    <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
+    <Box sx={{ width: "100%", minWidth: 0, maxWidth: "100%", overflowX: "hidden", px: { xs: 1.5, sm: 2.5, md: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
       <Box sx={{ mb: 2.5 }}>
         <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 1.5, mb: 2 }}>
           <Box>
@@ -392,7 +392,7 @@ export default function RoomTypesPage({
           </Box>
         </Box>
 
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(5, 1fr)" }, gap: 2 }}>
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", sm: "repeat(2, 1fr)", md: "repeat(3, 1fr)", xl: "repeat(5, 1fr)" }, gap: 2, minWidth: 0 }}>
           <StatCard hideFooter title="Total rooms" value={totalRoomsCount} icon={<MeetingRoom />} color="#10B981" />
           <StatCard hideFooter title="Available" value={availableRoomsCount} icon={<Check />} color="#0B8EE0" />
           <StatCard hideFooter title="Occupied" value={occupiedRoomsCount} icon={<KingBed />} color="#8B5CF6" />
@@ -597,11 +597,12 @@ export default function RoomTypesPage({
                 display: "grid",
                 gridTemplateColumns: {
                   xs: "1fr",
-                  sm: "repeat(2, 1fr)",
-                  md: "repeat(3, 1fr)",
-                  lg: "repeat(5, 1fr)",
+                  sm: "repeat(2, minmax(0, 1fr))",
+                  lg: "repeat(3, minmax(0, 1fr))",
                 },
                 gap: 1.5,
+                minWidth: 0,
+                width: "100%",
               }}
             >
               {pagedCategories.map((cat) => {
@@ -624,7 +625,9 @@ export default function RoomTypesPage({
                     sx={{
                       p: 2.25,
                       borderRadius: "16px",
-                      cursor: "pointer",
+                      minWidth: 0,
+                      width: "100%",
+                      overflow: "hidden",
                       border: `1px solid ${themeConfig.border}`,
                       bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
                       boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 24px rgba(15, 23, 42, 0.08)",
@@ -644,7 +647,7 @@ export default function RoomTypesPage({
                         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
                           <MeetingRoom sx={{ fontSize: 18, flexShrink: 0, color: themeConfig.primary }} />
                           <Tooltip title={cat.name} arrow>
-                            <Typography noWrap sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "1.05rem", lineHeight: 1.3 }}>
+                            <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "1.05rem", lineHeight: 1.3, overflowWrap: "anywhere" }}>
                               {cat.name}
                             </Typography>
                           </Tooltip>

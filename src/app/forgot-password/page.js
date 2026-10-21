@@ -103,7 +103,13 @@ export default function ForgotPasswordPage() {
                     placeholder="Enter your registered email"
                     value={email}
                     onChange={(e) => {
-                      setEmail(e.target.value);
+                      setEmail(e.target.value.replace(/\s+/g, ""));
+                      if (error) setError("");
+                    }}
+                    onPaste={(e) => {
+                      e.preventDefault();
+                      const text = (e.clipboardData || window.clipboardData)?.getData("text") || "";
+                      setEmail(text.replace(/\s+/g, ""));
                       if (error) setError("");
                     }}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-[#DDE8E6] text-xs focus:ring-2 focus:ring-[#0F766E] outline-none"

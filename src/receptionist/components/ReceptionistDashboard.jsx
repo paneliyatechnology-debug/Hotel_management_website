@@ -282,24 +282,24 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
           );
         } else if (tabIndex === 1) {
           endpointsToFetch.push(
-            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`, skipCache).then((res) => {
-              setBookings(extractBookings(res));
-              setBookingsError("");
-            }).catch((err) => setBookingsError(err?.message || "Could not load guests")),
-            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?page=1&limit=100`, skipCache).then((res) => setRooms(extractRooms(res)))
-          );
-        } else if (tabIndex === 2) {
-          endpointsToFetch.push(
             apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?page=1&limit=100`, skipCache).then((res) => setRooms(extractRooms(res))),
             apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES}?page=1&limit=100`, skipCache).then((res) => setRoomTypes(extractRoomTypes(res))),
             apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`, skipCache).then((res) => setBookings(extractBookings(res)))
           );
-        } else if (tabIndex === 3) {
+        } else if (tabIndex === 2) {
           endpointsToFetch.push(
             apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`, skipCache).then((res) => {
             setBookings(extractBookings(res));
             setBookingsError("");
           }).catch((err) => setBookingsError(err?.message || "Could not load folios")),
+            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?page=1&limit=100`, skipCache).then((res) => setRooms(extractRooms(res)))
+          );
+        } else if (tabIndex === 3) {
+          endpointsToFetch.push(
+            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`, skipCache).then((res) => {
+              setBookings(extractBookings(res));
+              setBookingsError("");
+            }).catch((err) => setBookingsError(err?.message || "Could not load guests")),
             apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?page=1&limit=100`, skipCache).then((res) => setRooms(extractRooms(res)))
           );
         } else if (tabIndex === 4) {
@@ -643,6 +643,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
           paid_amount: Number(amount) || 0,
           payment_method: method,
           extra_charges_total: Number(settlementData.extraCharges) || 0,
+          discount_amount: Number(settlementData.discount) || 0,
           late_checkout_charge: Number(settlementData.lateCheckoutFee) || 0,
           late_checkout_hours: Number(settlementData.lateCheckoutHours) || 0,
           notes: settlementData.notes ? String(settlementData.notes).trim() : defaultNote,

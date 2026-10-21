@@ -55,7 +55,7 @@ export function computeBookingBill(booking = {}) {
  *   taxable amount + GST (gst_rate %) = total bill  ->  - advance paid = balance due
  * GST therefore applies on the room charge (after discount) and on extra / late charges.
  */
-export const computeCheckoutBill = (booking, extraCharges = 0, lateCharge = 0) => {
+export const computeCheckoutBill = (booking, extraCharges = 0, lateCharge = 0, discountCharge) => {
   const money = folioMoney(booking);
   const rawRate = Number(booking?.gstRate ?? booking?.gst_rate);
   const gstRate = Number.isFinite(rawRate) && rawRate > 0 ? rawRate : 18;
@@ -69,7 +69,10 @@ export const computeCheckoutBill = (booking, extraCharges = 0, lateCharge = 0) =
   const roomGross = Math.max(money.total, (money.base || 0) + (money.gst || 0));
   const hasBase = Number.isFinite(storedBase) && storedBase > 0;
   const base = hasBase ? storedBase : round2(roomGross / (1 + gstRate / 100));
-  const discount = hasBase ? Math.min(storedDiscount, base) : 0;
+  const requestedDiscount = discountCharge === undefined || discountCharge === null || discountCharge === ""
+    ? storedDiscount
+    : Number(discountCharge) || 0;
+  const discount = Math.min(Math.max(0, requestedDiscount), base);
 
   const roomTaxable = Math.max(0, round2(base - discount));
   const taxable = round2(roomTaxable + extra + late);

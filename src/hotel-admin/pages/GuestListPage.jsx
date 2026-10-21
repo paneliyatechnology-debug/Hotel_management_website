@@ -28,27 +28,12 @@ import {
 } from "@mui/material";
 import {
   Search,
-  Person,
-  People,
-  Hotel as HotelIcon,
-  Phone,
-  Email,
-  CalendarMonth,
-  Receipt,
-  Payments,
-  CurrencyRupee,
-  WarningAmber,
-  CheckCircle,
-  Visibility,
   Print,
-  Download,
   WhatsApp,
   Refresh,
-  FilterList,
   Apps,
   FormatListBulleted,
   ArrowForward,
-  ContentCopy,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
@@ -56,8 +41,8 @@ import { useSocket } from "@/shared/context/SocketContext";
 import { toast } from "@/shared/utils/toast";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
-import StatCard from "@/shared/components/StatCard";
-import GuestDetailPage from "./GuestDetailPage";
+import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
+import { downloadBookingPdf } from "@/shared/utils/bookingPdf";
 
 function formatCurrency(val) {
   const n = Number(val);
@@ -160,6 +145,7 @@ export default function GuestListPage({
 
   // Selected Guest for Detail Page
   const [selectedGuest, setSelectedGuest] = useState(null);
+  const [pdfGuestId, setPdfGuestId] = useState("");
 
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState("");
@@ -322,27 +308,6 @@ export default function GuestListPage({
     return { ...g, checkIn, checkOut, baseAmount, gstAmount, totalAmount, paidAmount, dueAmount };
   };
 
-  // Telemetry Metrics
-  const metrics = useMemo(() => {
-    const total = unifiedGuests.length;
-    const inHouse = unifiedGuests.filter((g) => g.status === "CHECKED_IN").length;
-    const departed = unifiedGuests.filter((g) => g.status === "CHECKED_OUT" || g.status === "DEPARTED").length;
-    const confirmed = unifiedGuests.filter((g) => g.status === "CONFIRMED" || g.status === "PENDING" || g.status === "BOOKED").length;
-    const totalRevenue = unifiedGuests.reduce((acc, g) => acc + (g.paidAmount || 0), 0);
-    const totalDues = unifiedGuests.reduce((acc, g) => acc + (g.dueAmount || 0), 0);
-    const dueCount = unifiedGuests.filter((g) => g.dueAmount > 0).length;
-
-    return {
-      total,
-      inHouse,
-      departed,
-      confirmed,
-      totalRevenue,
-      totalDues,
-      dueCount,
-    };
-  }, [unifiedGuests]);
-
   // Filtered & Sorted List
   const filteredGuests = useMemo(() => {
     return unifiedGuests
@@ -408,86 +373,20 @@ export default function GuestListPage({
     setPage(0);
   };
 
-  const handleExportCSV = () => {
-    if (filteredGuests.length === 0) {
-      toast.show("No guest records to export", "info");
-      return;
+  const openGuestPdf = async (guest) => {
+    const id = guest?.id || guest?._id;
+    if (!id) return;
+    try {
+      setPdfGuestId(String(id));
+      const label = String(guest.bookingNumber || guest.booking_number || guest.name || `guest-${id}`).replace(/\s+/g, "-");
+      await downloadBookingPdf(id, label);
+      toast.show("Guest PDF ready", "success");
+    } catch (err) {
+      toast.show(err?.message || "Could not download the guest PDF", "error");
+    } finally {
+      setPdfGuestId("");
     }
-
-    const headers = [
-      "Guest Name",
-      "Phone",
-      "Email",
-      "Room",
-      "Room Category",
-      "Check-In Date",
-      "Check-Out Date",
-      "Stay Status",
-      "Total Amount (INR)",
-      "Paid Amount (INR)",
-      "Due Balance (INR)",
-      "Actual Check-In",
-      "Actual Check-Out",
-      "Booking Number",
-    ];
-
-    const rows = filteredGuests.map((g) => {
-      const stay = withApiStay(g);
-      const amount = Number(stay.totalAmount) || 0;
-      const paid = Number(stay.paidAmount) || 0;
-      const due = Number(stay.dueAmount) || 0;
-      return [
-        `"${String(g.guestName || "").replace(/"/g, '""')}"`,
-        `"${g.phone || ""}"`,
-        `"${g.email || ""}"`,
-        `"${g.roomAssigned || ""}"`,
-        `"${g.roomType || ""}"`,
-        `"${formatDate(stay.checkIn || g.checkInDate)}"`,
-        `"${formatDate(stay.checkOut || g.checkOutDate)}"`,
-        `"${g.status || ""}"`,
-        amount,
-        paid,
-        due,
-        `"${formatDateTime(g.actualCheckIn || stay.checkIn)}"`,
-        `"${formatDateTime(g.actualCheckOut || stay.checkOut)}"`,
-        `"${g.bookingNumber || ""}"`,
-      ];
-    });
-
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute(
-      "download",
-      `Hotel_Guests_Directory_${new Date().toISOString().split("T")[0]}.csv`
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    toast.show("Guest Directory exported successfully!", "success");
   };
-
-  const handlePrintList = () => {
-    window.print();
-  };
-
-  // If a guest is selected, show the GuestDetailPage!
-  if (selectedGuest) {
-    return (
-      <GuestDetailPage
-        guest={selectedGuest.raw || selectedGuest}
-        guestId={selectedGuest.id}
-        hotelSettings={hotelSettings}
-        onBack={() => setSelectedGuest(null)}
-        onRefresh={onRefresh}
-      />
-    );
-  }
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: { xs: 2.5, md: 3.5 }, px: { xs: 0.5, sm: 0.5 }, pb: 2 }}>
@@ -524,47 +423,9 @@ export default function GuestListPage({
               }}
             />
           </Box>
-          <Typography variant="body2" sx={{ color: themeConfig.textMuted, mt: 0.3 }}>
-            Check-in and check-out stays from the bookings list, with room, dates, and balance.
-          </Typography>
         </Box>
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
-          <Button
-            variant="outlined"
-            startIcon={<Download />}
-            onClick={handleExportCSV}
-            sx={{
-              borderRadius: "12px",
-              textTransform: "none",
-              fontWeight: 800,
-              fontSize: "0.85rem",
-              borderColor: themeConfig.border,
-              color: themeConfig.textMain,
-              bgcolor: themeConfig.bgCard,
-              "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
-            }}
-          >
-            Export CSV
-          </Button>
-
-          <Button
-            variant="outlined"
-            startIcon={<Print />}
-            onClick={handlePrintList}
-            sx={{
-              borderRadius: "12px",
-              textTransform: "none",
-              fontWeight: 800,
-              fontSize: "0.85rem",
-              borderColor: themeConfig.border,
-              color: themeConfig.textMain,
-              bgcolor: themeConfig.bgCard,
-            }}
-          >
-            Print
-          </Button>
-
           {onRefresh && (
             <IconButton
               onClick={onRefresh}
@@ -580,55 +441,6 @@ export default function GuestListPage({
           )}
         </Box>
       </Box>
-
-      {/* Telemetry Stat Cards */}
-      <Grid container spacing={{ xs: 2, md: 2.5 }}>
-        <Grid size={{ xs: 12, sm: 6, lg: 4, xl: 2.4 }}>
-          <StatCard
-            title="Total Guests"
-            value={metrics.total}
-            icon={<People />}
-            trend={`${metrics.confirmed} Upcoming`}
-            color="#2563EB"
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, lg: 4, xl: 2.4 }}>
-          <StatCard
-            title="In-House Active"
-            value={metrics.inHouse}
-            icon={<HotelIcon />}
-            trend="Currently Staying"
-            color="#059669"
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, lg: 4, xl: 2.4 }}>
-          <StatCard
-            title="Checked Out / Past"
-            value={metrics.departed}
-            icon={<CheckCircle />}
-            trend="Completed Stays"
-            color="#7C3AED"
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, lg: 4, xl: 2.4 }}>
-          <StatCard
-            title="Total Guest Collections"
-            value={formatCurrency(metrics.totalRevenue)}
-            icon={<CurrencyRupee />}
-            trend="Collected Tariffs"
-            color="#D97706"
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, lg: 4, xl: 2.4 }}>
-          <StatCard
-            title="Outstanding Dues"
-            value={formatCurrency(metrics.totalDues)}
-            icon={<WarningAmber />}
-            trend={metrics.dueCount > 0 ? `${metrics.dueCount} open balances` : "All settled"}
-            color={metrics.totalDues > 0 ? "#DC2626" : "#059669"}
-          />
-        </Grid>
-      </Grid>
 
       {/* Filter & Search Bar */}
       <Card
@@ -884,6 +696,22 @@ export default function GuestListPage({
 
                   <Button
                     fullWidth
+                    variant="outlined"
+                    startIcon={<Print />}
+                    disabled={pdfGuestId === String(g.id)}
+                    onClick={() => openGuestPdf(g)}
+                    sx={{
+                      borderRadius: "10px",
+                      textTransform: "none",
+                      fontWeight: 800,
+                      color: themeConfig.textMain,
+                      borderColor: themeConfig.border,
+                    }}
+                  >
+                    {pdfGuestId === String(g.id) ? "Preparing PDF..." : "Guest PDF"}
+                  </Button>
+                  <Button
+                    fullWidth
                     variant="contained"
                     endIcon={<ArrowForward />}
                     onClick={() => setSelectedGuest(g)}
@@ -912,17 +740,18 @@ export default function GuestListPage({
             overflow: "hidden",
           }}
         >
-          <TableContainer>
-            <Table>
+          <TableContainer sx={{ overflowX: "auto" }}>
+            <Table sx={{ minWidth: 980 }}>
               <TableHead>
-                <TableRow sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#F8FAFC" }}>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Guest</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Room</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Check-In</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Check-Out</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Billing</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Stay Status</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Actions</TableCell>
+                <TableRow sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F0FDFA" }}>
+                  {["Guest", "Room", "Check-In", "Check-Out", "Billing", "Stay Status"].map((heading) => (
+                    <TableCell key={heading} sx={{ fontWeight: 800, fontSize: "0.75rem", letterSpacing: "0.04em", textTransform: "uppercase", color: themeConfig.primaryDark, py: 1.6, whiteSpace: "nowrap", borderBottom: `1px solid ${themeConfig.border}` }}>
+                      {heading}
+                    </TableCell>
+                  ))}
+                  <TableCell align="right" sx={{ fontWeight: 800, fontSize: "0.75rem", letterSpacing: "0.04em", textTransform: "uppercase", color: themeConfig.primaryDark, py: 1.6, whiteSpace: "nowrap", borderBottom: `1px solid ${themeConfig.border}` }}>
+                    Actions
+                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -938,9 +767,8 @@ export default function GuestListPage({
                     }}
                     onClick={() => setSelectedGuest(g)}
                   >
-                    {/* Guest Avatar & Name */}
-                    <TableCell>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                    <TableCell sx={{ py: 1.75 }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 180 }}>
                         <Avatar
                           sx={{
                             width: 40,
@@ -949,73 +777,60 @@ export default function GuestListPage({
                             bgcolor: themeConfig.primary,
                             color: "#FFFFFF",
                             fontSize: "0.95rem",
+                            flexShrink: 0,
                           }}
                         >
                           {g.guestName.charAt(0).toUpperCase()}
                         </Avatar>
-                        <Box>
-                          <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.92rem", lineHeight: 1.2 }}>
                             {g.guestName}
                           </Typography>
-                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
+                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", fontWeight: 600 }}>
                             {g.phone || "No contact"}
-                            {g.bookingNumber ? ` · ${g.bookingNumber}` : ""}
                           </Typography>
+                          {g.bookingNumber ? (
+                            <Typography variant="caption" sx={{ color: themeConfig.primary, display: "block", fontWeight: 700 }}>
+                              {g.bookingNumber}
+                            </Typography>
+                          ) : null}
                         </Box>
                       </Box>
                     </TableCell>
 
-                    {/* Room */}
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                    <TableCell sx={{ py: 1.75, whiteSpace: "nowrap" }}>
+                      <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.9rem" }}>
                         Room {g.roomAssigned}
                       </Typography>
-                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
+                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 600 }}>
                         {g.roomType}
                       </Typography>
                     </TableCell>
 
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 700, color: themeConfig.textMain }}>
+                    <TableCell sx={{ py: 1.75, whiteSpace: "nowrap" }}>
+                      <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.88rem" }}>
                         {formatDateTime(g.checkIn)}
                       </Typography>
                     </TableCell>
 
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 700, color: themeConfig.textMain }}>
+                    <TableCell sx={{ py: 1.75, whiteSpace: "nowrap" }}>
+                      <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.88rem" }}>
                         {formatDateTime(g.checkOut)}
                       </Typography>
                     </TableCell>
 
-                    {/* Billing */}
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                    <TableCell sx={{ py: 1.75, whiteSpace: "nowrap" }}>
+                      <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.92rem" }}>
                         {formatCurrency(g.totalAmount)}
                       </Typography>
                       {(g.baseAmount > 0 || g.gstAmount > 0) && (
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", fontWeight: 600 }}>
                           {formatCurrency(g.baseAmount)} + GST {formatCurrency(g.gstAmount)}
                         </Typography>
                       )}
-                      {g.dueAmount > 0 ? (
-                        <Chip
-                          size="small"
-                          label={`Due: ${formatCurrency(g.dueAmount)}`}
-                          sx={{
-                            height: "20px",
-                            fontSize: "0.7rem",
-                            fontWeight: 800,
-                            bgcolor: "rgba(220, 38, 38, 0.12)",
-                            color: "#DC2626",
-                            border: "1px solid rgba(220, 38, 38, 0.3)",
-                            mt: 0.3,
-                          }}
-                        />
-                      ) : (
-                        <Typography variant="caption" sx={{ color: "#059669", fontWeight: 700, display: "block" }}>
-                          Fully Paid
-                        </Typography>
-                      )}
+                      <Typography variant="caption" sx={{ color: g.dueAmount > 0 ? "#DC2626" : "#059669", fontWeight: 800, display: "block" }}>
+                        {g.dueAmount > 0 ? `Due ${formatCurrency(g.dueAmount)}` : "Fully Paid"}
+                      </Typography>
                     </TableCell>
 
                     {/* Status */}
@@ -1041,23 +856,37 @@ export default function GuestListPage({
                           </Tooltip>
                         )}
 
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          endIcon={<ArrowForward />}
-                          onClick={() => setSelectedGuest(g)}
-                          sx={{
-                            borderRadius: "8px",
-                            textTransform: "none",
-                            fontWeight: 800,
-                            fontSize: "0.75rem",
-                            color: themeConfig.textMain,
-                            borderColor: themeConfig.border,
-                            "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
-                          }}
-                        >
-                          Details
-                        </Button>
+                        <Tooltip title={pdfGuestId === String(g.id) ? "Preparing PDF" : "Guest PDF"}>
+                          <span>
+                            <IconButton
+                              size="small"
+                              disabled={pdfGuestId === String(g.id)}
+                              onClick={() => openGuestPdf(g)}
+                              sx={{
+                                border: `1px solid ${themeConfig.border}`,
+                                borderRadius: "8px",
+                                color: themeConfig.textMain,
+                                "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
+                              }}
+                            >
+                              <Print fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title="Details">
+                          <IconButton
+                            size="small"
+                            onClick={() => setSelectedGuest(g)}
+                            sx={{
+                              border: `1px solid ${themeConfig.border}`,
+                              borderRadius: "8px",
+                              color: themeConfig.textMain,
+                              "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
+                            }}
+                          >
+                            <ArrowForward fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                       </Box>
                     </TableCell>
                   </TableRow>
@@ -1082,6 +911,15 @@ export default function GuestListPage({
           />
         </Card>
       )}
+
+      <GuestDetailsModal
+        open={Boolean(selectedGuest)}
+        onClose={() => setSelectedGuest(null)}
+        guestId={selectedGuest?.id}
+        guestData={selectedGuest}
+        hotelSettings={hotelSettings}
+        onRefresh={onRefresh}
+      />
     </Box>
   );
 }

@@ -347,7 +347,7 @@ export default function DashboardLayout({
       </Drawer>
 
       {/* Main Layout Area */}
-      <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, height: "100vh", overflow: "hidden" }}>
         {/* Top AppBar - Exactly 64px matching the sidebar line */}
         <AppBar
           position="sticky"
@@ -392,7 +392,7 @@ export default function DashboardLayout({
         </AppBar>
 
         {/* Content Body or Disabled Lock Screen */}
-        <Box sx={{ flex: 1, pb: { xs: 10, md: 3 } }}>
+        <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", pb: { xs: 10, md: 3 } }}>
           {isHotelDisabled ? (
             <Box sx={{ p: 4, display: "flex", justifyContent: "center", alignItems: "center", minHeight: "80vh" }}>
               <Paper

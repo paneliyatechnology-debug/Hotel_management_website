@@ -209,10 +209,10 @@ function HotelWebAppContent() {
       return ["overview", "hotels", "plans", "settings"];
     }
     if (effectiveRole === "HOTEL_ADMIN") {
-      return ["overview", "guests", "daily-collections", "staff", "rooms", "subscriptions", "settings"];
+      return ["overview", "guests", "staff", "rooms", "subscriptions", "settings"];
     }
     if (effectiveRole === "RECEPTIONIST") {
-      return ["dashboard", "guests", "rooms", "folios", "more"];
+      return ["dashboard", "rooms", "folios", "guests", "more"];
     }
     return [];
   };
@@ -237,18 +237,18 @@ function HotelWebAppContent() {
       const effectiveRole = activeRole || currentUser.role;
       if (effectiveRole === "RECEPTIONIST") {
         if (cleanPath === "dashboard" || cleanPath === "overview") return 0;
-        if (cleanPath === "guests" || cleanPath === "guest" || cleanPath === "directory") return 1;
-        if (cleanPath === "rooms" || cleanPath === "checkin" || cleanPath === "check-in" || cleanPath === "booking") return 2;
-        if (cleanPath === "folios" || cleanPath === "in-house" || cleanPath === "inhouse") return 3;
+        if (cleanPath === "rooms" || cleanPath === "checkin" || cleanPath === "check-in" || cleanPath === "booking") return 1;
+        if (cleanPath === "folios" || cleanPath === "in-house" || cleanPath === "inhouse") return 2;
+        if (cleanPath === "guests" || cleanPath === "guest" || cleanPath === "directory") return 3;
         if (cleanPath === "more" || cleanPath === "settings" || cleanPath === "operations") return 4;
       }
       if (effectiveRole === "HOTEL_ADMIN") {
         if (cleanPath === "guests" || cleanPath === "guest" || cleanPath === "directory") return 1;
-        if (cleanPath === "collections" || cleanPath === "daily-collections" || cleanPath === "payments" || cleanPath === "billing") return 2;
-        if (cleanPath === "team" || cleanPath === "staff") return 3;
-        if (cleanPath === "rooms") return 4;
-        if (cleanPath === "plans" || cleanPath === "pricing" || cleanPath === "subscriptions") return 5;
-        if (cleanPath === "settings") return 6;
+        if (cleanPath === "collections" || cleanPath === "daily-collections" || cleanPath === "payments" || cleanPath === "billing") return 0;
+        if (cleanPath === "team" || cleanPath === "staff") return 2;
+        if (cleanPath === "rooms") return 3;
+        if (cleanPath === "plans" || cleanPath === "pricing" || cleanPath === "subscriptions") return 4;
+        if (cleanPath === "settings") return 5;
       }
     }
     return 0;

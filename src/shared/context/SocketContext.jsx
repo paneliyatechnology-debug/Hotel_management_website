@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from "react";
 import { io } from "socket.io-client";
-import { getApiBaseUrl } from "@/config/api";
+import { getApiBaseUrl, LIVE_API_URL } from "@/config/api";
 
 const SocketContext = createContext({
   socket: null,
@@ -15,8 +15,98 @@ const SocketContext = createContext({
   joinRoom: () => {},
 });
 
-// 🔌 SOCKET.IO TEMPORARILY DISABLED AS PER REQUEST
-export const SOCKET_ENABLED = false;
+// Live Railway host. Localhost pages proxy HTTP, but Socket.IO must reach the API directly.
+const SOCKET_URL = (LIVE_API_URL || "https://hotelmanagementbackendnew-production.up.railway.app").replace(/\/+$/, "");
+
+export const SOCKET_ENABLED = true;
+
+const HOTEL_ADMIN_EVENTS = [
+  "ROOM_UPDATED",
+  "room:category_counts",
+  "BOOKING_CREATED",
+  "BOOKING_UPDATED",
+  "GUEST_CHECKED_OUT",
+  "PAYMENT_RECORDED",
+  "GUEST_UPDATED",
+  "DASHBOARD_SYNC",
+  "HANDOVER_SETTLED",
+  "STAFF_STATUS_UPDATED",
+  "USER_UPDATED",
+  "STAFF_CREATED",
+  "STAFF_UPDATED",
+  "STAFF_DELETED",
+  "HOTEL_STATUS_UPDATED",
+  "SIGNATURE_SUBMITTED",
+  "HOTEL_UPDATED",
+  "SUBSCRIPTION_UPDATED",
+  "TRIAL_REQUEST_APPROVED",
+  "TRIAL_REQUEST_REJECTED",
+];
+
+const RECEPTION_EVENTS = [
+  "ROOM_UPDATED",
+  "room:category_counts",
+  "BOOKING_CREATED",
+  "BOOKING_UPDATED",
+  "GUEST_CHECKED_OUT",
+  "PAYMENT_RECORDED",
+  "GUEST_UPDATED",
+  "DASHBOARD_SYNC",
+  "SIGNATURE_SUBMITTED",
+  "STAFF_STATUS_UPDATED",
+  "USER_UPDATED",
+  "SUBSCRIPTION_UPDATED",
+  "HOTEL_UPDATED",
+  "HOTEL_STATUS_UPDATED",
+];
+
+const SUPER_ADMIN_EVENTS = [
+  "HOTEL_REGISTERED",
+  "NEW_TRIAL_REQUEST",
+  "TRIAL_REQUEST_APPROVED",
+  "TRIAL_REQUEST_REJECTED",
+  "HOTEL_STATUS_UPDATED",
+  "HOTEL_UPDATED",
+  "SUBSCRIPTION_UPDATED",
+  "DASHBOARD_SYNC",
+  "HOTEL_ONLINE",
+  "HOTEL_OFFLINE",
+  "USER_ONLINE",
+  "USER_OFFLINE",
+  "PRESENCE_SYNC",
+  "ONLINE_PRESENCE_STATE",
+];
+
+function readSession() {
+  if (typeof window === "undefined") return { token: "", user: null, hotelId: "", role: "" };
+  const token = localStorage.getItem("token") || "";
+  let user = null;
+  try {
+    user = JSON.parse(localStorage.getItem("user") || "null");
+  } catch {
+    user = null;
+  }
+  const hotelId = user?.hotel?._id || user?.hotel?.id || user?.hotel || user?.hotelId || user?.hotel_id || "";
+  return {
+    token,
+    user,
+    hotelId: hotelId ? String(hotelId) : "",
+    role: String(user?.role || "").toUpperCase(),
+  };
+}
+
+function eventsForRole(role) {
+  if (role === "SUPER_ADMIN") return SUPER_ADMIN_EVENTS;
+  if (role === "RECEPTIONIST") return RECEPTION_EVENTS;
+  return HOTEL_ADMIN_EVENTS;
+}
+
+function isForThisHotel(payload, hotelId) {
+  if (!hotelId || !payload || typeof payload !== "object") return true;
+  const eventHotel = payload.hotel_id || payload.hotelId || payload.hotel?._id || payload.hotel?.id;
+  if (!eventHotel) return true;
+  return String(eventHotel) === String(hotelId);
+}
 
 const dummySocket = {
   connected: false,
@@ -56,21 +146,12 @@ export function SocketProvider({ children }) {
     const sock = socketRef.current;
     if (!sock || !sock.connected) return;
 
-    if (typeof window === "undefined") return;
+    const { token, user, hotelId, role } = readSession();
 
-    const token = localStorage.getItem("token");
-    let user = null;
-    try {
-      const stored = localStorage.getItem("user");
-      if (stored) user = JSON.parse(stored);
-    } catch {}
-
-    const hotelId = user?.hotel?._id || user?.hotel?.id || user?.hotel || user?.hotelId;
-
-    if (user?.role === "SUPER_ADMIN") {
+    if (role === "SUPER_ADMIN") {
       sock.emit("join_super_admin", { user, token });
     } else if (hotelId) {
-      sock.emit("join_hotel", { hotelId: String(hotelId), token, user });
+      sock.emit("join_hotel", { hotelId, token, user });
     }
 
     if (user) {
@@ -79,12 +160,11 @@ export function SocketProvider({ children }) {
         name: user.name,
         email: user.email,
         role: user.role,
-        hotelId: hotelId ? String(hotelId) : null,
+        hotelId: hotelId || null,
         token,
       });
     }
 
-    // Always fetch latest presence list
     sock.emit("get_presence");
   }, []);
 
@@ -101,14 +181,18 @@ export function SocketProvider({ children }) {
       return;
     }
 
-    const socketUrl = getApiBaseUrl() || "http://localhost:5000";
+    const apiBase = getApiBaseUrl();
+    const socketUrl = apiBase && /localhost:5000|127\.0\.0\.1:5000/.test(apiBase) ? apiBase : SOCKET_URL;
 
+    const { token } = readSession();
     const socket = io(socketUrl, {
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
+      auth: { token },
+      query: token ? { token } : {},
     });
 
     socketRef.current = socket;
@@ -176,56 +260,24 @@ export function SocketProvider({ children }) {
       if (Array.isArray(data?.onlineUserIds)) setOnlineUserIds(data.onlineUserIds.map(String));
     });
 
-    // Real-Time Event Dispatchers to Window
-    const realTimeEvents = [
-      "ROOM_UPDATED",
-      "room:category_counts",
-      "BOOKING_CREATED",
-      "BOOKING_UPDATED",
-      "GUEST_CHECKED_OUT",
-      "PAYMENT_RECORDED",
-      "GUEST_UPDATED",
-      "DASHBOARD_SYNC",
-      "HANDOVER_SETTLED",
-      "STAFF_STATUS_UPDATED",
-      "USER_UPDATED",
-      "STAFF_CREATED",
-      "STAFF_UPDATED",
-      "STAFF_DELETED",
-      "HOTEL_STATUS_UPDATED",
-      "SIGNATURE_SUBMITTED",
-      "HOTEL_UPDATED",
-      "SUBSCRIPTION_UPDATED",
-      "TRIAL_REQUEST_APPROVED",
-      "TRIAL_REQUEST_REJECTED",
-      "NEW_TRIAL_REQUEST",
-      "HOTEL_REGISTERED",
-      "HOTEL_ONLINE",
-      "HOTEL_OFFLINE",
-      "USER_ONLINE",
-      "USER_OFFLINE",
-      "PRESENCE_SYNC",
-    ];
-
-    realTimeEvents.forEach((evtName) => {
-      socket.off(evtName);
-      socket.on(evtName, (payload) => {
-        setLastEvent({ name: evtName, payload, timestamp: Date.now() });
-        window.dispatchEvent(
-          new CustomEvent(`socket:${evtName}`, {
-            detail: payload,
-          })
-        );
-        window.dispatchEvent(
-          new CustomEvent("socket:any", {
-            detail: { name: evtName, payload },
-          })
-        );
+    // Real-Time Event Dispatchers to Window — only the events for this login
+    const ALL_EVENTS = [...new Set([...HOTEL_ADMIN_EVENTS, ...RECEPTION_EVENTS, ...SUPER_ADMIN_EVENTS])];
+    const bindRoleEvents = () => {
+      ALL_EVENTS.forEach((evtName) => socket.off(evtName));
+      eventsForRole(readSession().role).forEach((evtName) => {
+        socket.on(evtName, (payload) => {
+          const { role, hotelId } = readSession();
+          if (role !== "SUPER_ADMIN" && !isForThisHotel(payload, hotelId)) return;
+          setLastEvent({ name: evtName, payload, timestamp: Date.now() });
+          window.dispatchEvent(new CustomEvent(`socket:${evtName}`, { detail: payload }));
+          window.dispatchEvent(new CustomEvent("socket:any", { detail: { name: evtName, payload } }));
+        });
       });
-    });
+    };
+    bindRoleEvents();
 
-    // Listen for auth changes or window focus to re-join room & announce presence
     const handleAuthChange = () => {
+      bindRoleEvents();
       joinRoom();
     };
     const handleWindowFocus = () => {
@@ -245,6 +297,8 @@ export function SocketProvider({ children }) {
       window.removeEventListener("storage", handleAuthChange);
       window.removeEventListener("focus", handleWindowFocus);
       window.removeEventListener("visibilitychange", handleWindowFocus);
+      socket.disconnect();
+      socketRef.current = dummySocket;
     };
   }, [joinRoom]);
 
@@ -252,7 +306,7 @@ export function SocketProvider({ children }) {
     <SocketContext.Provider
       value={{
         socket: socketRef.current,
-        isConnected: false,
+        isConnected,
         lastEvent,
         onlineUserIds,
         onlineHotelIds,
@@ -273,7 +327,7 @@ export function usePresence() {
     onlineHotelIds: context.onlineHotelIds || [],
     isUserOnline: context.isUserOnline || (() => false),
     isHotelOnline: context.isHotelOnline || (() => false),
-    isConnected: false,
+    isConnected: Boolean(context.isConnected),
   };
 }
 

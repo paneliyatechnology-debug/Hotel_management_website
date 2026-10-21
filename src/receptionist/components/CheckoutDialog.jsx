@@ -34,6 +34,7 @@ const EMPTY = {
   lateFee: 0,
   lateHours: 0,
   extraCharges: 0,
+  discount: 0,
   notes: "",
   paymentMethod: "CASH",
   amount: 0,
@@ -72,12 +73,14 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
         const posTotal = (detail.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
         // Keep charges already saved on the booking (e.g. deposit); otherwise start from POS charges
         const extraCharges = Number(detail.extra_charges_total ?? detail.extraChargesTotal) || posTotal;
+        const discount = Number(detail.discount_amount ?? detail.discountAmount) || 0;
         // Late check-out charges are entered by the receptionist (no automatic counting)
-        const due = computeCheckoutBill(detail, extraCharges, 0).due;
+        const due = computeCheckoutBill(detail, extraCharges, 0, discount).due;
         setState({
           ...EMPTY,
           detail,
           extraCharges,
+          discount,
           amount: due,
         });
       } catch (err) {
@@ -98,7 +101,7 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
   const updateCharges = (patch) =>
     setState((prev) => {
       const next = { ...prev, ...patch };
-      next.amount = computeCheckoutBill(next.detail, next.extraCharges, next.lateFee).due;
+      next.amount = computeCheckoutBill(next.detail, next.extraCharges, next.lateFee, next.discount).due;
       return next;
     });
 
@@ -109,7 +112,7 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
   const guestPhone = guestObj.phoneNumber || guestObj.phone || detail?.guestPhone || detail?.mobile_number || "";
   const bookingNumber = detail?.bookingNumber || detail?.booking_number || "Active";
 
-  const bill = computeCheckoutBill(detail, state.extraCharges, state.lateFee);
+  const bill = computeCheckoutBill(detail, state.extraCharges, state.lateFee, state.discount);
   const collectNow = Number(state.amount) || 0;
   const collectError = collectNow > bill.due + 0.001 ? "Cannot exceed the balance due" : "";
   const remainingAfter = Math.max(0, bill.due - collectNow);
@@ -136,6 +139,7 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
       await onCheckOut(detail, {
         paymentMethod: state.paymentMethod,
         extraCharges: Number(state.extraCharges) || 0,
+        discount: Number(state.discount) || 0,
         notes: state.notes || "",
         settlementPaymentAmount: collectNow,
         lateCheckoutFee: Number(state.lateFee) || 0,
@@ -282,7 +286,7 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
             {/* Additional charges */}
             <Box>
               {sectionTitle("Additional charges")}
-              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 2 }}>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(4, 1fr)" }, gap: 2 }}>
                 <TextField
                   fullWidth
                   size="small"
@@ -291,6 +295,16 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
                   placeholder="0"
                   value={Number(state.extraCharges) ? state.extraCharges : ""}
                   onChange={(e) => updateCharges({ extraCharges: sanitizeAmount(e.target.value) })}
+                  slotProps={{ htmlInput: { inputMode: "decimal" } }}
+                />
+                <TextField
+                  fullWidth
+                  size="small"
+                  autoComplete="off"
+                  label="Discount (₹)"
+                  placeholder="0"
+                  value={Number(state.discount) ? state.discount : ""}
+                  onChange={(e) => updateCharges({ discount: sanitizeAmount(e.target.value) })}
                   slotProps={{ htmlInput: { inputMode: "decimal" } }}
                 />
                 <TextField

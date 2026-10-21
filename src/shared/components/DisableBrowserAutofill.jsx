@@ -41,21 +41,27 @@ function protectTree(root) {
 
 export default function DisableBrowserAutofill() {
   useEffect(() => {
-    protectTree(document);
-
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        mutation.addedNodes.forEach((node) => {
-          if (node.nodeType !== 1) return;
-          if (node.matches?.("input, textarea")) protect(node);
-          if (node.matches?.("form")) node.setAttribute("autocomplete", "off");
-          protectTree(node);
+    let observer;
+    const start = () => {
+      protectTree(document);
+      observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          mutation.addedNodes.forEach((node) => {
+            if (node.nodeType !== 1) return;
+            if (node.matches?.("input, textarea")) protect(node);
+            if (node.matches?.("form")) node.setAttribute("autocomplete", "off");
+            protectTree(node);
+          });
         });
       });
-    });
+      observer.observe(document.body, { childList: true, subtree: true });
+    };
 
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
+    const timer = window.setTimeout(start, 1000);
+    return () => {
+      window.clearTimeout(timer);
+      observer?.disconnect();
+    };
   }, []);
 
   return null;

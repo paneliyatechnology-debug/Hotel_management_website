@@ -53,6 +53,7 @@ import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { formatTime12Hour } from "@/shared/utils/timeUtils";
 import { computeBookingBill } from "@/shared/utils/billingUtils";
 import { toast } from "@/shared/utils/toast";
+import { downloadBookingPdf } from "@/shared/utils/bookingPdf";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 
@@ -159,6 +160,7 @@ export default function GuestDetailPage({
   hotelSettings = {},
   onBack,
   onRefresh,
+  embedded = false,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
 
@@ -167,6 +169,7 @@ export default function GuestDetailPage({
   const [bookingDetail, setBookingDetail] = useState(guest);
   const [copiedKey, setCopiedKey] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const effectiveId = guestId || guest?._id || guest?.id || guest?.bookingId || guest?.booking_id;
 
@@ -362,8 +365,21 @@ export default function GuestDetailPage({
     }
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handleGuestPdf = async () => {
+    if (!effectiveId) {
+      toast.show("Booking is not ready for a PDF yet", "error");
+      return;
+    }
+    try {
+      setPdfLoading(true);
+      const label = String(b.booking_number || b.bookingNumber || `guest-${effectiveId}`).replace(/\s+/g, "-");
+      await downloadBookingPdf(effectiveId, label);
+      toast.show("Guest PDF ready", "success");
+    } catch (err) {
+      toast.show(err?.message || "Could not download the guest PDF", "error");
+    } finally {
+      setPdfLoading(false);
+    }
   };
 
   const handleOpenWhatsApp = () => {
@@ -380,12 +396,12 @@ export default function GuestDetailPage({
   };
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: embedded ? 2 : 3 }}>
       {/* Top Navigation & Action Header */}
       <Paper
         elevation={0}
         sx={{
-          p: { xs: 2, sm: 2.5 },
+          p: embedded ? 1.25 : { xs: 2, sm: 2.5 },
           borderRadius: "16px",
           bgcolor: themeConfig.bgCard,
           border: `1px solid ${themeConfig.border}`,
@@ -393,12 +409,13 @@ export default function GuestDetailPage({
           flexWrap: "wrap",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: 2,
+          gap: 1.5,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
           <Button
             variant="outlined"
+            size={embedded ? "small" : "medium"}
             onClick={onBack}
             startIcon={<ArrowBack />}
             sx={{
@@ -407,20 +424,25 @@ export default function GuestDetailPage({
               fontWeight: 700,
               color: themeConfig.textMain,
               borderColor: themeConfig.border,
+              flexShrink: 0,
               "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
             }}
           >
-            Back to Guest List
+            {embedded ? "Close" : "Back to Guest List"}
           </Button>
-          <Divider orientation="vertical" flexItem sx={{ display: { xs: "none", sm: "block" } }} />
-          <Box sx={{ display: { xs: "none", sm: "block" } }}>
-            <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-              Hotel Admin / Guest Directory
-            </Typography>
-            <Typography variant="body1" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-              {guestName}
-            </Typography>
-          </Box>
+          {!embedded && (
+            <>
+              <Divider orientation="vertical" flexItem sx={{ display: { xs: "none", sm: "block" } }} />
+              <Box sx={{ display: { xs: "none", sm: "block" }, minWidth: 0 }}>
+                <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+                  Guest Directory
+                </Typography>
+                <Typography variant="body1" noWrap sx={{ fontWeight: 800, color: themeConfig.textMain }}>
+                  {guestName}
+                </Typography>
+              </Box>
+            </>
+          )}
         </Box>
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
@@ -446,8 +468,9 @@ export default function GuestDetailPage({
           <Button
             variant="outlined"
             size="small"
-            startIcon={<Print />}
-            onClick={handlePrint}
+            disabled={pdfLoading}
+            startIcon={pdfLoading ? <CircularProgress size={14} color="inherit" /> : <Print />}
+            onClick={handleGuestPdf}
             sx={{
               borderRadius: "10px",
               textTransform: "none",
@@ -456,7 +479,7 @@ export default function GuestDetailPage({
               borderColor: themeConfig.border,
             }}
           >
-            Print Registration
+            {pdfLoading ? "Preparing..." : "Guest PDF"}
           </Button>
 
           {onRefresh && (
@@ -585,13 +608,14 @@ export default function GuestDetailPage({
               sx={{
                 display: "flex",
                 alignItems: "center",
-                gap: 2,
-                p: 2,
+                gap: { xs: 1.5, sm: 2 },
+                p: { xs: 1.25, sm: 1.5 },
                 borderRadius: "14px",
                 bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
                 border: `1px solid ${themeConfig.border}`,
-                width: { xs: "100%", md: "auto" },
-                justifyContent: { xs: "space-between", md: "flex-end" },
+                width: { xs: "100%", lg: "auto" },
+                justifyContent: "space-between",
+                flexWrap: "wrap",
               }}
             >
               <Box sx={{ textAlign: "center", px: 1 }}>
@@ -633,45 +657,27 @@ export default function GuestDetailPage({
       </Card>
 
       {/* Tabs Bar */}
-      <Paper
-        elevation={0}
+      <Tabs
+        value={activeTab}
+        onChange={(e, val) => setActiveTab(val)}
+        variant="scrollable"
+        scrollButtons="auto"
+        allowScrollButtonsMobile
         sx={{
-          borderRadius: "14px",
-          bgcolor: themeConfig.bgCard,
-          border: `1px solid ${themeConfig.border}`,
+          minHeight: 46,
+          "& .MuiTab-root": {
+            minHeight: 38,
+            minWidth: 0,
+            px: { xs: 1.25, sm: 2 },
+            fontSize: { xs: "0.78rem", sm: "0.85rem" },
+          },
         }}
       >
-        <Tabs
-          value={activeTab}
-          onChange={(e, val) => setActiveTab(val)}
-          variant="scrollable"
-          scrollButtons="auto"
-          sx={{
-            px: 2,
-            minHeight: "48px",
-            "& .MuiTab-root": {
-              textTransform: "none",
-              fontWeight: 800,
-              fontSize: "0.9rem",
-              minHeight: "48px",
-              color: themeConfig.textMuted,
-              "&.Mui-selected": {
-                color: themeConfig.primary,
-              },
-            },
-            "& .MuiTabs-indicator": {
-              bgcolor: themeConfig.primary,
-              height: 3,
-              borderRadius: "3px 3px 0 0",
-            },
-          }}
-        >
           <Tab icon={<HotelIcon fontSize="small" />} iconPosition="start" label="Stay & Room Details" />
           <Tab icon={<Description fontSize="small" />} iconPosition="start" label={`Images (${imageCount})`} />
           <Tab icon={<Receipt fontSize="small" />} iconPosition="start" label="Folio & Billing" />
           <Tab icon={<Payments fontSize="small" />} iconPosition="start" label={`Payment Ledger (${paymentsList.length})`} />
         </Tabs>
-      </Paper>
 
       {/* TAB 0: STAY & ROOM DETAILS */}
       {activeTab === 0 && (
@@ -1105,8 +1111,8 @@ export default function GuestDetailPage({
                 description="No payment transactions have been logged for this reservation yet."
               />
             ) : (
-              <TableContainer>
-                <Table>
+              <TableContainer sx={{ overflowX: "auto", borderRadius: "12px", border: `1px solid ${themeConfig.border}` }}>
+                <Table size="small" sx={{ minWidth: 720 }}>
                   <TableHead>
                     <TableRow>
                       <TableCell sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Date & Time</TableCell>

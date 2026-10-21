@@ -1279,18 +1279,19 @@ export default function HotelOverviewPage({
               border: `1px solid ${themeConfig.border}`,
               boxShadow: "none",
               overflowX: "auto",
-              maxHeight: "420px",
+              overflowY: "auto",
+              maxHeight: { xs: "52vh", md: "420px" },
             }}
           >
             <Table size="small" stickyHeader sx={{ minWidth: 700 }}>
               <TableHead>
-                <TableRow sx={{ bgcolor: themeConfig.champagne }}>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Guest Name</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Room</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Stay Dates</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Balance Dues</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Status</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 800, color: themeConfig.textMain }}>1-Click WhatsApp</TableCell>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, bgcolor: themeConfig.champagne }}>Guest Name</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, bgcolor: themeConfig.champagne }}>Room</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, bgcolor: themeConfig.champagne }}>Stay Dates</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, bgcolor: themeConfig.champagne }}>Balance Dues</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, bgcolor: themeConfig.champagne }}>Status</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 800, color: themeConfig.textMain, bgcolor: themeConfig.champagne }}>1-Click WhatsApp</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>

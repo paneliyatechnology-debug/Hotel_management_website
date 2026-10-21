@@ -336,7 +336,13 @@ function ResetPasswordForm() {
               required
               value={password}
               onChange={(e) => {
-                setPassword(e.target.value);
+                setPassword(e.target.value.trim());
+                if (error) setError("");
+              }}
+              onPaste={(e) => {
+                e.preventDefault();
+                const text = (e.clipboardData || window.clipboardData)?.getData("text") || "";
+                setPassword(text.trim());
                 if (error) setError("");
               }}
               placeholder="Minimum 6 characters"
@@ -367,7 +373,13 @@ function ResetPasswordForm() {
               required
               value={confirmPassword}
               onChange={(e) => {
-                setConfirmPassword(e.target.value);
+                setConfirmPassword(e.target.value.trim());
+                if (error) setError("");
+              }}
+              onPaste={(e) => {
+                e.preventDefault();
+                const text = (e.clipboardData || window.clipboardData)?.getData("text") || "";
+                setConfirmPassword(text.trim());
                 if (error) setError("");
               }}
               placeholder="Re-enter new password"

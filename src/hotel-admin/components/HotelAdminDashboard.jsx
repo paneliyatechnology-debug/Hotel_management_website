@@ -135,7 +135,6 @@ const ConfirmDialog = dynamic(() => import("@/shared/components/ConfirmDialog"))
 
 const HotelOverviewPage = dynamic(() => import("../pages/HotelOverviewPage"), { loading: () => <ComponentSpinner /> });
 const GuestListPage = dynamic(() => import("../pages/GuestListPage"), { loading: () => <ComponentSpinner /> });
-const DailyCollectionsPage = dynamic(() => import("../pages/DailyCollectionsPage"), { loading: () => <ComponentSpinner /> });
 const StaffTeamPage = dynamic(() => import("../pages/StaffTeamPage"), { loading: () => <ComponentSpinner /> });
 const RoomTypesPage = dynamic(() => import("../pages/RoomTypesPage"), { loading: () => <ComponentSpinner /> });
 const SubscriptionPage = dynamic(() => import("../pages/SubscriptionPage"), { loading: () => <ComponentSpinner /> });
@@ -305,26 +304,20 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
           );
         }
-        // Route 2: DAILY COLLECTIONS
+        // Route 2: STAFF TEAM
         else if (tabIndex === 2) {
-          endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
-          );
-        }
-        // Route 3: STAFF TEAM
-        else if (tabIndex === 3) {
           endpointsToFetch.push(reloadStaffList());
         }
-        // Route 4: ROOMS & CATEGORIES MASTER
-        else if (tabIndex === 4) {
+        // Route 3: ROOMS & CATEGORIES
+        else if (tabIndex === 3) {
           endpointsToFetch.push(
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(adaptHotelDashboard(res.data))),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
             apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=100`).then((res) => setRoomTypes(normalizeRoomTypes(res)))
           );
         }
-        // Route 5: SUBSCRIPTION
-        else if (tabIndex === 5) {
+        // Route 4: SUBSCRIPTION
+        else if (tabIndex === 4) {
           endpointsToFetch.push(
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(adaptHotelDashboard(res.data))),
             apiRequest(API_ENDPOINTS.SUBSCRIPTION_PLANS.PUBLIC),
@@ -337,8 +330,8 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
             })
           );
         }
-        // Route 6: SETTINGS
-        else if (tabIndex === 6) {
+        // Route 5: SETTINGS
+        else if (tabIndex === 5) {
           endpointsToFetch.push(
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
           );
@@ -376,7 +369,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
   };
 
   const reloadStaffList = async () => {
-    const res = await apiRequest(`${API_ENDPOINTS.USERS.ALL}?page=1&limit=10`, { forceRefresh: true, skipDeduplication: true });
+    const res = await apiRequest(`${API_ENDPOINTS.USERS.ALL}?page=1&limit=100`, { forceRefresh: true, skipDeduplication: true });
     setStaffList(normalizeStaffList(res));
   };
 
@@ -872,17 +865,8 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         />
       )}
 
-      {/* ROUTE 2: DAILY COLLECTIONS & CASH DRAWER HANDOVER */}
+      {/* ROUTE 2: STAFF TEAM */}
       {activeNav === 2 && (
-        <DailyCollectionsPage
-          user={user}
-          hotelSettings={hotelSettings}
-          onRefreshOverview={fetchAllData}
-        />
-      )}
-
-      {/* ROUTE 3: STAFF TEAM */}
-      {activeNav === 3 && (
         <StaffTeamPage
           staffList={staffList}
           staffSearch={staffSearch}
@@ -901,7 +885,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       )}
 
       {/* ROUTE 4: ROOMS & CATEGORIES MASTER */}
-      {activeNav === 4 && (
+      {activeNav === 3 && (
         <RoomTypesPage
           rooms={rooms}
           roomTypes={roomTypes}
@@ -921,7 +905,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       )}
 
       {/* ROUTE 5: SUBSCRIPTION & 30-DAY TRIAL */}
-      {activeNav === 5 && (
+      {activeNav === 4 && (
         <SubscriptionPage
           user={user}
           subscription={dashboardData?.subscription || user?.hotel?.subscription}
@@ -930,7 +914,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       )}
 
       {/* ROUTE 6: SETTINGS & THEMES */}
-      {activeNav === 6 && (
+      {activeNav === 5 && (
         <SettingsView
           user={{ ...user, hotel: { ...user?.hotel, settings: hotelSettings } }}
           onUpdateHotelSettings={(newSettings) => setHotelSettings(newSettings)}

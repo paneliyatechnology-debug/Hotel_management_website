@@ -8,19 +8,28 @@ import { getCookie, setCookie, clearAuthCookies, getActiveHotelId } from '../sha
 
 export const ENVIRONMENT = "LIVE"; // 👉 Toggle "LOCAL" or "LIVE" here
 
-export const LOCAL_API_URL = "http://localhost:5000";
+const envValue = (name) => {
+  const value = typeof process !== "undefined" ? process.env?.[name] : "";
+  return String(value || "").trim();
+};
+
+export const LOCAL_API_URL = (envValue("NEXT_PUBLIC_LOCAL_API_URL") || "http://localhost:5000").replace(/\/+$/, "");
 export const LIVE_API_URL = (
-  (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_LIVE_API_URL) ||
+  envValue("NEXT_PUBLIC_API_URL") ||
+  envValue("NEXT_PUBLIC_LIVE_API_URL") ||
   "https://hotelmanagementbackendnew-production.up.railway.app"
 ).replace(/\/+$/, "");
 
-export const LOCAL_ADMIN_URL = "http://localhost:3001";
-export const LIVE_ADMIN_URL = "https://hotel-management-admin-livid.vercel.app";
+export const LOCAL_ADMIN_URL = (envValue("NEXT_PUBLIC_LOCAL_ADMIN_URL") || "http://localhost:3001").replace(/\/+$/, "");
+export const LIVE_ADMIN_URL = (envValue("NEXT_PUBLIC_ADMIN_URL") || "https://hotel-management-admin-livid.vercel.app").replace(/\/+$/, "");
 
 export const getApiBaseUrl = () => {
-  if (typeof window !== "undefined") {
-    const override = (localStorage.getItem("API_ENVIRONMENT") || "").trim().toUpperCase();
-    if (override === "LOCAL") return LOCAL_API_URL;
+  const mode = envValue("NEXT_PUBLIC_API_MODE").toUpperCase() || "LIVE";
+  if (mode === "LOCAL") return LOCAL_API_URL;
+  // On localhost the browser call to Railway fails (Failed to fetch).
+  // Use the Next rewrite, which forwards /api to the live Railway server.
+  if (typeof window !== "undefined" && /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname)) {
+    return "";
   }
   return LIVE_API_URL;
 };
@@ -214,6 +223,8 @@ export const API_ENDPOINTS = createCaseFlexibleProxy({
   },
   HOTEL_ADMIN: {
     DASHBOARD: `${API_BASE_URL}/api/v1/dashboard`,
+    SUMMARY: (startDate, endDate) => `${API_BASE_URL}/api/v1/dashboard/summary?start_date=${startDate}&end_date=${endDate}`,
+    TRANSACTIONS: (params) => `${API_BASE_URL}/api/v1/transactions?${params}`,
     ROOM_TYPES: `${API_BASE_URL}/api/v1/room-types`,
     UPDATE_ROOM_TYPE: (id) => `${API_BASE_URL}/api/v1/room-types/${id}`,
     DELETE_ROOM_TYPE: (id) => `${API_BASE_URL}/api/v1/room-types/${id}`,
@@ -919,6 +930,7 @@ function prepareRequestBody(body, endpoint) {
     const checkOutPayload = {
       paid_amount: isNaN(resolvedPaidAmount) ? 0 : resolvedPaidAmount,
       extra_charges_total: Number(parsedBody.extra_charges_total ?? parsedBody.extraChargesTotal ?? parsedBody.extraCharges ?? 0) || 0,
+      discount_amount: Number(parsedBody.discount_amount ?? parsedBody.discountAmount ?? parsedBody.discount ?? 0) || 0,
       late_checkout_charge: Number(parsedBody.late_checkout_charge ?? parsedBody.lateCheckoutFee ?? 0),
       late_checkout_hours: Number(parsedBody.late_checkout_hours ?? parsedBody.lateCheckoutHours ?? 0),
     };
@@ -1278,15 +1290,27 @@ function prepareRequestBody(body, endpoint) {
     delete payload.guest_signature;
     delete payload.guestSignature;
 
-    // Collect all candidate images
+    // Check-in stores the same files in front/back AND images. Send the list once.
+    const listedImages = Array.isArray(payload.images) ? payload.images.filter(Boolean) : [];
+    delete payload.images;
+
     const rawImagesList = [];
-    if (frontImg) rawImagesList.push({ item: frontImg, name: "front_id.png" });
-    if (backImg) rawImagesList.push({ item: backImg, name: "back_id.png" });
-    if (Array.isArray(payload.images)) {
-      payload.images.forEach((img, i) => {
-        if (img) rawImagesList.push({ item: img, name: `id_doc_${i + 1}.png` });
-      });
-      delete payload.images;
+    const seenImages = new Set();
+    const pushImage = (item, name) => {
+      if (!item) return;
+      const key = typeof item === "string"
+        ? item
+        : `${item.name || ""}:${item.size || ""}:${item.lastModified || ""}`;
+      if (seenImages.has(key)) return;
+      seenImages.add(key);
+      rawImagesList.push({ item, name });
+    };
+
+    if (listedImages.length > 0) {
+      listedImages.forEach((img, i) => pushImage(img, `id_doc_${i + 1}.png`));
+    } else {
+      pushImage(frontImg, "front_id.png");
+      pushImage(backImg, "back_id.png");
     }
 
     // Process and append all images as real binary Blobs to formData
@@ -1303,19 +1327,6 @@ function prepareRequestBody(body, endpoint) {
       } else if (typeof item === "string" && item.trim()) {
         formData.append("front_image", item.trim());
       }
-    }
-
-    // Backend validator on POST /api/v1/bookings strictly requires: "At least 2 images are required."
-    const existingImages = formData.getAll("images");
-    if (existingImages.length === 1) {
-      // User uploaded 1 ID document; duplicate as second image so backend validator passes
-      formData.append("images", existingImages[0], "id_doc_2.png");
-    } else if (existingImages.length === 0 && isBookingCreation) {
-      // Fallback 1x1 transparent PNG blobs
-      const dummyB1 = base64ToBlob("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
-      const dummyB2 = base64ToBlob("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
-      formData.append("images", dummyB1, "id_1.png");
-      formData.append("images", dummyB2, "id_2.png");
     }
 
     // Collect all candidate signatures
@@ -1630,6 +1641,44 @@ export function safeJsonStringify(obj, indent) {
   }
 }
 
+async function shrinkBlob(blob) {
+  if (typeof window === "undefined" || typeof document === "undefined") return blob;
+  if (!(blob instanceof Blob) || blob.size < 350000) return blob;
+  try {
+    const bitmap = await createImageBitmap(blob);
+    const maxEdge = 1600;
+    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return blob;
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    if (typeof bitmap.close === "function") bitmap.close();
+    const smaller = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.72));
+    return smaller && smaller.size < blob.size ? smaller : blob;
+  } catch {
+    return blob;
+  }
+}
+
+async function shrinkFormImages(formData) {
+  const next = new FormData();
+  for (const [key, value] of formData.entries()) {
+    if ((key === "images" || key === "signatures") && value instanceof Blob) {
+      const smaller = await shrinkBlob(value);
+      const originalName = value.name || (key === "signatures" ? "signature.jpg" : "id.jpg");
+      const filename = smaller === value ? originalName : originalName.replace(/\.\w+$/, "") + ".jpg";
+      next.append(key, smaller, filename);
+    } else {
+      next.append(key, value);
+    }
+  }
+  return next;
+}
+
 async function executeApiRequest(endpoint, options = {}) {
   const { method = "GET", body, headers = {}, token, ...rest } = options;
   const authToken = token || (typeof window !== "undefined" ? (localStorage.getItem("token") || getCookie("accessToken") || getCookie("token")) : null);
@@ -1736,12 +1785,25 @@ async function executeApiRequest(endpoint, options = {}) {
     const params = new URLSearchParams(queryPart);
     const newParams = new URLSearchParams();
     for (const [key, value] of params.entries()) {
-      newParams.set(toSnakeCase(key), value);
+      const snakeKey = toSnakeCase(key);
+      if (snakeKey === "page") {
+        const pageNumber = parseInt(value, 10);
+        newParams.set("page", String(Number.isFinite(pageNumber) && pageNumber >= 1 ? pageNumber : 1));
+        continue;
+      }
+      if (snakeKey === "limit") {
+        const limitNumber = parseInt(value, 10);
+        const safeLimit = Number.isFinite(limitNumber) ? Math.min(100, Math.max(1, limitNumber)) : 10;
+        newParams.set("limit", String(safeLimit));
+        continue;
+      }
+      newParams.set(snakeKey, value);
     }
     cleanEndpoint = `${pathPart}?${newParams.toString()}`;
   }
 
-  const currentBase = (getApiBaseUrl() || LIVE_API_URL).replace(/\/+$/, "");
+  const resolvedBase = getApiBaseUrl();
+  const currentBase = (resolvedBase === "" ? "" : (resolvedBase || LIVE_API_URL)).replace(/\/+$/, "");
   let fullUrl;
   if (cleanEndpoint.startsWith("http://") || cleanEndpoint.startsWith("https://")) {
     fullUrl = cleanEndpoint
@@ -1750,7 +1812,9 @@ async function executeApiRequest(endpoint, options = {}) {
       .replace(/^https?:\/\/hotelmanagementbackend-dev\.up\.railway\.app/, currentBase)
       .replace(/^https?:\/\/accomplished-smile-dev\.up\.railway\.app/, currentBase);
   } else {
-    fullUrl = `${currentBase}/${cleanEndpoint.replace(/^\/+/, "")}`;
+    fullUrl = currentBase
+      ? `${currentBase}/${cleanEndpoint.replace(/^\/+/, "")}`
+      : `/${cleanEndpoint.replace(/^\/+/, "")}`;
   }
 
   // Safety guard: prevent any stale render or old dev domain from ever being contacted
@@ -1804,16 +1868,27 @@ async function executeApiRequest(endpoint, options = {}) {
     }
   }
 
-  // Candidate URLs: Live URL is primary (direct live request to Railway)
-  const candidateUrls = [fullUrl];
-  if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
-    const relativeUrl = fullUrl.startsWith("http")
-      ? fullUrl.replace(/^(https?:\/\/[^/]+)/, "")
-      : fullUrl;
-    if (relativeUrl && relativeUrl.startsWith("/") && !candidateUrls.includes(relativeUrl)) {
-      candidateUrls.push(relativeUrl);
+  // Localhost browser cannot complete the cross-origin booking upload.
+  // Send it to this Next app; next.config rewrites /api to the live Railway URL.
+  if (
+    typeof window !== "undefined" &&
+    /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname) &&
+    /^https?:\/\//i.test(fullUrl)
+  ) {
+    try {
+      const parsed = new URL(fullUrl);
+      fullUrl = `${parsed.pathname}${parsed.search}`;
+    } catch {
+      // keep the absolute URL
     }
   }
+
+  if (isFormData && config.body instanceof FormData) {
+    config.body = await shrinkFormImages(config.body);
+  }
+
+  // Same-origin on localhost (proxied to Railway). Live URL on the deployed site.
+  const candidateUrls = [fullUrl];
 
   let response;
   let lastError;

@@ -50,6 +50,7 @@ import {
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
+import { folioMoney } from "@/shared/utils/folioMoney";
 import EmptyState from "@/shared/components/EmptyState";
 
 export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, initialFilter = "THIS_WEEK", dashboardData }) {
@@ -73,6 +74,8 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
   // Data & Pagination
   const [loading, setLoading] = useState(true);
   const [revenueData, setRevenueData] = useState(null);
+  const [summary, setSummary] = useState(null);
+  const [txnState, setTxnState] = useState({ rows: [], total: 0 });
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
@@ -154,6 +157,60 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
     fetchRevenueDetails();
   }, [filterType, startDate, endDate, paymentMethod, paymentStatus, page, rowsPerPage]);
 
+  useEffect(() => {
+    const [start, end] = dateWindow();
+    if (!start || !end) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.SUMMARY(start, end), { forceRefresh: true });
+        const payload = res?.data && !Array.isArray(res.data) ? res.data : null;
+        if (!cancelled) setSummary(payload);
+      } catch {
+        if (!cancelled) setSummary(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [filterType, startDate, endDate]);
+
+  useEffect(() => {
+    const [start, end] = dateWindow();
+    if (!start || !end) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const params = new URLSearchParams({
+          start_date: start,
+          end_date: end,
+          page: String(page + 1),
+          limit: String(rowsPerPage),
+        });
+        const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.TRANSACTIONS(params.toString()), { forceRefresh: true });
+        const payload = res?.data && !Array.isArray(res.data) ? res.data : {};
+        const list = Array.isArray(payload.transactions) ? payload.transactions : [];
+        const rows = list.map((txn) => ({
+          id: txn.id,
+          formattedDate: txn.created_at ? new Date(txn.created_at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "",
+          transactionId: txn.id,
+          guestName: txn.primary_guest_name || "Guest",
+          bookingNumber: txn.booking_number || txn.booking_id || "—",
+          roomNumber: "—",
+          description: txn.source || "Payment",
+          paymentMethod: String(txn.payment_method || "CASH").toUpperCase(),
+          amount: Number(txn.amount || 0),
+          tax: 0,
+          total: Number(txn.amount || 0),
+          status: String(txn.status || "PAID").toUpperCase(),
+          receivedBy: txn.received_by?.name || "",
+        }));
+        if (!cancelled) setTxnState({ rows, total: Number(payload.total ?? rows.length) });
+      } catch {
+        if (!cancelled) setTxnState({ rows: [], total: 0 });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [filterType, startDate, endDate, page, rowsPerPage]);
+
   const handleSearchSubmit = (e) => {
     e?.preventDefault?.();
     setPage(0);
@@ -171,53 +228,80 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
   const todayRevenue = Number(dashboardData?.financials?.todayRevenue ?? kpis.today_revenue ?? kpis.todayRevenue ?? 0);
   const monthRevenue = Number(dashboardData?.financials?.monthlyRevenue ?? kpis.month_revenue ?? kpis.monthRevenue ?? 0);
   const weekRevenue = weekly.reduce((sum, day) => sum + Number(day.amount ?? day.revenue ?? 0), 0);
-  const cashTotal = Number(methods.CASH ?? methods.cash ?? dashboardData?.weeklyRevenue?.totalCash ?? 0);
-  const upiTotal = Number(methods.UPI ?? methods.upi ?? dashboardData?.weeklyRevenue?.totalUpi ?? 0);
-  const cardTotal = Number(methods.CARD ?? methods.card ?? 0);
-  const otherTotal = Number(methods.BANK_TRANSFER ?? methods.bankTransfer ?? 0) + Number(methods.ONLINE ?? methods.online ?? 0);
+  const methodsFromSummary = summary?.collection_by_payment_method || summary?.collectionByPaymentMethod || {};
+  const cashTotal = summary
+    ? Number(methodsFromSummary.cash_collected_amount ?? methodsFromSummary.cashCollectedAmount ?? 0)
+    : Number(methods.CASH ?? methods.cash ?? dashboardData?.weeklyRevenue?.totalCash ?? 0);
+  const upiTotal = summary
+    ? Number(methodsFromSummary.upi_collected_amount ?? methodsFromSummary.upiCollectedAmount ?? 0)
+    : Number(methods.UPI ?? methods.upi ?? dashboardData?.weeklyRevenue?.totalUpi ?? 0);
+  const cardTotal = summary
+    ? Number(methodsFromSummary.card_collected_amount ?? methodsFromSummary.cardCollectedAmount ?? 0)
+    : Number(methods.CARD ?? methods.card ?? 0);
+  const otherTotal = summary
+    ? Number(methodsFromSummary.bank_transfer_collected_amount ?? methodsFromSummary.bankTransferCollectedAmount ?? 0)
+      + Number(methodsFromSummary.online_collected_amount ?? methodsFromSummary.onlineCollectedAmount ?? 0)
+    : Number(methods.BANK_TRANSFER ?? methods.bankTransfer ?? 0) + Number(methods.ONLINE ?? methods.online ?? 0);
   const apiTransactions = revenueData?.transactions || [];
   const usingDashboard = !(Number(revenueData?.totalRevenue) > 0 || apiTransactions.length > 0);
   const rangeRevenue = filterType === "TODAY" ? todayRevenue : (filterType === "THIS_MONTH" || filterType === "LAST_MONTH" ? monthRevenue : weekRevenue);
   const [rangeStart, rangeEnd] = dateWindow();
-  const bookingTransactions = bookingRows.map((b) => {
-    const checkIn = toYmd(b.check_in_date || b.checkInDate || b.actual_check_in || b.actualCheckIn);
-    const checkOut = toYmd(b.check_out_date || b.checkOutDate || b.actual_check_out || b.actualCheckOut);
-    const created = toYmd(b.created_at || b.createdAt || b.payment_date || b.paymentDate);
-    const paid = Number(b.paid_amount ?? b.paidAmount ?? b.advance_paid ?? b.advancePaid ?? 0);
-    const base = Number(b.base_amount ?? b.baseAmount ?? 0);
-    const gst = Number(b.gst_amount ?? b.gstAmount ?? b.tax_amount ?? b.taxAmount ?? 0);
-    const total = Number(b.total_amount ?? b.totalAmount ?? b.grand_total ?? b.grandTotal ?? 0) || base + gst || paid;
-    const room = (Array.isArray(b.rooms) && (b.rooms[0]?.room_number || b.rooms[0]?.roomNumber)) || b.room_number || b.roomNumber || "—";
-    const dates = [checkIn, checkOut, created].filter(Boolean);
-    const inRange = !rangeStart || !rangeEnd || dates.some((day) => day >= rangeStart && day <= rangeEnd) || (checkIn && checkOut && checkIn <= rangeEnd && checkOut >= rangeStart);
-    return {
-      id: b.id || b._id || b.booking_number,
-      inRange,
-      formattedDate: checkIn || created || checkOut,
-      transactionId: b.booking_number || b.bookingNumber || b.id || "",
-      guestName: b.primary_guest_name || b.guestName || b.guest?.name || b.guest?.fullName || "Guest",
-      bookingNumber: b.booking_number || b.bookingNumber || "—",
-      roomNumber: room,
-      description: b.room_type_name || b.roomTypeName || "Room booking",
-      paymentMethod: String(b.payment_method || b.paymentMethod || "CASH").toUpperCase(),
-      amount: base || total,
-      tax: gst,
-      total,
-      status: String(b.payment_status || b.paymentStatus || (paid >= total && total > 0 ? "PAID" : b.booking_status || b.status || "PAID")).toUpperCase(),
-    };
-  }).filter((row) => row.inRange);
+  const bookingTransactions = (() => {
+    const mapped = bookingRows.map((b) => {
+      const money = folioMoney(b);
+      const checkIn = toYmd(b.check_in_date || b.checkInDate || b.actual_check_in || b.actualCheckIn);
+      const checkOut = toYmd(b.check_out_date || b.checkOutDate || b.actual_check_out || b.actualCheckOut);
+      const created = toYmd(b.created_at || b.createdAt || b.payment_date || b.paymentDate);
+      const room = (Array.isArray(b.rooms) && (b.rooms[0]?.room_number || b.rooms[0]?.roomNumber)) || b.room_number || b.roomNumber || "—";
+      const dates = [checkIn, checkOut, created].filter(Boolean);
+      const inRange = !rangeStart || !rangeEnd || dates.some((day) => day >= rangeStart && day <= rangeEnd) || (checkIn && checkOut && checkIn <= rangeEnd && checkOut >= rangeStart);
+      return {
+        id: b.id || b._id || b.booking_number,
+        inRange,
+        formattedDate: checkIn || created || checkOut,
+        transactionId: b.booking_number || b.bookingNumber || b.id || "",
+        guestName: b.primary_guest_name || b.guestName || b.guest?.name || b.guest?.fullName || "Guest",
+        bookingNumber: b.booking_number || b.bookingNumber || "—",
+        roomNumber: room,
+        description: b.room_type_name || b.roomTypeName || "Room booking",
+        paymentMethod: String(b.payment_method || b.paymentMethod || "CASH").toUpperCase(),
+        amount: money.base || money.total,
+        tax: money.gst,
+        total: money.total || money.paid,
+        status: String(b.payment_status || b.paymentStatus || b.booking_status || b.status || "PAID").toUpperCase(),
+      };
+    });
+    const inRange = mapped.filter((row) => row.inRange);
+    const source = inRange.length > 0 ? inRange : mapped;
+    return source.filter((row) => {
+      if (paymentMethod !== "ALL" && row.paymentMethod !== paymentMethod) return false;
+      if (paymentStatus !== "ALL" && row.status !== paymentStatus) return false;
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        return [row.guestName, row.transactionId, row.bookingNumber, row.roomNumber].some((value) => String(value || "").toLowerCase().includes(q));
+      }
+      return true;
+    });
+  })();
 
-  const transactions = apiTransactions.length > 0 ? apiTransactions : bookingTransactions;
-  const breakdown = usingDashboard
-    ? { roomBooking: cashTotal, extraServices: upiTotal, foodRestaurant: cardTotal, otherCharges: otherTotal, total: cashTotal + upiTotal + cardTotal + otherTotal }
-    : (revenueData?.revenueBreakdown || { roomBooking: 0, extraServices: 0, foodRestaurant: 0, otherCharges: 0, total: 0 });
-  const sourceLabels = usingDashboard
-    ? ["Cash", "UPI", "Card", "Bank / Online"]
-    : ["Room Bookings", "Extra Services / Beds", "Food / Restaurant", "Other Charges"];
-  const dateRangeLabel = revenueData?.dateRange?.label || (filterType === "TODAY" ? "Today" : filterType === "THIS_MONTH" ? "This Month" : "This Week");
-  const bookedTotal = bookingTransactions.reduce((sum, row) => sum + Number(row.total || 0), 0);
-  const totalRev = apiTransactions.length > 0 ? (revenueData?.totalRevenue || 0) : (bookedTotal || rangeRevenue);
-  const totalTxnCount = apiTransactions.length > 0 ? (revenueData?.totalTransactions || apiTransactions.length) : bookingTransactions.length;
+  const transactions = txnState.rows.length > 0 || txnState.total > 0 ? txnState.rows : (apiTransactions.length > 0 ? apiTransactions : bookingTransactions);
+  const breakdown = {
+    roomBooking: cashTotal,
+    extraServices: upiTotal,
+    foodRestaurant: cardTotal,
+    otherCharges: otherTotal,
+    total: cashTotal + upiTotal + cardTotal + otherTotal,
+  };
+  const sourceLabels = ["Cash", "UPI", "Card", "Bank / Online"];
+  const dateRangeLabel = summary?.period_start_date && summary?.period_end_date
+    ? `${summary.period_start_date} to ${summary.period_end_date}`
+    : (filterType === "TODAY" ? "Today" : filterType === "THIS_MONTH" ? "This Month" : "This Week");
+  const totalRev = summary
+    ? Number(summary.total_collected_amount ?? summary.totalCollectedAmount ?? 0)
+    : (apiTransactions.length > 0 ? (revenueData?.totalRevenue || 0) : rangeRevenue);
+  const totalTxnCount = summary
+    ? Number(summary.total_booking_count ?? summary.totalBookingCount ?? 0)
+    : (apiTransactions.length > 0 ? (revenueData?.totalTransactions || apiTransactions.length) : bookingTransactions.length);
   const avgTicket = totalTxnCount > 0 ? Math.round(totalRev / totalTxnCount) : 0;
   const shareBase = Number(breakdown.total) > 0 ? Number(breakdown.total) : totalRev;
   const sharePercent = (amount) => {
@@ -735,7 +819,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2.5, flexWrap: "wrap", gap: 2 }}>
           <Typography variant="subtitle1" sx={{ fontWeight: 900, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 1 }}>
             <CreditCard sx={{ fontSize: 20, color: themeConfig.primary }} />
-            Transaction Records ({totalTxnCount})
+            Transaction Records ({txnState.total || transactions.length})
           </Typography>
 
           {/* Search and Filters Bar */}
@@ -829,22 +913,15 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
           </Box>
         ) : transactions.length > 0 ? (
           <>
-            <TableContainer sx={{ borderRadius: "14px", border: `1px solid ${themeConfig.border}`, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-              <Table size="small" sx={{ minWidth: 950 }}>
-                <TableHead sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F8FAFC" }}>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.5, whiteSpace: "nowrap" }}>Date</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Transaction ID</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Guest</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Booking ID</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Room</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Description</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Method</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Amount</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Tax</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Total</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Status</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, textAlign: "center", whiteSpace: "nowrap" }}>Action</TableCell>
+            <TableContainer sx={{ borderRadius: "14px", border: `1px solid ${themeConfig.border}`, overflowX: "auto" }}>
+              <Table size="medium" sx={{ minWidth: 720 }}>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F0FDFA" }}>
+                    {["Date", "Guest", "Booking", "Method", "Amount", "Status"].map((heading) => (
+                      <TableCell key={heading} sx={{ fontWeight: 800, fontSize: "0.75rem", letterSpacing: "0.04em", textTransform: "uppercase", color: themeConfig.primaryDark, py: 1.6, whiteSpace: "nowrap", borderBottom: `1px solid ${themeConfig.border}` }}>
+                        {heading}
+                      </TableCell>
+                    ))}
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -854,42 +931,23 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                       <TableRow
                         key={t.id || idx}
                         hover
-                        sx={{
-                          cursor: "pointer",
-                          transition: "background-color 0.15s",
-                          "&:hover": { bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(11, 142, 224, 0.04)" },
-                        }}
+                        sx={{ "& td": { borderBottom: `1px solid ${themeConfig.border}`, py: 1.6 } }}
                       >
-                        <TableCell sx={{ fontWeight: 700, color: themeConfig.textMain, py: 1.5 }}>
+                        <TableCell sx={{ fontWeight: 700, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
                           {t.formattedDate}
                         </TableCell>
-                        <TableCell sx={{ fontWeight: 800, color: themeConfig.primary }}>
-                          <Box
-                            onClick={() => setSelectedTxn(t)}
-                            sx={{
-                              display: "inline-block",
-                              cursor: "pointer",
-                              "&:hover": { textDecoration: "underline" },
-                            }}
-                          >
-                            {t.transactionId}
-                          </Box>
-                        </TableCell>
-                        <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                          {t.guestName}
-                        </TableCell>
-                        <TableCell sx={{ color: themeConfig.textMuted, fontWeight: 700, fontFamily: "monospace" }}>
-                          {t.bookingNumber}
-                        </TableCell>
                         <TableCell>
-                          <Chip
-                            label={t.roomNumber || "N/A"}
-                            size="small"
-                            sx={{ fontWeight: 800, fontSize: "0.75rem", borderRadius: "6px" }}
-                          />
+                          <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.9rem", lineHeight: 1.2 }}>
+                            {t.guestName}
+                          </Typography>
+                          {t.receivedBy ? (
+                            <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 600 }}>
+                              Received by {t.receivedBy}
+                            </Typography>
+                          ) : null}
                         </TableCell>
-                        <TableCell sx={{ color: themeConfig.textMuted, fontSize: "0.82rem", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {t.description}
+                        <TableCell sx={{ fontWeight: 800, color: themeConfig.primary, whiteSpace: "nowrap" }}>
+                          {t.bookingNumber}
                         </TableCell>
                         <TableCell>
                           <Chip
@@ -898,17 +956,15 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                             sx={{
                               fontWeight: 800,
                               fontSize: "0.72rem",
-                              borderRadius: "6px",
+                              borderRadius: "999px",
                               bgcolor: methodStyle.bg,
                               color: methodStyle.color,
                               border: `1px solid ${methodStyle.border}`,
                             }}
                           />
                         </TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>₹{t.amount?.toLocaleString()}</TableCell>
-                        <TableCell sx={{ color: themeConfig.textMuted }}>₹{t.tax?.toLocaleString() || 0}</TableCell>
-                        <TableCell sx={{ fontWeight: 900, color: "#10B981", fontSize: "0.9rem" }}>
-                          ₹{t.total?.toLocaleString()}
+                        <TableCell sx={{ fontWeight: 900, color: "#0F766E", whiteSpace: "nowrap" }}>
+                          ₹{Number(t.amount || 0).toLocaleString("en-IN")}
                         </TableCell>
                         <TableCell>
                           <Chip
@@ -917,27 +973,11 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                             sx={{
                               fontWeight: 800,
                               fontSize: "0.72rem",
-                              borderRadius: "6px",
+                              borderRadius: "999px",
                               bgcolor: t.status === "PAID" ? "rgba(16, 185, 129, 0.12)" : "rgba(245, 158, 11, 0.12)",
                               color: t.status === "PAID" ? "#059669" : "#D97706",
-                              border: `1px solid ${t.status === "PAID" ? "rgba(16, 185, 129, 0.3)" : "rgba(245, 158, 11, 0.3)"}`,
                             }}
                           />
-                        </TableCell>
-                        <TableCell sx={{ textAlign: "center" }}>
-                          <Tooltip title="View & Print Receipt">
-                            <IconButton
-                              size="small"
-                              onClick={() => setSelectedTxn(t)}
-                              sx={{
-                                color: themeConfig.primary,
-                                bgcolor: themeConfig.champagne,
-                                "&:hover": { bgcolor: themeConfig.primary, color: "#FFFFFF" },
-                              }}
-                            >
-                              <Visibility sx={{ fontSize: 16 }} />
-                            </IconButton>
-                          </Tooltip>
                         </TableCell>
                       </TableRow>
                     );
@@ -948,7 +988,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
 
             <TablePagination
               component="div"
-              count={totalTxnCount}
+              count={txnState.total || transactions.length}
               page={page}
               onPageChange={(e, np) => setPage(np)}
               rowsPerPage={rowsPerPage}

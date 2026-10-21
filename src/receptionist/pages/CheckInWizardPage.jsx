@@ -2024,32 +2024,8 @@ export default function CheckInWizardPage({
 
               {/* Adjustments & Inputs */}
               <Grid container spacing={2}>
-                {/* Custom Nightly Rate Override */}
-                <Grid size={{ xs: 12, sm: 4 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    required
-                    autoComplete="off"
-                    label="Rate per night (₹)"
-                    placeholder="Amount per night"
-                    value={checkInData.rate ? checkInData.rate : ""}
-                    error={Boolean(rateError)}
-                    helperText={rateError}
-                    slotProps={{ htmlInput: { inputMode: "numeric" } }}
-                    onChange={(e) => {
-                      const newRate = Number(e.target.value.replace(/\D/g, "").slice(0, 7)) || 0;
-                      setCheckInData({
-                        ...checkInData,
-                        rate: newRate,
-                        isPaidManuallyEdited: false,
-                      });
-                    }}
-                  />
-                </Grid>
-
                 {/* Custom Discount */}
-                <Grid size={{ xs: 12, sm: 4 }}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     size="small"
@@ -2072,7 +2048,7 @@ export default function CheckInWizardPage({
                 </Grid>
 
                 {/* Payment Method */}
-                <Grid size={{ xs: 12, sm: 4 }}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     select
                     fullWidth
@@ -2090,7 +2066,7 @@ export default function CheckInWizardPage({
                 </Grid>
 
                 {/* Advance payment (sent as paid_amount) */}
-                <Grid size={{ xs: 12, sm: 4 }}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     size="small"

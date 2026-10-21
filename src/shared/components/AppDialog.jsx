@@ -10,7 +10,9 @@ export function dialogPaperSx(themeConfig, isDarkMode) {
     border: `1px solid ${themeConfig.border}`,
     bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
     boxShadow: isDarkMode ? "none" : "0 12px 32px rgba(15, 23, 42, 0.12)",
-    overflow: "hidden",
+    overflowX: "hidden",
+    overflowY: "auto",
+    maxHeight: "90vh",
     p: 0,
     backgroundImage: "none",
   };
@@ -75,7 +77,7 @@ export function AppDialogHeader({ eyebrow, title, icon, onClose, closeDisabled =
   const { themeConfig, isDarkMode } = useAppTheme();
 
   return (
-    <DialogTitle component="div" sx={{ p: 0, m: 0, bgcolor: "transparent", borderBottom: "none" }}>
+    <DialogTitle component="div" sx={{ p: 0, m: 0, flexShrink: 0, bgcolor: "transparent", borderBottom: "none" }}>
       <Box
         sx={{
           px: 2.5,
@@ -108,11 +110,11 @@ export function AppDialogHeader({ eyebrow, title, icon, onClose, closeDisabled =
           ) : null}
           <Box sx={{ minWidth: 0 }}>
             {eyebrow ? (
-              <Typography sx={{ color: themeConfig.primary, fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+              <Typography sx={{ color: themeConfig.primary, fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", wordBreak: "break-all" }}>
                 {eyebrow}
               </Typography>
             ) : null}
-            <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "1.05rem", lineHeight: 1.3 }}>
+            <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "1.05rem", lineHeight: 1.3, wordBreak: "break-word" }}>
               {title}
             </Typography>
           </Box>

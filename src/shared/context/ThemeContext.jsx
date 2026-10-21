@@ -428,7 +428,9 @@ export function buildMuiTheme(themeConfig, mode = "light") {
         styleOverrides: {
           paper: {
             borderRadius: 16,
-            overflow: "hidden",
+            overflowX: "hidden",
+            overflowY: "auto",
+            maxHeight: "90vh",
             backgroundImage: "none",
             backgroundColor: themeConfig.bgCard || (isDark ? "#0E312C" : "#FFFFFF"),
             boxShadow: isDark ? "none" : "0 12px 32px rgba(15, 23, 42, 0.12)",
@@ -453,6 +455,7 @@ export function buildMuiTheme(themeConfig, mode = "light") {
         styleOverrides: {
           root: {
             padding: "24px",
+            overflowY: "auto",
             // MUI removes the top padding when content follows a title; keep breathing room under the header
             "&&": {
               paddingTop: 24,

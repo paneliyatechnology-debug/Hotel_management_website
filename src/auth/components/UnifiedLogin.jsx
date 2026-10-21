@@ -31,6 +31,12 @@ import { AppDialogHeader, AppDialogFooter, dialogCancelButtonSx, dialogPrimaryBu
 import { toast } from "@/shared/utils/toast";
 import { setAuthCookies, clearAuthCookies } from "@/shared/utils/cookieAuth";
 
+function withoutSpaces(value) {
+  return String(value ?? "")
+    .replace(/[\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\s+/g, "");
+}
+
 export default function UnifiedLogin({ onLoginSuccess }) {
   const { themeConfig, isDarkMode } = useAppTheme();
   const [email, setEmail] = useState("");
@@ -138,7 +144,10 @@ export default function UnifiedLogin({ onLoginSuccess }) {
     setError("");
     setLoginSuccessMsg("");
 
-    if (!email || !password) {
+    const cleanEmail = (email || "").trim();
+    const cleanPassword = (password || "").trim();
+
+    if (!cleanEmail || !cleanPassword) {
       setError("Please enter both email and password.");
       return;
     }
@@ -148,7 +157,7 @@ export default function UnifiedLogin({ onLoginSuccess }) {
     try {
       const res = await apiRequest(API_ENDPOINTS.AUTH.LOGIN, {
         method: "POST",
-        body: { email, password },
+        body: { email: cleanEmail, password: cleanPassword },
       });
 
       if (res.success && res.data) {
@@ -224,8 +233,9 @@ export default function UnifiedLogin({ onLoginSuccess }) {
 
       const msg = res?.message || "A password reset link has been sent to your email. Please check your inbox or spam folder.";
       toast.success(msg);
-      setForgotMsg(msg);
+      setForgotOpen(false);
       setForgotError("");
+      setForgotEmail("");
     } catch (err) {
       toast.error(err.message || "Could not process password reset request.");
       setForgotError(err.message || "Could not process password reset request.");
@@ -328,12 +338,15 @@ export default function UnifiedLogin({ onLoginSuccess }) {
   const handleChangePassword = async () => {
     setChangeError("");
 
-    if (!newPassword || newPassword.length < 6) {
+    const cleanNewPass = (newPassword || "").trim();
+    const cleanConfirmPass = (confirmPassword || "").trim();
+
+    if (!cleanNewPass || cleanNewPass.length < 6) {
       setChangeError("New password must be at least 6 characters long.");
       return;
     }
 
-    if (newPassword !== confirmPassword) {
+    if (cleanNewPass !== cleanConfirmPass) {
       setChangeError("Passwords do not match.");
       return;
     }
@@ -344,8 +357,8 @@ export default function UnifiedLogin({ onLoginSuccess }) {
       await apiRequest(API_ENDPOINTS.AUTH.CHANGE_PASSWORD, {
         method: "PUT",
         body: {
-          currentPassword: password,
-          newPassword,
+          currentPassword: (password || "").trim(),
+          newPassword: cleanNewPass,
         },
       });
 
@@ -429,10 +442,15 @@ export default function UnifiedLogin({ onLoginSuccess }) {
               fullWidth
               required
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => setEmail(withoutSpaces(e.target.value))}
               sx={{ mb: 2.5 }}
               slotProps={{
                 input: {
+                  onPaste: (e) => {
+                    e.preventDefault();
+                    const text = e.clipboardData?.getData("text") || "";
+                    setEmail(withoutSpaces(text));
+                  },
                   startAdornment: (
                     <InputAdornment position="start">
                       <EmailIcon sx={{ color: "#94a3b8", fontSize: 20 }} />
@@ -449,10 +467,15 @@ export default function UnifiedLogin({ onLoginSuccess }) {
               fullWidth
               required
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => setPassword(withoutSpaces(e.target.value))}
               sx={{ mb: 1.5 }}
               slotProps={{
                 input: {
+                  onPaste: (e) => {
+                    e.preventDefault();
+                    const text = e.clipboardData?.getData("text") || "";
+                    setPassword(withoutSpaces(text));
+                  },
                   startAdornment: (
                     <InputAdornment position="start">
                       <LockIcon sx={{ color: "#94a3b8", fontSize: 20 }} />
@@ -524,45 +547,17 @@ export default function UnifiedLogin({ onLoginSuccess }) {
         />
         <DialogContent>
           <Box sx={{ mt: 0.5 }}>
-            {forgotMsg ? (
-              <Box sx={{ py: 1 }}>
-                <Alert severity="success" sx={{ mb: 2.5, borderRadius: "12px", fontWeight: 700 }}>
-                  {forgotMsg}
-                </Alert>
-                <Typography variant="body2" sx={{ color: themeConfig.textMuted, mb: 2, fontSize: "0.85rem" }}>
-                  Please check your inbox or spam folder for the link. Once you have the token, you can set your new password directly:
-                </Typography>
-                <Button
-                  component="a"
-                  href="/reset-password"
-                  variant="contained"
-                  fullWidth
-                  sx={{
-                    bgcolor: themeConfig.primary,
-                    "&:hover": { bgcolor: themeConfig.primaryDark },
-                    fontWeight: 800,
-                    textTransform: "none",
-                    py: 1.2,
-                    borderRadius: "10px",
-                    mb: 1,
-                  }}
-                >
-                  Enter Reset Token & Set Password
-                </Button>
-              </Box>
-            ) : (
-              <>
-                <Typography variant="body2" sx={{ color: themeConfig.textMuted, mb: 2 }}>
-                  Enter your registered email address. We will send a password reset link directly to your email inbox.
-                </Typography>
+            <Typography variant="body2" sx={{ color: themeConfig.textMuted, mb: 2 }}>
+              Enter your registered email address. We will send a password reset link directly to your email inbox.
+            </Typography>
 
-                {forgotError && (
-                  <Alert severity="error" sx={{ mb: 2 }}>
-                    {forgotError}
-                  </Alert>
-                )}
+            {forgotError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {forgotError}
+              </Alert>
+            )}
 
-                <TextField
+            <TextField
                   autoFocus
                   label="Registered Email Address"
                   type="email"
@@ -570,12 +565,18 @@ export default function UnifiedLogin({ onLoginSuccess }) {
                   required
                   value={forgotEmail}
                   onChange={(e) => {
-                    setForgotEmail(e.target.value);
+                    setForgotEmail(withoutSpaces(e.target.value));
                     if (forgotError) setForgotError("");
                   }}
                   placeholder="e.g. admin@grandroyale.com"
                   slotProps={{
                     input: {
+                      onPaste: (e) => {
+                        e.preventDefault();
+                        const text = e.clipboardData?.getData("text") || "";
+                        setForgotEmail(withoutSpaces(text));
+                        if (forgotError) setForgotError("");
+                      },
                       startAdornment: (
                         <InputAdornment position="start">
                           <EmailIcon sx={{ color: "#94a3b8", fontSize: 20 }} />
@@ -584,19 +585,6 @@ export default function UnifiedLogin({ onLoginSuccess }) {
                     },
                   }}
                 />
-
-                <Box sx={{ mt: 2, textAlign: "center" }}>
-                  <Button
-                    component="a"
-                    href="/reset-password"
-                    size="small"
-                    sx={{ color: themeConfig.primary, fontSize: "0.78rem", textTransform: "none", fontWeight: 700 }}
-                  >
-                    Already have a reset token? Click here
-                  </Button>
-                </Box>
-              </>
-            )}
           </Box>
         </DialogContent>
         <AppDialogFooter>
@@ -610,13 +598,11 @@ export default function UnifiedLogin({ onLoginSuccess }) {
             variant="outlined"
             sx={dialogCancelButtonSx(themeConfig, isDarkMode)}
           >
-            {forgotMsg ? "Close" : "Cancel"}
+            Cancel
           </Button>
-          {!forgotMsg && (
-            <Button onClick={handleSendOtp} variant="contained" disabled={forgotLoading} sx={dialogPrimaryButtonSx(themeConfig)}>
+          <Button onClick={handleSendOtp} variant="contained" disabled={forgotLoading} sx={dialogPrimaryButtonSx(themeConfig)}>
               {forgotLoading ? <CircularProgress size={20} color="inherit" /> : "Send reset link"}
             </Button>
-          )}
         </AppDialogFooter>
       </Dialog>
 
@@ -653,10 +639,15 @@ export default function UnifiedLogin({ onLoginSuccess }) {
             type={showNewPassword ? "text" : "password"}
             fullWidth
             value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
+            onChange={(e) => setNewPassword(withoutSpaces(e.target.value))}
             sx={{ mb: 2 }}
             slotProps={{
               input: {
+                onPaste: (e) => {
+                  e.preventDefault();
+                  const text = e.clipboardData?.getData("text") || "";
+                  setNewPassword(withoutSpaces(text));
+                },
                 startAdornment: (
                   <InputAdornment position="start">
                     <LockIcon sx={{ color: "#94a3b8", fontSize: 20 }} />
@@ -678,9 +669,14 @@ export default function UnifiedLogin({ onLoginSuccess }) {
             type={showConfirmPassword ? "text" : "password"}
             fullWidth
             value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
+            onChange={(e) => setConfirmPassword(withoutSpaces(e.target.value))}
             slotProps={{
               input: {
+                onPaste: (e) => {
+                  e.preventDefault();
+                  const text = e.clipboardData?.getData("text") || "";
+                  setConfirmPassword(withoutSpaces(text));
+                },
                 startAdornment: (
                   <InputAdornment position="start">
                     <LockIcon sx={{ color: "#94a3b8", fontSize: 20 }} />

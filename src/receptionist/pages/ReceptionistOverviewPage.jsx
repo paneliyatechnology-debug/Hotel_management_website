@@ -110,7 +110,7 @@ export default function ReceptionistOverviewPage({
   const [guestPage, setGuestPage] = useState(0);
   const [guestRowsPerPage, setGuestRowsPerPage] = useState(5);
   // Filter for Recent Front Desk Table: "TODAY_ALL" (Default: In & Out) | "TODAY_CHECKIN" | "TODAY_CHECKOUT" | "IN_HOUSE" | "ALL"
-  const [recentFilter, setRecentFilter] = useState("TODAY_ALL");
+  const [recentFilter, setRecentFilter] = useState("ALL");
 
   const apiDateLabel = (value) => {
     if (!value) return "—";
@@ -808,11 +808,14 @@ export default function ReceptionistOverviewPage({
       return [...inHouseFromBookings, ...extraInHouse];
     }
 
-    if (recentFilter === "TODAY_CHECKIN") {
-      return allFormattedBookings.filter((b) => isTodayDate(b.checkInDateRaw) || isTodayDate(b.checkInDate));
+    if (recentFilter === "CHECK_IN") {
+      return allFormattedBookings.filter((b) => b.status === "IN-HOUSE" || b.rawStatus === "CHECKED_IN" || b.status === "CHECKED_IN");
     }
 
-    // "ALL"
+    if (recentFilter === "CHECK_OUT") {
+      return allFormattedBookings.filter((b) => b.status === "DEPARTED" || b.rawStatus === "CHECKED_OUT" || b.status === "CHECKED_OUT");
+    }
+
     return allFormattedBookings;
   }, [allFormattedBookings, inHouseGuestsList, recentFilter]);
 
@@ -931,7 +934,7 @@ export default function ReceptionistOverviewPage({
             <Button
               variant="contained"
               startIcon={<Bolt />}
-              onClick={() => onNavigateTab && onNavigateTab(2)}
+              onClick={() => onNavigateTab && onNavigateTab(1)}
               className="btn-3d"
               sx={{
                 background: "linear-gradient(135deg, #FFFFFF 0%, #E6EFF8 100%)",
@@ -1021,7 +1024,7 @@ export default function ReceptionistOverviewPage({
             sm: "repeat(2, 1fr)",
             md: "repeat(3, 1fr)",
             lg: "repeat(auto-fit, minmax(210px, 1fr))",
-            xl: "repeat(5, 1fr)",
+            xl: "repeat(4, 1fr)",
           },
           gap: 2,
           mb: 4,
@@ -1079,19 +1082,6 @@ export default function ReceptionistOverviewPage({
             setTelemetryModal({ open: true, type: "MAINTENANCE" });
           }}
         />
-
-        <StatCard
-          title="Total Guests"
-          value={totalGuestsCount}
-          subtitle={`${inHouseGuestsCount} In-House • ${totalGuestsCount} Registered`}
-          icon={<People />}
-          color="#8E24AA"
-          badgeText={totalGuestsCount > 0 ? `${totalGuestsCount} Guests` : "Guests"}
-          onClick={() => {
-            setTelemetrySearch("");
-            setTelemetryModal({ open: true, type: "TOTAL_GUESTS" });
-          }}
-        />
       </Box>
 
       {/* ========================================================================= */}
@@ -1122,7 +1112,7 @@ export default function ReceptionistOverviewPage({
             <Button
               variant="outlined"
               endIcon={<ArrowForward />}
-              onClick={() => onNavigateTab && onNavigateTab(2)}
+              onClick={() => onNavigateTab && onNavigateTab(1)}
               sx={{
                 borderRadius: "12px",
                 fontWeight: 800,
@@ -1318,32 +1308,21 @@ export default function ReceptionistOverviewPage({
               </Avatar>
               <div>
                 <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: { xs: "0.95rem", sm: "1.05rem" }, lineHeight: 1.3 }}>
-                  Recent Front Desk Check-Ins & In-House Folios
-                </Typography>
-                <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: { xs: "0.75rem", sm: "0.8rem" } }}>
-                  Live guest registry, allocated room numbers & stay status
+                  Check-ins
                 </Typography>
               </div>
             </Box>
 
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, flexWrap: "wrap", width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "flex-start", sm: "flex-end" } }}>
-              {/* Quick Filter Pill Group */}
-              <Box
-                sx={{
-                  display: "inline-flex",
-                  p: 0.5,
-                  bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9",
-                  borderRadius: "12px",
-                  border: `1px solid ${themeConfig.border}`,
-                  gap: 0.5,
-                }}
-              >
+            <Box sx={{ display: "inline-flex", p: 0.5, bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9", borderRadius: "12px", border: `1px solid ${themeConfig.border}`, gap: 0.5, flexWrap: "wrap" }}>
+              {[
+                { id: "ALL", label: `All (${countAll})` },
+                { id: "CHECK_IN", label: `Check-in (${allFormattedBookings.filter((b) => b.status === "IN-HOUSE" || b.rawStatus === "CHECKED_IN" || b.status === "CHECKED_IN").length})` },
+                { id: "CHECK_OUT", label: `Check-out (${allFormattedBookings.filter((b) => b.status === "DEPARTED" || b.rawStatus === "CHECKED_OUT" || b.status === "CHECKED_OUT").length})` },
+              ].map((item) => (
                 <Button
+                  key={item.id}
                   size="small"
-                  onClick={() => {
-                    setRecentFilter("TODAY_ALL");
-                    setGuestPage(0);
-                  }}
+                  onClick={() => { setRecentFilter(item.id); setGuestPage(0); }}
                   sx={{
                     fontWeight: 800,
                     fontSize: "0.75rem",
@@ -1351,74 +1330,13 @@ export default function ReceptionistOverviewPage({
                     px: 1.4,
                     py: 0.35,
                     textTransform: "none",
-                    bgcolor: recentFilter === "TODAY_ALL" ? `${themeConfig.primary} !important` : "transparent",
-                    color: recentFilter === "TODAY_ALL" ? "#FFFFFF !important" : themeConfig.textMuted,
-                    boxShadow: recentFilter === "TODAY_ALL" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
-                    "&:hover": { bgcolor: recentFilter === "TODAY_ALL" ? themeConfig.primary : "rgba(0,0,0,0.04)" },
+                    bgcolor: recentFilter === item.id ? `${themeConfig.primary} !important` : "transparent",
+                    color: recentFilter === item.id ? "#FFFFFF !important" : themeConfig.textMuted,
                   }}
                 >
-                  Today & In-House ({countTodayAll})
+                  {item.label}
                 </Button>
-                <Button
-                  size="small"
-                  onClick={() => {
-                    setRecentFilter("IN_HOUSE");
-                    setGuestPage(0);
-                  }}
-                  sx={{
-                    fontWeight: 800,
-                    fontSize: "0.75rem",
-                    borderRadius: "9px",
-                    px: 1.4,
-                    py: 0.35,
-                    textTransform: "none",
-                    bgcolor: recentFilter === "IN_HOUSE" ? `${themeConfig.primary} !important` : "transparent",
-                    color: recentFilter === "IN_HOUSE" ? "#FFFFFF !important" : themeConfig.textMuted,
-                    boxShadow: recentFilter === "IN_HOUSE" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
-                    "&:hover": { bgcolor: recentFilter === "IN_HOUSE" ? themeConfig.primary : "rgba(0,0,0,0.04)" },
-                  }}
-                >
-                  Active In-House ({countInHouse})
-                </Button>
-                <Button
-                  size="small"
-                  onClick={() => {
-                    setRecentFilter("ALL");
-                    setGuestPage(0);
-                  }}
-                  sx={{
-                    fontWeight: 800,
-                    fontSize: "0.75rem",
-                    borderRadius: "9px",
-                    px: 1.4,
-                    py: 0.35,
-                    textTransform: "none",
-                    bgcolor: recentFilter === "ALL" ? `${themeConfig.primary} !important` : "transparent",
-                    color: recentFilter === "ALL" ? "#FFFFFF !important" : themeConfig.textMuted,
-                    boxShadow: recentFilter === "ALL" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
-                    "&:hover": { bgcolor: recentFilter === "ALL" ? themeConfig.primary : "rgba(0,0,0,0.04)" },
-                  }}
-                >
-                  All ({countAll})
-                </Button>
-              </Box>
-
-              <Button
-                size="small"
-                endIcon={<ArrowForward fontSize="small" />}
-                onClick={() => onNavigateTab && onNavigateTab(3)}
-                sx={{
-                  fontWeight: 800,
-                  fontSize: "0.8rem",
-                  borderRadius: "10px",
-                  color: themeConfig.primaryDark,
-                  width: { xs: "100%", sm: "auto" },
-                  whiteSpace: "nowrap",
-                  "&:hover": { bgcolor: themeConfig.champagne },
-                }}
-              >
-                View In-House Folios
-              </Button>
+              ))}
             </Box>
           </Box>
 

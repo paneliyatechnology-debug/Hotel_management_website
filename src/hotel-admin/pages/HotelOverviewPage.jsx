@@ -36,7 +36,6 @@ import {
   TrendingUp,
   Person,
   CheckCircle,
-  Refresh,
   CleaningServices,
   Build,
   CurrencyRupee,
@@ -775,33 +774,6 @@ export default function HotelOverviewPage({
                 {liveClockString}
               </Typography>
             </Box>
-
-            <Button
-              variant="contained"
-              startIcon={<Refresh />}
-              onClick={onRefresh}
-              className="btn-3d"
-              sx={{
-                width: { xs: "100%", sm: "auto" },
-                justifyContent: "center",
-                whiteSpace: "nowrap",
-                borderRadius: "14px",
-                bgcolor: isDarkMode ? "rgba(255,255,255,0.12)" : "#FFFFFF",
-                color: isDarkMode ? "#FFFFFF" : (themeConfig.primaryDark || "#0C273B"),
-                fontWeight: 800,
-                fontSize: { xs: "0.78rem", sm: "0.82rem" },
-                px: { xs: 2, sm: 2.5 },
-                py: 1,
-                border: isDarkMode ? `1px solid ${themeConfig.border}` : "none",
-                boxShadow: "0 6px 16px rgba(0,0,0,0.15)",
-                "&:hover": {
-                  bgcolor: isDarkMode ? "rgba(255,255,255,0.2)" : "#F8FAFC",
-                  transform: "translateY(-2px)",
-                },
-              }}
-            >
-              Sync Live Status
-            </Button>
           </Box>
         </Box>
       </Box>
@@ -1235,22 +1207,8 @@ export default function HotelOverviewPage({
           background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #F9FBFC 100%)",
         }}
       >
-        <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-          <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, justifyContent: "space-between", alignItems: { xs: "flex-start", sm: "center" }, gap: 1.5, mb: 2.5 }}>
-            <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.2 }}>
-              <Avatar sx={{ bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, width: { xs: 26, sm: 32 }, height: { xs: 26, sm: 32 }, borderRadius: "8px", mt: 0.2 }}>
-                <People sx={{ fontSize: { xs: 15, sm: 18 } }} />
-              </Avatar>
-              <Box>
-                <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: { xs: "0.82rem", sm: "0.98rem", md: "1.05rem" }, letterSpacing: -0.2, lineHeight: 1.25 }}>
-                  Active In-House Guests &amp; Direct WhatsApp Folio
-                </Typography>
-                <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: { xs: "0.7rem", sm: "0.8rem" }, display: "block", mt: 0.3, lineHeight: 1.25 }}>
-                  Live billing balances, stay timelines, and 1-click WhatsApp tax invoice
-                </Typography>
-              </Box>
-            </Box>
-
+        <CardContent sx={{ p: 0, "&:last-child": { pb: 0 } }}>
+          <Box sx={{ px: { xs: 2, sm: 2.5 }, py: 2, display: "flex", justifyContent: "flex-end", alignItems: "center", borderBottom: `1px solid ${themeConfig.border}` }}>
             <Button
               variant="outlined"
               size="small"
@@ -1286,12 +1244,12 @@ export default function HotelOverviewPage({
             <Table size="small" stickyHeader sx={{ minWidth: 700 }}>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, bgcolor: themeConfig.champagne }}>Guest Name</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, bgcolor: themeConfig.champagne }}>Room</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, bgcolor: themeConfig.champagne }}>Stay Dates</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, bgcolor: themeConfig.champagne }}>Balance Dues</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, bgcolor: themeConfig.champagne }}>Status</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 800, color: themeConfig.textMain, bgcolor: themeConfig.champagne }}>1-Click WhatsApp</TableCell>
+                  <TableCell>Guest Name</TableCell>
+                  <TableCell>Room</TableCell>
+                  <TableCell>Stay Dates</TableCell>
+                  <TableCell>Balance Dues</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell align="right">WhatsApp</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -1375,24 +1333,21 @@ export default function HotelOverviewPage({
                 )}
               </TableBody>
             </Table>
+            {activeRecentGuests.length > 0 && (
+              <TablePagination
+                rowsPerPageOptions={[5, 10, 25]}
+                component="div"
+                count={activeRecentGuests.length}
+                rowsPerPage={guestRowsPerPage}
+                page={guestPage}
+                onPageChange={(e, newPage) => setGuestPage(newPage)}
+                onRowsPerPageChange={(e) => {
+                  setGuestRowsPerPage(parseInt(e.target.value, 10));
+                  setGuestPage(0);
+                }}
+              />
+            )}
           </TableContainer>
-
-          {/* Table Pagination */}
-          {activeRecentGuests.length > 0 && (
-            <TablePagination
-              rowsPerPageOptions={[5, 10, 25]}
-              component="div"
-              count={activeRecentGuests.length}
-              rowsPerPage={guestRowsPerPage}
-              page={guestPage}
-              onPageChange={(e, newPage) => setGuestPage(newPage)}
-              onRowsPerPageChange={(e) => {
-                setGuestRowsPerPage(parseInt(e.target.value, 10));
-                setGuestPage(0);
-              }}
-              sx={{ borderTop: `1px solid ${themeConfig.border}`, mt: 1 }}
-            />
-          )}
         </CardContent>
       </Card>
 

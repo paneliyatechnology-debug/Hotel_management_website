@@ -41,7 +41,6 @@ import {
   Payments,
   Print,
   Download,
-  Refresh,
   Add,
   Schedule,
   TrendingUp,
@@ -379,10 +378,7 @@ export default function PaymentLedgerView({
       >
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5 }}>
-            Payment Collections &amp; Cash Drawer Ledger
-          </Typography>
-          <Typography variant="body2" sx={{ color: themeConfig.textMuted }}>
-            Real-time multi-mode billing telemetry &bull; UPI QR, Cash Counter, Card POS &amp; NEFT Bank Transfers
+            Payments
           </Typography>
         </Box>
 
@@ -755,21 +751,6 @@ export default function PaymentLedgerView({
                 <MenuItem value="this_month">This Month</MenuItem>
               </Select>
             </FormControl>
-
-            <Tooltip title="Refresh Payment Ledger">
-              <IconButton
-                onClick={fetchPayments}
-                sx={{
-                  bgcolor: themeConfig.champagne,
-                  borderRadius: "12px",
-                  p: 1.1,
-                  border: `1px solid ${themeConfig.border}`,
-                  "&:hover": { bgcolor: themeConfig.border },
-                }}
-              >
-                <Refresh sx={{ color: themeConfig.textMain }} />
-              </IconButton>
-            </Tooltip>
           </Box>
         </Box>
       </Card>
@@ -785,17 +766,6 @@ export default function PaymentLedgerView({
           overflow: "hidden",
         }}
       >
-        <Box sx={{ p: 2.5, display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${themeConfig.border}` }}>
-          <div>
-            <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-              Audited Collections Ledger ({payments.length})
-            </Typography>
-            <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-              Chronological financial records stamped with staff identity & GST compliance
-            </Typography>
-          </div>
-        </Box>
-
         {loading ? (
           <Box sx={{ py: 8, display: "flex", justifyContent: "center", alignItems: "center" }}>
             <CircularProgress sx={{ color: themeConfig.primary }} />
@@ -817,7 +787,7 @@ export default function PaymentLedgerView({
             }}
           >
             <Table size="small" sx={{ minWidth: 900 }}>
-              <TableHead sx={{ bgcolor: themeConfig.champagne }}>
+              <TableHead>
                 <TableRow>
                   <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.2, whiteSpace: "nowrap" }}>Receipt &amp; Time</TableCell>
                   <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.2, whiteSpace: "nowrap" }}>Guest &amp; Room</TableCell>

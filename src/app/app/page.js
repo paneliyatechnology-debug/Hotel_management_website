@@ -212,7 +212,7 @@ function HotelWebAppContent() {
       return ["overview", "guests", "staff", "rooms", "subscriptions", "settings"];
     }
     if (effectiveRole === "RECEPTIONIST") {
-      return ["dashboard", "rooms", "folios", "guests", "more"];
+      return ["dashboard", "rooms", "guests", "more"];
     }
     return [];
   };
@@ -238,9 +238,9 @@ function HotelWebAppContent() {
       if (effectiveRole === "RECEPTIONIST") {
         if (cleanPath === "dashboard" || cleanPath === "overview") return 0;
         if (cleanPath === "rooms" || cleanPath === "checkin" || cleanPath === "check-in" || cleanPath === "booking") return 1;
-        if (cleanPath === "folios" || cleanPath === "in-house" || cleanPath === "inhouse") return 2;
-        if (cleanPath === "guests" || cleanPath === "guest" || cleanPath === "directory") return 3;
-        if (cleanPath === "more" || cleanPath === "settings" || cleanPath === "operations") return 4;
+        if (cleanPath === "folios" || cleanPath === "in-house" || cleanPath === "inhouse") return 0;
+        if (cleanPath === "guests" || cleanPath === "guest" || cleanPath === "directory") return 2;
+        if (cleanPath === "more" || cleanPath === "settings" || cleanPath === "operations") return 3;
       }
       if (effectiveRole === "HOTEL_ADMIN") {
         if (cleanPath === "guests" || cleanPath === "guest" || cleanPath === "directory") return 1;

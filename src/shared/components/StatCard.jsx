@@ -15,6 +15,7 @@ export default function StatCard({
   badgeText,
   onClick,
   hideFooter = false,
+  compact = false,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
   const cardColor = color || themeConfig.primary;
@@ -23,9 +24,9 @@ export default function StatCard({
     <Card
       onClick={onClick}
       sx={{
-        borderRadius: "22px",
+        borderRadius: compact ? "16px" : "22px",
         height: "100%",
-        minHeight: hideFooter ? 0 : 180,
+        minHeight: compact || hideFooter ? 0 : 180,
         display: "flex",
         flexDirection: "column",
         cursor: onClick ? "pointer" : "default",
@@ -61,8 +62,8 @@ export default function StatCard({
     >
       <CardContent
         sx={{
-          p: { xs: 2, sm: 2.2 },
-          "&:last-child": { pb: { xs: 2, sm: 2.2 } },
+          p: compact ? 1.25 : { xs: 2, sm: 2.2 },
+          "&:last-child": { pb: compact ? 1.25 : { xs: 2, sm: 2.2 } },
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
@@ -78,7 +79,7 @@ export default function StatCard({
               display: "flex",
               justifyContent: "space-between",
               alignItems: "flex-start",
-              minHeight: 40,
+              minHeight: compact ? 0 : 40,
               gap: 1,
             }}
           >
@@ -90,11 +91,12 @@ export default function StatCard({
                 textTransform: "uppercase",
                 color: themeConfig.textMuted,
                 letterSpacing: 0.6,
-                fontSize: "0.72rem",
-                lineHeight: 1.25,
-                height: 36,
-                display: "-webkit-box",
-                WebkitLineClamp: 2,
+                fontSize: compact ? "0.68rem" : "0.72rem",
+                lineHeight: 1.2,
+                height: compact ? "auto" : 36,
+                display: compact ? "block" : "-webkit-box",
+                WebkitLineClamp: compact ? 1 : 2,
+                whiteSpace: compact ? "nowrap" : "normal",
                 WebkitBoxOrient: "vertical",
                 overflow: "hidden",
                 flex: 1,
@@ -106,9 +108,9 @@ export default function StatCard({
             {/* 3D Icon Medallion */}
             <Box
               sx={{
-                width: 38,
-                height: 38,
-                minWidth: 38,
+                width: compact ? 30 : 38,
+                height: compact ? 30 : 38,
+                minWidth: compact ? 30 : 38,
                 borderRadius: "12px",
                 background: isDarkMode
                   ? `linear-gradient(135deg, rgba(255,255,255,0.06) 0%, ${themeConfig.champagne} 100%)`
@@ -123,7 +125,7 @@ export default function StatCard({
                   : `0 4px 12px -2px ${cardColor}25, inset 0 1px 1px #FFFFFF`,
                 flexShrink: 0,
                 "& svg": {
-                  fontSize: 20,
+                  fontSize: compact ? 16 : 20,
                 },
               }}
             >
@@ -137,10 +139,10 @@ export default function StatCard({
             sx={{
               fontWeight: 900,
               color: cardColor || themeConfig.textMain,
-              height: 42,
+              height: compact ? 28 : 42,
               display: "flex",
               alignItems: "center",
-              fontSize: { xs: "1.75rem", sm: "1.95rem" },
+              fontSize: compact ? "1.25rem" : { xs: "1.75rem", sm: "1.95rem" },
               lineHeight: 1,
               letterSpacing: -0.5,
               my: 0.5,
@@ -160,7 +162,7 @@ export default function StatCard({
           sx={{
             width: "100%",
             borderTop: `1.5px dashed ${themeConfig.border || "#E2E8F0"}`,
-            my: 1.2,
+            my: compact ? 0.6 : 1.2,
             opacity: 0.85,
           }}
         />

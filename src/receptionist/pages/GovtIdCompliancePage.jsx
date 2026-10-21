@@ -155,10 +155,7 @@ export default function GovtIdCompliancePage({
       >
         <div>
           <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5 }}>
-            Regulatory Guest Identity & Compliance Hub
-          </Typography>
-          <Typography variant="body2" sx={{ color: themeConfig.textMuted }}>
-            Mandatory local police / tourism department compliance records for Aadhaar, Passport & Government ID verification.
+            Guest identity
           </Typography>
         </div>
 
@@ -408,17 +405,6 @@ export default function GovtIdCompliancePage({
           overflow: "hidden",
         }}
       >
-        <Box sx={{ p: 2.5, display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${themeConfig.border}` }}>
-          <div>
-            <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-              Guest Identity Compliance Roster ({filteredGuests.length})
-            </Typography>
-            <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-              Chronological regulatory records stamped for tourist / local authorities
-            </Typography>
-          </div>
-        </Box>
-
         {filteredGuests.length === 0 ? (
           <Box sx={{ py: 8 }}>
             <EmptyState
@@ -429,14 +415,14 @@ export default function GovtIdCompliancePage({
         ) : (
           <TableContainer>
             <Table size="medium">
-              <TableHead sx={{ bgcolor: themeConfig.champagne }}>
+              <TableHead>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Guest Name</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Contact Details</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Govt ID Type</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Document # / Hash</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>Compliance Stamp</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMain }}>Action</TableCell>
+                  <TableCell>Guest Name</TableCell>
+                  <TableCell>Contact Details</TableCell>
+                  <TableCell>Govt ID Type</TableCell>
+                  <TableCell>Document # / Hash</TableCell>
+                  <TableCell>Compliance Stamp</TableCell>
+                  <TableCell align="right">Action</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>

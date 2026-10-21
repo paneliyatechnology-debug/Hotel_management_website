@@ -33,6 +33,7 @@ import dynamic from "next/dynamic";
 import { CircularProgress } from "@mui/material";
 import { useSocket } from "@/shared/context/SocketContext";
 import { applyRoomStatusEvent, mergeBookingEvent } from "@/shared/utils/liveSync";
+import CheckoutDialog from "@/receptionist/components/CheckoutDialog";
 
 const ComponentSpinner = () => (
   <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 8 }}>
@@ -42,7 +43,6 @@ const ComponentSpinner = () => (
 
 const ReceptionistOverviewPage = dynamic(() => import("../pages/ReceptionistOverviewPage"), { loading: () => <ComponentSpinner /> });
 const AvailableRoomsPage = dynamic(() => import("../pages/AvailableRoomsPage"), { loading: () => <ComponentSpinner /> });
-const InHouseFoliosPage = dynamic(() => import("../pages/InHouseFoliosPage"), { loading: () => <ComponentSpinner /> });
 const CheckInWizardPage = dynamic(() => import("../pages/CheckInWizardPage"), { loading: () => <ComponentSpinner /> });
 const MoreOperationsPage = dynamic(() => import("../pages/MoreOperationsPage"), { loading: () => <ComponentSpinner /> });
 const GuestListPage = dynamic(() => import("@/hotel-admin/pages/GuestListPage"), { loading: () => <ComponentSpinner /> });
@@ -65,6 +65,14 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
   const [initialSelectedCategory, setInitialSelectedCategory] = useState(null);
   const [checkoutRequest, setCheckoutRequest] = useState(null);
+  const [deskCheckout, setDeskCheckout] = useState(null);
+
+  useEffect(() => {
+    if (!checkoutRequest?.guest) return;
+    const guest = checkoutRequest.guest;
+    setDeskCheckout(guest.booking || guest);
+    setCheckoutRequest(null);
+  }, [checkoutRequest]);
   const [checkInSuccessModal, setCheckInSuccessModal] = useState({ open: false, booking: null, guest: null });
   const [fetchedTabs, setFetchedTabs] = useState({});
 
@@ -290,20 +298,12 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         } else if (tabIndex === 2) {
           endpointsToFetch.push(
             apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`, skipCache).then((res) => {
-            setBookings(extractBookings(res));
-            setBookingsError("");
-          }).catch((err) => setBookingsError(err?.message || "Could not load folios")),
-            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?page=1&limit=100`, skipCache).then((res) => setRooms(extractRooms(res)))
-          );
-        } else if (tabIndex === 3) {
-          endpointsToFetch.push(
-            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`, skipCache).then((res) => {
               setBookings(extractBookings(res));
               setBookingsError("");
             }).catch((err) => setBookingsError(err?.message || "Could not load guests")),
             apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?page=1&limit=100`, skipCache).then((res) => setRooms(extractRooms(res)))
           );
-        } else if (tabIndex === 4) {
+        } else if (tabIndex === 3) {
           endpointsToFetch.push(
             apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD, skipCache).then((res) => res?.data && setDashboardData(res.data))
           );
@@ -751,7 +751,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
     setActiveStep(0);
     setIsCheckInOpen(true);
     if (onTabChange) {
-      onTabChange(2);
+      onTabChange(1);
     }
   };
 
@@ -849,20 +849,8 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         />
       )}
 
-      {/* ROUTE 1: ROOM CATEGORIES & ROOMS TABLE (Or Express Check-In Wizard) */}
-      {activeNav === 1 && (
-        <Box sx={{ px: { xs: 1.5, sm: 2.5, md: 3 }, py: { xs: 2, md: 2.5 } }}>
-          <GuestListPage
-            guests={guests}
-            bookings={bookings}
-            rooms={rooms}
-            hotelSettings={hotelSettings}
-            onRefresh={fetchFrontDeskData}
-          />
-        </Box>
-      )}
-
-      <Box sx={{ display: activeNav === 2 && !isCheckInOpen ? "block" : "none" }}>
+      {/* ROUTE 1: ROOMS */}
+      <Box sx={{ display: activeNav === 1 && !isCheckInOpen ? "block" : "none" }}>
         <AvailableRoomsPage
           user={user}
           initialSelectedCategory={initialSelectedCategory}
@@ -882,7 +870,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         />
       </Box>
 
-      {activeNav === 2 && isCheckInOpen && (
+      {activeNav === 1 && isCheckInOpen && (
             <CheckInWizardPage
               activeStep={activeStep}
               setActiveStep={setActiveStep}
@@ -935,29 +923,36 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
             />
       )}
 
-      <Box sx={{ display: activeNav === 3 ? "block" : "none" }}>
-        <InHouseFoliosPage
-          bookings={Array.isArray(bookings) ? bookings : []}
-          hotelSettings={hotelSettings}
-          loading={loading}
-          loadError={bookingsError}
-          onRefresh={fetchFrontDeskData}
-          onCheckOut={handleCheckOut}
-          onOpenInvoice={(b) => setInvoiceModal({ open: true, booking: b })}
-          onOpenPosCharge={(b) => setPosChargeDialog({ open: true, booking: b, serviceType: "ROOM_SERVICE", amount: 850, description: "Dinner Service" })}
-          checkoutRequest={checkoutRequest}
-          onCheckoutRequestHandled={() => setCheckoutRequest(null)}
-        />
-      </Box>
+      {activeNav === 2 && (
+        <Box sx={{ px: { xs: 1.5, sm: 2.5, md: 3 }, py: { xs: 2, md: 2.5 } }}>
+          <GuestListPage
+            guests={guests}
+            bookings={bookings}
+            rooms={rooms}
+            hotelSettings={hotelSettings}
+            onRefresh={fetchFrontDeskData}
+          />
+        </Box>
+      )}
 
       {/* ROUTE 4: MORE OPERATIONS HUB (User Profile & Session) */}
-      {activeNav === 4 && (
+      {activeNav === 3 && (
         <MoreOperationsPage
           user={{ ...user, hotel: { ...user?.hotel, settings: hotelSettings } }}
           hotelSettings={hotelSettings}
           onLogout={onLogout}
         />
       )}
+
+      <CheckoutDialog
+        open={Boolean(deskCheckout)}
+        booking={deskCheckout}
+        roomNumber={deskCheckout?.roomNumber || deskCheckout?.room_number || deskCheckout?.room?.roomNumber || ""}
+        hotelSettings={hotelSettings}
+        onClose={() => setDeskCheckout(null)}
+        onCheckOut={handleCheckOut}
+        onDone={fetchFrontDeskData}
+      />
 
       {/* POS Charge Modal */}
       <Dialog
@@ -1129,10 +1124,10 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
 
               <TableContainer sx={{ mb: 2, borderRadius: "12px", border: `1px solid ${themeConfig.border}` }}>
                 <Table size="small">
-                  <TableHead sx={{ bgcolor: themeConfig.champagne }}>
+                  <TableHead>
                     <TableRow>
-                      <TableCell sx={{ fontWeight: 800 }}>Description</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 800 }}>Amount (₹)</TableCell>
+                      <TableCell>Description</TableCell>
+                      <TableCell align="right">Amount (₹)</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>

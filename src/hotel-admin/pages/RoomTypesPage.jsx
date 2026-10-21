@@ -47,6 +47,8 @@ import {
   FreeBreakfast,
   Check,
   Category,
+  Remove,
+  Close,
 } from "@/shared/icons";
 
 const CATEGORY_STATUSES = [
@@ -106,6 +108,86 @@ export const POPULAR_AMENITIES = [
   { label: "Complimentary Breakfast", icon: <FreeBreakfast sx={{ fontSize: 16 }} /> },
 ];
 
+export const AVAILABLE_BED_TYPES = [
+  { label: "King Bed", capacity: 2 },
+  { label: "Queen Bed", capacity: 2 },
+  { label: "Double Bed", capacity: 2 },
+  { label: "Single Bed", capacity: 1 },
+  { label: "Twin Bed", capacity: 1 },
+  { label: "Bunk Bed", capacity: 2 },
+  { label: "Sofa Bed", capacity: 1 },
+];
+
+export function bedsFromRoom(room) {
+  const raw = room?.beds ?? room?.beds_config ?? room?.bedsConfig;
+  let list = raw;
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      list = JSON.parse(raw);
+    } catch {
+      list = null;
+    }
+  }
+  if (Array.isArray(list) && list.length) {
+    return list.map((bed) => {
+      const typeName = String(bed.bed_type || bed.bedType || bed.type || "").trim();
+      const matched = AVAILABLE_BED_TYPES.find((opt) => {
+        const short = opt.label.toLowerCase().replace(" bed", "");
+        const incoming = typeName.toLowerCase();
+        return incoming === opt.label.toLowerCase() || incoming === short || incoming.includes(short);
+      });
+      const count = Number(bed.bed_count || bed.bedCount || bed.count) || 1;
+      return {
+        type: matched ? matched.label : (typeName ? (typeName.toLowerCase().includes("bed") ? typeName : `${typeName} Bed`) : "King Bed"),
+        count,
+        capacity: matched?.capacity || 2,
+      };
+    });
+  }
+  return parseExistingBeds(room?.bedType || room?.bed_type, room?.bedCount || room?.bed_count, room?.seatingCapacity || room?.seating_capacity);
+}
+
+function amenitiesFromRoom(room) {
+  const raw = room?.amenities;
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      return raw.split(",").map((item) => item.trim()).filter(Boolean);
+    }
+  }
+  return [];
+}
+
+export function parseExistingBeds(bedTypeStr, fallbackCount, fallbackCapacity) {
+  if (!bedTypeStr || typeof bedTypeStr !== "string") {
+    return [];
+  }
+  const parts = bedTypeStr.split(/\+|\band\b|,/i).map((s) => s.trim()).filter(Boolean);
+  const parsed = [];
+  parts.forEach((part) => {
+    const match = part.match(/^(\d+)\s*(?:x|\*|\s)?\s*(.+)$/i);
+    let count = 1;
+    let rawType = part;
+    if (match) {
+      count = parseInt(match[1], 10) || 1;
+      rawType = match[2].trim();
+    }
+    const matchedOption = AVAILABLE_BED_TYPES.find(
+      (opt) =>
+        opt.label.toLowerCase() === rawType.toLowerCase() ||
+        opt.label.toLowerCase().includes(rawType.toLowerCase().replace(/s$/, "").replace("size", "").trim()) ||
+        rawType.toLowerCase().includes(opt.label.toLowerCase().replace(" bed", ""))
+    );
+    const cleanType = matchedOption ? matchedOption.label : rawType;
+    const cap = matchedOption?.capacity || (cleanType.toLowerCase().includes("single") || cleanType.toLowerCase().includes("twin") || cleanType.toLowerCase().includes("sofa") ? 1 : 2);
+    parsed.push({ type: cleanType, count, capacity: cap });
+  });
+  return parsed.length > 0 ? parsed : [{ type: "King Bed", count: Number(fallbackCount) || 1, capacity: Number(fallbackCapacity) || 2 }];
+}
+
 export const BED_OPTIONS = [
   { label: "1 King Size Bed", capacity: 2, count: 1 },
   { label: "1 Queen Size Bed", capacity: 2, count: 1 },
@@ -147,6 +229,60 @@ export default function RoomTypesPage({
   const [roomRowsPerPage, setRoomRowsPerPage] = useState(5);
   const [serverRooms, setServerRooms] = useState(null);
   const [liveTick, setLiveTick] = useState(0);
+
+  // Bed Setup Box local state
+  const [selectedBedType, setSelectedBedType] = useState("");
+  const [bedQuantity, setBedQuantity] = useState(1);
+
+  const updateBedsConfig = (newBedsList) => {
+    const bedCount = newBedsList.reduce((sum, b) => sum + (Number(b.count) || 0), 0);
+    const seatingCapacity = newBedsList.reduce((sum, b) => sum + ((Number(b.count) || 0) * (Number(b.capacity) || 1)), 0);
+    const bedType = newBedsList.map((b) => `${b.count} ${b.type}`).join(" + ");
+
+    setRoomErrors((prev) => ({ ...prev, beds: "" }));
+    setRoomModal((prev) => ({
+      ...prev,
+      data: {
+        ...prev.data,
+        bedsConfig: newBedsList,
+        bedCount,
+        seatingCapacity,
+        bedType: bedType || "",
+      },
+    }));
+  };
+
+  const handleAddBedToConfig = () => {
+    if (!selectedBedType) return;
+    const currentList = Array.isArray(roomModal.data?.bedsConfig) ? [...roomModal.data.bedsConfig] : [];
+    const opt = AVAILABLE_BED_TYPES.find((b) => b.label === selectedBedType);
+    const cap = opt ? opt.capacity : 2;
+
+    const existingIdx = currentList.findIndex((b) => b.type.toLowerCase() === selectedBedType.toLowerCase());
+    if (existingIdx > -1) {
+      currentList[existingIdx] = {
+        ...currentList[existingIdx],
+        count: currentList[existingIdx].count + bedQuantity,
+      };
+    } else {
+      currentList.push({
+        type: selectedBedType,
+        count: bedQuantity,
+        capacity: cap,
+      });
+    }
+
+    updateBedsConfig(currentList);
+    setBedQuantity(1);
+  };
+
+  const handleRemoveBedFromConfig = (index) => {
+    const currentList = Array.isArray(roomModal.data?.bedsConfig)
+      ? [...roomModal.data.bedsConfig]
+      : parseExistingBeds(roomModal.data?.bedType, roomModal.data?.bedCount, roomModal.data?.seatingCapacity);
+    currentList.splice(index, 1);
+    updateBedsConfig(currentList);
+  };
   useSocket(
     ["ROOM_UPDATED", "room:category_counts", "BOOKING_CREATED", "BOOKING_UPDATED", "GUEST_CHECKED_OUT", "PAYMENT_RECORDED"],
     () => setLiveTick((tick) => tick + 1)
@@ -177,9 +313,15 @@ export default function RoomTypesPage({
     if (blank(data.roomType)) errors.roomType = "Select a category.";
     if (blank(data.roomNumber)) errors.roomNumber = "Room number is required.";
     if (blank(data.floor)) errors.floor = "Floor is required.";
-    if (blank(data.bedType)) errors.bedType = "Bed type is required.";
-    if (blank(data.bedCount)) errors.bedCount = "Beds are required.";
-    if (blank(data.seatingCapacity)) errors.seatingCapacity = "Guest capacity is required.";
+
+    const bedsList = Array.isArray(data.bedsConfig) && data.bedsConfig.length > 0
+      ? data.bedsConfig
+      : parseExistingBeds(data.bedType, data.bedCount, data.seatingCapacity);
+
+    if (!bedsList || bedsList.length === 0 || Number(data.bedCount || bedsList.reduce((s, b) => s + b.count, 0)) < 1) {
+      errors.beds = "Please add at least one bed.";
+    }
+
     if (blank(data.customPricePerNight)) errors.customPricePerNight = "Nightly rate is required.";
     setRoomErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -234,6 +376,54 @@ export default function RoomTypesPage({
     });
   };
 
+  const openEditRoom = async (room) => {
+    let detail = room || {};
+    const id = room?.id || room?._id;
+    if (id) {
+      try {
+        const res = await apiRequest(
+          (typeof API_ENDPOINTS.ROOMS?.BY_ID === "function" && API_ENDPOINTS.ROOMS.BY_ID(id)) || `${API_ENDPOINTS.ROOMS.ALL}/${id}`,
+          { forceRefresh: true }
+        );
+        const fetched = res?.data?.room || res?.data?.data || res?.data;
+        if (fetched && typeof fetched === "object" && !Array.isArray(fetched)) detail = { ...room, ...fetched };
+      } catch {
+        detail = room;
+      }
+    }
+    const existingBeds = bedsFromRoom(detail);
+    const bedCount = existingBeds.reduce((sum, bed) => sum + (Number(bed.count) || 0), 0);
+    const seatingCapacity = existingBeds.reduce((sum, bed) => sum + (Number(bed.count) || 0) * (Number(bed.capacity) || 1), 0);
+    const roomTypeId =
+      detail.room_type_id ||
+      detail.roomTypeId ||
+      (typeof detail.roomType === "object" ? (detail.roomType?._id || detail.roomType?.id) : detail.roomType) ||
+      selectedCategory?._id ||
+      selectedCategory?.id ||
+      "";
+    setSelectedBedType("");
+    setRoomModal({
+      open: true,
+      mode: "EDIT",
+      data: {
+        _id: detail._id || detail.id,
+        roomNumber: detail.roomNumber || detail.room_number || "",
+        roomType: roomTypeId,
+        floor: detail.floor ?? "",
+        bedsConfig: existingBeds,
+        bedCount,
+        bedType: existingBeds.map((bed) => `${bed.count} ${bed.type}`).join(" + "),
+        seatingCapacity,
+        customPricePerNight: detail.customPricePerNight ?? detail.custom_price_per_night ?? "",
+        status: detail.status || "AVAILABLE",
+        notes: detail.notes || "",
+        amenities: amenitiesFromRoom(detail),
+        cleaningDurationMinutes: detail.cleaningDurationMinutes ?? detail.cleaning_duration_minutes ?? 15,
+        is_active: detail.is_active !== false && detail.isActive !== false,
+      },
+    });
+  };
+
   const handleOpenAddRoomForCategory = (category) => {
     if (!category && roomTypes.length === 0) return;
     if (isTrial && rooms.length >= 5) {
@@ -241,7 +431,9 @@ export default function RoomTypesPage({
       return;
     }
 
-    const catId = category?._id || roomTypes[0]?._id || "";
+    const catId = category?._id || category?.id || "";
+    setSelectedBedType("");
+    setBedQuantity(1);
 
     setRoomModal({
       open: true,
@@ -251,9 +443,10 @@ export default function RoomTypesPage({
         roomNumber: "",
         roomType: catId,
         floor: "",
-        bedCount: "",
+        bedsConfig: [],
+        bedCount: 0,
         bedType: "",
-        seatingCapacity: "",
+        seatingCapacity: 0,
         customPricePerNight: "",
         status: "AVAILABLE",
         notes: "",
@@ -358,7 +551,7 @@ export default function RoomTypesPage({
               <Button
                 variant="outlined"
                 startIcon={<Add />}
-                onClick={() => handleOpenAddRoomForCategory(roomTypes[0])}
+                onClick={() => handleOpenAddRoomForCategory(null)}
                 sx={{
                   height: 40,
                   borderRadius: "10px",
@@ -446,9 +639,6 @@ export default function RoomTypesPage({
                 <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "1.05rem", lineHeight: 1.3 }}>
                   Categories
                 </Typography>
-                <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.8rem", mt: 0.25 }}>
-                  Select a category to view its rooms.
-                </Typography>
               </Box>
             )}
           </Box>
@@ -535,25 +725,7 @@ export default function RoomTypesPage({
                                 <Tooltip title="Edit">
                                   <IconButton
                                     size="small"
-                                    onClick={() =>
-                                      setRoomModal({
-                                        open: true,
-                                        mode: "EDIT",
-                                        data: {
-                                          _id: room._id,
-                                          roomNumber: room.roomNumber,
-                                          roomType: typeof room.roomType === "object" ? room.roomType._id : room.roomType,
-                                          floor: room.floor || 1,
-                                          bedCount: room.bedCount || 1,
-                                          bedType: room.bedType || "1 King Size Bed",
-                                          seatingCapacity: room.seatingCapacity || 2,
-                                          customPricePerNight: room.customPricePerNight || "",
-                                          status: room.status || "AVAILABLE",
-                                          notes: room.notes || "",
-                                          amenities: room.amenities || [],
-                                        },
-                                      })
-                                    }
+                                    onClick={() => openEditRoom(room)}
                                     sx={actionSx}
                                   >
                                     <Edit fontSize="small" />
@@ -875,97 +1047,8 @@ export default function RoomTypesPage({
                 />
               </Grid>
 
-              {/* Bed Configuration / Type */}
+              {/* Nightly Rate */}
               <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant="caption" sx={fieldLabelSx}>
-                  Bed type<RequiredMark />
-                </Typography>
-                <TextField
-                  select
-                  required
-                  fullWidth
-                  size="small"
-                  value={roomModal.data?.bedType || ""}
-                  onChange={(e) => {
-                    const selectedBed = e.target.value;
-                    const preset = BED_OPTIONS.find((b) => b.label === selectedBed);
-                    setRoomErrors((prev) => ({ ...prev, bedType: "" }));
-                    setRoomModal({
-                      ...roomModal,
-                      data: {
-                        ...roomModal.data,
-                        bedType: selectedBed,
-                        bedCount: preset ? preset.count : roomModal.data?.bedCount || 1,
-                        seatingCapacity: preset ? preset.capacity : roomModal.data?.seatingCapacity || 2,
-                      },
-                    });
-                  }}
-                  error={Boolean(roomErrors.bedType)}
-                  sx={fieldSx(Boolean(roomErrors.bedType))}
-                >
-                  <MenuItem value="">Select a bed type</MenuItem>
-                  {BED_OPTIONS.map((opt, i) => (
-                    <MenuItem key={i} value={opt.label}>
-                      {opt.label} · {opt.capacity} guests
-                    </MenuItem>
-                  ))}
-                  <MenuItem value="Custom Setup">Custom bed type</MenuItem>
-                </TextField>
-              </Grid>
-
-              {/* Number of Beds in Room */}
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography variant="caption" sx={fieldLabelSx}>
-                  Beds<RequiredMark />
-                </Typography>
-                <TextField
-                  required
-                  fullWidth
-                  size="small"
-                  value={roomModal.data?.bedCount ?? ""}
-                  onChange={(e) => {
-                    const bCount = e.target.value;
-                    setRoomErrors((prev) => ({ ...prev, bedCount: "" }));
-                    setRoomModal({
-                      ...roomModal,
-                      data: {
-                        ...roomModal.data,
-                        bedCount: bCount,
-                        // Suggest 2 guests per bed if multiple beds
-                        seatingCapacity: Number(bCount) > 1 ? Number(bCount) * 2 : roomModal.data?.seatingCapacity || 2,
-                      },
-                    });
-                  }}
-                  error={Boolean(roomErrors.bedCount)}
-                  placeholder="Enter the number of beds"
-                  helperText={roomErrors.bedCount || ""}
-                  sx={fieldSx(Boolean(roomErrors.bedCount))}
-                />
-              </Grid>
-
-              {/* Seating / Guest Capacity (Bed-based) */}
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography variant="caption" sx={fieldLabelSx}>
-                  Guest capacity<RequiredMark />
-                </Typography>
-                <TextField
-                  required
-                  fullWidth
-                  size="small"
-                  value={roomModal.data?.seatingCapacity ?? ""}
-                  onChange={(e) => {
-                    setRoomErrors((prev) => ({ ...prev, seatingCapacity: "" }));
-                    setRoomModal({ ...roomModal, data: { ...roomModal.data, seatingCapacity: e.target.value } });
-                  }}
-                  placeholder="Enter the guest capacity"
-                  error={Boolean(roomErrors.seatingCapacity)}
-                  helperText={roomErrors.seatingCapacity || ""}
-                  sx={fieldSx(Boolean(roomErrors.seatingCapacity))}
-                />
-              </Grid>
-
-              {/* Custom Price */}
-              <Grid size={{ xs: 12, sm: 4 }}>
                 <Typography variant="caption" sx={fieldLabelSx}>
                   Nightly rate (₹)<RequiredMark />
                 </Typography>
@@ -983,6 +1066,196 @@ export default function RoomTypesPage({
                   helperText={roomErrors.customPricePerNight || ""}
                   sx={fieldSx(Boolean(roomErrors.customPricePerNight))}
                 />
+              </Grid>
+
+              {/* ========================================================================= */}
+              {/* BED SETUP BOX (TYPE SELECTOR + QUANTITY COUNTER + ADD BUTTON + LIST)      */}
+              {/* ========================================================================= */}
+              <Grid size={{ xs: 12 }}>
+                <Box
+                  sx={{
+                    p: 2,
+                    borderRadius: "14px",
+                    bgcolor: isDarkMode ? "rgba(255, 255, 255, 0.03)" : "#F8FAFC",
+                    border: `1px solid ${roomErrors.beds ? "#DC2626" : (isDarkMode ? themeConfig.border : "#E2E8F0")}`,
+                  }}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5, flexWrap: "wrap", gap: 1 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <KingBed sx={{ fontSize: 18, color: themeConfig.primary }} />
+                      <Typography sx={{ fontWeight: 700, fontSize: "0.85rem", color: themeConfig.textMain }}>
+                        Bed setup<RequiredMark />
+                      </Typography>
+                    </Box>
+                    {/* Live Badge for total beds & guests capacity */}
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Chip
+                        size="small"
+                        label={`${roomModal.data?.bedCount || 0} Beds`}
+                        sx={{ fontWeight: 700, bgcolor: isDarkMode ? "rgba(20, 184, 166, 0.2)" : "#CCFBF1", color: "#0F766E", borderRadius: "6px" }}
+                      />
+                      <Chip
+                        size="small"
+                        label={`${roomModal.data?.seatingCapacity || 0} Guests capacity`}
+                        sx={{ fontWeight: 700, bgcolor: isDarkMode ? "rgba(59, 130, 246, 0.2)" : "#DBEAFE", color: "#1D4ED8", borderRadius: "6px" }}
+                      />
+                    </Box>
+                  </Box>
+
+                  {/* Bed selector row: Dropdown + Counter + Add button */}
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, flexWrap: "wrap", mb: 1.5 }}>
+                    <TextField
+                      select
+                      size="small"
+                      value={selectedBedType}
+                      onChange={(e) => setSelectedBedType(e.target.value)}
+                      slotProps={{ select: { displayEmpty: true } }}
+                      sx={{
+                        flex: { xs: "1 1 100%", sm: "1 1 auto" },
+                        minWidth: 180,
+                        "& .MuiOutlinedInput-root": {
+                          height: 40,
+                          borderRadius: "10px",
+                          bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#FFFFFF",
+                        },
+                      }}
+                    >
+                      <MenuItem value="" disabled>
+                        Select bed
+                      </MenuItem>
+                      {AVAILABLE_BED_TYPES.map((b) => (
+                        <MenuItem key={b.label} value={b.label}>
+                          {b.label} ({b.capacity} {b.capacity === 1 ? "guest" : "guests"}/bed)
+                        </MenuItem>
+                      ))}
+                    </TextField>
+
+                    {/* Counter [- qty +] */}
+                    <Box
+                      sx={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        border: `1px solid ${isDarkMode ? themeConfig.border : "#CBD5E1"}`,
+                        borderRadius: "10px",
+                        height: 40,
+                        px: 0.5,
+                        bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#FFFFFF",
+                      }}
+                    >
+                      <IconButton
+                        size="small"
+                        onClick={() => setBedQuantity((q) => Math.max(1, q - 1))}
+                        disabled={bedQuantity <= 1}
+                        sx={{ width: 28, height: 28, color: themeConfig.textMain }}
+                      >
+                        <Remove sx={{ fontSize: 16 }} />
+                      </IconButton>
+                      <Typography
+                        sx={{
+                          minWidth: 28,
+                          textAlign: "center",
+                          fontWeight: 700,
+                          fontSize: "0.88rem",
+                          color: themeConfig.textMain,
+                          userSelect: "none",
+                        }}
+                      >
+                        {bedQuantity}
+                      </Typography>
+                      <IconButton
+                        size="small"
+                        onClick={() => setBedQuantity((q) => Math.min(10, q + 1))}
+                        sx={{ width: 28, height: 28, color: themeConfig.textMain }}
+                      >
+                        <Add sx={{ fontSize: 16 }} />
+                      </IconButton>
+                    </Box>
+
+                    {/* Add Bed Button */}
+                    <Button
+                      variant="contained"
+                      startIcon={<Add sx={{ fontSize: 18 }} />}
+                      onClick={handleAddBedToConfig}
+                      disabled={!selectedBedType}
+                      sx={{
+                        height: 40,
+                        borderRadius: "10px",
+                        fontWeight: 700,
+                        bgcolor: themeConfig.primary,
+                        color: "#FFFFFF",
+                        px: 2,
+                        textTransform: "none",
+                        boxShadow: "none",
+                        "&:hover": { bgcolor: themeConfig.primaryDark, boxShadow: "none" },
+                      }}
+                    >
+                      Add bed
+                    </Button>
+                  </Box>
+
+                  {/* Configured beds tag list */}
+                  {(() => {
+                    const bedsList = Array.isArray(roomModal.data?.bedsConfig)
+                      ? roomModal.data.bedsConfig
+                      : parseExistingBeds(roomModal.data?.bedType, roomModal.data?.bedCount, roomModal.data?.seatingCapacity);
+
+                    if (bedsList.length === 0) {
+                      return (
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontStyle: "italic" }}>
+                          No beds added yet. Select a bed type and click "Add bed".
+                        </Typography>
+                      );
+                    }
+
+                    return (
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                        {bedsList.map((item, idx) => (
+                          <Box
+                            key={idx}
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 1,
+                              px: 1.5,
+                              py: 0.75,
+                              borderRadius: "10px",
+                              bgcolor: isDarkMode ? "rgba(255,255,255,0.08)" : "#FFFFFF",
+                              border: `1px solid ${isDarkMode ? themeConfig.border : "#E2E8F0"}`,
+                              boxShadow: isDarkMode ? "none" : "0 1px 3px rgba(0,0,0,0.04)",
+                            }}
+                          >
+                            <KingBed sx={{ fontSize: 16, color: themeConfig.primary }} />
+                            <Typography sx={{ fontWeight: 700, fontSize: "0.82rem", color: themeConfig.textMain }}>
+                              {item.count} × {item.type}
+                            </Typography>
+                            <Typography sx={{ fontSize: "0.74rem", color: themeConfig.textMuted }}>
+                              ({item.count * item.capacity} guests)
+                            </Typography>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleRemoveBedFromConfig(idx)}
+                              sx={{
+                                width: 20,
+                                height: 20,
+                                ml: 0.5,
+                                color: themeConfig.textMuted,
+                                "&:hover": { color: "#EF4444", bgcolor: "rgba(239,68,68,0.1)" },
+                              }}
+                            >
+                              <Close sx={{ fontSize: 14 }} />
+                            </IconButton>
+                          </Box>
+                        ))}
+                      </Box>
+                    );
+                  })()}
+
+                  {roomErrors.beds && (
+                    <Typography variant="caption" sx={{ color: "#DC2626", fontWeight: 700, display: "block", mt: 1 }}>
+                      {roomErrors.beds}
+                    </Typography>
+                  )}
+                </Box>
               </Grid>
 
               {/* Initial Status */}

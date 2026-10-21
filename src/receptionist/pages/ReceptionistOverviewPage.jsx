@@ -27,6 +27,7 @@ import {
   TextField,
   Divider,
   InputAdornment,
+  LinearProgress,
   MenuItem,
 } from "@mui/material";
 import { toast } from "@/shared/utils/toast";
@@ -36,14 +37,9 @@ import {
   CleaningServices,
   Build,
   Badge,
-  Refresh,
   CheckCircle,
   ArrowForward,
   People,
-  Schedule,
-  AccessTime,
-  Security,
-  Bolt,
   MeetingRoom,
   KingBed,
   Apartment,
@@ -60,15 +56,15 @@ import {
   Phone,
   WhatsApp,
   CurrencyRupee,
+  Receipt,
+  TrendingUp,
   Search,
   Logout,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
-import StatCard from "@/shared/components/StatCard";
 import dynamic from "next/dynamic";
-import { formatTime12Hour, getTurnaroundWindow } from "@/shared/utils/timeUtils";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
 import { createSafeGuestModalData } from "@/shared/utils/guestModalUtils";
@@ -89,6 +85,11 @@ export default function ReceptionistOverviewPage({
   onRequestCheckout,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
+  const [daySummary, setDaySummary] = useState(null);
+  const [summaryTick, setSummaryTick] = useState(0);
+  const [summaryRange, setSummaryRange] = useState("TODAY");
+  const [summaryStart, setSummaryStart] = useState("");
+  const [summaryEnd, setSummaryEnd] = useState("");
 
   // Real-Time Socket Auto-Sync
   useSocket(
@@ -103,8 +104,46 @@ export default function ReceptionistOverviewPage({
     ],
     () => {
       if (onRefresh) onRefresh();
+      setSummaryTick((tick) => tick + 1);
     }
   );
+
+  useEffect(() => {
+    const now = new Date();
+    const ymd = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    let start = ymd(now);
+    let end = ymd(now);
+    if (summaryRange === "THIS_WEEK" || summaryRange === "LAST_WEEK") {
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - (now.getDay() === 0 ? 6 : now.getDay() - 1) - (summaryRange === "LAST_WEEK" ? 7 : 0));
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      start = ymd(monday);
+      end = ymd(sunday);
+    } else if (summaryRange === "THIS_MONTH" || summaryRange === "LAST_MONTH") {
+      const monthStart = new Date(now.getFullYear(), now.getMonth() - (summaryRange === "LAST_MONTH" ? 1 : 0), 1);
+      const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+      start = ymd(monthStart);
+      end = ymd(monthEnd);
+    } else if (summaryRange === "CUSTOM") {
+      if (!summaryStart || !summaryEnd) return undefined;
+      start = summaryStart;
+      end = summaryEnd;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.SUMMARY(start, end), { forceRefresh: true });
+        const payload = res?.data && !Array.isArray(res.data) ? res.data : res;
+        if (!cancelled && payload && typeof payload === "object") setDaySummary(payload);
+      } catch {
+        if (!cancelled) setDaySummary(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [summaryTick, summaryRange, summaryStart, summaryEnd]);
 
   // Pagination for Recent Check-Ins Table
   const [guestPage, setGuestPage] = useState(0);
@@ -214,13 +253,6 @@ export default function ReceptionistOverviewPage({
     }, 1000);
     return () => clearInterval(timer);
   }, [rooms]);
-
-  const liveCurrentTimeFormatted = liveCurrentTime.toLocaleTimeString("en-IN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
 
   // Helper to calculate remaining cleaning time & status
   const getCleaningTimerData = (room) => {
@@ -581,11 +613,6 @@ export default function ReceptionistOverviewPage({
     return Array.from(catMap.values()).filter((cat) => cat.totalRooms > 0);
   }, [rooms, roomTypes]);
 
-  const inTimeFormatted = formatTime12Hour(hotelSettings?.checkInTime || "14:00");
-  const outTimeFormatted = formatTime12Hour(hotelSettings?.checkOutTime || "12:00");
-  const timezoneStr = hotelSettings?.timezone || "Asia/Kolkata";
-  const turnaroundStr = getTurnaroundWindow(hotelSettings?.checkInTime, hotelSettings?.checkOutTime);
-
   // All formatted bookings for recent table
   // Helper to determine if a date is Today
   const isTodayDate = (dateVal) => {
@@ -863,226 +890,152 @@ export default function ReceptionistOverviewPage({
   }, [allFormattedBookings]);
 
   const countAll = allFormattedBookings.length;
+  const summaryMethods = daySummary?.collection_by_payment_method || daySummary?.collectionByPaymentMethod || {};
+  const money = (value) => `₹${Number(value || 0).toLocaleString("en-IN")}`;
+  const todayCollected = Number(daySummary?.total_collected_amount ?? daySummary?.totalCollectedAmount ?? 0);
+  const todayBookings = Number(daySummary?.total_booking_count ?? daySummary?.totalBookingCount ?? 0);
+  const avgTicket = todayBookings > 0 ? Math.round(todayCollected / todayBookings) : 0;
+  const cashTotal = Number(summaryMethods.cash_collected_amount ?? summaryMethods.cashCollectedAmount ?? 0);
+  const upiTotal = Number(summaryMethods.upi_collected_amount ?? summaryMethods.upiCollectedAmount ?? 0);
+  const cardTotal = Number(summaryMethods.card_collected_amount ?? summaryMethods.cardCollectedAmount ?? 0);
+  const bankTotal = Number(summaryMethods.bank_transfer_collected_amount ?? summaryMethods.bankTransferCollectedAmount ?? 0) + Number(summaryMethods.online_collected_amount ?? summaryMethods.onlineCollectedAmount ?? 0);
+  const shareBase = cashTotal + upiTotal + cardTotal + bankTotal || todayCollected;
+  const sharePercent = (amount) => (shareBase > 0 ? Math.min(100, Math.round((Number(amount) || 0) / shareBase * 100)) : 0);
+  const rangeChips = [
+    { id: "TODAY", label: "Today" },
+    { id: "THIS_WEEK", label: "This Week" },
+    { id: "LAST_WEEK", label: "Last Week" },
+    { id: "THIS_MONTH", label: "This Month" },
+    { id: "LAST_MONTH", label: "Last Month" },
+    { id: "CUSTOM", label: "Custom" },
+  ];
+  const rangeLabel = rangeChips.find((chip) => chip.id === summaryRange)?.label || "Today";
+  const sourceBoxes = [
+    { label: "Cash", amount: cashTotal, color: themeConfig.primary, icon: <Hotel sx={{ fontSize: 16, color: themeConfig.primary }} /> },
+    { label: "UPI", amount: upiTotal, color: "#8B5CF6", icon: <Receipt sx={{ fontSize: 16, color: "#8B5CF6" }} /> },
+    { label: "Card", amount: cardTotal, color: "#F59E0B", icon: <CurrencyRupee sx={{ fontSize: 16, color: "#F59E0B" }} /> },
+    { label: "Bank", amount: bankTotal, color: "#10B981", icon: <TrendingUp sx={{ fontSize: 16, color: "#10B981" }} /> },
+  ];
 
   return (
     <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
-      {/* ========================================================================= */}
-      {/* SECTION 1: MASTER COMMAND HERO BANNER (Timings Ribbon & Quick Actions)     */}
-      {/* ========================================================================= */}
-      <Box
-        sx={{
-          mb: 4,
-          p: { xs: 2.5, md: 3 },
-          borderRadius: "24px",
-          background: `linear-gradient(135deg, ${themeConfig.primaryDark || "#0C273B"} 0%, ${themeConfig.primary || "#0B8EE0"} 100%)`,
-          color: "#FFFFFF",
-          boxShadow: `0 16px 36px -10px ${themeConfig.primaryGlow || "rgba(11, 142, 224, 0.4)"}, inset 0 1px 1px rgba(255,255,255,0.4), inset 0 -2px 4px rgba(0,0,0,0.2)`,
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <Box
-          sx={{
-            position: "absolute",
-            top: "-50%",
-            right: "-15%",
-            width: "450px",
-            height: "450px",
-            background: "radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%)",
-            pointerEvents: "none",
-          }}
-        />
-
-        <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 2, position: "relative", zIndex: 1 }}>
-          <Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.8, flexWrap: "wrap" }}>
-              <Avatar
-                sx={{
-                  bgcolor: "rgba(255,255,255,0.18)",
-                  color: "#FFFFFF",
-                  width: 32,
-                  height: 32,
-                  backdropFilter: "blur(8px)",
-                  boxShadow: "inset 0 1px 1px rgba(255,255,255,0.6)",
-                }}
-              >
-                <HowToReg sx={{ fontSize: 18 }} />
-              </Avatar>
+      <Paper elevation={0} sx={{ mb: 2, p: { xs: 1.25, sm: 1.5 }, borderRadius: "16px", border: `1px solid ${themeConfig.border}`, bgcolor: themeConfig.bgCard || "#FFFFFF" }}>
+        <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.75rem", fontWeight: 700, mb: 1.25 }}>
+          Period: {rangeLabel}
+        </Typography>
+        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
+          {rangeChips.map((chip) => {
+            const active = summaryRange === chip.id;
+            return (
               <Chip
-                label="Front Desk Master Operations"
-                size="small"
+                key={chip.id}
+                label={chip.label}
+                clickable
+                onClick={() => setSummaryRange(chip.id)}
                 sx={{
-                  bgcolor: "rgba(255,255,255,0.2)",
-                  color: "#FFFFFF",
                   fontWeight: 800,
-                  fontSize: "0.72rem",
-                  letterSpacing: 0.5,
-                  backdropFilter: "blur(6px)",
-                  border: "1px solid rgba(255,255,255,0.3)",
+                  height: 34,
+                  borderRadius: "10px",
+                  bgcolor: active ? themeConfig.primary : (isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9"),
+                  color: active ? "#FFFFFF" : themeConfig.textMain,
+                  border: `1px solid ${active ? themeConfig.primary : themeConfig.border}`,
                 }}
               />
+            );
+          })}
+          {summaryRange === "CUSTOM" && (
+            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+              <TextField size="small" type="date" label="Start" value={summaryStart} onChange={(e) => setSummaryStart(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 150 }} />
+              <TextField size="small" type="date" label="End" value={summaryEnd} onChange={(e) => setSummaryEnd(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 150 }} />
             </Box>
-            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -0.8, color: "#FFFFFF", lineHeight: 1.2, fontSize: { xs: "1.5rem", sm: "2.1rem" } }}>
-              Front Desk & Room Inventory
-            </Typography>
-            <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.85)", mt: 0.5, maxWidth: "600px", fontSize: { xs: "0.8rem", sm: "0.875rem" } }}>
-              Live room inventory, category tracker, operational timings, and 1-click express check-in.
-            </Typography>
-          </Box>
+          )}
+        </Box>
+      </Paper>
 
-          <Box sx={{ display: "flex", gap: 1.2, flexWrap: "wrap", alignItems: "center", width: { xs: "100%", sm: "auto" } }}>
-            <Button
-              variant="contained"
-              startIcon={<Bolt />}
-              onClick={() => onNavigateTab && onNavigateTab(1)}
-              className="btn-3d"
-              sx={{
-                background: "linear-gradient(135deg, #FFFFFF 0%, #E6EFF8 100%)",
-                color: themeConfig.primaryDark,
-                fontWeight: 900,
-                borderRadius: "14px",
-                px: 2.8,
-                py: 1.2,
-                fontSize: "0.88rem",
-                width: { xs: "100%", sm: "auto" },
-                whiteSpace: "nowrap",
-                boxShadow: "0 8px 20px rgba(0,0,0,0.18), inset 0 1px 0 #FFFFFF",
-                border: "1px solid rgba(255,255,255,0.8)",
-                "&:hover": {
-                  background: "#FFFFFF",
-                  transform: "translateY(-2px)",
-                },
-              }}
-            >
-              View Rooms ({rooms.length})
-            </Button>
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, gap: 2, mb: 2 }}>
+        {[
+          { label: "Revenue", value: money(todayCollected), color: "#10B981", note: "Collected", icon: <CurrencyRupee sx={{ fontSize: 22 }} /> },
+          { label: "Transactions", value: String(todayBookings), color: themeConfig.textMain, note: "In range", icon: <Receipt sx={{ fontSize: 22 }} /> },
+          { label: "Avg ticket", value: money(avgTicket), color: themeConfig.primary, note: "Per booking", icon: <TrendingUp sx={{ fontSize: 22 }} /> },
+        ].map((card) => (
+          <Paper key={card.label} elevation={0} sx={{ p: 2, borderRadius: "16px", border: `1px solid ${themeConfig.border}`, bgcolor: themeConfig.bgCard || "#FFFFFF", minWidth: 0 }}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography noWrap sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 800, textTransform: "uppercase" }}>{card.label}</Typography>
+                <Typography noWrap sx={{ fontWeight: 900, color: card.color, fontSize: { xs: "1.35rem", sm: "1.7rem" }, mt: 0.4 }}>{card.value}</Typography>
+              </Box>
+              <Box sx={{ width: 36, height: 36, borderRadius: "10px", display: "grid", placeItems: "center", bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F0FDFA", color: card.color, flexShrink: 0 }}>
+                {card.icon}
+              </Box>
+            </Box>
+            <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 700, mt: 0.8 }}>{card.note}</Typography>
+          </Paper>
+        ))}
+      </Box>
 
-            {onRefresh && (
-              <IconButton
-                onClick={onRefresh}
-                sx={{
-                  color: "#FFFFFF",
-                  bgcolor: "rgba(255,255,255,0.15)",
-                  borderRadius: "12px",
-                  p: 1.2,
-                  "&:hover": { bgcolor: "rgba(255,255,255,0.3)" },
+      <Paper elevation={0} sx={{ mb: 3, p: { xs: 1.25, sm: 1.5 }, borderRadius: "16px", border: `1px solid ${themeConfig.border}`, bgcolor: themeConfig.bgCard || "#FFFFFF" }}>
+        <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.85rem", mb: 1.25 }}>Sources</Typography>
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(4, minmax(0, 1fr))" }, gap: 1 }}>
+          {sourceBoxes.map((item) => (
+            <Box key={item.label} sx={{ minWidth: 0, p: 1.1, borderRadius: "12px", border: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC" }}>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 0.5, mb: 0.4 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+                  {item.icon}
+                  <Typography noWrap sx={{ fontSize: "0.72rem", fontWeight: 800, color: themeConfig.textMuted }}>{item.label}</Typography>
+                </Box>
+                <Typography sx={{ fontSize: "0.68rem", fontWeight: 800, color: item.color }}>{sharePercent(item.amount)}%</Typography>
+              </Box>
+              <Typography noWrap sx={{ fontWeight: 800, fontSize: "0.95rem", color: themeConfig.textMain }}>{money(item.amount)}</Typography>
+              <LinearProgress
+                variant="determinate"
+                value={sharePercent(item.amount)}
+                sx={{ mt: 0.7, height: 4, borderRadius: 3, bgcolor: "#E2E8F0", "& .MuiLinearProgress-bar": { bgcolor: item.color, borderRadius: 3 } }}
+              />
+            </Box>
+          ))}
+        </Box>
+      </Paper>
+      {/* ========================================================================= */}
+      {/* SECTION 2: LIVE TELEMETRY STAT CARDS                                       */}
+      {/* ========================================================================= */}
+      <Paper elevation={0} sx={{ mb: 3, p: { xs: 1.25, sm: 1.5 }, borderRadius: "16px", border: `1px solid ${themeConfig.border}`, bgcolor: themeConfig.bgCard || "#FFFFFF" }}>
+        <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.85rem", mb: 1.25 }}>Rooms</Typography>
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(4, minmax(0, 1fr))" }, gap: 1 }}>
+          {[
+            { label: "Available", value: totalAvailable, color: "#10B981", icon: <CheckCircle sx={{ fontSize: 16, color: "#10B981" }} />, type: "AVAILABLE" },
+            { label: "Occupied", value: totalOccupied, color: "#0B8EE0", icon: <HowToReg sx={{ fontSize: 16, color: "#0B8EE0" }} />, type: "OCCUPIED" },
+            { label: "Cleaning", value: totalCleaning, color: "#D97706", icon: <CleaningServices sx={{ fontSize: 16, color: "#D97706" }} />, type: "CLEANING" },
+            { label: "Blocked", value: totalMaintenance, color: "#EF4444", icon: <Build sx={{ fontSize: 16, color: "#EF4444" }} />, type: "MAINTENANCE" },
+          ].map((item) => {
+            const roomTotal = Math.max(rooms.length, 1);
+            const percent = Math.min(100, Math.round((Number(item.value) || 0) / roomTotal * 100));
+            return (
+              <Box
+                key={item.label}
+                onClick={() => {
+                  setTelemetrySearch("");
+                  setTelemetryModal({ open: true, type: item.type });
                 }}
+                sx={{ minWidth: 0, p: 1.1, borderRadius: "12px", border: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC", cursor: "pointer" }}
               >
-                <Refresh fontSize="small" />
-              </IconButton>
-            )}
-          </Box>
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 0.5, mb: 0.4 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+                    {item.icon}
+                    <Typography noWrap sx={{ fontSize: "0.72rem", fontWeight: 800, color: themeConfig.textMuted }}>{item.label}</Typography>
+                  </Box>
+                  <Typography sx={{ fontSize: "0.68rem", fontWeight: 800, color: item.color }}>{percent}%</Typography>
+                </Box>
+                <Typography noWrap sx={{ fontWeight: 800, fontSize: "0.95rem", color: themeConfig.textMain }}>{item.value}</Typography>
+                <LinearProgress
+                  variant="determinate"
+                  value={percent}
+                  sx={{ mt: 0.7, height: 4, borderRadius: 3, bgcolor: "#E2E8F0", "& .MuiLinearProgress-bar": { bgcolor: item.color, borderRadius: 3 } }}
+                />
+              </Box>
+            );
+          })}
         </Box>
-
-        {/* Operational Timings Ribbon */}
-        <Box
-          sx={{
-            mt: 3,
-            pt: 2,
-            borderTop: "1px solid rgba(255,255,255,0.15)",
-            display: "flex",
-            flexWrap: "wrap",
-            gap: { xs: 1.5, md: 3 },
-            alignItems: "center",
-          }}
-        >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, whiteSpace: "nowrap" }}>
-            <AccessTime sx={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }} />
-            <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.95)", fontWeight: 700 }}>
-              Check-In Opens: <strong>{inTimeFormatted}</strong>
-            </Typography>
-          </Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, whiteSpace: "nowrap" }}>
-            <Schedule sx={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }} />
-            <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.95)", fontWeight: 700 }}>
-              Check-Out Deadline: <strong>{outTimeFormatted}</strong>
-            </Typography>
-          </Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, whiteSpace: "nowrap" }}>
-            <AccessTime sx={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }} />
-            <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.95)", fontWeight: 700 }}>
-              Current Time: <strong>{liveCurrentTimeFormatted}</strong>
-            </Typography>
-          </Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, whiteSpace: "nowrap" }}>
-            <Security sx={{ fontSize: 16, color: "rgba(255,255,255,0.9)" }} />
-            <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.95)", fontWeight: 700 }}>
-              Timezone: <strong>{timezoneStr}</strong>
-            </Typography>
-          </Box>
-        </Box>
-      </Box>
-
-      {/* ========================================================================= */}
-      {/* SECTION 2: LIVE TELEMETRY 5 STAT CARDS (Standardized Equal Height)         */}
-      {/* ========================================================================= */}
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: {
-            xs: "1fr",
-            sm: "repeat(2, 1fr)",
-            md: "repeat(3, 1fr)",
-            lg: "repeat(auto-fit, minmax(210px, 1fr))",
-            xl: "repeat(4, 1fr)",
-          },
-          gap: 2,
-          mb: 4,
-          alignItems: "stretch",
-        }}
-      >
-        <StatCard
-          title="Available Vacant"
-          value={totalAvailable}
-          subtitle="Ready for check-in"
-          icon={<CheckCircle />}
-          color="#10B981"
-          badgeText="Vacant"
-          onClick={() => {
-            setTelemetrySearch("");
-            setTelemetryModal({ open: true, type: "AVAILABLE" });
-          }}
-        />
-
-        <StatCard
-          title="Occupied / Booked"
-          value={totalOccupied}
-          subtitle="Active guest stay"
-          icon={<HowToReg />}
-          color="#0B8EE0"
-          badgeText="In-House"
-          onClick={() => {
-            setTelemetrySearch("");
-            setTelemetryModal({ open: true, type: "OCCUPIED" });
-          }}
-        />
-
-        <StatCard
-          title="Housekeeping Queue"
-          value={totalCleaning}
-          subtitle="Sanitation in progress"
-          icon={<CleaningServices />}
-          color="#D97706"
-          badgeText="Cleaning"
-          onClick={() => {
-            setTelemetrySearch("");
-            setTelemetryModal({ open: true, type: "CLEANING" });
-          }}
-        />
-
-        <StatCard
-          title="Maintenance / Blocked"
-          value={totalMaintenance}
-          subtitle="Out of service repairs"
-          icon={<Build />}
-          color="#EF4444"
-          badgeText={totalMaintenance > 0 ? "Under Fix" : "All Clear"}
-          onClick={() => {
-            setTelemetrySearch("");
-            setTelemetryModal({ open: true, type: "MAINTENANCE" });
-          }}
-        />
-      </Box>
+      </Paper>
 
       {/* ========================================================================= */}
       {/* SECTION 3: ROOM CATEGORIES LIVE INVENTORY CARDS                           */}
@@ -1102,10 +1055,7 @@ export default function ReceptionistOverviewPage({
           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3, flexWrap: "wrap", gap: 2 }}>
             <div>
               <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5, fontSize: { xs: "1.15rem", sm: "1.45rem" }, lineHeight: 1.3 }}>
-                🏨 Room Categories & Live Inventory
-              </Typography>
-              <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontSize: { xs: "0.78rem", sm: "0.85rem" }, mt: 0.3 }}>
-                Live vacant/booked telemetry and room inventory status across all categories.
+                Room categories
               </Typography>
             </div>
 
@@ -1151,133 +1101,66 @@ export default function ReceptionistOverviewPage({
               }}
             >
               {categoryStats.map((cat) => {
-                const hasAvailable = cat.available > 0;
-                const isAllBooked = cat.available === 0 && cat.totalRooms > 0;
+                const statusBoxes = [
+                  { label: "Available", value: cat.available, color: "#0F766E", bg: "#ECFDF5", border: "#A7F3D0" },
+                  { label: "Booked", value: cat.occupied + cat.reserved, color: "#B45309", bg: "#FFFBEB", border: "#FDE68A" },
+                  { label: "Cleaning", value: cat.cleaning, color: "#B42318", bg: "#FEF2F2", border: "#FECACA" },
+                ];
+                const barTotal = statusBoxes.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
+                const isEmptyCategory = cat.totalRooms === 0;
+                const statePill = isEmptyCategory
+                  ? { label: "No rooms", color: "#64748B", bg: "#F1F5F9", border: "#E2E8F0" }
+                  : cat.available > 0
+                    ? { label: "Available", color: "#047857", bg: "#ECFDF5", border: "#A7F3D0" }
+                    : { label: "Unavailable", color: "#B45309", bg: "#FFFBEB", border: "#FDE68A" };
+
                 return (
                   <Card
                     key={cat._id || cat.id}
-                    className="card-3d"
-                    onClick={() => onNavigateTab && onNavigateTab(2, cat._id || cat.id || cat.name)}
+                    onClick={() => onNavigateTab && onNavigateTab(1, cat._id || cat.id || cat.name)}
                     sx={{
-                      p: { xs: 2, sm: 2.2, md: 2.5 },
-                      borderRadius: "20px",
-                      border: `2px solid ${hasAvailable ? themeConfig.primaryGlow || "#0B8EE033" : themeConfig.border}`,
-                      bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-                      background: isDarkMode
-                        ? (themeConfig.bgCard || "#0E312C")
-                        : (hasAvailable
-                          ? "linear-gradient(135deg, #FFFFFF 0%, #F4F9FD 100%)"
-                          : "linear-gradient(135deg, #FFFFFF 0%, #FAFAFA 100%)"),
-                      boxShadow: isDarkMode ? "none" : "0 8px 24px rgba(12, 39, 59, 0.06), inset 0 1px 1px #FFFFFF",
+                      p: 2.25,
+                      borderRadius: "16px",
+                      border: `1px solid ${themeConfig.border}`,
+                      bgcolor: themeConfig.bgCard || "#FFFFFF",
+                      boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 24px rgba(15, 23, 42, 0.08)",
                       cursor: "pointer",
                       display: "flex",
                       flexDirection: "column",
-                      justifyContent: "space-between",
                       gap: 2,
-                      transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
-                      "&:hover": {
-                        transform: "translateY(-5px)",
-                        borderColor: themeConfig.primary,
-                        boxShadow: `0 16px 32px -4px ${themeConfig.primaryGlow || "rgba(11, 142, 224, 0.25)"}`,
-                      },
+                      minWidth: 0,
+                      "&:hover": { borderColor: "#99D5C9", transform: "translateY(-2px)" },
                     }}
                   >
-                    <div>
-                      {/* Top Row: Avatar + Category Name on left, Price on right */}
-                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.2, mb: 1.2 }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, minWidth: 0 }}>
-                          <Avatar
-                            sx={{
-                              bgcolor: themeConfig.champagne,
-                              color: themeConfig.primaryDark,
-                              width: 42,
-                              height: 42,
-                              borderRadius: "12px",
-                              flexShrink: 0,
-                            }}
-                          >
-                            {getCategoryIcon(cat.name)}
-                          </Avatar>
-                          <Typography
-                            variant="h6"
-                            noWrap
-                            title={cat.name}
-                            sx={{
-                              fontWeight: 900,
-                              color: themeConfig.textMain,
-                              lineHeight: 1.2,
-                              fontSize: { xs: "1rem", sm: "1.05rem" },
-                            }}
-                          >
-                            {cat.name}
+                    <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1, minWidth: 0 }}>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+                          <MeetingRoom sx={{ fontSize: 18, flexShrink: 0, color: themeConfig.primary }} />
+                          <Typography noWrap sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "1.05rem" }}>{cat.name}</Typography>
+                        </Box>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mt: 0.5 }}>
+                          <KingBed sx={{ fontSize: 14, color: themeConfig.textMuted }} />
+                          <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 600 }}>
+                            {cat.totalRooms} {cat.totalRooms === 1 ? "room" : "rooms"}
                           </Typography>
                         </Box>
                       </Box>
-
-                      {/* 3 Status Units */}
-                      <Box
-                        sx={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                          gap: 1,
-                          mt: 2,
-                          p: 1.2,
-                          borderRadius: "14px",
-                          bgcolor: "rgba(0,0,0,0.025)",
-                          border: `1px solid ${themeConfig.border}`,
-                        }}
-                      >
-                        <Box sx={{ textAlign: "center", p: 0.8, borderRadius: "10px", bgcolor: "rgba(16, 185, 129, 0.08)" }}>
-                          <Typography variant="caption" sx={{ color: "#059669", fontWeight: 800, display: "block", fontSize: "0.62rem" }}>
-                            🟢 Available
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: 900, color: "#10B981" }}>
-                            {cat.available}
-                          </Typography>
-                        </Box>
-
-                        <Box sx={{ textAlign: "center", p: 0.8, borderRadius: "10px", bgcolor: "rgba(11, 142, 224, 0.08)" }}>
-                          <Typography variant="caption" sx={{ color: "#0284C7", fontWeight: 800, display: "block", fontSize: "0.62rem" }}>
-                            🔵 Booked
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: 900, color: "#0B8EE0" }}>
-                            {cat.occupied + cat.reserved}
-                          </Typography>
-                        </Box>
-
-                        <Box sx={{ textAlign: "center", p: 0.8, borderRadius: "10px", bgcolor: "rgba(217, 119, 6, 0.08)" }}>
-                          <Typography variant="caption" sx={{ color: "#D97706", fontWeight: 800, display: "block", fontSize: "0.62rem" }}>
-                            🟡 Cleaning
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: 900, color: "#D97706" }}>
-                            {cat.cleaning}
-                          </Typography>
-                        </Box>
+                      <Box sx={{ flexShrink: 0, px: 1, py: 0.25, borderRadius: 999, fontSize: "0.65rem", fontWeight: 700, color: statePill.color, bgcolor: statePill.bg, border: `1px solid ${statePill.border}` }}>
+                        {statePill.label}
                       </Box>
-                    </div>
-
-                    {/* Footer */}
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pt: 1.5, borderTop: `1px solid ${themeConfig.border}` }}>
-                      <Chip
-                        label={
-                          isAllBooked
-                            ? "🔴 100% Booked"
-                            : cat.available > 0
-                              ? `🟢 ${cat.available} Ready for Check-In`
-                              : "⚪ No Rooms"
-                        }
-                        size="small"
-                        sx={{
-                          fontWeight: 800,
-                          fontSize: "0.7rem",
-                          bgcolor: isAllBooked ? "rgba(239, 68, 68, 0.1)" : hasAvailable ? "rgba(16, 185, 129, 0.12)" : "rgba(0,0,0,0.05)",
-                          color: isAllBooked ? "#EF4444" : hasAvailable ? "#059669" : themeConfig.textMuted,
-                        }}
-                      />
-
-                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.primary, fontSize: "0.78rem" }}>
-                        View {cat.totalRooms} Rooms &rarr;
-                      </Typography>
+                    </Box>
+                    <Box sx={{ display: "flex", height: 4, borderRadius: 999, overflow: "hidden", bgcolor: "#EEF2F6" }}>
+                      {barTotal > 0 && statusBoxes.map((item) => (
+                        item.value > 0 ? <Box key={item.label} sx={{ width: `${(item.value / barTotal) * 100}%`, bgcolor: item.color }} /> : null
+                      ))}
+                    </Box>
+                    <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 1 }}>
+                      {statusBoxes.map((item) => (
+                        <Box key={item.label} sx={{ borderRadius: "12px", bgcolor: item.bg, border: `1px solid ${item.border}`, py: 1.1, px: 0.5, textAlign: "center", opacity: isEmptyCategory ? 0.55 : 1 }}>
+                          <Typography sx={{ fontWeight: 700, color: item.color, fontSize: "0.95rem", lineHeight: 1 }}>{item.value}</Typography>
+                          <Typography sx={{ color: item.color, fontSize: "0.62rem", fontWeight: 600, mt: 0.6 }}>{item.label}</Typography>
+                        </Box>
+                      ))}
                     </Box>
                   </Card>
                 );
@@ -1300,44 +1183,19 @@ export default function ReceptionistOverviewPage({
           background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #F9FBFC 100%)",
         }}
       >
-        <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2.5, flexWrap: "wrap", gap: 1.5 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-              <Avatar sx={{ bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, width: 34, height: 34, borderRadius: "10px" }}>
-                <People sx={{ fontSize: 20 }} />
-              </Avatar>
-              <div>
-                <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: { xs: "0.95rem", sm: "1.05rem" }, lineHeight: 1.3 }}>
-                  Check-ins
-                </Typography>
-              </div>
-            </Box>
-
-            <Box sx={{ display: "inline-flex", p: 0.5, bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9", borderRadius: "12px", border: `1px solid ${themeConfig.border}`, gap: 0.5, flexWrap: "wrap" }}>
-              {[
-                { id: "ALL", label: `All (${countAll})` },
-                { id: "CHECK_IN", label: `Check-in (${allFormattedBookings.filter((b) => b.status === "IN-HOUSE" || b.rawStatus === "CHECKED_IN" || b.status === "CHECKED_IN").length})` },
-                { id: "CHECK_OUT", label: `Check-out (${allFormattedBookings.filter((b) => b.status === "DEPARTED" || b.rawStatus === "CHECKED_OUT" || b.status === "CHECKED_OUT").length})` },
-              ].map((item) => (
-                <Button
-                  key={item.id}
-                  size="small"
-                  onClick={() => { setRecentFilter(item.id); setGuestPage(0); }}
-                  sx={{
-                    fontWeight: 800,
-                    fontSize: "0.75rem",
-                    borderRadius: "9px",
-                    px: 1.4,
-                    py: 0.35,
-                    textTransform: "none",
-                    bgcolor: recentFilter === item.id ? `${themeConfig.primary} !important` : "transparent",
-                    color: recentFilter === item.id ? "#FFFFFF !important" : themeConfig.textMuted,
-                  }}
-                >
-                  {item.label}
-                </Button>
-              ))}
-            </Box>
+        <CardContent sx={{ p: 0, "&:last-child": { pb: 0 } }}>
+          <Box sx={{ px: { xs: 2, sm: 2.5 }, py: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5, borderBottom: `1px solid ${themeConfig.border}` }}>
+            <TextField
+              select
+              size="small"
+              value={recentFilter}
+              onChange={(e) => { setRecentFilter(e.target.value); setGuestPage(0); }}
+              sx={{ width: { xs: "100%", sm: 220 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
+            >
+              <MenuItem value="ALL">All ({countAll})</MenuItem>
+              <MenuItem value="CHECK_IN">Check-in ({allFormattedBookings.filter((b) => b.status === "IN-HOUSE" || b.rawStatus === "CHECKED_IN" || b.status === "CHECKED_IN").length})</MenuItem>
+              <MenuItem value="CHECK_OUT">Check-out ({allFormattedBookings.filter((b) => b.status === "DEPARTED" || b.rawStatus === "CHECKED_OUT" || b.status === "CHECKED_OUT").length})</MenuItem>
+            </TextField>
           </Box>
 
           <TableContainer
@@ -1349,14 +1207,14 @@ export default function ReceptionistOverviewPage({
               overflowX: "auto",
             }}
           >
-            <Table size="small">
+            <Table size="medium" sx={{ minWidth: 720 }}>
               <TableHead>
-                <TableRow sx={{ bgcolor: themeConfig.champagne }}>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.2, whiteSpace: "nowrap" }}>Guest Name</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Assigned Room</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Contact</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Status</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>Action</TableCell>
+                <TableRow>
+                  <TableCell>Guest Name</TableCell>
+                  <TableCell>Assigned Room</TableCell>
+                  <TableCell>Contact</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell align="right">Action</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -1486,23 +1344,21 @@ export default function ReceptionistOverviewPage({
                 )}
               </TableBody>
             </Table>
+            {activeRecentBookings.length > 0 && (
+              <TablePagination
+                rowsPerPageOptions={[5, 10, 25]}
+                component="div"
+                count={activeRecentBookings.length}
+                rowsPerPage={guestRowsPerPage}
+                page={guestPage}
+                onPageChange={(e, newPage) => setGuestPage(newPage)}
+                onRowsPerPageChange={(e) => {
+                  setGuestRowsPerPage(parseInt(e.target.value, 10));
+                  setGuestPage(0);
+                }}
+              />
+            )}
           </TableContainer>
-
-          {activeRecentBookings.length > 0 && (
-            <TablePagination
-              rowsPerPageOptions={[5, 10, 25]}
-              component="div"
-              count={activeRecentBookings.length}
-              rowsPerPage={guestRowsPerPage}
-              page={guestPage}
-              onPageChange={(e, newPage) => setGuestPage(newPage)}
-              onRowsPerPageChange={(e) => {
-                setGuestRowsPerPage(parseInt(e.target.value, 10));
-                setGuestPage(0);
-              }}
-              sx={{ borderTop: `1px solid ${themeConfig.border}`, bgcolor: themeConfig.bgCard, color: themeConfig.textMain, mt: 1 }}
-            />
-          )}
         </CardContent>
       </Card>
 
@@ -1609,7 +1465,7 @@ export default function ReceptionistOverviewPage({
                     ),
                   },
                 }}
-                sx={{ width: { xs: "100%", sm: 220 }, "& .MuiOutlinedInput-root": { borderRadius: "10px" } }}
+                sx={{ width: { xs: "100%", sm: 240 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
               />
               <IconButton onClick={() => setTelemetryModal({ open: false, type: null })} size="small">
                 <Close />
@@ -1637,8 +1493,8 @@ export default function ReceptionistOverviewPage({
                 />
               ) : (
                 <TableContainer sx={{ borderRadius: "14px", border: `1px solid ${themeConfig.border}`, overflowX: "auto", width: "100%" }}>
-                  <Table size="small" sx={{ minWidth: 680 }}>
-                    <TableHead sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F8FAFC" }}>
+                  <Table size="medium" sx={{ minWidth: 680 }}>
+                    <TableHead>
                       <TableRow>
                         <TableCell sx={{ fontWeight: 800, whiteSpace: "nowrap" }}>Room #</TableCell>
                         <TableCell sx={{ fontWeight: 800, whiteSpace: "nowrap" }}>Category / Type</TableCell>
@@ -1754,8 +1610,8 @@ export default function ReceptionistOverviewPage({
                 />
               ) : (
                 <TableContainer sx={{ borderRadius: "14px", border: `1px solid ${themeConfig.border}`, overflowX: "auto", width: "100%" }}>
-                  <Table size="small" sx={{ minWidth: 780 }}>
-                    <TableHead sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F8FAFC" }}>
+                  <Table size="medium" sx={{ minWidth: 780 }}>
+                    <TableHead>
                       <TableRow>
                         <TableCell sx={{ fontWeight: 800, whiteSpace: "nowrap" }}>Room #</TableCell>
                         <TableCell sx={{ fontWeight: 800, whiteSpace: "nowrap" }}>Resident Guest</TableCell>
@@ -1864,8 +1720,8 @@ export default function ReceptionistOverviewPage({
                 />
               ) : (
                 <TableContainer sx={{ borderRadius: "14px", border: `1px solid ${themeConfig.border}`, overflowX: "auto", width: "100%" }}>
-                  <Table size="small" sx={{ minWidth: 680 }}>
-                    <TableHead sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F8FAFC" }}>
+                  <Table size="medium" sx={{ minWidth: 680 }}>
+                    <TableHead>
                       <TableRow>
                         <TableCell sx={{ fontWeight: 800, whiteSpace: "nowrap" }}>Room #</TableCell>
                         <TableCell sx={{ fontWeight: 800, whiteSpace: "nowrap" }}>Category</TableCell>
@@ -1947,8 +1803,8 @@ export default function ReceptionistOverviewPage({
                 />
               ) : (
                 <TableContainer sx={{ borderRadius: "14px", border: `1px solid ${themeConfig.border}`, overflowX: "auto", width: "100%" }}>
-                  <Table size="small" sx={{ minWidth: 680 }}>
-                    <TableHead sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F8FAFC" }}>
+                  <Table size="medium" sx={{ minWidth: 680 }}>
+                    <TableHead>
                       <TableRow>
                         <TableCell sx={{ fontWeight: 800, whiteSpace: "nowrap" }}>Room #</TableCell>
                         <TableCell sx={{ fontWeight: 800, whiteSpace: "nowrap" }}>Category</TableCell>
@@ -2030,8 +1886,8 @@ export default function ReceptionistOverviewPage({
                     "&::-webkit-scrollbar-thumb": { bgcolor: "rgba(142, 36, 170, 0.3)", borderRadius: 4 },
                   }}
                 >
-                  <Table size="small" sx={{ minWidth: 840 }}>
-                    <TableHead sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F8FAFC" }}>
+                  <Table size="medium" sx={{ minWidth: 840 }}>
+                    <TableHead>
                       <TableRow>
                         <TableCell sx={{ fontWeight: 800, whiteSpace: "nowrap" }}>Guest Profile</TableCell>
                         <TableCell sx={{ fontWeight: 800, whiteSpace: "nowrap" }}>Room / Stay</TableCell>

@@ -4,16 +4,14 @@ import DashboardLayout from "@/shared/layout/DashboardLayout";
 import {
   DashboardOutlined,
   Bed,
-  HowToReg,
   MoreHoriz,
   Person,
 } from "@/shared/icons";
 
 export const RECEPTIONIST_NAV = [
   { label: "Dashboard", shortLabel: "Overview", path: "dashboard", icon: <DashboardOutlined fontSize="small" /> },
-  { label: "Guest Directory", shortLabel: "Guests", path: "guests", icon: <Person fontSize="small" /> },
   { label: "Rooms", shortLabel: "Rooms", path: "rooms", icon: <Bed fontSize="small" /> },
-  { label: "In-House Folios", shortLabel: "Folios", path: "folios", icon: <HowToReg fontSize="small" /> },
+  { label: "Guest Directory", shortLabel: "Guests", path: "guests", icon: <Person fontSize="small" /> },
   { label: "More", shortLabel: "More", path: "more", icon: <MoreHoriz fontSize="small" /> },
 ];
 

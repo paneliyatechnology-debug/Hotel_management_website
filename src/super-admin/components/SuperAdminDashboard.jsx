@@ -50,7 +50,6 @@ import {
   BookmarkBorder,
   Schedule,
   Payments,
-  Refresh,
 } from "@/shared/icons";
 import dynamic from "next/dynamic";
 import { useAppTheme } from "@/shared/context/ThemeContext";
@@ -264,28 +263,6 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
               Multi-property performance metrics, subscription health, booking velocity, and platform financial ledger.
             </Typography>
           </Box>
-
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, alignItems: "center" }}>
-            <Button
-              variant="contained"
-              startIcon={<Refresh />}
-              onClick={() => {
-                fetchDashboardMetrics();
-                fetchHotels();
-              }}
-              sx={{
-                bgcolor: "rgba(255,255,255,0.2)",
-                color: "#FFFFFF",
-                fontWeight: 800,
-                borderRadius: "14px",
-                px: 2.2,
-                backdropFilter: "blur(10px)",
-                "&:hover": { bgcolor: "rgba(255,255,255,0.3)" },
-              }}
-            >
-              Sync Analytics
-            </Button>
-          </Box>
         </Box>
       </Box>
 
@@ -426,17 +403,8 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
           overflow: "hidden",
         }}
       >
-        <Box sx={{ p: 2.5, display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 2 }}>
-          <Box>
-            <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-              Registered Properties &amp; Hotels
-            </Typography>
-            <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-              Select any hotel to inspect complete operational stats, room counts, owner profile, and subscription health.
-            </Typography>
-          </Box>
-
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, alignItems: "center" }}>
+        <Box sx={{ px: { xs: 2, sm: 2.5 }, py: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5, borderBottom: `1px solid ${themeConfig.border}` }}>
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, alignItems: "center", width: "100%" }}>
             <TextField
               size="small"
               placeholder="Search hotel, owner, city..."
@@ -445,7 +413,7 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
                 setSearchQuery(e.target.value);
                 setPage(0);
               }}
-              sx={{ width: { xs: "100%", sm: 260 }, "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
+              sx={{ width: { xs: "100%", sm: 280 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
               slotProps={{
                 input: {
                   startAdornment: (
@@ -465,7 +433,7 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
                 setStatusFilter(e.target.value);
                 setPage(0);
               }}
-              sx={{ width: { xs: "100%", sm: 160 }, "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
+              sx={{ width: { xs: "100%", sm: 210 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
             >
               <MenuItem value="ALL">All Statuses</MenuItem>
               <MenuItem value="ACTIVE">Active</MenuItem>
@@ -479,14 +447,14 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
 
         <TableContainer>
           <Table sx={{ minWidth: 800 }}>
-            <TableHead sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : themeConfig.champagne }}>
+            <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>HOTEL PROPERTY</TableCell>
-                <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>LOCATION</TableCell>
-                <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>OWNER CONTACT</TableCell>
-                <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>SUBSCRIPTION</TableCell>
-                <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain }}>STATUS</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMain }}>ACTION</TableCell>
+                <TableCell>Hotel Property</TableCell>
+                <TableCell>Location</TableCell>
+                <TableCell>Owner Contact</TableCell>
+                <TableCell>Subscription</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell align="right">Action</TableCell>
               </TableRow>
             </TableHead>
 

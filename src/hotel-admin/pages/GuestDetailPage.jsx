@@ -43,7 +43,6 @@ import {
   ContentCopy,
   Schedule,
   Bed,
-  Refresh,
   AccountBalanceWallet,
   Description,
   Close,
@@ -496,20 +495,6 @@ export default function GuestDetailPage({
           >
             {pdfLoading ? "Preparing..." : "Guest PDF"}
           </Button>
-
-          {onRefresh && (
-            <IconButton
-              onClick={onRefresh}
-              size="small"
-              sx={{
-                border: `1px solid ${themeConfig.border}`,
-                borderRadius: "10px",
-                color: themeConfig.primary,
-              }}
-            >
-              <Refresh fontSize="small" />
-            </IconButton>
-          )}
         </Box>
       </Paper>
 
@@ -1130,12 +1115,12 @@ export default function GuestDetailPage({
                 <Table size="small" sx={{ minWidth: 720 }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Date & Time</TableCell>
-                      <TableCell sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Payment Mode</TableCell>
-                      <TableCell sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Source</TableCell>
-                      <TableCell sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Received By</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Amount Paid</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 800, color: themeConfig.textMuted }}>Status</TableCell>
+                      <TableCell>Date & Time</TableCell>
+                      <TableCell>Payment Mode</TableCell>
+                      <TableCell>Source</TableCell>
+                      <TableCell>Received By</TableCell>
+                      <TableCell align="right">Amount Paid</TableCell>
+                      <TableCell align="right">Status</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>

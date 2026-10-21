@@ -266,4 +266,65 @@ body {
   border-radius: 0 0 16px 16px !important;
 }
 
+/* Staff-table format on every data table */
+.MuiTableContainer-root {
+  border-radius: 0 !important;
+  border: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.MuiTableHead-root .MuiTableCell-root {
+  font-weight: 700 !important;
+  font-size: 0.72rem !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  color: var(--color-primary-dark, #0f766e) !important;
+  background-color: var(--color-champagne, #e7f6f3) !important;
+  border-bottom: 1px solid var(--color-border, #e2e8f0) !important;
+  padding: 14px 20px !important;
+  white-space: nowrap !important;
+}
+
+html.dark-theme .MuiTableHead-root .MuiTableCell-root {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+.MuiTableBody-root .MuiTableCell-root {
+  padding-top: 14px !important;
+  padding-bottom: 14px !important;
+  border-bottom: 1px solid var(--color-border, #e2e8f0) !important;
+}
+
+.MuiTableBody-root .MuiTableRow-root:hover {
+  background-color: #f8fafc !important;
+}
+
+html.dark-theme .MuiTableBody-root .MuiTableRow-root:hover {
+  background-color: rgba(255, 255, 255, 0.03) !important;
+}
+
+.MuiTablePagination-root {
+  border-top: 1px solid var(--color-border, #e2e8f0) !important;
+  background-color: var(--color-bg-card, #ffffff) !important;
+  color: var(--color-text-muted, #64748b) !important;
+}
+
+.MuiTablePagination-toolbar {
+  min-height: 52px !important;
+  justify-content: flex-end !important;
+  flex-wrap: wrap !important;
+  padding-left: 16px !important;
+  padding-right: 16px !important;
+  gap: 8px !important;
+}
+
+.MuiTablePagination-selectLabel,
+.MuiTablePagination-displayedRows {
+  font-weight: 700 !important;
+  font-size: 0.875rem !important;
+  color: var(--color-text-muted, #64748b) !important;
+  margin: 0 !important;
+}
+
 

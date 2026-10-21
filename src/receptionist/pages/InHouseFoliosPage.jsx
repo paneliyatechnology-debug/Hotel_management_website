@@ -142,12 +142,19 @@ export default function InHouseFoliosPage({
     booking: null,
   });
 
-  // Guest Details Modal State
   const [selectedGuestModal, setSelectedGuestModal] = useState({
     open: false,
     guest: null,
     guestId: null,
   });
+
+  const openGuestDetail = (booking) => {
+    setSelectedGuestModal({
+      open: true,
+      guest: createSafeGuestModalData(booking),
+      guestId: booking.id || booking._id || booking.bookingId || booking.guest?.id || booking.guest?._id,
+    });
+  };
 
   // Full-size Photo Preview Modal State
   const [previewImage, setPreviewImage] = useState(null);
@@ -509,7 +516,7 @@ export default function InHouseFoliosPage({
                 setSearchQuery(e.target.value);
                 setPage(0);
               }}
-              sx={{ minWidth: { xs: "100%", sm: 260 }, "& .MuiOutlinedInput-root": { borderRadius: "12px", bgcolor: themeConfig.bgMain } }}
+              sx={{ minWidth: { xs: "100%", sm: 280 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
               slotProps={{
                 input: {
                   startAdornment: (
@@ -539,7 +546,7 @@ export default function InHouseFoliosPage({
         >
           <Table stickyHeader size="small" sx={{ width: "100%", tableLayout: "fixed" }}>
             <TableHead>
-              <TableRow sx={{ "& th": { bgcolor: themeConfig.champagne, color: themeConfig.textMain, fontWeight: 800, py: 1, px: 1.5, fontSize: "0.8rem" } }}>
+              <TableRow>
                 <TableCell sx={{ width: "22%" }}>Guest</TableCell>
                 <TableCell sx={{ width: "16%" }}>Room</TableCell>
                 <TableCell sx={{ width: "23%" }}>Schedule</TableCell>
@@ -595,7 +602,12 @@ export default function InHouseFoliosPage({
                     const idPhoto = b.frontImage || b.id_proof_image || b.images?.[0] || b.guest?.idProof?.frontImage || b.guest?.frontImage;
 
                     return (
-                      <TableRow key={b._id || b.id} hover sx={{ "&:hover": { bgcolor: "rgba(11, 142, 224, 0.03)" }, "& td": { py: 1, px: 1.5 } }}>
+                      <TableRow
+                        key={b._id || b.id}
+                        hover
+                        onClick={() => openGuestDetail(b)}
+                        sx={{ cursor: "pointer", "&:hover": { bgcolor: "rgba(11, 142, 224, 0.03)" }, "& td": { py: 1, px: 1.5 } }}
+                      >
 
                         {/* Guest Details */}
                         <TableCell sx={{ whiteSpace: "nowrap" }}>
@@ -607,13 +619,7 @@ export default function InHouseFoliosPage({
                               cursor: "pointer",
                               "&:hover": { opacity: 0.8 },
                             }}
-                            onClick={() => {
-                              setSelectedGuestModal({
-                                open: true,
-                                guest: createSafeGuestModalData(b),
-                                guestId: b.id || b._id || b.bookingId || b.guest?.id || b.guest?._id,
-                              });
-                            }}
+                            onClick={() => openGuestDetail(b)}
                           >
                             <Avatar sx={{ bgcolor: themeConfig.primary, width: 34, height: 34, fontSize: "0.85rem", fontWeight: 800 }}>
                               {guestName.charAt(0).toUpperCase()}
@@ -770,7 +776,7 @@ export default function InHouseFoliosPage({
                         </TableCell>
 
                         {/* Actions */}
-                        <TableCell align="right" sx={{ whiteSpace: "nowrap", pr: 2.5 }}>
+                        <TableCell align="right" onClick={(e) => e.stopPropagation()} sx={{ whiteSpace: "nowrap", pr: 2.5 }}>
                           <Box sx={{ display: "flex", gap: 0.8, justifyContent: "flex-end", alignItems: "center" }}>
                             {/* 1. WhatsApp Notification */}
                             <Tooltip title={b.status === "CHECKED_IN" ? "Send Check-In Confirmation on WhatsApp" : "Send Final Bill on WhatsApp"}>
@@ -1057,7 +1063,7 @@ export default function InHouseFoliosPage({
 
                 <TableContainer sx={{ borderRadius: "12px", border: `1px solid ${themeConfig.border}` }}>
                   <Table size="small">
-                    <TableHead sx={{ bgcolor: themeConfig.champagne }}>
+                    <TableHead>
                       <TableRow>
                         <TableCell sx={{ fontWeight: 800 }}>Description</TableCell>
                         <TableCell sx={{ fontWeight: 800 }}>Category</TableCell>

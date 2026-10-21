@@ -835,6 +835,42 @@ function prepareRequestBody(body, endpoint) {
 
   if (typeof parsedBody !== "object" || parsedBody === null) return parsedBody;
 
+  // Create / update room: only the fields the rooms API accepts
+  if (typeof endpoint === "string" && /\/rooms(\/\d+)?\/?$/.test(endpoint.split("?")[0])) {
+    const rawBeds = Array.isArray(parsedBody.beds)
+      ? parsedBody.beds
+      : Array.isArray(parsedBody.beds_config)
+        ? parsedBody.beds_config
+        : Array.isArray(parsedBody.bedsConfig)
+          ? parsedBody.bedsConfig
+          : [];
+    const beds = (rawBeds.length ? rawBeds : [{ bed_type: parsedBody.bed_type || parsedBody.bedType || "King", bed_count: parsedBody.bed_count || parsedBody.bedCount || 1 }])
+      .map((bed) => ({
+        bed_type: String(bed.bed_type || bed.bedType || bed.type || "King")
+          .replace(/^\d+\s*/, "")
+          .replace(/\b(size|bed)s?\b/gi, "")
+          .replace(/\s+/g, " ")
+          .trim() || "King",
+        bed_count: Number(bed.bed_count || bed.bedCount || bed.count) || 1,
+      }));
+    const rawAmenities = parsedBody.amenities;
+    const amenities = Array.isArray(rawAmenities)
+      ? rawAmenities.map((item) => String(item).trim()).filter(Boolean)
+      : String(rawAmenities || "").split(",").map((item) => item.trim()).filter(Boolean);
+    const roomTypeId = Number(parsedBody.room_type_id ?? parsedBody.roomTypeId ?? parsedBody.room_type);
+    return {
+      room_number: String(parsedBody.room_number ?? parsedBody.roomNumber ?? ""),
+      room_type_id: roomTypeId,
+      floor: Number(parsedBody.floor) || 1,
+      beds,
+      custom_price_per_night: Number(parsedBody.custom_price_per_night ?? parsedBody.customPricePerNight) || 0,
+      notes: String(parsedBody.notes || ""),
+      amenities,
+      cleaning_duration_minutes: Number(parsedBody.cleaning_duration_minutes ?? parsedBody.cleaningDurationMinutes) || 15,
+      is_active: parsedBody.is_active === false || parsedBody.isActive === false ? false : true,
+    };
+  }
+
   // 0. Special endpoint handlers matching Postman contract
   // A. Subscription plans (Postman: Plan JSON uses camelCase)
   if (typeof endpoint === "string" && endpoint.includes("/subscription-plans") && !endpoint.includes("/purchase")) {

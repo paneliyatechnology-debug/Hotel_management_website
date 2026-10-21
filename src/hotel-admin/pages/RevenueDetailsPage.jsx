@@ -32,7 +32,6 @@ import {
   CurrencyRupee,
   Receipt,
   Search,
-  Refresh,
   FilterList,
   CalendarMonth,
   CreditCard,
@@ -298,7 +297,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
     otherCharges: otherTotal,
     total: cashTotal + upiTotal + cardTotal + otherTotal,
   };
-  const sourceLabels = ["Cash", "UPI", "Card", "Bank / Online"];
+  const sourceLabels = ["Cash", "UPI", "Card", "Bank"];
   const dateRangeLabel = summary?.period_start_date && summary?.period_end_date
     ? `${summary.period_start_date} to ${summary.period_end_date}`
     : (filterType === "TODAY" ? "Today" : filterType === "THIS_MONTH" ? "This Month" : "This Week");
@@ -368,36 +367,9 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
             )}
             <Box>
               <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: "-0.5px", fontSize: { xs: "1.2rem", sm: "1.5rem" } }}>
-                Detailed Revenue &amp; Financial Ledger
-              </Typography>
-              <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block", mt: 0.5, fontSize: { xs: "0.75rem", sm: "0.8rem" } }}>
-                Period: <span style={{ color: themeConfig.primary, fontWeight: 800 }}>{dateRangeLabel}</span> &bull; Real-time verified booking &amp; payment transactions
+                Revenue
               </Typography>
             </Box>
-          </Box>
-
-          <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, alignItems: "center", gap: 1.2, width: { xs: "100%", sm: "auto" } }}>
-
-            <Button
-              variant="contained"
-              startIcon={<Refresh />}
-              onClick={fetchRevenueDetails}
-              sx={{
-                width: { xs: "100%", sm: "auto" },
-                borderRadius: "12px",
-                fontWeight: 800,
-                fontSize: "0.82rem",
-                px: 2,
-                py: 0.9,
-                justifyContent: "center",
-                whiteSpace: "nowrap",
-                bgcolor: themeConfig.primary,
-                boxShadow: `0 4px 12px ${themeConfig.primaryGlow}`,
-                "&:hover": { bgcolor: themeConfig.primaryDark },
-              }}
-            >
-              Refresh Data
-            </Button>
           </Box>
         </Box>
 
@@ -501,7 +473,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <Box>
                 <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  TOTAL REVENUE ({dateRangeLabel})
+                  Revenue
                 </Typography>
                 <Typography variant="h3" sx={{ fontWeight: 900, color: "#10B981", mt: 0.5, letterSpacing: "-1px", fontSize: { xs: "1.5rem", sm: "2.2rem" } }}>
                   ₹{totalRev.toLocaleString()}
@@ -522,7 +494,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
               </Box>
             </Box>
             <Typography variant="caption" sx={{ color: "#10B981", fontWeight: 800, display: "flex", alignItems: "center", gap: 0.5, mt: 1 }}>
-              <CheckCircle sx={{ fontSize: 14 }} /> 100% Calculated from verified transactions
+              Collected
             </Typography>
           </Paper>
         </Grid>
@@ -542,7 +514,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <Box>
                 <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  TOTAL TRANSACTIONS
+                  Transactions
                 </Typography>
                 <Typography variant="h3" sx={{ fontWeight: 900, color: themeConfig.textMain, mt: 0.5, letterSpacing: "-1px", fontSize: { xs: "1.5rem", sm: "2.2rem" } }}>
                   {totalTxnCount}
@@ -563,7 +535,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
               </Box>
             </Box>
             <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block", mt: 1 }}>
-              Completed in this selected date range
+              In this range
             </Typography>
           </Paper>
         </Grid>
@@ -583,7 +555,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <Box>
                 <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  AVERAGE TICKET / TRANSACTION SIZE
+                  Avg ticket
                 </Typography>
                 <Typography variant="h3" sx={{ fontWeight: 900, color: themeConfig.primary, mt: 0.5, letterSpacing: "-1px", fontSize: { xs: "1.5rem", sm: "2.2rem" } }}>
                   ₹{avgTicket.toLocaleString()}
@@ -604,7 +576,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
               </Box>
             </Box>
             <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block", mt: 1 }}>
-              Per transaction revenue average
+              Per booking
             </Typography>
           </Paper>
         </Grid>
@@ -614,34 +586,34 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
       <Paper
         elevation={0}
         sx={{
-          p: { xs: 2, sm: 3 },
-          borderRadius: "20px",
+          p: { xs: 1.5, sm: 1.75 },
+          borderRadius: "16px",
           bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
           border: `1.5px solid ${themeConfig.border}`,
         }}
       >
-        <Typography variant="subtitle1" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 1.25, display: "flex", alignItems: "center", gap: 0.75 }}>
           <Receipt sx={{ fontSize: 20, color: themeConfig.primary }} />
-          Revenue Source Breakdown
+          Sources
         </Typography>
 
-        <Grid container spacing={2}>
+        <Grid container spacing={1.25}>
           {/* Room Bookings */}
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Paper
               elevation={0}
               sx={{
-                p: 2.2,
-                borderRadius: "16px",
+                p: 1.15,
+                borderRadius: "12px",
                 bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
                 border: `1px solid ${themeConfig.border}`,
                 transition: "transform 0.2s",
                 "&:hover": { transform: "translateY(-2px)" },
               }}
             >
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 0.5 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <Hotel sx={{ fontSize: 20, color: themeConfig.primary }} />
+                  <Hotel sx={{ fontSize: 16, color: themeConfig.primary }} />
                   <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted }}>
                     {sourceLabels[0]}
                   </Typography>
@@ -652,18 +624,18 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                   sx={{ fontWeight: 800, fontSize: "0.7rem", height: 20, bgcolor: themeConfig.champagne, color: themeConfig.primary }}
                 />
               </Box>
-              <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+              <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "1rem", lineHeight: 1.2 }}>
                 ₹{breakdown.roomBooking?.toLocaleString()}
               </Typography>
               <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                {`${sharePercent(breakdown.roomBooking)}% of total`}
+                {`${sharePercent(breakdown.roomBooking)}%`}
               </Typography>
               <LinearProgress
                 variant="determinate"
                 value={sharePercent(breakdown.roomBooking)}
                 sx={{
-                  mt: 1.5,
-                  height: 6,
+                  mt: 0.75,
+                  height: 4,
                   borderRadius: 3,
                   bgcolor: isDarkMode ? "rgba(255,255,255,0.08)" : "#E2E8F0",
                   "& .MuiLinearProgress-bar": { bgcolor: themeConfig.primary, borderRadius: 3 },
@@ -677,17 +649,17 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
             <Paper
               elevation={0}
               sx={{
-                p: 2.2,
-                borderRadius: "16px",
+                p: 1.15,
+                borderRadius: "12px",
                 bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
                 border: `1px solid ${themeConfig.border}`,
                 transition: "transform 0.2s",
                 "&:hover": { transform: "translateY(-2px)" },
               }}
             >
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 0.5 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <RoomService sx={{ fontSize: 20, color: "#8B5CF6" }} />
+                  <RoomService sx={{ fontSize: 16, color: "#8B5CF6" }} />
                   <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted }}>
                     {sourceLabels[1]}
                   </Typography>
@@ -698,18 +670,18 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                   sx={{ fontWeight: 800, fontSize: "0.7rem", height: 20, bgcolor: "rgba(139, 92, 246, 0.12)", color: "#8B5CF6" }}
                 />
               </Box>
-              <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+              <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "1rem", lineHeight: 1.2 }}>
                 ₹{breakdown.extraServices?.toLocaleString()}
               </Typography>
               <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                {`${sharePercent(breakdown.extraServices)}% of total`}
+                {`${sharePercent(breakdown.extraServices)}%`}
               </Typography>
               <LinearProgress
                 variant="determinate"
                 value={sharePercent(breakdown.extraServices)}
                 sx={{
-                  mt: 1.5,
-                  height: 6,
+                  mt: 0.75,
+                  height: 4,
                   borderRadius: 3,
                   bgcolor: isDarkMode ? "rgba(255,255,255,0.08)" : "#E2E8F0",
                   "& .MuiLinearProgress-bar": { bgcolor: "#8B5CF6", borderRadius: 3 },
@@ -723,17 +695,17 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
             <Paper
               elevation={0}
               sx={{
-                p: 2.2,
-                borderRadius: "16px",
+                p: 1.15,
+                borderRadius: "12px",
                 bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
                 border: `1px solid ${themeConfig.border}`,
                 transition: "transform 0.2s",
                 "&:hover": { transform: "translateY(-2px)" },
               }}
             >
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 0.5 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <Restaurant sx={{ fontSize: 20, color: "#F59E0B" }} />
+                  <Restaurant sx={{ fontSize: 16, color: "#F59E0B" }} />
                   <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted }}>
                     {sourceLabels[2]}
                   </Typography>
@@ -744,18 +716,18 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                   sx={{ fontWeight: 800, fontSize: "0.7rem", height: 20, bgcolor: "rgba(245, 158, 11, 0.12)", color: "#D97706" }}
                 />
               </Box>
-              <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+              <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "1rem", lineHeight: 1.2 }}>
                 ₹{breakdown.foodRestaurant?.toLocaleString()}
               </Typography>
               <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                {`${sharePercent(breakdown.foodRestaurant)}% of total`}
+                {`${sharePercent(breakdown.foodRestaurant)}%`}
               </Typography>
               <LinearProgress
                 variant="determinate"
                 value={sharePercent(breakdown.foodRestaurant)}
                 sx={{
-                  mt: 1.5,
-                  height: 6,
+                  mt: 0.75,
+                  height: 4,
                   borderRadius: 3,
                   bgcolor: isDarkMode ? "rgba(255,255,255,0.08)" : "#E2E8F0",
                   "& .MuiLinearProgress-bar": { bgcolor: "#F59E0B", borderRadius: 3 },
@@ -769,17 +741,17 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
             <Paper
               elevation={0}
               sx={{
-                p: 2.2,
-                borderRadius: "16px",
+                p: 1.15,
+                borderRadius: "12px",
                 bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
                 border: `1px solid ${themeConfig.border}`,
                 transition: "transform 0.2s",
                 "&:hover": { transform: "translateY(-2px)" },
               }}
             >
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 0.5 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <AccountBalanceWallet sx={{ fontSize: 20, color: "#10B981" }} />
+                  <AccountBalanceWallet sx={{ fontSize: 16, color: "#10B981" }} />
                   <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted }}>
                     {sourceLabels[3]}
                   </Typography>
@@ -790,18 +762,18 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                   sx={{ fontWeight: 800, fontSize: "0.7rem", height: 20, bgcolor: "rgba(16, 185, 129, 0.12)", color: "#10B981" }}
                 />
               </Box>
-              <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
+              <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "1rem", lineHeight: 1.2 }}>
                 ₹{breakdown.otherCharges?.toLocaleString()}
               </Typography>
               <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                {`${sharePercent(breakdown.otherCharges)}% of total`}
+                {`${sharePercent(breakdown.otherCharges)}%`}
               </Typography>
               <LinearProgress
                 variant="determinate"
                 value={sharePercent(breakdown.otherCharges)}
                 sx={{
-                  mt: 1.5,
-                  height: 6,
+                  mt: 0.75,
+                  height: 4,
                   borderRadius: 3,
                   bgcolor: isDarkMode ? "rgba(255,255,255,0.08)" : "#E2E8F0",
                   "& .MuiLinearProgress-bar": { bgcolor: "#10B981", borderRadius: 3 },
@@ -855,7 +827,9 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
               sx={{
                 width: { xs: "100%", sm: 240 },
                 "& .MuiOutlinedInput-root": {
-                  borderRadius: "12px",
+                  height: 40,
+                  borderRadius: "10px",
+                  bgcolor: themeConfig.bgMain,
                 },
               }}
             />
@@ -873,7 +847,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                 sx={{
                   flex: 1,
                   width: { xs: "50%", sm: 160 },
-                  "& .MuiOutlinedInput-root": { borderRadius: "12px" },
+                  "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain },
                 }}
               >
                 <MenuItem value="ALL">All Methods</MenuItem>
@@ -896,7 +870,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                 sx={{
                   flex: 1,
                   width: { xs: "50%", sm: 140 },
-                  "& .MuiOutlinedInput-root": { borderRadius: "12px" },
+                  "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain },
                 }}
               >
                 <MenuItem value="ALL">All Status</MenuItem>
@@ -922,11 +896,9 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
             <TableContainer sx={{ borderRadius: "14px", border: `1px solid ${themeConfig.border}`, overflowX: "auto" }}>
               <Table size="medium" sx={{ minWidth: 720 }}>
                 <TableHead>
-                  <TableRow sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F0FDFA" }}>
+                  <TableRow>
                     {["Date", "Guest", "Booking", "Method", "Amount", "Status"].map((heading) => (
-                      <TableCell key={heading} sx={{ fontWeight: 800, fontSize: "0.75rem", letterSpacing: "0.04em", textTransform: "uppercase", color: themeConfig.primaryDark, py: 1.6, whiteSpace: "nowrap", borderBottom: `1px solid ${themeConfig.border}` }}>
-                        {heading}
-                      </TableCell>
+                      <TableCell key={heading}>{heading}</TableCell>
                     ))}
                   </TableRow>
                 </TableHead>

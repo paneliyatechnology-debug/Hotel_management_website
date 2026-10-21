@@ -24,15 +24,11 @@ import {
   TableCell,
   TableContainer,
   TablePagination,
-  ButtonGroup,
 } from "@mui/material";
 import {
   Search,
   Print,
   WhatsApp,
-  Refresh,
-  Apps,
-  FormatListBulleted,
   ArrowForward,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
@@ -153,7 +149,6 @@ export default function GuestListPage({
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [paymentFilter, setPaymentFilter] = useState("ALL");
   const [sortBy, setSortBy] = useState("NEWEST");
-  const [viewMode, setViewMode] = useState("table"); // "table" or "grid"
 
   // Pagination
   const [page, setPage] = useState(0);
@@ -422,369 +417,112 @@ export default function GuestListPage({
   };
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: { xs: 2.5, md: 3.5 }, px: { xs: 0.5, sm: 0.5 }, pb: 2 }}>
-      {/* Page Header */}
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: { xs: "column", sm: "row" },
-          justifyContent: "space-between",
-          alignItems: { xs: "flex-start", sm: "center" },
-          gap: 2,
-        }}
-      >
-        <Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-            <Typography
-              variant="h5"
-              sx={{
-                fontWeight: 900,
-                color: themeConfig.textMain,
-                letterSpacing: "-0.5px",
-              }}
-            >
-              Guest Directory & Profiles
-            </Typography>
-            <Chip
-              label={`${filteredGuests.length} Guests`}
-              size="small"
-              sx={{
-                fontWeight: 800,
-                bgcolor: themeConfig.champagne,
-                color: themeConfig.primary,
-                border: `1px solid ${themeConfig.border}`,
-              }}
-            />
-          </Box>
-        </Box>
-
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
-          {onRefresh && (
-            <IconButton
-              onClick={onRefresh}
-              sx={{
-                border: `1px solid ${themeConfig.border}`,
-                borderRadius: "12px",
-                color: themeConfig.primary,
-                bgcolor: themeConfig.bgCard,
-              }}
-            >
-              <Refresh fontSize="small" />
-            </IconButton>
-          )}
-        </Box>
-      </Box>
-
-      {/* Filter & Search Bar */}
-      <Card
+    <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
+      <Paper
         elevation={0}
         sx={{
           borderRadius: "16px",
-          bgcolor: themeConfig.bgCard,
+          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
           border: `1px solid ${themeConfig.border}`,
+          boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.04)",
+          overflow: "hidden",
         }}
       >
-        <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
-          <Grid container spacing={2} sx={{ alignItems: "center" }}>
-            {/* Search Box */}
-            <Grid size={{ xs: 12, md: 4 }}>
-              <TextField
-                fullWidth
-                size="small"
-                placeholder="Search guest name, phone, room, booking ID..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setPage(0);
-                }}
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Search sx={{ color: themeConfig.textMuted, fontSize: 20 }} />
-                      </InputAdornment>
-                    ),
-                  },
-                }}
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    borderRadius: "12px",
-                    bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#FFFFFF",
-                  },
-                }}
-              />
-            </Grid>
-
-            {/* Status Filter */}
-            <Grid size={{ xs: 6, sm: 3, md: 2 }}>
-              <TextField
-                select
-                fullWidth
-                size="small"
-                label="Stay Status"
-                value={statusFilter}
-                onChange={(e) => {
-                  setStatusFilter(e.target.value);
-                  setPage(0);
-                }}
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    borderRadius: "12px",
-                    bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#FFFFFF",
-                  },
-                }}
-              >
-                <MenuItem value="ALL">All Statuses</MenuItem>
-                <MenuItem value="CHECKED_IN">In-House Only</MenuItem>
-                <MenuItem value="CHECKED_OUT">Checked-Out</MenuItem>
-                <MenuItem value="CONFIRMED">Confirmed / Upcoming</MenuItem>
-                <MenuItem value="CANCELLED">Cancelled</MenuItem>
-              </TextField>
-            </Grid>
-
-            {/* Payment Filter */}
-            <Grid size={{ xs: 6, sm: 3, md: 2 }}>
-              <TextField
-                select
-                fullWidth
-                size="small"
-                label="Payment"
-                value={paymentFilter}
-                onChange={(e) => {
-                  setPaymentFilter(e.target.value);
-                  setPage(0);
-                }}
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    borderRadius: "12px",
-                    bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#FFFFFF",
-                  },
-                }}
-              >
-                <MenuItem value="ALL">All Payments</MenuItem>
-                <MenuItem value="PAID">Fully Settled</MenuItem>
-                <MenuItem value="DUE">Balance Pending</MenuItem>
-              </TextField>
-            </Grid>
-
-            {/* Sort Order & View Mode */}
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <TextField
-                  select
-                  fullWidth
-                  size="small"
-                  label="Sort By"
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      borderRadius: "12px",
-                      bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#FFFFFF",
-                    },
-                  }}
-                >
-                  <MenuItem value="NEWEST">Newest Stay</MenuItem>
-                  <MenuItem value="OLDEST">Oldest Stay</MenuItem>
-                  <MenuItem value="NAME_ASC">Name (A-Z)</MenuItem>
-                  <MenuItem value="AMOUNT_DESC">Highest Tariff</MenuItem>
-                  <MenuItem value="DUE_DESC">Highest Due</MenuItem>
-                </TextField>
-
-                <ButtonGroup size="small" sx={{ borderRadius: "10px", display: { xs: "none", lg: "flex" } }}>
-                  <IconButton
-                    size="small"
-                    onClick={() => setViewMode("table")}
-                    sx={{
-                      color: viewMode === "table" ? themeConfig.primary : themeConfig.textMuted,
-                      border: `1px solid ${themeConfig.border}`,
-                      borderRadius: "8px 0 0 8px",
-                    }}
-                  >
-                    <FormatListBulleted fontSize="small" />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    onClick={() => setViewMode("grid")}
-                    sx={{
-                      color: viewMode === "grid" ? themeConfig.primary : themeConfig.textMuted,
-                      border: `1px solid ${themeConfig.border}`,
-                      borderRadius: "0 8px 8px 0",
-                    }}
-                  >
-                    <Apps fontSize="small" />
-                  </IconButton>
-                </ButtonGroup>
-              </Box>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
-
-      {/* Main Guest Roster Display */}
-      {filteredGuests.length === 0 ? (
-        <EmptyState
-          title="No Guests Found"
-          description="No guest records match your search query or filter selection."
-          actionText="Clear All Filters"
-          onAction={() => {
-            setSearchQuery("");
-            setStatusFilter("ALL");
-            setPaymentFilter("ALL");
-          }}
-        />
-      ) : viewMode === "grid" ? (
-        /* Grid Cards View */
-        <Grid container spacing={2.5}>
-          {paginatedGuests.map((g) => (
-            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={g.id}>
-              <Card
-                elevation={0}
-                sx={{
-                  borderRadius: "16px",
-                  bgcolor: themeConfig.bgCard,
-                  border: `1px solid ${themeConfig.border}`,
-                  transition: "all 0.2s ease",
-                  "&:hover": {
-                    borderColor: themeConfig.primary,
-                    boxShadow: `0 8px 24px -4px ${themeConfig.primaryGlow || "rgba(0,0,0,0.12)"}`,
-                    transform: "translateY(-2px)",
-                  },
-                }}
-              >
-                <CardContent sx={{ p: 2.5 }}>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 2 }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                      <Avatar
-                        sx={{
-                          width: 46,
-                          height: 46,
-                          fontWeight: 800,
-                          bgcolor: themeConfig.primary,
-                          color: "#FFFFFF",
-                        }}
-                      >
-                        {g.guestName.charAt(0).toUpperCase()}
-                      </Avatar>
-                      <Box>
-                        <Typography variant="body1" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                          {g.guestName}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                          {g.phone || "No phone"}
-                        </Typography>
-                      </Box>
-                    </Box>
-
-                    <StatusChip status={g.status} />
-                  </Box>
-
-                  <Divider sx={{ my: 1.5 }} />
-
-                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mb: 2 }}>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>Room Assigned:</Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                        Room {g.roomAssigned} ({g.roomType})
-                      </Typography>
-                    </Box>
-
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>Check-In:</Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: themeConfig.textMain }}>
-                        {formatDateTime(withApiStay(g).checkIn)}
-                      </Typography>
-                    </Box>
-
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>Check-Out:</Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: themeConfig.textMain }}>
-                        {formatDateTime(withApiStay(g).checkOut)}
-                      </Typography>
-                    </Box>
-
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>Booked + GST:</Typography>
-                      <Box sx={{ textAlign: "right" }}>
-                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                          {formatCurrency(withApiStay(g).totalAmount)}
-                        </Typography>
-                        {(withApiStay(g).baseAmount > 0 || withApiStay(g).gstAmount > 0) && (
-                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
-                            {formatCurrency(withApiStay(g).baseAmount)} + GST {formatCurrency(withApiStay(g).gstAmount)}
-                          </Typography>
-                        )}
-                        {g.dueAmount > 0 ? (
-                          <Typography variant="caption" sx={{ fontWeight: 800, color: "#DC2626", display: "block" }}>
-                            Due: {formatCurrency(g.dueAmount)}
-                          </Typography>
-                        ) : (
-                          <Typography variant="caption" sx={{ fontWeight: 700, color: "#059669", display: "block" }}>
-                            Fully Paid
-                          </Typography>
-                        )}
-                      </Box>
-                    </Box>
-                  </Box>
-
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    startIcon={<Print />}
-                    disabled={pdfGuestId === String(g.id)}
-                    onClick={() => openGuestPdf(g)}
-                    sx={{
-                      borderRadius: "10px",
-                      textTransform: "none",
-                      fontWeight: 800,
-                      color: themeConfig.textMain,
-                      borderColor: themeConfig.border,
-                    }}
-                  >
-                    {pdfGuestId === String(g.id) ? "Preparing PDF..." : "Guest PDF"}
-                  </Button>
-                  <Button
-                    fullWidth
-                    variant="contained"
-                    endIcon={<ArrowForward />}
-                    onClick={() => setSelectedGuest(g)}
-                    sx={{
-                      borderRadius: "10px",
-                      textTransform: "none",
-                      fontWeight: 800,
-                      bgcolor: themeConfig.primary,
-                    }}
-                  >
-                    View Guest Profile
-                  </Button>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-      ) : (
-        /* Table View */
-        <Card
-          elevation={0}
+        <Box
           sx={{
-            borderRadius: "16px",
-            bgcolor: themeConfig.bgCard,
-            border: `1px solid ${themeConfig.border}`,
-            overflow: "hidden",
+            px: { xs: 2, sm: 2.5 },
+            py: 2,
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: 1.5,
+            borderBottom: `1px solid ${themeConfig.border}`,
           }}
         >
+          <TextField
+            size="small"
+            placeholder="Search by name, phone, room, or booking"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPage(0);
+            }}
+            sx={{
+              flex: { xs: "1 1 100%", sm: "1 1 280px" },
+              maxWidth: { sm: 360 },
+              "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain },
+            }}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search fontSize="small" sx={{ color: themeConfig.textMuted }} />
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+          <TextField
+            select
+            size="small"
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(0);
+            }}
+            sx={{ width: { xs: "100%", sm: 210 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
+          >
+            <MenuItem value="ALL">All statuses ({unifiedGuests.length})</MenuItem>
+            <MenuItem value="CHECKED_IN">In-house ({unifiedGuests.filter((g) => g.status === "CHECKED_IN").length})</MenuItem>
+            <MenuItem value="CHECKED_OUT">Checked out ({unifiedGuests.filter((g) => g.status === "CHECKED_OUT" || g.status === "DEPARTED").length})</MenuItem>
+            <MenuItem value="CONFIRMED">Upcoming ({unifiedGuests.filter((g) => g.status === "CONFIRMED" || g.status === "PENDING" || g.status === "BOOKED").length})</MenuItem>
+            <MenuItem value="CANCELLED">Cancelled ({unifiedGuests.filter((g) => g.status === "CANCELLED").length})</MenuItem>
+          </TextField>
+          <TextField
+            select
+            size="small"
+            value={paymentFilter}
+            onChange={(e) => {
+              setPaymentFilter(e.target.value);
+              setPage(0);
+            }}
+            sx={{ width: { xs: "100%", sm: 180 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
+          >
+            <MenuItem value="ALL">All payments</MenuItem>
+            <MenuItem value="PAID">Fully settled</MenuItem>
+            <MenuItem value="DUE">Balance pending</MenuItem>
+          </TextField>
+          <TextField
+            select
+            size="small"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            sx={{ width: { xs: "100%", sm: 180 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
+          >
+            <MenuItem value="NEWEST">Newest stay</MenuItem>
+            <MenuItem value="OLDEST">Oldest stay</MenuItem>
+            <MenuItem value="NAME_ASC">Name (A-Z)</MenuItem>
+            <MenuItem value="AMOUNT_DESC">Highest tariff</MenuItem>
+            <MenuItem value="DUE_DESC">Highest due</MenuItem>
+          </TextField>
+        </Box>
+
+        {filteredGuests.length === 0 ? (
+          <EmptyState
+            embedded
+            title="No guests"
+            description="No guest records match this search."
+          />
+        ) : (
+          <>
           <TableContainer sx={{ overflowX: "auto" }}>
             <Table sx={{ minWidth: 980 }}>
               <TableHead>
                 <TableRow sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F0FDFA" }}>
                   {["Guest", "Room", "Check-In", "Check-Out", "Billing", "Stay Status"].map((heading) => (
-                    <TableCell key={heading} sx={{ fontWeight: 800, fontSize: "0.75rem", letterSpacing: "0.04em", textTransform: "uppercase", color: themeConfig.primaryDark, py: 1.6, whiteSpace: "nowrap", borderBottom: `1px solid ${themeConfig.border}` }}>
-                      {heading}
-                    </TableCell>
+                    <TableCell key={heading}>{heading}</TableCell>
                   ))}
-                  <TableCell align="right" sx={{ fontWeight: 800, fontSize: "0.75rem", letterSpacing: "0.04em", textTransform: "uppercase", color: themeConfig.primaryDark, py: 1.6, whiteSpace: "nowrap", borderBottom: `1px solid ${themeConfig.border}` }}>
-                    Actions
-                  </TableCell>
+                  <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -942,8 +680,9 @@ export default function GuestListPage({
               color: themeConfig.textMuted,
             }}
           />
-        </Card>
-      )}
+          </>
+        )}
+      </Paper>
 
       <GuestDetailsModal
         open={Boolean(selectedGuest)}

@@ -39,7 +39,6 @@ import {
   CheckCircle,
   Print,
   Download,
-  Refresh,
   Lock,
   LockOpen,
   PieChart,
@@ -314,10 +313,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
               wordBreak: "break-word",
             }}
           >
-            Daily Collections &amp; Cash Drawer
-          </Typography>
-          <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontSize: { xs: "0.78rem", sm: "0.85rem" } }}>
-            Real-time collection ledger &amp; shift handover reconciliation
+            Collections
           </Typography>
         </Box>
 
@@ -332,25 +328,6 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
           }}
         >
           <Box sx={{ display: "flex", gap: 1, width: { xs: "100%", sm: "auto" }, flexWrap: "wrap" }}>
-            <Button
-              variant="outlined"
-              startIcon={<Refresh />}
-              onClick={fetchDailyData}
-              sx={{
-                flex: { xs: 1, sm: "initial" },
-                borderRadius: "12px",
-                borderColor: themeConfig.border,
-                bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#FFFFFF",
-                color: themeConfig.textMain,
-                fontWeight: 700,
-                fontSize: { xs: "0.75rem", sm: "0.82rem" },
-                textTransform: "none",
-                whiteSpace: "nowrap",
-                px: 2,
-              }}
-            >
-              Refresh
-            </Button>
           </Box>
 
           <Button
@@ -620,44 +597,6 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
             background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #FAFBFD 100%)",
           }}
         >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: { sm: 260 } }}>
-            <Avatar
-              sx={{
-                bgcolor: themeConfig.champagne,
-                color: themeConfig.primaryDark,
-                width: 38,
-                height: 38,
-                borderRadius: "10px",
-                border: `1px solid ${themeConfig.border}`,
-                boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
-              }}
-            >
-              <Payments sx={{ fontSize: 20 }} />
-            </Avatar>
-            <div>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-                <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: { xs: "1.05rem", sm: "1.15rem" }, lineHeight: 1.2 }}>
-                  Today&apos;s Guest Collections
-                </Typography>
-                <Chip
-                  label={`${pagination.totalRecords || guestList.length} Receipts`}
-                  size="small"
-                  sx={{
-                    fontWeight: 800,
-                    fontSize: "0.7rem",
-                    height: 20,
-                    bgcolor: themeConfig.champagne,
-                    color: themeConfig.primaryDark,
-                    border: `1px solid ${themeConfig.border}`,
-                  }}
-                />
-              </Box>
-              <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", mt: 0.2, fontSize: "0.76rem" }}>
-                Real-time guest-by-guest payment ledger with backend search &amp; pagination
-              </Typography>
-            </div>
-          </Box>
-
           {/* Search & Payment Mode Filter Toolbar */}
           <Box
             sx={{
@@ -765,7 +704,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
               }}
             >
               <Table size="small" stickyHeader sx={{ width: "100%", tableLayout: { xs: "auto", md: "fixed" } }}>
-                <TableHead sx={{ bgcolor: themeConfig.champagne }}>
+                <TableHead>
                   <TableRow>
                     <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "14%" }, whiteSpace: "nowrap" }}>Time &amp; Receipt #</TableCell>
                     <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "24%" }, whiteSpace: "nowrap" }}>Guest &amp; Room</TableCell>
@@ -989,7 +928,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
             }}
           >
             <Table size="small" stickyHeader sx={{ width: "100%", tableLayout: { xs: "auto", md: "fixed" } }}>
-              <TableHead sx={{ bgcolor: themeConfig.champagne }}>
+              <TableHead>
                 <TableRow>
                   <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "24%" }, whiteSpace: "nowrap" }}>Handover Code &amp; Date</TableCell>
                   <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "15%" }, whiteSpace: "nowrap" }}>Cash Collected</TableCell>

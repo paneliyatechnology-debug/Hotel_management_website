@@ -229,9 +229,10 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       roomNumber: "",
       roomType: defaultCat?._id || "",
       floor: "",
-      seatingCapacity: "",
-      bedCount: "",
+      bedsConfig: [],
+      bedCount: 0,
       bedType: "",
+      seatingCapacity: 0,
       customPricePerNight: "",
       status: "AVAILABLE",
       notes: "",
@@ -589,25 +590,26 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         return;
       }
 
+      const bedsSource = Array.isArray(roomModal.data.bedsConfig) && roomModal.data.bedsConfig.length
+        ? roomModal.data.bedsConfig
+        : [{ type: roomModal.data.bedType || "King Bed", count: Number(roomModal.data.bedCount) || 1 }];
+      const roomPayload = (roomNumber) => ({
+        room_number: String(roomNumber),
+        room_type_id: selectedRoomTypeId,
+        floor: Number(roomModal.data.floor) || 1,
+        beds: bedsSource.map((bed) => ({
+          bed_type: bed.type || bed.bed_type || bed.bedType || "King",
+          bed_count: Number(bed.count || bed.bed_count || bed.bedCount) || 1,
+        })),
+        custom_price_per_night: Number(roomModal.data.customPricePerNight || roomModal.data.custom_price_per_night) || 0,
+        notes: roomModal.data.notes || "",
+        amenities: Array.isArray(roomModal.data.amenities) ? roomModal.data.amenities : [],
+        cleaning_duration_minutes: Number(roomModal.data.cleaningDurationMinutes || roomModal.data.cleaning_duration_minutes) || 15,
+        is_active: roomModal.data.is_active !== false && roomModal.data.isActive !== false,
+      });
+
       if (roomModal.mode === "EDIT" && roomModal.data._id) {
-        const payload = {
-          room_number: roomNumbersList[0] || rawInput,
-          room_type_id: selectedRoomTypeId,
-          floor: Number(roomModal.data.floor) || 1,
-          seating_capacity: Number(roomModal.data.seatingCapacity || roomModal.data.seating_capacity) || 2,
-          bed_count: Number(roomModal.data.bedCount || roomModal.data.bed_count) || 1,
-          bed_type: roomModal.data.bedType || roomModal.data.bed_type || "1 King Size Bed",
-          custom_price_per_night: roomModal.data.customPricePerNight ? Number(roomModal.data.customPricePerNight) : undefined,
-          status: roomModal.data.status || "AVAILABLE",
-          notes: roomModal.data.notes || "",
-          amenities: Array.isArray(roomModal.data.amenities) ? roomModal.data.amenities.join(", ") : (roomModal.data.amenities || ""),
-          gst_enabled: false,
-          gst_rate: 0,
-          cgst_rate: 0,
-          sgst_rate: 0,
-          tax_inclusive: false,
-          is_active: true,
-        };
+        const payload = roomPayload(roomNumbersList[0] || rawInput);
         const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.UPDATE_ROOM(roomModal.data._id), {
           method: "PUT",
           body: payload,
@@ -620,32 +622,8 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         const createdRooms = [];
         const errors = [];
 
-        const effectiveHotelId =
-          user?.hotel_id ||
-          user?.hotelId ||
-          user?.hotel?.id ||
-          getActiveHotelId();
-
         for (const numStr of roomNumbersList) {
-          const payload = {
-            hotel_id: effectiveHotelId ? Number(effectiveHotelId) : undefined,
-            room_number: String(numStr),
-            room_type_id: selectedRoomTypeId,
-            floor: Number(roomModal.data.floor) || 1,
-            seating_capacity: Number(roomModal.data.seatingCapacity || roomModal.data.seating_capacity) || 2,
-            bed_count: Number(roomModal.data.bedCount || roomModal.data.bed_count) || 1,
-            bed_type: roomModal.data.bedType || roomModal.data.bed_type || "1 King Size Bed",
-            custom_price_per_night: roomModal.data.customPricePerNight ? Number(roomModal.data.customPricePerNight) : undefined,
-            status: roomModal.data.status || "AVAILABLE",
-            notes: roomModal.data.notes || "",
-            amenities: Array.isArray(roomModal.data.amenities) ? roomModal.data.amenities.join(", ") : (roomModal.data.amenities || ""),
-            gst_enabled: false,
-            gst_rate: 0,
-            cgst_rate: 0,
-            sgst_rate: 0,
-            tax_inclusive: false,
-            is_active: true,
-          };
+          const payload = roomPayload(numStr);
 
           try {
             const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS, {

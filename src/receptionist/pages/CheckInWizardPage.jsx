@@ -718,10 +718,12 @@ export default function CheckInWizardPage({
   // Billing flow: base amount (before tax, before discount) -> discount -> GST on the discounted amount -> extras (deposit)
   const effectiveGstRate = Number(gstBookingResult.roomBreakdowns?.[0]?.gstRate ?? 18) || 0;
   useEffect(() => {
-    const advance = Number(checkInData.paid) || 0;
-    const due = Math.max(0, calculatedGrandTotal - advance);
     setCheckInData((prev) => {
+      // Advance defaults to the full total (incl. GST) until the receptionist edits it
+      const advance = prev.isPaidManuallyEdited ? Number(prev.paid) || 0 : calculatedGrandTotal;
+      const due = Math.max(0, calculatedGrandTotal - advance);
       if (
+        prev.paid === advance &&
         prev.total === calculatedGrandTotal &&
         prev.due === due &&
         prev.baseAmount === baseTariffTotal &&
@@ -732,6 +734,7 @@ export default function CheckInWizardPage({
       }
       return {
         ...prev,
+        paid: advance,
         total: calculatedGrandTotal,
         due,
         baseAmount: baseTariffTotal,
@@ -739,7 +742,7 @@ export default function CheckInWizardPage({
         gstRate: effectiveGstRate,
       };
     });
-  }, [calculatedGrandTotal, checkInData.paid, baseTariffTotal, discountApplied, effectiveGstRate]);
+  }, [calculatedGrandTotal, checkInData.isPaidManuallyEdited, baseTariffTotal, discountApplied, effectiveGstRate]);
 
   // Aadhaar 12-Digit Format & Validation Helpers
   const formatAadhaarNumber = (val) => {
@@ -1369,7 +1372,7 @@ export default function CheckInWizardPage({
   const advancePaid = Number(checkInData.paid) || 0;
   const balanceDue = Math.max(0, calculatedGrandTotal - advancePaid);
   const paidError = advancePaid > calculatedGrandTotal ? "Advance cannot exceed the total amount" : "";
-  const paymentMethodLabel = { CASH: "Cash", ONLINE: "Online", CARD: "Card", UPI: "UPI", BANK_TRANSFER: "Bank transfer" }[checkInData.paymentMethod || "UPI"] || "Cash";
+  const paymentMethodLabel = { CASH: "Cash", ONLINE: "Online", CARD: "Card", UPI: "UPI", BANK_TRANSFER: "Bank transfer" }[checkInData.paymentMethod || "CASH"] || "Cash";
 
   const renderReviewTile = (title, children) => (
     <Box sx={{ height: "100%", p: 2, borderRadius: "12px", border: `1px solid ${themeConfig.border}`, bgcolor: themeConfig.bgCard || "#FFFFFF" }}>
@@ -2075,7 +2078,7 @@ export default function CheckInWizardPage({
                     fullWidth
                     size="small"
                     label="Payment method"
-                    value={checkInData.paymentMethod || "UPI"}
+                    value={checkInData.paymentMethod || "CASH"}
                     onChange={(e) => setCheckInData({ ...checkInData, paymentMethod: e.target.value })}
                   >
                     <MenuItem value="CASH">Cash</MenuItem>
@@ -2105,7 +2108,7 @@ export default function CheckInWizardPage({
                   />
                 </Grid>
 
-                {(checkInData.paymentMethod || "UPI") !== "CASH" && (
+                {(checkInData.paymentMethod || "CASH") !== "CASH" && (
                   <Grid size={{ xs: 12, sm: 4 }}>
                     <TextField
                       fullWidth

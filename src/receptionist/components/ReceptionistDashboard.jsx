@@ -134,7 +134,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
     total: 0,
     paid: 0,
     due: 0,
-    paymentMethod: "UPI",
+    paymentMethod: "CASH",
     guestSignature: null,
     memberSignature: null,
     memberSignatures: {},
@@ -557,7 +557,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
         total: 0,
         paid: 0,
         due: 0,
-        paymentMethod: "UPI",
+        paymentMethod: "CASH",
       });
       if (typeof window !== "undefined") {
         try {

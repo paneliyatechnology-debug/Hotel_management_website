@@ -62,8 +62,7 @@ import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import StatCard from "@/shared/components/StatCard";
 import { formatTime12Hour, calculateOverstayFee } from "@/shared/utils/timeUtils";
-import { folioMoney, loadBookingDetail } from "@/shared/utils/folioMoney";
-import { computeCheckoutBill } from "@/shared/utils/billingUtils";
+import CheckoutDialog from "@/receptionist/components/CheckoutDialog";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
 import { toast } from "@/shared/utils/toast";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
@@ -131,22 +130,11 @@ export default function InHouseFoliosPage({
   const [activeStatusTab, setActiveStatusTab] = useState("CHECKED_IN");
 
   const [balanceFilter, setBalanceFilter] = useState("ALL");
-  const [copiedUpi, setCopiedUpi] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  // Check-Out Settlement Dialog State
-  const [checkoutDialog, setCheckoutDialog] = useState({
-    open: false,
-    booking: null,
-    overstay: null,
-    lateOption: "hourly",
-    lateFee: 0,
-    paymentMethod: "CASH",
-    amount: 0,
-    transactionId: "",
-    paymentReference: "",
-  });
+  // Booking currently being checked out (shared check-out dialog)
+  const [checkoutTarget, setCheckoutTarget] = useState(null);
 
   // Folio Details Modal State
   const [detailsModal, setDetailsModal] = useState({
@@ -164,7 +152,6 @@ export default function InHouseFoliosPage({
   // Full-size Photo Preview Modal State
   const [previewImage, setPreviewImage] = useState(null);
 
-  const hotelUpi = hotelSettings?.upiId || "jatinkakadiya234-1@okicici";
   const checkOutTimeFormatted = formatTime12Hour(hotelSettings?.checkOutTime || "12:00");
   const checkInTimeFormatted = formatTime12Hour(hotelSettings?.checkInTime || "14:00");
   const timezoneStr = hotelSettings?.timezone || "Asia/Kolkata";
@@ -281,14 +268,12 @@ export default function InHouseFoliosPage({
 
   const totalGrossLedger = safeBookings.reduce((sum, b) => {
     const pos = (b.posCharges || []).reduce((pSum, c) => pSum + (c.amount || 0), 0);
-    const overstay = calculateOverstayFee(b, hotelSettings);
-    return sum + (Number(b.totalAmount ?? b.total_amount ?? 0)) + pos + (overstay?.lateFee || 0);
+    return sum + (Number(b.totalAmount ?? b.total_amount ?? 0)) + pos;
   }, 0);
 
   const totalPendingDues = safeBookings.reduce((sum, b) => {
     const pos = (b.posCharges || []).reduce((pSum, c) => pSum + (c.amount || 0), 0);
-    const overstay = calculateOverstayFee(b, hotelSettings);
-    const gross = (Number(b.totalAmount ?? b.total_amount ?? 0)) + pos + (overstay?.lateFee || 0);
+    const gross = (Number(b.totalAmount ?? b.total_amount ?? 0)) + pos;
     const paid = Number(b.paidAmount ?? b.paid_amount ?? 0);
     return sum + Math.max(0, gross - paid);
   }, 0);
@@ -329,9 +314,8 @@ export default function InHouseFoliosPage({
     // When activeStatusTab === "ALL", show all bookings
 
     // Balance Filter
-    const overstay = calculateOverstayFee(b, hotelSettings);
     const posChargesTotal = (b.posCharges || []).reduce((pSum, c) => pSum + (c.amount || 0), 0);
-    const grandTotal = (Number(b.totalAmount ?? b.total_amount ?? 0)) + posChargesTotal + (overstay?.lateFee || 0);
+    const grandTotal = (Number(b.totalAmount ?? b.total_amount ?? 0)) + posChargesTotal;
     const paidTotal = Number(b.paidAmount ?? b.paid_amount ?? 0);
     const dueBalance = Math.max(0, grandTotal - paidTotal);
 
@@ -354,25 +338,8 @@ export default function InHouseFoliosPage({
     return true;
   });
 
-  const handleOpenCheckout = async (booking) => {
-    const detail = await loadBookingDetail(booking);
-    const defaultOption = "hourly";
-    const overstay = calculateOverstayFee(detail, hotelSettings, { selectedOption: defaultOption });
-    const posChargesTotal = (detail.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
-    const lateFee = overstay?.lateFee || 0;
-    const due = computeCheckoutBill(detail, posChargesTotal, lateFee).due;
-
-    setCheckoutDialog({
-      open: true,
-      booking: detail,
-      overstay,
-      lateOption: defaultOption,
-      lateFee,
-      paymentMethod: due > 0 ? "UPI" : "CASH",
-      amount: due,
-      transactionId: "",
-      paymentReference: "",
-    });
+  const handleOpenCheckout = (booking) => {
+    setCheckoutTarget(booking);
   };
 
   useEffect(() => {
@@ -382,74 +349,6 @@ export default function InHouseFoliosPage({
     handleOpenCheckout(booking);
     if (onCheckoutRequestHandled) onCheckoutRequestHandled();
   }, [checkoutRequest]);
-
-  const handleLateOptionChange = (newOption) => {
-    if (!checkoutDialog.booking) return;
-    const overstay = calculateOverstayFee(checkoutDialog.booking, hotelSettings, { selectedOption: newOption });
-    const posChargesTotal = (checkoutDialog.booking.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
-    const lateFee = overstay?.lateFee || 0;
-    const due = computeCheckoutBill(checkoutDialog.booking, posChargesTotal, lateFee).due;
-
-    setCheckoutDialog((prev) => ({
-      ...prev,
-      overstay,
-      lateOption: newOption,
-      lateFee: overstay.lateFee || 0,
-      amount: due,
-      paymentMethod: due > 0 ? prev.paymentMethod || "UPI" : "CASH",
-    }));
-  };
-
-  const handleConfirmCheckout = () => {
-    if (checkoutDialog.booking && onCheckOut) {
-      onCheckOut(checkoutDialog.booking, {
-        paymentMethod: checkoutDialog.paymentMethod,
-        settlementPaymentAmount: Number(checkoutDialog.amount) || 0,
-        lateCheckoutFee: Number(checkoutDialog.lateFee) || 0,
-        extraCharges: folioBill.extra,
-        lateCheckoutType: checkoutDialog.overstay?.lateCheckoutType || checkoutDialog.lateOption || "none",
-        lateCheckoutHours: checkoutDialog.overstay?.chargeableHours || 0,
-        lateCheckoutMinutes: checkoutDialog.overstay?.overdueMinutes || 0,
-        hourlyRate: checkoutDialog.overstay?.hourlyRate || 0,
-        dailyRoomRate: checkoutDialog.overstay?.dailyRate || 0,
-        gracePeriodMinutes: checkoutDialog.overstay?.gracePeriodMinutes || 10,
-        overstayData: checkoutDialog.overstay,
-        transactionId: checkoutDialog.transactionId,
-        paymentReference: checkoutDialog.paymentReference,
-      });
-    }
-    setCheckoutDialog({
-      open: false,
-      booking: null,
-      overstay: null,
-      lateOption: "hourly",
-      lateFee: 0,
-      paymentMethod: "CASH",
-      amount: 0,
-      transactionId: "",
-      paymentReference: "",
-    });
-  };
-
-  const handleCopyUpi = () => {
-    if (typeof navigator !== "undefined" && navigator.clipboard) {
-      navigator.clipboard.writeText(hotelUpi);
-      setCopiedUpi(true);
-      setTimeout(() => setCopiedUpi(false), 2500);
-    }
-  };
-
-  // Room tariff already includes GST; GST applies only on extra (POS) charges and late check-out fee
-  const folioBill = computeCheckoutBill(
-    checkoutDialog.booking,
-    (checkoutDialog.booking?.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0),
-    checkoutDialog.lateFee
-  );
-
-  // UPI QR String for settlement
-  const upiSettlementAmount = checkoutDialog.amount > 0 ? checkoutDialog.amount : 0;
-  const upiString = `upi://pay?pa=${encodeURIComponent(hotelUpi)}&pn=HotelFrontDesk&am=${upiSettlementAmount}&tn=CheckoutSettlement_Folio_${checkoutDialog.booking?.bookingNumber || "Stay"}`;
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=4&data=${encodeURIComponent(upiString)}`;
 
   return (
     <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 } }}>
@@ -688,7 +587,7 @@ export default function InHouseFoliosPage({
                     const roomType = b.roomType?.name || b.room_type_name || b.room?.roomType?.name || "Room Stay";
                     const overstay = calculateOverstayFee(b, hotelSettings);
                     const posChargesTotal = (b.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
-                    const grandTotal = (Number(b.totalAmount ?? b.total_amount ?? 0)) + posChargesTotal + (overstay?.lateFee || 0);
+                    const grandTotal = (Number(b.totalAmount ?? b.total_amount ?? 0)) + posChargesTotal;
                     const paidTotal = Number(b.paidAmount ?? b.paid_amount ?? 0);
                     const dueBalance = Math.max(0, grandTotal - paidTotal);
                     const outDateRaw = b.checkOutDate || b.check_out_date;
@@ -801,7 +700,7 @@ export default function InHouseFoliosPage({
                           <div>
                             <strong>Out:</strong> {formatSchedule(b, "out")}
                             {overstay.isOverstay ? (
-                              <Tooltip title={`Late Check-Out: Stayed +${overstay.overdueHours}h past check-out time. +₹${overstay.lateFee} (${overstay.extraDays} Extra Day Tariff) automatically applied.`}>
+                              <Tooltip title={`Stayed +${overstay.overdueHours}h past check-out time.`}>
                                 <Chip
                                   label={`🚨 Overdue (+${overstay.overdueHours}h)`}
                                   size="small"
@@ -972,594 +871,15 @@ export default function InHouseFoliosPage({
         )}
       </Paper>
 
-      {/* ========================================================================= */}
-      {/* CHECK-OUT SETTLEMENT CONFIRMATION MODAL                                  */}
-      {/* ========================================================================= */}
-      <Dialog
-        open={checkoutDialog.open}
-        onClose={() => setCheckoutDialog({ open: false, booking: null, paymentMethod: "CASH", amount: 0, transactionId: "", paymentReference: "" })}
-        slotProps={{ paper: { sx: { borderRadius: "16px", maxWidth: 520, border: `1px solid ${themeConfig.border}`, overflow: "hidden" } } }}
-      >
-        <DialogTitle component="div" sx={{ fontWeight: 900, color: themeConfig.textMain, pb: 1, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span>
-            Check-Out Settlement ({(() => {
-              const rList = getBookingRoomNumbers(checkoutDialog.booking);
-              return rList.length > 1 ? `Rooms ${rList.join(", ")}` : `Room ${rList[0] || ""}`;
-            })()})
-          </span>
-          <IconButton size="small" onClick={() => setCheckoutDialog({ open: false, booking: null, paymentMethod: "CASH", amount: 0, transactionId: "", paymentReference: "" })}>
-            <Close fontSize="small" />
-          </IconButton>
-        </DialogTitle>
-
-        <DialogContent>
-          <Box sx={{ pt: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-            {/* Guest Summary Card */}
-            <Paper sx={{ p: 2, borderRadius: "14px", bgcolor: themeConfig.champagne, border: `1px solid ${themeConfig.border}` }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                    {checkoutDialog.booking?.guest?.name || checkoutDialog.booking?.guest?.fullName || "Resident Guest"}
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
-                    Folio #{checkoutDialog.booking?.bookingNumber} &bull; {(() => {
-                      const rList = getBookingRoomNumbers(checkoutDialog.booking);
-                      return rList.length > 1 ? `Rooms: ${rList.join(", ")}` : `Room ${rList[0] || ""}`;
-                    })()}
-                  </Typography>
-                </div>
-                <Chip
-                  label={checkoutDialog.amount > 0 ? `₹${checkoutDialog.amount.toLocaleString()} Due` : "₹0 Due (Clear)"}
-                  size="small"
-                  sx={{
-                    fontWeight: 800,
-                    bgcolor: checkoutDialog.amount > 0 ? "rgba(239, 68, 68, 0.12)" : "rgba(16, 185, 129, 0.12)",
-                    color: checkoutDialog.amount > 0 ? "#DC2626" : "#059669",
-                  }}
-                />
-              </Box>
-            </Paper>
-
-            {/* LATE CHECKOUT DETECTED SECTION (PART E) */}
-            {checkoutDialog.overstay?.isLate && (
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 2.5,
-                  borderRadius: "16px",
-                  bgcolor: "#FFF5F5",
-                  border: "1px solid #FECDD3",
-                  boxShadow: "0 4px 14px rgba(225, 29, 72, 0.05)",
-                }}
-              >
-                {/* Header Banner */}
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2, flexWrap: "wrap", gap: 1 }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                    <Avatar sx={{ bgcolor: "#E11D48", color: "#FFFFFF", width: 34, height: 34, boxShadow: "0 2px 8px rgba(225, 29, 72, 0.3)" }}>
-                      <Schedule sx={{ fontSize: 20 }} />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#881337", lineHeight: 1.2, fontSize: "0.98rem" }}>
-                        Late Checkout Detected
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: "#9F1239", fontWeight: 500 }}>
-                        Exceeded standard {checkoutDialog.overstay?.gracePeriodMinutes || 10}-minute grace period
-                      </Typography>
-                    </Box>
-                  </Box>
-                  <Chip
-                    label={`${checkoutDialog.overstay?.chargeableHours || 1} Hour Overstay`}
-                    size="small"
-                    sx={{
-                      bgcolor: "#FFE4E6",
-                      color: "#E11D48",
-                      fontWeight: 800,
-                      fontSize: "0.72rem",
-                      border: "1px solid #FECDD3",
-                    }}
-                  />
-                </Box>
-
-                {/* 4 Metric Badges */}
-                <Grid container spacing={1.5} sx={{ mb: 2 }}>
-                  <Grid size={{ xs: 6, sm: 3 }}>
-                    <Box sx={{ p: 1.2, borderRadius: "10px", bgcolor: "#FFFFFF", border: "1px solid #FFE4E6" }}>
-                      <Typography variant="caption" sx={{ color: "#94A3B8", fontWeight: 700, display: "block", fontSize: "0.7rem", textTransform: "uppercase" }}>
-                        Scheduled Checkout
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 800, color: "#0F172A", mt: 0.2 }}>
-                        {formatTime12Hour(checkoutDialog.overstay?.scheduledCheckOutTime || "12:00")}
-                      </Typography>
-                    </Box>
-                  </Grid>
-
-                  <Grid size={{ xs: 6, sm: 3 }}>
-                    <Box sx={{ p: 1.2, borderRadius: "10px", bgcolor: "#FFFFFF", border: "1px solid #FFE4E6" }}>
-                      <Typography variant="caption" sx={{ color: "#94A3B8", fontWeight: 700, display: "block", fontSize: "0.7rem", textTransform: "uppercase" }}>
-                        Actual Checkout
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 800, color: "#E11D48", mt: 0.2 }}>
-                        {formatTime12Hour(checkoutDialog.overstay?.actualCheckOutTime || "12:00")}
-                      </Typography>
-                    </Box>
-                  </Grid>
-
-                  <Grid size={{ xs: 6, sm: 3 }}>
-                    <Box sx={{ p: 1.2, borderRadius: "10px", bgcolor: "#FFFFFF", border: "1px solid #FFE4E6" }}>
-                      <Typography variant="caption" sx={{ color: "#94A3B8", fontWeight: 700, display: "block", fontSize: "0.7rem", textTransform: "uppercase" }}>
-                        Late Duration
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 800, color: "#E11D48", mt: 0.2 }}>
-                        {checkoutDialog.overstay?.chargeableHours} Hour{checkoutDialog.overstay?.chargeableHours !== 1 ? "s" : ""}
-                      </Typography>
-                    </Box>
-                  </Grid>
-
-                  <Grid size={{ xs: 6, sm: 3 }}>
-                    <Box sx={{ p: 1.2, borderRadius: "10px", bgcolor: "#FFFFFF", border: "1px solid #FFE4E6" }}>
-                      <Typography variant="caption" sx={{ color: "#94A3B8", fontWeight: 700, display: "block", fontSize: "0.7rem", textTransform: "uppercase" }}>
-                        Hourly Rate (Rent ÷ 12)
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 800, color: "#0D9488", mt: 0.2 }}>
-                        ₹{checkoutDialog.overstay?.hourlyRate?.toLocaleString()}/hr
-                      </Typography>
-                    </Box>
-                  </Grid>
-                </Grid>
-
-                <Typography variant="caption" sx={{ fontWeight: 800, color: "#475569", display: "block", mb: 1.2, textTransform: "uppercase", letterSpacing: 0.5, fontSize: "0.72rem" }}>
-                  Select Charging Option:
-                </Typography>
-
-                <Grid container spacing={1.5}>
-                  {/* OPTION 1: Charge Full Day */}
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <Paper
-                      elevation={0}
-                      onClick={() => handleLateOptionChange("full_day")}
-                      sx={{
-                        p: 1.8,
-                        borderRadius: "12px",
-                        cursor: "pointer",
-                        border: checkoutDialog.lateOption === "full_day" ? "2px solid #E11D48" : "1px solid #CBD5E1",
-                        bgcolor: checkoutDialog.lateOption === "full_day" ? "#FFF1F2" : "#FFFFFF",
-                        transition: "all 0.2s ease",
-                        "&:hover": { borderColor: "#E11D48" },
-                      }}
-                    >
-                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                          <Box
-                            sx={{
-                              width: 18,
-                              height: 18,
-                              borderRadius: "50%",
-                              border: checkoutDialog.lateOption === "full_day" ? "5px solid #E11D48" : "2px solid #94A3B8",
-                              bgcolor: "#FFFFFF",
-                              flexShrink: 0,
-                            }}
-                          />
-                          <Box>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: checkoutDialog.lateOption === "full_day" ? "#BE123C" : "#0F172A", fontSize: "0.85rem" }}>
-                              Charge Full Day
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 500, fontSize: "0.75rem" }}>
-                              1 Full Day Room Rent
-                            </Typography>
-                          </Box>
-                        </Box>
-                        <Chip
-                          label={`₹${checkoutDialog.overstay?.fullDayCharge?.toLocaleString()}`}
-                          size="small"
-                          sx={{
-                            fontWeight: 800,
-                            bgcolor: checkoutDialog.lateOption === "full_day" ? "#FFE4E6" : "#F1F5F9",
-                            color: checkoutDialog.lateOption === "full_day" ? "#E11D48" : "#475569",
-                            fontSize: "0.82rem",
-                          }}
-                        />
-                      </Box>
-                    </Paper>
-                  </Grid>
-
-                  {/* OPTION 2: Charge By Hour */}
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <Paper
-                      elevation={0}
-                      onClick={() => handleLateOptionChange("hourly")}
-                      sx={{
-                        p: 1.8,
-                        borderRadius: "12px",
-                        cursor: "pointer",
-                        border: checkoutDialog.lateOption === "hourly" ? "2px solid #059669" : "1px solid #CBD5E1",
-                        bgcolor: checkoutDialog.lateOption === "hourly" ? "#ECFDF5" : "#FFFFFF",
-                        transition: "all 0.2s ease",
-                        "&:hover": { borderColor: "#059669" },
-                      }}
-                    >
-                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                          <Box
-                            sx={{
-                              width: 18,
-                              height: 18,
-                              borderRadius: "50%",
-                              border: checkoutDialog.lateOption === "hourly" ? "5px solid #059669" : "2px solid #94A3B8",
-                              bgcolor: "#FFFFFF",
-                              flexShrink: 0,
-                            }}
-                          />
-                          <Box>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: checkoutDialog.lateOption === "hourly" ? "#047857" : "#0F172A", fontSize: "0.85rem" }}>
-                              Charge {checkoutDialog.overstay?.chargeableHours} Hour{checkoutDialog.overstay?.chargeableHours !== 1 ? "s" : ""}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 500, fontSize: "0.75rem" }}>
-                              ₹{checkoutDialog.overstay?.hourlyRate}/hr &times; {checkoutDialog.overstay?.chargeableHours}h
-                            </Typography>
-                          </Box>
-                        </Box>
-                        <Chip
-                          label={`₹${checkoutDialog.overstay?.hourlyCharge?.toLocaleString()}`}
-                          size="small"
-                          sx={{
-                            fontWeight: 800,
-                            bgcolor: checkoutDialog.lateOption === "hourly" ? "#D1FAE5" : "#F1F5F9",
-                            color: checkoutDialog.lateOption === "hourly" ? "#059669" : "#475569",
-                            fontSize: "0.82rem",
-                          }}
-                        />
-                      </Box>
-                    </Paper>
-                  </Grid>
-                </Grid>
-              </Paper>
-            )}
-
-            {/* ITEMISED FOLIO BILL BREAKDOWN TABLE */}
-            <Paper
-              sx={{
-                p: 2,
-                borderRadius: "16px",
-                border: `1px solid ${themeConfig.border}`,
-                bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#FFFFFF",
-              }}
-            >
-              <Typography variant="subtitle2" sx={{ fontWeight: 900, color: themeConfig.textMain, mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
-                <Receipt sx={{ fontSize: 18, color: themeConfig.primary }} />
-                Folio Billing & Settlement Breakdown
-              </Typography>
-              <TableContainer sx={{ borderRadius: "10px", border: `1px solid ${themeConfig.border}` }}>
-                <Table size="small">
-                  <TableHead sx={{ bgcolor: themeConfig.champagne }}>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 800, fontSize: "0.78rem" }}>Bill Item / Description</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 800, fontSize: "0.78rem" }}>Amount (₹)</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {/* Base Room Stay Tariff */}
-                    <TableRow>
-                      <TableCell sx={{ fontSize: "0.82rem", color: themeConfig.textMain }}>
-                        <strong>Room Charges</strong> <span style={{ color: themeConfig.textMuted, fontSize: "0.72rem" }}>(before tax)</span>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
-                          {checkoutDialog.booking?.roomType?.name || "Room"} &bull; {checkoutDialog.booking?.checkInDate || "In"} to {checkoutDialog.booking?.checkOutDate || "Out"}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.85rem" }}>
-                        ₹{folioBill.base.toLocaleString("en-IN")}
-                      </TableCell>
-                    </TableRow>
-
-                    {/* Discount */}
-                    <TableRow>
-                      <TableCell sx={{ fontSize: "0.82rem", color: themeConfig.textMain }}>
-                        <strong>Discount</strong>
-                      </TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.85rem", color: folioBill.discount > 0 ? "#059669" : themeConfig.textMain }}>
-                        {folioBill.discount > 0 ? `-₹${folioBill.discount.toLocaleString("en-IN")}` : "₹0"}
-                      </TableCell>
-                    </TableRow>
-
-                    {/* Late Checkout Fee if applicable */}
-                    {checkoutDialog.lateFee > 0 && (
-                      <TableRow sx={{ bgcolor: "rgba(239, 68, 68, 0.04)" }}>
-                        <TableCell sx={{ fontSize: "0.82rem", color: "#DC2626" }}>
-                          <strong>⏰ Late Check-Out Charge ({checkoutDialog.lateOption === "full_day" ? "Full Day" : `${checkoutDialog.overstay?.chargeableHours || 0} Extra Hours`})</strong>
-                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
-                            {checkoutDialog.lateOption === "full_day"
-                              ? "Charged standard 1-day tariff"
-                              : `${checkoutDialog.overstay?.chargeableHours || 0} hrs @ ₹${checkoutDialog.overstay?.hourlyRate || 0}/hr`}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 800, color: "#DC2626", fontSize: "0.85rem" }}>
-                          +₹{Number(checkoutDialog.lateFee).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    )}
-
-                    {/* Ancillary / POS Charges if any */}
-                    {(checkoutDialog.booking?.posCharges || []).map((c, i) => (
-                      <TableRow key={i}>
-                        <TableCell sx={{ fontSize: "0.82rem", color: themeConfig.textMain }}>
-                          {c.description || c.item || `Extra Service (${c.serviceType || "POS"})`}
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.85rem" }}>
-                          +₹{(c.amount || 0).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-
-                    {/* Taxable amount = room charges - discount + extra charges + late check-out; GST applies on it */}
-                    <TableRow>
-                      <TableCell sx={{ fontSize: "0.82rem", color: themeConfig.textMain }}>
-                        <strong>Taxable Amount</strong>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
-                          Room - discount + extra charges + late check-out
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 800, fontSize: "0.85rem" }}>
-                        ₹{folioBill.taxable.toLocaleString("en-IN")}
-                      </TableCell>
-                    </TableRow>
-                    {[["CGST", folioBill.cgst], ["SGST", folioBill.sgst]].map(([label, amt]) => (
-                      <TableRow key={label}>
-                        <TableCell sx={{ fontSize: "0.82rem", color: themeConfig.textMain }}>
-                          <strong>{label}</strong> <span style={{ color: themeConfig.textMuted, fontSize: "0.72rem" }}>({folioBill.gstRate / 2}%)</span>
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.85rem" }}>
-                          +₹{amt.toLocaleString("en-IN")}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-
-                    {/* Grand Total */}
-                    <TableRow sx={{ bgcolor: themeConfig.champagne }}>
-                      <TableCell sx={{ fontWeight: 900, fontSize: "0.85rem", color: themeConfig.textMain }}>
-                        Total Folio Bill
-                      </TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 900, fontSize: "0.92rem", color: themeConfig.textMain }}>
-                        ₹{folioBill.billTotal.toLocaleString("en-IN")}
-                      </TableCell>
-                    </TableRow>
-
-                    {/* Advance Already Paid */}
-                    <TableRow>
-                      <TableCell sx={{ fontSize: "0.82rem", color: "#059669" }}>
-                        <strong>Advance Payment Paid at Check-In</strong>
-                      </TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 800, color: "#059669", fontSize: "0.85rem" }}>
-                        -₹{folioBill.paid.toLocaleString("en-IN")}
-                      </TableCell>
-                    </TableRow>
-
-                    {/* Balance to Settle */}
-                    <TableRow sx={{ bgcolor: checkoutDialog.amount > 0 ? "rgba(239, 68, 68, 0.08)" : "rgba(16, 185, 129, 0.08)" }}>
-                      <TableCell sx={{ fontWeight: 900, fontSize: "0.88rem", color: checkoutDialog.amount > 0 ? "#DC2626" : "#059669" }}>
-                        {checkoutDialog.amount > 0 ? "Net Amount to Collect at Checkout:" : "Folio Balance Status:"}
-                      </TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 900, fontSize: "1rem", color: checkoutDialog.amount > 0 ? "#DC2626" : "#059669" }}>
-                        {checkoutDialog.amount > 0 ? `₹${checkoutDialog.amount.toLocaleString()}` : "₹0 (Fully Cleared)"}
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Paper>
-
-            {/* Dues & Payment Section */}
-            {checkoutDialog.amount > 0 ? (
-              <Box sx={{ p: 2, borderRadius: "16px", bgcolor: "rgba(239, 68, 68, 0.04)", border: "1px solid rgba(239, 68, 68, 0.2)" }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 900, color: "#DC2626", mb: 0.5 }}>
-                  Outstanding Balance to Settle: ₹{checkoutDialog.amount.toLocaleString()}
-                </Typography>
-                <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", mb: 2 }}>
-                  Collect remaining folio balance before keycard return & check-out release:
-                </Typography>
-
-                <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-                  <InputLabel>Settlement Payment Mode</InputLabel>
-                  <Select
-                    value={checkoutDialog.paymentMethod}
-                    label="Settlement Payment Mode"
-                    onChange={(e) => setCheckoutDialog({ ...checkoutDialog, paymentMethod: e.target.value })}
-                  >
-                    <MenuItem value="UPI">📱 UPI / QR Code (Instant Scan)</MenuItem>
-                    <MenuItem value="CARD">💳 Credit / Debit Card (POS)</MenuItem>
-                    <MenuItem value="CASH">💵 Cash at Counter</MenuItem>
-                    <MenuItem value="BANK_TRANSFER">🏦 Bank Transfer (NEFT / IMPS)</MenuItem>
-                  </Select>
-                </FormControl>
-
-                {/* DYNAMIC PAYMENT METHOD UI */}
-                {checkoutDialog.paymentMethod === "UPI" && (
-                  <Paper
-                    sx={{
-                      p: 2,
-                      borderRadius: "14px",
-                      bgcolor: themeConfig.bgCard,
-                      border: `1.5px solid ${themeConfig.primary}`,
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: 1.5,
-                      boxShadow: "0 4px 12px rgba(11, 142, 224, 0.1)",
-                    }}
-                  >
-                    <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.primary, textTransform: "uppercase" }}>
-                      Scan UPI QR to Settle ₹{checkoutDialog.amount.toLocaleString()}
-                    </Typography>
-
-                    <Box
-                      component="img"
-                      src={qrCodeUrl}
-                      alt="UPI Payment QR Code"
-                      sx={{
-                        width: 140,
-                        height: 140,
-                        borderRadius: "10px",
-                        border: "1px solid #E2E8F0",
-                      }}
-                    />
-
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, bgcolor: themeConfig.champagne, px: 1.5, py: 0.6, borderRadius: "8px" }}>
-                      <Typography variant="caption" sx={{ fontFamily: "monospace", fontWeight: 800, color: themeConfig.primaryDark }}>
-                        {hotelUpi}
-                      </Typography>
-                      <IconButton size="small" onClick={handleCopyUpi} sx={{ p: 0.3 }}>
-                        {copiedUpi ? <Check sx={{ fontSize: 14, color: themeConfig.success }} /> : <ContentCopy sx={{ fontSize: 14 }} />}
-                      </IconButton>
-                    </Box>
-
-                    <TextField
-                      size="small"
-                      fullWidth
-                      label="UPI Ref / Transaction ID (Optional)"
-                      placeholder="e.g. 423819283741"
-                      value={checkoutDialog.transactionId}
-                      onChange={(e) => setCheckoutDialog({ ...checkoutDialog, transactionId: e.target.value })}
-                      sx={{ mt: 0.5 }}
-                    />
-                  </Paper>
-                )}
-
-                {checkoutDialog.paymentMethod === "CARD" && (
-                  <Paper sx={{ p: 2, borderRadius: "14px", bgcolor: themeConfig.bgCard, border: `1px solid ${themeConfig.border}` }}>
-                    <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, display: "block", mb: 1.5 }}>
-                      💳 POS Card Terminal Details:
-                    </Typography>
-                    <Box sx={{ display: "flex", gap: 1.5 }}>
-                      <TextField
-                        size="small"
-                        label="Card Last 4 Digits"
-                        placeholder="e.g. 4829"
-                        value={checkoutDialog.transactionId}
-                        onChange={(e) => setCheckoutDialog({ ...checkoutDialog, transactionId: e.target.value })}
-                        fullWidth
-                      />
-                      <TextField
-                        size="small"
-                        label="POS Auth Code"
-                        placeholder="e.g. AUTH-8821"
-                        value={checkoutDialog.paymentReference}
-                        onChange={(e) => setCheckoutDialog({ ...checkoutDialog, paymentReference: e.target.value })}
-                        fullWidth
-                      />
-                    </Box>
-                  </Paper>
-                )}
-
-                {checkoutDialog.paymentMethod === "CASH" && (
-                  <Paper sx={{ p: 2, borderRadius: "14px", bgcolor: themeConfig.bgCard, border: `1px solid ${themeConfig.border}` }}>
-                    <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                      💵 Cash Counter Settlement
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                      Collect physical cash of <strong>₹{checkoutDialog.amount.toLocaleString()}</strong> at the front desk counter and print the cash receipt.
-                    </Typography>
-                  </Paper>
-                )}
-
-                {checkoutDialog.paymentMethod === "BANK_TRANSFER" && (
-                  <Paper sx={{ p: 2, borderRadius: "14px", bgcolor: themeConfig.bgCard, border: `1px solid ${themeConfig.border}` }}>
-                    <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, display: "block", mb: 1 }}>
-                      🏦 Bank Transfer / NEFT / IMPS Reference:
-                    </Typography>
-                    <TextField
-                      size="small"
-                      fullWidth
-                      label="Bank NEFT / IMPS UTR Number *"
-                      placeholder="e.g. HDFCN24091823901"
-                      value={checkoutDialog.transactionId}
-                      onChange={(e) => setCheckoutDialog({ ...checkoutDialog, transactionId: e.target.value })}
-                    />
-                  </Paper>
-                )}
-              </Box>
-            ) : (
-              <Paper sx={{ p: 2.5, borderRadius: "16px", bgcolor: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                  <CheckCircle sx={{ color: "#059669", fontSize: 28 }} />
-                  <div>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 900, color: "#059669" }}>
-                      Account Fully Settled (₹0 Balance Due)
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
-                      Keycard can be returned now. Room will be automatically marked for <strong>Housekeeping Cleaning</strong>.
-                    </Typography>
-                  </div>
-                </Box>
-              </Paper>
-            )}
-          </Box>
-        </DialogContent>
-
-        <DialogActions sx={{ p: 2.5, pt: 1, display: "flex", flexDirection: "column", gap: 1.5 }}>
-          <Button
-            fullWidth
-            variant="contained"
-            startIcon={<WhatsApp sx={{ color: "#FFFFFF" }} />}
-            onClick={() => {
-              sendCheckoutBillWhatsApp({
-                booking: checkoutDialog.booking,
-                guest: checkoutDialog.booking?.guest || { name: checkoutDialog.booking?.guestName, mobileNumber: checkoutDialog.booking?.guestPhone },
-                hotel: hotelSettings,
-                settlementData: {
-                  settlementPaymentAmount: checkoutDialog.amount,
-                  lateCheckoutFee: checkoutDialog.lateFee,
-                },
-                onShowToast: (msg, sev) => toast.show(msg, sev),
-              });
-            }}
-            sx={{
-              borderRadius: "12px",
-              fontWeight: 800,
-              py: 1.2,
-              bgcolor: "#25D366",
-              color: "#FFFFFF",
-              boxShadow: "0 4px 14px rgba(37, 211, 102, 0.3)",
-              "&:hover": { bgcolor: "#1EBE5D" },
-            }}
-          >
-            Send Bill on WhatsApp
-          </Button>
-
-          <Box sx={{ display: "flex", width: "100%", gap: 1.5 }}>
-            <Button
-              fullWidth
-              variant="outlined"
-              onClick={() => setCheckoutDialog({ open: false, booking: null, paymentMethod: "CASH", amount: 0, transactionId: "", paymentReference: "" })}
-              sx={{
-                borderRadius: "12px",
-                fontWeight: 700,
-                py: 1.1,
-                borderColor: themeConfig.border,
-                color: themeConfig.textMain,
-                bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
-                "&:hover": { borderColor: themeConfig.primary, bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)" },
-              }}
-            >
-              Cancel
-            </Button>
-
-            <Button
-              fullWidth
-              variant="contained"
-              onClick={handleConfirmCheckout}
-              className="btn-3d"
-              sx={{
-                background: `linear-gradient(135deg, ${themeConfig.danger} 0%, #B91C1C 100%)`,
-                color: "#FFFFFF",
-                fontWeight: 800,
-                py: 1.1,
-                borderRadius: "12px",
-                boxShadow: "0 4px 14px rgba(220, 38, 38, 0.3)",
-              }}
-            >
-              Confirm & Settle Check-Out
-            </Button>
-          </Box>
-        </DialogActions>
-      </Dialog>
+      {/* Check-out */}
+      <CheckoutDialog
+        open={Boolean(checkoutTarget)}
+        booking={checkoutTarget}
+        roomNumber={checkoutTarget ? getBookingRoomNumbers(checkoutTarget).join(", ") : ""}
+        hotelSettings={hotelSettings}
+        onClose={() => setCheckoutTarget(null)}
+        onCheckOut={onCheckOut}
+      />
 
       {/* ========================================================================= */}
       {/* DETAILED FOLIO BREAKDOWN MODAL                                           */}
@@ -1579,9 +899,8 @@ export default function InHouseFoliosPage({
         <DialogContent>
           {detailsModal.booking && (() => {
             const b = detailsModal.booking;
-            const overstay = calculateOverstayFee(b, hotelSettings);
             const posChargesTotal = (b.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
-            const grandTotal = (b.totalAmount || 0) + posChargesTotal + (overstay.lateFee || 0);
+            const grandTotal = (b.totalAmount || 0) + posChargesTotal;
             const paidTotal = b.paidAmount || 0;
             const dueBalance = Math.max(0, grandTotal - paidTotal);
 
@@ -1732,20 +1051,6 @@ export default function InHouseFoliosPage({
                   )}
                 </Paper>
 
-                {overstay.isOverstay && (
-                  <Paper sx={{ p: 1.8, borderRadius: "14px", bgcolor: "rgba(239, 68, 68, 0.08)", border: "1.5px dashed rgba(239, 68, 68, 0.4)" }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <Warning sx={{ color: "#DC2626", fontSize: 20 }} />
-                      <Typography variant="body2" sx={{ fontWeight: 900, color: "#DC2626" }}>
-                        Late Check-Out Policy: +{overstay.overdueHours}h Overdue past {formatTime12Hour(overstay.scheduledCheckOutTime || "12:00")}
-                      </Typography>
-                    </Box>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMain, display: "block", mt: 0.5 }}>
-                      Automatic extra <strong>{overstay.extraDays} day room tariff</strong> (+₹{overstay.lateFee.toLocaleString()}) applied to this stay.
-                    </Typography>
-                  </Paper>
-                )}
-
                 <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
                   Itemized Charges & Ancillary Services:
                 </Typography>
@@ -1765,16 +1070,6 @@ export default function InHouseFoliosPage({
                         <TableCell><Chip label="STAY" size="small" sx={{ height: 20, fontSize: "0.65rem" }} /></TableCell>
                         <TableCell align="right" sx={{ fontWeight: 800 }}>₹{(b.totalAmount || 0).toLocaleString()}</TableCell>
                       </TableRow>
-
-                      {overstay.isOverstay && (
-                        <TableRow sx={{ bgcolor: "rgba(239, 68, 68, 0.04)" }}>
-                          <TableCell sx={{ fontWeight: 700, color: "#DC2626" }}>
-                            ⏰ Late Check-Out ({overstay.extraDays} Extra Day past {formatTime12Hour(overstay.scheduledCheckOutTime || "12:00")})
-                          </TableCell>
-                          <TableCell><Chip label="OVERSTAY" size="small" sx={{ height: 20, fontSize: "0.65rem", bgcolor: "rgba(239, 68, 68, 0.15)", color: "#DC2626", fontWeight: 800 }} /></TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 800, color: "#DC2626" }}>+₹{overstay.lateFee.toLocaleString()}</TableCell>
-                        </TableRow>
-                      )}
 
                       {(b.posCharges || []).map((c, idx) => (
                         <TableRow key={idx}>

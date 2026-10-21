@@ -77,9 +77,7 @@ import {
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import EmptyState from "@/shared/components/EmptyState";
-import { formatTime12Hour, calculateOverstayFee } from "@/shared/utils/timeUtils";
-import { folioMoney, loadBookingDetail } from "@/shared/utils/folioMoney";
-import { computeCheckoutBill } from "@/shared/utils/billingUtils";
+import CheckoutDialog from "@/receptionist/components/CheckoutDialog";
 
 export default function AvailableRoomsPage({
   user,
@@ -255,22 +253,8 @@ export default function AvailableRoomsPage({
     setSelectedRoomIds([]);
   };
 
-  // Room Status & Checkout Settlement Modal State
-  const [statusDialog, setStatusDialog] = useState({
-    open: false,
-    room: null,
-    newStatus: "AVAILABLE",
-    booking: null,
-    overstay: null,
-    lateOption: "hourly",
-    lateFee: 0,
-    paymentMethod: "CASH",
-    amount: 0,
-    transactionId: "",
-    paymentReference: "",
-  });
-  const [copiedUpi, setCopiedUpi] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Check-out dialog target (room + its active booking)
+  const [checkoutTarget, setCheckoutTarget] = useState(null);
 
   // Dynamic Category Icon helper
   const getCategoryIcon = (name = "") => {
@@ -580,8 +564,8 @@ export default function AvailableRoomsPage({
     });
   }, [categoryStats, selectedCategoryFilter, selectedFloor, selectedStatus, roomSearch, bookings]);
 
-  // Open Room Status Change / Checkout Settlement Dialog
-  const handleOpenStatusDialog = async (room) => {
+  // Open the check-out dialog for an occupied room
+  const handleOpenStatusDialog = (room) => {
     const rId = String(room?._id || "");
     const rNum = String(room?.roomNumber || "");
 
@@ -596,82 +580,18 @@ export default function AvailableRoomsPage({
 
       if (bRoomId && rId && bRoomId === rId) return true;
       if (Array.isArray(b.rooms) && b.rooms.some((id) => String(id?._id || id?.id || id) === rId)) return true;
-
       if (!bRoomId && String(b.roomNumber || b.room_number || "") === rNum && (!bRtId || !rRtId || bRtId === rRtId)) return true;
       if (!bRoomId && Array.isArray(b.roomNumbers) && b.roomNumbers.some((num) => String(num) === rNum)) return true;
 
       return false;
     });
 
-    let overstay = null;
-    let due = 0;
-    let grandTotal = 0;
-    let lateFee = 0;
-    let extraCharges = 0;
-
-    const bookingDetail = matchedBooking ? await loadBookingDetail(matchedBooking) : null;
-    if (bookingDetail) {
-      overstay = calculateOverstayFee(bookingDetail, hotelSettings, { selectedOption: "hourly" });
-      const posChargesTotal = (bookingDetail.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
-      lateFee = overstay?.lateFee || 0;
-      // Keep charges already saved on the booking (e.g. deposit); otherwise start from POS charges
-      extraCharges = Number(bookingDetail.extra_charges_total ?? bookingDetail.extraChargesTotal) || posChargesTotal;
-      const bill = computeCheckoutBill(bookingDetail, extraCharges, lateFee);
-      grandTotal = bill.billTotal;
-      due = bill.due;
+    if (!matchedBooking) {
+      setActionError("No active booking found for this room");
+      return;
     }
-
-    setStatusDialog({
-      open: true,
-      room,
-      newStatus: room.status === "OCCUPIED" ? "CLEANING" : (room.status || "AVAILABLE"),
-      booking: bookingDetail || null,
-      overstay,
-      lateOption: "hourly",
-      lateFee,
-      extraCharges,
-      lateHours: overstay?.chargeableHours || 0,
-      notes: "",
-      paymentMethod: due > 0 ? "UPI" : "CASH",
-      amount: due,
-      transactionId: "",
-      paymentReference: "",
-    });
-  };
-
-  const sanitizeAmount = (value) => {
-    const cleaned = String(value || "").replace(/[^\d.]/g, "");
-    const [whole, ...rest] = cleaned.split(".");
-    return rest.length ? `${whole.slice(0, 7)}.${rest.join("").slice(0, 2)}` : whole.slice(0, 7);
-  };
-
-  // Update a checkout field and recalculate the balance to collect (unless the amount itself was edited)
-  const updateSettlement = (patch) => {
-    setStatusDialog((prev) => {
-      const next = { ...prev, ...patch };
-      if (!("amount" in patch)) {
-        next.amount = computeCheckoutBill(next.booking, next.extraCharges, next.lateFee).due;
-      }
-      return next;
-    });
-  };
-
-  const handleDialogLateOptionChange = (newOption) => {
-    if (!statusDialog.booking) return;
-    const overstay = calculateOverstayFee(statusDialog.booking, hotelSettings, { selectedOption: newOption });
-    updateSettlement({
-      overstay,
-      lateOption: newOption,
-      lateFee: overstay?.lateFee || 0,
-      lateHours: overstay?.chargeableHours || 0,
-    });
-  };
-
-  const handleCopyUpiId = () => {
-    const hotelUpi = hotelSettings?.upiId || "jatinkakadiya234-1@okicici";
-    navigator.clipboard.writeText(hotelUpi);
-    setCopiedUpi(true);
-    setTimeout(() => setCopiedUpi(false), 2000);
+    setActionError("");
+    setCheckoutTarget({ booking: matchedBooking, room });
   };
 
   const [busyRoomId, setBusyRoomId] = useState("");
@@ -689,62 +609,6 @@ export default function AvailableRoomsPage({
       setActionError(err?.message || "Failed to mark room available");
     } finally {
       setBusyRoomId("");
-    }
-  };
-
-  const handleConfirmStatusChange = async () => {
-    if (!statusDialog.room) return;
-    try {
-      setIsSubmitting(true);
-      const isOccupied = statusDialog.room.status === "OCCUPIED";
-      const isVacating = statusDialog.newStatus === "AVAILABLE" || statusDialog.newStatus === "CLEANING" || statusDialog.newStatus === "MAINTENANCE" || statusDialog.newStatus === "BLOCKED";
-
-      // If room was occupied with an active booking and is now being checked out / released:
-      if (statusDialog.booking && isOccupied && isVacating && onCheckOut) {
-        await onCheckOut(statusDialog.booking, {
-          paymentMethod: statusDialog.paymentMethod,
-          extraCharges: Number(statusDialog.extraCharges) || 0,
-          notes: statusDialog.notes || "",
-          settlementPaymentAmount: Number(statusDialog.amount) || 0,
-          lateCheckoutFee: Number(statusDialog.lateFee) || 0,
-          lateCheckoutType: statusDialog.overstay?.lateCheckoutType || statusDialog.lateOption || "none",
-          lateCheckoutHours: Number(statusDialog.lateHours) || 0,
-          lateCheckoutMinutes: statusDialog.overstay?.overdueMinutes || 0,
-          hourlyRate: statusDialog.overstay?.hourlyRate || 0,
-          dailyRoomRate: statusDialog.overstay?.dailyRate || 0,
-          gracePeriodMinutes: statusDialog.overstay?.gracePeriodMinutes || 10,
-          overstayData: statusDialog.overstay,
-          transactionId: statusDialog.transactionId,
-          paymentReference: statusDialog.paymentReference,
-        });
-      }
-
-      // If chosen status is not CLEANING (onCheckOut sets room to CLEANING), or if there was no active booking:
-      if (onRoomStatusChange && (!statusDialog.booking || statusDialog.newStatus !== "CLEANING")) {
-        await onRoomStatusChange(statusDialog.room, statusDialog.newStatus);
-      }
-
-      if (onRefresh) {
-        await onRefresh();
-      }
-
-      setStatusDialog({
-        open: false,
-        room: null,
-        newStatus: "AVAILABLE",
-        booking: null,
-        overstay: null,
-        lateOption: "hourly",
-        lateFee: 0,
-        paymentMethod: "CASH",
-        amount: 0,
-        transactionId: "",
-        paymentReference: "",
-      });
-    } catch (err) {
-      setActionError(err?.message || "Failed to check out");
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -1290,7 +1154,6 @@ export default function AvailableRoomsPage({
                             <Button
                               fullWidth
                               variant="outlined"
-                              disabled={isSubmitting}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleOpenStatusDialog(room);
@@ -1362,409 +1225,17 @@ export default function AvailableRoomsPage({
       )}
 
 
-      {/* ========================================================================= */}
-      {/* DIALOG: QUICK ROOM STATUS & IN-HOUSE CHECKOUT SETTLEMENT CONTROL          */}
-      {/* ========================================================================= */}
-      {(() => {
-        const isOccupiedWithBooking = statusDialog.room?.status === "OCCUPIED" && Boolean(statusDialog.booking);
-        const guestObj = statusDialog.booking?.guest || {};
-        const guestName = guestObj.fullName || guestObj.name || statusDialog.booking?.guestName || "Guest";
-        const guestPhone = guestObj.phoneNumber || guestObj.phone || statusDialog.booking?.guestPhone || "";
-        const hotelUpi = hotelSettings?.upiId || "jatinkakadiya234-1@okicici";
-        const upiAmount = Number(statusDialog.amount) || 0;
-        const upiPayee = encodeURIComponent(hotelSettings?.hotelName || "Hotel Merigold");
-        const upiNote = encodeURIComponent(`Room ${statusDialog.room?.roomNumber || ""} Checkout Settlement`);
-        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
-          `upi://pay?pa=${hotelUpi}&pn=${upiPayee}&am=${upiAmount}&cu=INR&tn=${upiNote}`
-        )}`;
-        const bill = computeCheckoutBill(statusDialog.booking, statusDialog.extraCharges, statusDialog.lateFee);
-        const extraCharges = bill.extra;
-        const lateCharge = bill.late;
-        const lateHoursValue = Number(statusDialog.lateHours) || 0;
-        const billTotal = bill.billTotal;
-        const advancePaid = bill.paid;
-        const balanceDue = bill.due;
-        const collectNow = Number(statusDialog.amount) || 0;
-        const collectError = collectNow > balanceDue + 0.001 ? "Cannot exceed the balance due" : "";
-        const remainingAfter = Math.max(0, balanceDue - collectNow);
-        const inr = (n) => `₹${Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
-        const sectionTitle = (title) => (
-          <Typography sx={{ fontWeight: 700, fontSize: "0.85rem", color: themeConfig.textMain, pb: 1, mb: 1.5, borderBottom: `1px solid ${themeConfig.border}` }}>
-            {title}
-          </Typography>
-        );
-        const billRow = (label, value, opts = {}) => (
-          <Box
-            key={label}
-            sx={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "baseline",
-              gap: 2,
-              py: 0.7,
-              ...(opts.strong ? { mt: 0.5, pt: 1.25, borderTop: `1px solid ${themeConfig.border}` } : {}),
-            }}
-          >
-            <Box sx={{ minWidth: 0 }}>
-              <Typography component="span" sx={{ color: themeConfig.textMain, fontSize: opts.strong ? "0.92rem" : "0.86rem", fontWeight: opts.strong ? 700 : 500 }}>
-                {label}
-              </Typography>
-              {opts.hint ? (
-                <Typography component="span" sx={{ color: themeConfig.textMuted, fontSize: "0.76rem", ml: 1 }}>
-                  {opts.hint}
-                </Typography>
-              ) : null}
-            </Box>
-            <Typography sx={{ color: opts.color || themeConfig.textMain, fontSize: opts.strong ? "0.98rem" : "0.86rem", fontWeight: opts.strong ? 700 : 600, whiteSpace: "nowrap" }}>
-              {value}
-            </Typography>
-          </Box>
-        );
-
-        return (
-          <Dialog
-            open={statusDialog.open}
-            onClose={() =>
-              setStatusDialog({
-                open: false,
-                room: null,
-                newStatus: "AVAILABLE",
-                booking: null,
-                overstay: null,
-                lateOption: "hourly",
-                lateFee: 0,
-                paymentMethod: "CASH",
-                amount: 0,
-                transactionId: "",
-                paymentReference: "",
-              })
-            }
-            maxWidth={isOccupiedWithBooking ? "sm" : "xs"}
-            fullWidth
-            slotProps={{
-              paper: {
-                sx: {
-                  borderRadius: "16px",
-                  border: `1px solid ${themeConfig.border}`,
-                  bgcolor: themeConfig.bgCard || "#FFFFFF",
-                  overflow: "hidden",
-                  maxHeight: "90vh",
-                },
-              },
-            }}
-          >
-            <DialogTitle component="div" sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pb: 1.5 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                <Avatar sx={{ bgcolor: themeConfig.primary, width: 36, height: 36, color: "#FFF", fontWeight: 900 }}>
-                  <MeetingRoom sx={{ fontSize: 20 }} />
-                </Avatar>
-                <div>
-                  <Typography component="div" variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, lineHeight: 1.2 }}>
-                    {isOccupiedWithBooking ? `Check-out · Room #${statusDialog.room?.roomNumber}` : `Room #${statusDialog.room?.roomNumber} Status`}
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                    {isOccupiedWithBooking ? "Review the bill, collect payment and release the room" : "Operational status control"}
-                  </Typography>
-                </div>
-              </Box>
-              <IconButton
-                onClick={() =>
-                  setStatusDialog({
-                    open: false,
-                    room: null,
-                    newStatus: "AVAILABLE",
-                    booking: null,
-                    overstay: null,
-                    lateOption: "hourly",
-                    lateFee: 0,
-                    paymentMethod: "CASH",
-                    amount: 0,
-                    transactionId: "",
-                    paymentReference: "",
-                  })
-                }
-                sx={{ borderRadius: "10px" }}
-              >
-                <Close />
-              </IconButton>
-            </DialogTitle>
-
-            <DialogContent dividers sx={{ borderColor: themeConfig.border, display: "flex", flexDirection: "column", gap: 3 }}>
-              {/* SCENARIO 1: IN-HOUSE OCCUPIED ROOM WITH ACTIVE BOOKING */}
-              {isOccupiedWithBooking ? (
-                <>
-                  {/* Guest */}
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, p: 1.75, borderRadius: "12px", border: `1px solid ${themeConfig.border}`, bgcolor: "#F8FAFC" }}>
-                    <Avatar sx={{ bgcolor: themeConfig.primary, width: 40, height: 40, fontWeight: 700, fontSize: "1rem" }}>
-                      {guestName.charAt(0).toUpperCase()}
-                    </Avatar>
-                    <Box sx={{ minWidth: 0, flex: 1 }}>
-                      <Typography noWrap sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.95rem" }}>
-                        {guestName}
-                      </Typography>
-                      <Typography noWrap sx={{ color: themeConfig.textMuted, fontSize: "0.8rem" }}>
-                        {[guestPhone, `Folio #${statusDialog.booking?.bookingNumber || "Active"}`].filter(Boolean).join("  ·  ")}
-                      </Typography>
-                    </Box>
-                  </Box>
-
-                  {/* Late check-out suggestion */}
-                  {statusDialog.overstay?.isLate && (
-                    <Box sx={{ p: 1.5, borderRadius: "12px", bgcolor: "#FFFBEB", border: "1px solid #FDE68A", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1.25 }}>
-                      <Box>
-                        <Typography sx={{ fontWeight: 700, color: "#B45309", fontSize: "0.85rem" }}>
-                          Late check-out · {statusDialog.overstay?.chargeableHours}h past {formatTime12Hour(statusDialog.overstay?.scheduledCheckOutTime || "12:00")}
-                        </Typography>
-                        <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.76rem" }}>
-                          Pick how to charge it. You can still edit the amount below.
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: "flex", gap: 1 }}>
-                        {[
-                          { key: "hourly", label: `Hourly ${inr(statusDialog.overstay?.hourlyCharge)}` },
-                          { key: "full_day", label: `Full day ${inr(statusDialog.overstay?.fullDayCharge)}` },
-                        ].map((opt) => {
-                          const active = statusDialog.lateOption === opt.key;
-                          return (
-                            <Button
-                              key={opt.key}
-                              size="small"
-                              onClick={() => handleDialogLateOptionChange(opt.key)}
-                              sx={{
-                                borderRadius: "8px",
-                                textTransform: "none",
-                                fontWeight: 600,
-                                fontSize: "0.78rem",
-                                px: 1.5,
-                                border: `1px solid ${active ? themeConfig.primary : "#FDE68A"}`,
-                                bgcolor: active ? themeConfig.primary : "#FFFFFF",
-                                color: active ? "#FFFFFF" : themeConfig.textMain,
-                                "&:hover": { bgcolor: active ? themeConfig.primaryDark : "#FFFBEB" },
-                              }}
-                            >
-                              {opt.label}
-                            </Button>
-                          );
-                        })}
-                      </Box>
-                    </Box>
-                  )}
-
-                  {/* Additional charges */}
-                  <Box>
-                    {sectionTitle("Additional charges")}
-                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 2 }}>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        autoComplete="off"
-                        label="Extra charges (₹)"
-                        placeholder="0"
-                        value={Number(statusDialog.extraCharges) ? statusDialog.extraCharges : ""}
-                        onChange={(e) => updateSettlement({ extraCharges: sanitizeAmount(e.target.value) })}
-                        slotProps={{ htmlInput: { inputMode: "decimal" } }}
-                      />
-                      <TextField
-                        fullWidth
-                        size="small"
-                        autoComplete="off"
-                        label="Late check-out hours"
-                        placeholder="0"
-                        value={Number(statusDialog.lateHours) ? statusDialog.lateHours : ""}
-                        onChange={(e) => setStatusDialog((prev) => ({ ...prev, lateHours: sanitizeAmount(e.target.value).split(".")[0] }))}
-                        slotProps={{ htmlInput: { inputMode: "numeric" } }}
-                      />
-                      <TextField
-                        fullWidth
-                        size="small"
-                        autoComplete="off"
-                        label="Late check-out charge (₹)"
-                        placeholder="0"
-                        value={Number(statusDialog.lateFee) ? statusDialog.lateFee : ""}
-                        onChange={(e) => updateSettlement({ lateFee: sanitizeAmount(e.target.value) })}
-                        slotProps={{ htmlInput: { inputMode: "decimal" } }}
-                      />
-                    </Box>
-                  </Box>
-
-                  {/* Bill calculation */}
-                  <Box>
-                    {sectionTitle("Bill calculation")}
-                    <Box sx={{ p: 2, borderRadius: "12px", border: `1px solid ${themeConfig.border}`, bgcolor: "#FFFFFF" }}>
-                      {billRow("Room charges", inr(bill.base), { hint: "Before tax" })}
-                      {billRow("Discount", bill.discount > 0 ? `-${inr(bill.discount)}` : inr(0), { color: bill.discount > 0 ? "#047857" : undefined })}
-                      {billRow("Extra charges", extraCharges > 0 ? `+${inr(extraCharges)}` : inr(0))}
-                      {billRow("Late check-out charges", lateCharge > 0 ? `+${inr(lateCharge)}` : inr(0), { hint: lateHoursValue ? `${lateHoursValue}h` : "" })}
-                      {billRow("Taxable amount", inr(bill.taxable), { strong: true })}
-                      {billRow(`CGST (${bill.gstRate / 2}%)`, `+${inr(bill.cgst)}`)}
-                      {billRow(`SGST (${bill.gstRate / 2}%)`, `+${inr(bill.sgst)}`)}
-                      {billRow("Total bill", inr(billTotal), { strong: true, hint: "Taxable amount + GST" })}
-                      {billRow("Advance paid", `-${inr(advancePaid)}`, { color: "#047857" })}
-                      {billRow("Balance due", inr(balanceDue), { strong: true, hint: `${inr(billTotal)} - ${inr(advancePaid)}`, color: balanceDue > 0 ? "#B42318" : "#047857" })}
-                      {collectNow > 0 && billRow("Collecting now", `-${inr(collectNow)}`, { color: "#047857" })}
-                      <Box
-                        sx={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          mt: 1,
-                          px: 1.5,
-                          py: 1,
-                          borderRadius: "10px",
-                          bgcolor: remainingAfter > 0 ? "#FEF2F2" : "#ECFDF5",
-                        }}
-                      >
-                        <Typography sx={{ fontWeight: 700, fontSize: "0.88rem", color: remainingAfter > 0 ? "#B42318" : "#047857" }}>
-                          {remainingAfter > 0 ? "Remaining after check-out" : "Fully settled"}
-                        </Typography>
-                        <Typography sx={{ fontWeight: 700, fontSize: "1rem", color: remainingAfter > 0 ? "#B42318" : "#047857" }}>
-                          {inr(remainingAfter)}
-                        </Typography>
-                      </Box>
-                      <Typography sx={{ mt: 1.5, color: themeConfig.textMuted, fontSize: "0.76rem", lineHeight: 1.6 }}>
-                        {`${inr(bill.base)} - ${inr(bill.discount)} discount + ${inr(extraCharges)} extra + ${inr(lateCharge)} late = ${inr(bill.taxable)}; + ${bill.gstRate}% GST ${inr(bill.gstAmount)} = ${inr(billTotal)}; - ${inr(advancePaid)} advance = ${inr(balanceDue)} due`}
-                      </Typography>
-                    </Box>
-                  </Box>
-
-                  {/* Payment */}
-                  <Box>
-                    {sectionTitle("Payment")}
-                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 2 }}>
-                      <TextField
-                        select
-                        fullWidth
-                        size="small"
-                        label="Payment method"
-                        value={statusDialog.paymentMethod || "CASH"}
-                        onChange={(e) => setStatusDialog((prev) => ({ ...prev, paymentMethod: e.target.value }))}
-                      >
-                        <MenuItem value="CASH">Cash</MenuItem>
-                        <MenuItem value="UPI">UPI</MenuItem>
-                        <MenuItem value="CARD">Card</MenuItem>
-                        <MenuItem value="ONLINE">Online</MenuItem>
-                        <MenuItem value="BANK_TRANSFER">Bank transfer</MenuItem>
-                      </TextField>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        autoComplete="off"
-                        label="Amount collected (₹)"
-                        placeholder="0"
-                        value={Number(statusDialog.amount) ? statusDialog.amount : ""}
-                        error={Boolean(collectError)}
-                        helperText={collectError}
-                        onChange={(e) => setStatusDialog((prev) => ({ ...prev, amount: sanitizeAmount(e.target.value) }))}
-                        slotProps={{ htmlInput: { inputMode: "decimal" } }}
-                      />
-                      {statusDialog.paymentMethod !== "CASH" && (
-                        <TextField
-                          fullWidth
-                          size="small"
-                          autoComplete="off"
-                          label="Reference number"
-                          placeholder="Transaction or reference no."
-                          value={statusDialog.transactionId || ""}
-                          onChange={(e) => setStatusDialog((prev) => ({ ...prev, transactionId: e.target.value }))}
-                        />
-                      )}
-                      <Box sx={{ gridColumn: { sm: "1 / -1" } }}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          autoComplete="off"
-                          label="Notes"
-                          placeholder="e.g. Collected remaining balance at the desk"
-                          value={statusDialog.notes || ""}
-                          onChange={(e) => setStatusDialog((prev) => ({ ...prev, notes: e.target.value }))}
-                        />
-                      </Box>
-                    </Box>
-
-                    {statusDialog.paymentMethod === "UPI" && collectNow > 0 && (
-                      <Box sx={{ mt: 2, p: 1.5, borderRadius: "12px", border: `1px solid ${themeConfig.border}`, bgcolor: "#F8FAFC", display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
-                        <Box
-                          component="img"
-                          src={qrCodeUrl}
-                          alt="UPI payment QR code"
-                          sx={{ width: 96, height: 96, borderRadius: "8px", border: `1px solid ${themeConfig.border}`, bgcolor: "#FFFFFF", p: 0.5 }}
-                        />
-                        <Box sx={{ minWidth: 0 }}>
-                          <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.85rem" }}>
-                            Scan to pay {inr(collectNow)}
-                          </Typography>
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                            <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.78rem" }}>UPI ID: {hotelUpi}</Typography>
-                            <Tooltip title={copiedUpi ? "Copied" : "Copy UPI ID"}>
-                              <IconButton size="small" onClick={handleCopyUpiId} sx={{ p: 0.4, color: themeConfig.primary }}>
-                                {copiedUpi ? <Check sx={{ fontSize: 14 }} /> : <ContentCopy sx={{ fontSize: 14 }} />}
-                              </IconButton>
-                            </Tooltip>
-                          </Box>
-                        </Box>
-                      </Box>
-                    )}
-                  </Box>
-                </>
-              ) : (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  <Typography variant="body2" sx={{ color: themeConfig.textMuted }}>
-                    Use the room button for the next action. Cleaning rooms can be marked Available from the card.
-                  </Typography>
-                </Box>
-              )}
-            </DialogContent>
-
-            <DialogActions sx={{ p: 2, gap: 1 }}>
-              <Button
-                onClick={() =>
-                  setStatusDialog({
-                    open: false,
-                    room: null,
-                    newStatus: "AVAILABLE",
-                    booking: null,
-                    overstay: null,
-                    lateOption: "hourly",
-                    lateFee: 0,
-                    paymentMethod: "CASH",
-                    amount: 0,
-                    transactionId: "",
-                    paymentReference: "",
-                  })
-                }
-                sx={{ borderRadius: "10px", fontWeight: 700 }}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="contained"
-                disabled={isSubmitting || (isOccupiedWithBooking && Boolean(collectError))}
-                onClick={handleConfirmStatusChange}
-                startIcon={isOccupiedWithBooking ? <Logout sx={{ fontSize: 16 }} /> : null}
-                sx={{
-                  bgcolor: themeConfig.primary,
-                  color: "#FFFFFF",
-                  fontWeight: 600,
-                  textTransform: "none",
-                  borderRadius: "10px",
-                  px: 3,
-                  height: 40,
-                  boxShadow: "none",
-                  "&:hover": { bgcolor: themeConfig.primaryDark, boxShadow: "none" },
-                }}
-              >
-                {isSubmitting
-                  ? "Processing..."
-                  : isOccupiedWithBooking
-                    ? collectNow > 0
-                      ? `Collect ${inr(collectNow)} & check out`
-                      : "Complete check-out"
-                    : "Update status"}
-              </Button>
-            </DialogActions>
-          </Dialog>
-        );
-      })()}
+      <CheckoutDialog
+        open={Boolean(checkoutTarget)}
+        booking={checkoutTarget?.booking}
+        roomNumber={checkoutTarget?.room?.roomNumber}
+        hotelSettings={hotelSettings}
+        onClose={() => setCheckoutTarget(null)}
+        onCheckOut={onCheckOut}
+        onDone={async () => {
+          if (onRefresh) await onRefresh();
+        }}
+      />
 
       {/* ========================================================================= */}
       {/* FLOATING MULTI-ROOM SELECTION ACTION DOCK                                 */}

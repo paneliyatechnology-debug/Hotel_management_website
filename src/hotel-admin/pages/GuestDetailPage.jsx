@@ -53,6 +53,7 @@ import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { formatTime12Hour } from "@/shared/utils/timeUtils";
 import { computeBookingBill } from "@/shared/utils/billingUtils";
 import { toast } from "@/shared/utils/toast";
+import { useSocket } from "@/shared/context/SocketContext";
 import { downloadBookingPdf } from "@/shared/utils/bookingPdf";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
@@ -170,16 +171,22 @@ export default function GuestDetailPage({
   const [copiedKey, setCopiedKey] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [detailTick, setDetailTick] = useState(0);
 
   const effectiveId = guestId || guest?._id || guest?.id || guest?.bookingId || guest?.booking_id;
 
-  // Fetch full details if needed
+  useSocket(
+    ["BOOKING_UPDATED", "BOOKING_CREATED", "GUEST_CHECKED_OUT", "PAYMENT_RECORDED", "GUEST_UPDATED", "ROOM_UPDATED"],
+    () => setDetailTick((tick) => tick + 1)
+  );
+
+  // Fetch full details, and again whenever a live socket event arrives
   useEffect(() => {
     if (!effectiveId) return;
     let isCancelled = false;
 
     const fetchDetail = async () => {
-      setLoading(true);
+      if (!bookingDetail) setLoading(true);
       try {
         const endpoint =
           (typeof API_ENDPOINTS.BOOKINGS?.BY_ID === "function" && API_ENDPOINTS.BOOKINGS.BY_ID(effectiveId)) ||
@@ -203,7 +210,7 @@ export default function GuestDetailPage({
     return () => {
       isCancelled = true;
     };
-  }, [effectiveId]);
+  }, [effectiveId, detailTick]);
 
   const b = bookingDetail || guest || {};
   const g = b.guest || b.guestData || b;

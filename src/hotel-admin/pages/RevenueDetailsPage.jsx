@@ -50,11 +50,17 @@ import {
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
+import { useSocket } from "@/shared/context/SocketContext";
 import { folioMoney } from "@/shared/utils/folioMoney";
 import EmptyState from "@/shared/components/EmptyState";
 
 export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, initialFilter = "THIS_WEEK", dashboardData }) {
   const { themeConfig, isDarkMode } = useAppTheme();
+  const [liveTick, setLiveTick] = useState(0);
+  useSocket(
+    ["PAYMENT_RECORDED", "BOOKING_CREATED", "BOOKING_UPDATED", "GUEST_CHECKED_OUT", "DASHBOARD_SYNC"],
+    () => setLiveTick((tick) => tick + 1)
+  );
 
   // Filters State
   const [filterType, setFilterType] = useState(initialFilter);
@@ -128,10 +134,10 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
       }
     })();
     return () => { cancelled = true; };
-  }, [filterType, startDate, endDate]);
+  }, [filterType, startDate, endDate, liveTick]);
 
-  const fetchRevenueDetails = async () => {
-    setLoading(true);
+  const fetchRevenueDetails = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       let query = `?filter=${filterType}&page=${page + 1}&limit=${rowsPerPage}`;
       if (filterType === "CUSTOM" && startDate && endDate) {
@@ -154,8 +160,8 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
   };
 
   useEffect(() => {
-    fetchRevenueDetails();
-  }, [filterType, startDate, endDate, paymentMethod, paymentStatus, page, rowsPerPage]);
+    fetchRevenueDetails(liveTick > 0);
+  }, [filterType, startDate, endDate, paymentMethod, paymentStatus, page, rowsPerPage, liveTick]);
 
   useEffect(() => {
     const [start, end] = dateWindow();
@@ -171,7 +177,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
       }
     })();
     return () => { cancelled = true; };
-  }, [filterType, startDate, endDate]);
+  }, [filterType, startDate, endDate, liveTick]);
 
   useEffect(() => {
     const [start, end] = dateWindow();
@@ -209,7 +215,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
       }
     })();
     return () => { cancelled = true; };
-  }, [filterType, startDate, endDate, page, rowsPerPage]);
+  }, [filterType, startDate, endDate, page, rowsPerPage, liveTick]);
 
   const handleSearchSubmit = (e) => {
     e?.preventDefault?.();

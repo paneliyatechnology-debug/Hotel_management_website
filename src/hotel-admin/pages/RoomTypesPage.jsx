@@ -46,7 +46,6 @@ import {
   LocalParking,
   FreeBreakfast,
   Check,
-  CleaningServices,
   Category,
 } from "@/shared/icons";
 
@@ -86,6 +85,7 @@ function categoryStatusCounts(category, fallbackRooms = []) {
 }
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
+import { useSocket } from "@/shared/context/SocketContext";
 import EmptyState from "@/shared/components/EmptyState";
 
 // Standard hotel amenities with icons and labels
@@ -146,6 +146,11 @@ export default function RoomTypesPage({
   const [roomPage, setRoomPage] = useState(0);
   const [roomRowsPerPage, setRoomRowsPerPage] = useState(5);
   const [serverRooms, setServerRooms] = useState(null);
+  const [liveTick, setLiveTick] = useState(0);
+  useSocket(
+    ["ROOM_UPDATED", "room:category_counts", "BOOKING_CREATED", "BOOKING_UPDATED", "GUEST_CHECKED_OUT", "PAYMENT_RECORDED"],
+    () => setLiveTick((tick) => tick + 1)
+  );
 
   const fieldLabelSx = { fontWeight: 600, color: themeConfig.textMuted, mb: 0.6, display: "block", fontSize: "0.78rem" };
   const RequiredMark = () => <Box component="span" sx={{ color: "#B42318" }}> *</Box>;
@@ -207,9 +212,6 @@ export default function RoomTypesPage({
   const planLabel = isTrial
     ? `Trial · ${totalRoomsCount} of 5 rooms`
     : `${planName.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())} · ${totalRoomsCount} ${totalRoomsCount === 1 ? "room" : "rooms"}`;
-  const availableRoomsCount = summaryCounts.available;
-  const occupiedRoomsCount = summaryCounts.booked;
-  const maintenanceRoomsCount = summaryCounts.cleaning;
 
 
   // Helper to open Add Room modal with preselected Category
@@ -334,7 +336,7 @@ export default function RoomTypesPage({
     return () => {
       cancelled = true;
     };
-  }, [selectedCategory, roomPage, roomRowsPerPage]);
+  }, [selectedCategory, roomPage, roomRowsPerPage, liveTick]);
 
   const pagedRooms = serverRooms ? serverRooms.list : selectedRooms.slice(roomPage * roomRowsPerPage, roomPage * roomRowsPerPage + roomRowsPerPage);
   const pagedCategories = roomTypes.slice(categoryPage * categoryRowsPerPage, categoryPage * categoryRowsPerPage + categoryRowsPerPage);
@@ -392,11 +394,18 @@ export default function RoomTypesPage({
           </Box>
         </Box>
 
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", sm: "repeat(2, 1fr)", md: "repeat(3, 1fr)", xl: "repeat(5, 1fr)" }, gap: 2, minWidth: 0 }}>
-          <StatCard hideFooter title="Total rooms" value={totalRoomsCount} icon={<MeetingRoom />} color="#10B981" />
-          <StatCard hideFooter title="Available" value={availableRoomsCount} icon={<Check />} color="#0B8EE0" />
-          <StatCard hideFooter title="Occupied" value={occupiedRoomsCount} icon={<KingBed />} color="#8B5CF6" />
-          <StatCard hideFooter title="Cleaning" value={maintenanceRoomsCount} icon={<CleaningServices />} color="#F59E0B" />
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+            gap: 2,
+            width: "100%",
+            minWidth: 0,
+            maxWidth: { sm: 560 },
+            "& > *": { minWidth: 0, maxWidth: "100%" },
+          }}
+        >
+          <StatCard hideFooter title="Total rooms" value={totalRoomsCount} icon={<MeetingRoom />} color="#0F766E" />
           <StatCard hideFooter title="Categories" value={roomTypes.length} icon={<Category />} color="#0F766E" />
         </Box>
       </Box>
@@ -710,7 +719,7 @@ export default function RoomTypesPage({
                       )}
                     </Box>
 
-                    <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1 }}>
+                    <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 1 }}>
                       {CATEGORY_STATUSES.map((item) => (
                         <Box
                           key={item.key}

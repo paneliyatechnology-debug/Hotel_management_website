@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -35,21 +35,12 @@ import {
   Visibility,
   Phone,
   Badge as IdBadge,
-  AccessTime,
   Email,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { AppDialogHeader, AppDialogFooter, dialogPaperSx, dialogCancelButtonSx, dialogPrimaryButtonSx } from "@/shared/components/AppDialog";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
-import { formatTime12Hour } from "@/shared/utils/timeUtils";
-
-export const DEFAULT_SHIFTS = [
-  { value: "Morning (07:00 - 15:00)", label: "Morning · 7:00 AM – 3:00 PM" },
-  { value: "Evening (15:00 - 23:00)", label: "Evening · 3:00 PM – 11:00 PM" },
-  { value: "Night (23:00 - 07:00)", label: "Night · 11:00 PM – 7:00 AM" },
-  { value: "General (09:00 - 18:00)", label: "General · 9:00 AM – 6:00 PM" },
-];
 
 export const HOTEL_STAFF_ROLES = [
   { value: "RECEPTIONIST", label: "Front Desk Receptionist (RECEPTIONIST)", shortLabel: "Receptionist", color: "#0B8EE0", bg: "rgba(11, 142, 224, 0.12)", border: "rgba(11, 142, 224, 0.3)" },
@@ -106,89 +97,11 @@ export default function StaffTeamPage({
       (s.name || "").toLowerCase().includes(q) ||
       (s.phone || "").includes(q) ||
       (s.email || "").toLowerCase().includes(q) ||
-      (s.role || "").toLowerCase().includes(q) ||
-      (s.shift || "").toLowerCase().includes(q);
+      (s.role || "").toLowerCase().includes(q);
 
     if (staffRoleFilter === "ALL") return matchSearch;
     return matchSearch && (s.role || "").toUpperCase().includes(staffRoleFilter.toUpperCase());
   });
-
-  const [customShifts, setCustomShifts] = useState(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem("grand_royale_hotel_shifts");
-        if (saved) return JSON.parse(saved);
-      } catch (e) { }
-    }
-    return [];
-  });
-
-  const [isCustomShiftOpen, setIsCustomShiftOpen] = useState(false);
-  const [customShiftName, setCustomShiftName] = useState("");
-  const [customShiftStart, setCustomShiftStart] = useState("09:00");
-  const [customShiftEnd, setCustomShiftEnd] = useState("17:00");
-
-  const allShifts = useMemo(() => {
-    const list = [...DEFAULT_SHIFTS];
-
-    customShifts.forEach((cs) => {
-      if (!list.some((s) => s.value === cs.value)) {
-        list.push({ ...cs, isCustom: true });
-      }
-    });
-
-    (staffList || []).forEach((staff) => {
-      if (staff.shift && !list.some((s) => s.value === staff.shift)) {
-        list.push({ value: staff.shift, label: staff.shift, isCustom: true });
-      }
-    });
-
-    if (staffModal?.data?.shift && !list.some((s) => s.value === staffModal.data.shift)) {
-      list.push({ value: staffModal.data.shift, label: staffModal.data.shift, isCustom: true });
-    }
-
-    return list;
-  }, [customShifts, staffList, staffModal?.data?.shift]);
-
-  const handleApplyCustomShift = () => {
-    const title = customShiftName.trim() || "Custom Shift";
-    const start12 = formatTime12Hour(customShiftStart);
-    const end12 = formatTime12Hour(customShiftEnd);
-    const shiftValue = `${title} (${customShiftStart} - ${customShiftEnd})`;
-    const shiftLabel = `${title} (${start12} - ${end12})`;
-
-    const newShiftObj = { value: shiftValue, label: shiftLabel, isCustom: true };
-    const updated = [...customShifts.filter((s) => s.value !== shiftValue), newShiftObj];
-    setCustomShifts(updated);
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("grand_royale_hotel_shifts", JSON.stringify(updated));
-      } catch (e) { }
-    }
-
-    setStaffModal((prev) => ({
-      ...prev,
-      data: { ...prev.data, shift: shiftValue },
-    }));
-    setIsCustomShiftOpen(false);
-    setCustomShiftName("");
-  };
-
-  const handleDeleteCustomShift = (val) => {
-    const updated = customShifts.filter((s) => s.value !== val);
-    setCustomShifts(updated);
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("grand_royale_hotel_shifts", JSON.stringify(updated));
-      } catch (e) { }
-    }
-    if (staffModal?.data?.shift === val) {
-      setStaffModal((prev) => ({
-        ...prev,
-        data: { ...prev.data, shift: "Morning (07:00 - 15:00)" },
-      }));
-    }
-  };
 
   const paginatedStaff = filteredStaff.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   const staffCount = filteredStaff.length;
@@ -203,7 +116,7 @@ export default function StaffTeamPage({
   const openAddStaff = () => setStaffModal({
     open: true,
     mode: "ADD",
-    data: getInitialStaffForm ? getInitialStaffForm() : { name: "", email: "", phone: "", role: "RECEPTIONIST", shift: "Morning (07:00 - 15:00)", status: "ACTIVE" },
+    data: getInitialStaffForm ? getInitialStaffForm() : { name: "", email: "", phone: "", role: "RECEPTIONIST", status: "ACTIVE" },
   });
 
   return (
@@ -593,145 +506,6 @@ export default function StaffTeamPage({
                   ))}
                 </TextField>
               </Grid>
-
-              <Grid size={{ xs: 12 }}>
-                <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1 }}>
-                  <Button
-                    size="small"
-                    variant="text"
-                    onClick={() => setIsCustomShiftOpen((prev) => !prev)}
-                    startIcon={<Add sx={{ fontSize: 16 }} />}
-                    sx={{
-                      fontSize: "0.8rem",
-                      fontWeight: 700,
-                      textTransform: "none",
-                      color: themeConfig.primary,
-                      "&:hover": { bgcolor: "transparent", textDecoration: "underline" },
-                    }}
-                  >
-                    {isCustomShiftOpen ? "Hide custom shift" : "Add custom shift"}
-                  </Button>
-                </Box>
-                <TextField
-                  select
-                  fullWidth
-                  size="small"
-                  required
-                  label="Shift"
-                  slotProps={{ inputLabel: { shrink: true } }}
-                  value={staffModal.data?.shift || "Morning (07:00 - 15:00)"}
-                  onChange={(e) => {
-                    if (e.target.value === "__NEW_CUSTOM__") {
-                      setIsCustomShiftOpen(true);
-                    } else {
-                      setStaffModal({ ...staffModal, data: { ...staffModal.data, shift: e.target.value } });
-                    }
-                  }}
-                  sx={fieldSx}
-                >
-                  {allShifts.map((s) => (
-                    <MenuItem key={s.value} value={s.value}>
-                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", gap: 1 }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                          <AccessTime sx={{ fontSize: 16, color: themeConfig.primary }} />
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            {s.label}
-                          </Typography>
-                        </Box>
-                        {s.isCustom && (
-                          <IconButton
-                            size="small"
-                            aria-label="Remove custom shift"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteCustomShift(s.value);
-                            }}
-                            sx={{ p: 0.2, color: "#EF4444", "&:hover": { bgcolor: "rgba(239,68,68,0.1)" } }}
-                          >
-                            <Delete sx={{ fontSize: 16 }} />
-                          </IconButton>
-                        )}
-                      </Box>
-                    </MenuItem>
-                  ))}
-                  <MenuItem value="__NEW_CUSTOM__" sx={{ color: themeConfig.primary, fontWeight: 700, borderTop: `1px solid ${themeConfig.border}` }}>
-                    <Add sx={{ fontSize: 16, mr: 1 }} /> Create custom shift
-                  </MenuItem>
-                </TextField>
-
-                {isCustomShiftOpen && (
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      mt: 1.5,
-                      p: 2,
-                      borderRadius: "14px",
-                      bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne,
-                      border: `1px solid ${themeConfig.border}`,
-                    }}
-                  >
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: themeConfig.textMain, mb: 1.5 }}>
-                      Custom Shift
-                    </Typography>
-                    <Grid container spacing={1.5} sx={{ alignItems: "center" }}>
-                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <TextField
-                          size="small"
-                          fullWidth
-                          label="Shift Name"
-                          placeholder="Shift name"
-                          value={customShiftName}
-                          onChange={(e) => setCustomShiftName(e.target.value)}
-                          sx={fieldSx}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 6, sm: 4 }}>
-                        <TextField
-                          type="time"
-                          size="small"
-                          fullWidth
-                          label="Start Time"
-                          slotProps={{ inputLabel: { shrink: true } }}
-                          value={customShiftStart}
-                          onChange={(e) => setCustomShiftStart(e.target.value)}
-                          sx={fieldSx}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 6, sm: 4 }}>
-                        <TextField
-                          type="time"
-                          size="small"
-                          fullWidth
-                          label="End Time"
-                          slotProps={{ inputLabel: { shrink: true } }}
-                          value={customShiftEnd}
-                          onChange={(e) => setCustomShiftEnd(e.target.value)}
-                          sx={fieldSx}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12 }}>
-                        <Button
-                          size="small"
-                          variant="contained"
-                          onClick={handleApplyCustomShift}
-                          sx={{
-                            borderRadius: "10px",
-                            fontWeight: 700,
-                            px: 2.5,
-                            py: 0.9,
-                            textTransform: "none",
-                            bgcolor: themeConfig.primary,
-                            color: "#FFFFFF",
-                            "&:hover": { bgcolor: themeConfig.primaryDark },
-                          }}
-                        >
-                          Use this shift
-                        </Button>
-                      </Grid>
-                    </Grid>
-                  </Paper>
-                )}
-              </Grid>
             </Grid>
           </DialogContent>
 
@@ -764,7 +538,6 @@ export default function StaffTeamPage({
             { label: "Phone", value: profile.phone, icon: <Phone sx={{ fontSize: 18 }} /> },
             { label: "Email", value: profile.email, icon: <Email sx={{ fontSize: 18 }} /> },
             { label: "Role", value: roleMeta.label, icon: <IdBadge sx={{ fontSize: 18 }} /> },
-            { label: "Shift", value: profile.shift, icon: <AccessTime sx={{ fontSize: 18 }} /> },
           ].filter((item) => String(item.value || "").trim());
 
           return (

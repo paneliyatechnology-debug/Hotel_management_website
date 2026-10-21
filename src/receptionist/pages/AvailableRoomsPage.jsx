@@ -856,7 +856,7 @@ export default function AvailableRoomsPage({
                           )}
                       </Box>
 
-                      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1 }}>
+                      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 1 }}>
                         {statusBoxes.map((item) => (
                           <Box
                             key={item.label}

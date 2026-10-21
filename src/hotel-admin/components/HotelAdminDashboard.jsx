@@ -259,7 +259,6 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       email: "",
       phone: "",
       role: "RECEPTIONIST",
-      shift: "Morning (07:00 - 15:00)",
       status: "ACTIVE",
     };
   }
@@ -377,6 +376,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
   useSocket(
     [
       "ROOM_UPDATED",
+      "room:category_counts",
       "BOOKING_CREATED",
       "BOOKING_UPDATED",
       "GUEST_CHECKED_OUT",
@@ -384,20 +384,21 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       "GUEST_UPDATED",
       "DASHBOARD_SYNC",
       "HANDOVER_SETTLED",
+      "STAFF_CREATED",
+      "STAFF_UPDATED",
+      "STAFF_DELETED",
+      "STAFF_STATUS_UPDATED",
+      "USER_UPDATED",
       "HOTEL_STATUS_UPDATED",
       "SUBSCRIPTION_UPDATED",
       "HOTEL_UPDATED",
+      "TRIAL_REQUEST_APPROVED",
+      "TRIAL_REQUEST_REJECTED",
     ],
-    (payload) => {
-      if (payload?.subscription || payload?.hotel?.subscription) {
-        const newSub = payload.subscription || payload.hotel.subscription;
-        setDashboardData((prev) => ({
-          ...prev,
-          subscription: newSub,
-        }));
-      }
+    () => {
       fetchAllData();
       reloadRoomsList();
+      reloadStaffList();
     }
   );
 

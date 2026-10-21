@@ -40,6 +40,7 @@ export default function StatCard({
         overflow: "hidden",
         boxSizing: "border-box",
         width: "100%",
+        minWidth: 0,
         backdropFilter: "blur(12px)",
         transition: "all 0.28s cubic-bezier(0.16, 1, 0.3, 1)",
         "&::before": {

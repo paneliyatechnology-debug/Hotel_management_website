@@ -1218,7 +1218,7 @@ export default function ReceptionistOverviewPage({
                       <Box
                         sx={{
                           display: "grid",
-                          gridTemplateColumns: "repeat(3, 1fr)",
+                          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
                           gap: 1,
                           mt: 2,
                           p: 1.2,

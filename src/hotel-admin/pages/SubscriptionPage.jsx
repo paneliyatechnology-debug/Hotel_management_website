@@ -41,6 +41,7 @@ import {
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { AppDialogHeader, AppDialogFooter, dialogPaperSx, dialogCancelButtonSx, dialogPrimaryButtonSx } from "@/shared/components/AppDialog";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
+import { useSocket } from "@/shared/context/SocketContext";
 import { useLiveCountdown } from "@/shared/utils/countdown";
 import { toast } from "@/shared/utils/toast";
 
@@ -76,6 +77,14 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
     fetchPlans();
     fetchSubscription();
   }, []);
+
+  useSocket(
+    ["SUBSCRIPTION_UPDATED", "HOTEL_UPDATED", "TRIAL_REQUEST_APPROVED", "TRIAL_REQUEST_REJECTED", "DASHBOARD_SYNC"],
+    () => {
+      fetchSubscription();
+      fetchPlans();
+    }
+  );
 
   const fetchPlans = async () => {
     try {

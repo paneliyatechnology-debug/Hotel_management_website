@@ -349,12 +349,16 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
   useSocket(
     [
       "ROOM_UPDATED",
+      "room:category_counts",
       "BOOKING_CREATED",
       "BOOKING_UPDATED",
       "GUEST_CHECKED_OUT",
       "PAYMENT_RECORDED",
       "GUEST_UPDATED",
       "DASHBOARD_SYNC",
+      "SIGNATURE_SUBMITTED",
+      "HOTEL_UPDATED",
+      "SUBSCRIPTION_UPDATED",
     ],
     () => {
       fetchFrontDeskData(true);

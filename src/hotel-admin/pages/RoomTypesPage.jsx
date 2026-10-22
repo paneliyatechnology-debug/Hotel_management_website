@@ -20,7 +20,6 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TablePagination,
   TableRow,
 } from "@mui/material";
 import { AppDialogHeader, AppDialogFooter, dialogPaperSx, dialogCancelButtonSx, dialogPrimaryButtonSx } from "@/shared/components/AppDialog";
@@ -88,6 +87,8 @@ import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useSocket } from "@/shared/context/SocketContext";
 import { TablePager } from "@/shared/components/DataTable";
+import InfiniteScrollSentinel from "@/shared/components/InfiniteScrollSentinel";
+import { useInfiniteList } from "@/shared/hooks/useInfiniteList";
 import EmptyState from "@/shared/components/EmptyState";
 
 // Standard hotel amenities with icons and labels
@@ -224,10 +225,9 @@ export default function RoomTypesPage({
   const [roomErrors, setRoomErrors] = useState({});
   const [typeErrors, setTypeErrors] = useState({});
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
-  const [categoryPage, setCategoryPage] = useState(0);
-  const [categoryRowsPerPage, setCategoryRowsPerPage] = useState(10);
+  // Rooms table uses the standard pager (same as the other tables)
   const [roomPage, setRoomPage] = useState(0);
-  const [roomRowsPerPage, setRoomRowsPerPage] = useState(5);
+  const [roomRowsPerPage, setRoomRowsPerPage] = useState(10);
 
   // Clicking "Rooms & Tariffs" in the sidebar always lands on the category list, not an opened category
   useEffect(() => {
@@ -535,7 +535,16 @@ export default function RoomTypesPage({
   }, [selectedCategory, roomPage, roomRowsPerPage, liveTick]);
 
   const pagedRooms = serverRooms ? serverRooms.list : selectedRooms.slice(roomPage * roomRowsPerPage, roomPage * roomRowsPerPage + roomRowsPerPage);
-  const pagedCategories = roomTypes.slice(categoryPage * categoryRowsPerPage, categoryPage * categoryRowsPerPage + categoryRowsPerPage);
+  const totalCategoryRooms = serverRooms ? serverRooms.total : selectedRooms.length;
+  const showCategoryGridOnly = !selectedCategory && roomTypes.length > 0;
+
+  // Lazy loading: category cards load in batches while scrolling
+  const {
+    visibleItems: pagedCategories,
+    visibleCount: visibleCategoryCount,
+    hasMore: hasMoreCategories,
+    loadMore: loadMoreCategories,
+  } = useInfiniteList(roomTypes, { pageSize: 12 });
 
   return (
     <Box sx={{ width: "100%", minWidth: 0, maxWidth: "100%", overflowX: "hidden", px: { xs: 1.5, sm: 2.5, md: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
@@ -640,14 +649,15 @@ export default function RoomTypesPage({
       <Card
         elevation={0}
         sx={{
-          borderRadius: "20px",
-          border: `1.5px solid ${themeConfig.border}`,
+          // Category grid sits directly on the page; the card background is only used for an opened category / empty state
+          ...(showCategoryGridOnly
+            ? { border: "none", bgcolor: "transparent", borderRadius: 0, overflow: "visible", "&:hover": { boxShadow: "none" } }
+            : { borderRadius: "20px", border: `1.5px solid ${themeConfig.border}`, bgcolor: themeConfig.bgCard }),
           boxShadow: "none",
-          bgcolor: themeConfig.bgCard,
         }}
       >
-        <CardContent sx={{ p: { xs: 2, sm: 3 }, "&:last-child": { pb: { xs: 2, sm: 3 } } }}>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexWrap: "wrap", gap: 1.5 }}>
+        <CardContent sx={showCategoryGridOnly ? { p: 0, "&:last-child": { pb: 0 } } : { p: { xs: 2, sm: 3 }, "&:last-child": { pb: { xs: 2, sm: 3 } } }}>
+          {selectedCategory ? <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexWrap: "wrap", gap: 1.5 }}>
             {selectedCategory ? (
               <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
                 <Tooltip title="All categories" arrow>
@@ -668,14 +678,8 @@ export default function RoomTypesPage({
                   </Typography>
                 </Box>
               </Box>
-            ) : (
-              <Box>
-                <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "1.05rem", lineHeight: 1.3 }}>
-                  Categories
-                </Typography>
-              </Box>
-            )}
-          </Box>
+            ) : null}
+          </Box> : null}
 
           {roomTypes.length === 0 ? (
             <Box sx={{ py: 6 }}>
@@ -778,7 +782,7 @@ export default function RoomTypesPage({
                   </Table>
                 </TableContainer>
                 <TablePager
-                  count={serverRooms ? serverRooms.total : selectedRooms.length}
+                  count={totalCategoryRooms}
                   page={roomPage}
                   onPageChange={(e, next) => setRoomPage(next)}
                   rowsPerPage={roomRowsPerPage}
@@ -939,19 +943,11 @@ export default function RoomTypesPage({
         </CardContent>
       </Card>
       {!selectedCategory && roomTypes.length > 0 && (
-        <TablePagination
-          component="div"
-          count={roomTypes.length}
-          page={categoryPage}
-          onPageChange={(e, next) => setCategoryPage(next)}
-          rowsPerPage={categoryRowsPerPage}
-          onRowsPerPageChange={(e) => {
-            setCategoryRowsPerPage(parseInt(e.target.value, 10));
-            setCategoryPage(0);
-          }}
-          rowsPerPageOptions={[5, 10, 15, 20, 25]}
-          labelRowsPerPage="Categories per page"
-          sx={{ bgcolor: "transparent", background: "transparent", borderTop: "none", boxShadow: "none" }}
+        <InfiniteScrollSentinel
+          hasMore={hasMoreCategories}
+          onLoadMore={loadMoreCategories}
+          loadedCount={visibleCategoryCount}
+          endLabel={roomTypes.length > 12 ? `Showing all ${roomTypes.length} categories` : undefined}
         />
       )}
 
@@ -1279,29 +1275,8 @@ export default function RoomTypesPage({
                 </Box>
               </Grid>
 
-              {/* Initial Status */}
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant="caption" sx={fieldLabelSx}>
-                  Status
-                </Typography>
-                <TextField
-                  select
-                  fullWidth
-                  size="small"
-                  value={roomModal.data?.status || "AVAILABLE"}
-                  onChange={(e) => setRoomModal({ ...roomModal, data: { ...roomModal.data, status: e.target.value } })}
-                  sx={fieldSx(false)}
-                >
-                  <MenuItem value="AVAILABLE">Available</MenuItem>
-                  <MenuItem value="CLEANING">Cleaning</MenuItem>
-                  <MenuItem value="MAINTENANCE">Maintenance</MenuItem>
-                  <MenuItem value="OCCUPIED">Occupied</MenuItem>
-                  <MenuItem value="BLOCKED">Blocked</MenuItem>
-                </TextField>
-              </Grid>
-
-              {/* Notes */}
-              <Grid size={{ xs: 12, sm: 6 }}>
+              {/* Notes (room status is not edited here: new rooms start as Available, existing rooms keep theirs) */}
+              <Grid size={{ xs: 12 }}>
                 <Typography variant="caption" sx={fieldLabelSx}>
                   Notes
                 </Typography>

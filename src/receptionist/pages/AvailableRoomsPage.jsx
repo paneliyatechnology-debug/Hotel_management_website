@@ -25,7 +25,6 @@ import {
   TableHead,
   TableRow,
   Paper,
-  TablePagination,
   Checkbox,
   Collapse,
   FormControl,
@@ -77,6 +76,8 @@ import {
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import EmptyState from "@/shared/components/EmptyState";
+import InfiniteScrollSentinel from "@/shared/components/InfiniteScrollSentinel";
+import { useInfiniteList } from "@/shared/hooks/useInfiniteList";
 import CheckoutDialog from "@/receptionist/components/CheckoutDialog";
 
 export default function AvailableRoomsPage({
@@ -160,7 +161,6 @@ export default function AvailableRoomsPage({
     if (initialSelectedCategory) {
       setSelectedCategory(initialSelectedCategory);
       setCameFromExternalRoute(true);
-      setPage(0);
       if (onClearInitialCategory) onClearInitialCategory();
     }
   }, [initialSelectedCategory]);
@@ -177,7 +177,6 @@ export default function AvailableRoomsPage({
     if (typeof window !== "undefined") sessionStorage.setItem("receptionist.rooms.category", "none");
     setSelectedCategory(null);
     setCameFromExternalRoute(false);
-    setPage(0);
   }, [resetToken]);
 
   // Filters for Table View & Category Drilldown
@@ -187,13 +186,7 @@ export default function AvailableRoomsPage({
   const [selectedStatus, setSelectedStatus] = useState("ALL");
 
   // Category card pagination
-  const [cardPage, setCardPage] = useState(0);
-  const [cardRowsPerPage, setCardRowsPerPage] = useState(10);
   const [categorySearch, setCategorySearch] = useState("");
-
-  // Table Pagination
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   // Multi-Room Selection State for Quick Bulk Booking & Check-In
   const [selectedRoomIds, setSelectedRoomIds] = useState([]);
@@ -404,6 +397,14 @@ export default function AvailableRoomsPage({
     return categoryStats.filter((cat) => String(cat.name || "").toLowerCase().includes(query));
   }, [categoryStats, categorySearch]);
 
+  // Lazy loading: show a batch of category cards and load the next batch while scrolling
+  const {
+    visibleItems: visibleCategories,
+    visibleCount: visibleCategoryCount,
+    hasMore: hasMoreCategories,
+    loadMore: loadMoreCategories,
+  } = useInfiniteList(filteredCategories, { pageSize: 12, resetKey: categorySearch });
+
   const overviewTotals = useMemo(
     () =>
       categoryStats.reduce(
@@ -537,6 +538,17 @@ export default function AvailableRoomsPage({
       return true;
     });
   }, [activeCategory, selectedFloor, selectedStatus, roomSearch, bookings]);
+
+  // Lazy loading: room cards load in batches while scrolling
+  const {
+    visibleItems: visibleRooms,
+    visibleCount: visibleRoomCount,
+    hasMore: hasMoreRooms,
+    loadMore: loadMoreRooms,
+  } = useInfiniteList(filteredCategoryRooms, {
+    pageSize: 12,
+    resetKey: `${selectedCategory}|${selectedFloor}|${selectedStatus}|${roomSearch}`,
+  });
 
   // Expanded Category IDs state for Table View (Category Grouped Accordion)
   const [expandedCategoryIds, setExpandedCategoryIds] = useState([]);
@@ -714,7 +726,6 @@ export default function AvailableRoomsPage({
               value={categorySearch}
               onChange={(e) => {
                 setCategorySearch(e.target.value);
-                setCardPage(0);
               }}
               placeholder="Search category"
               autoComplete="off"
@@ -793,7 +804,7 @@ export default function AvailableRoomsPage({
                   width: "100%",
                 }}
               >
-                {filteredCategories.slice(cardPage * cardRowsPerPage, cardPage * cardRowsPerPage + cardRowsPerPage).map((cat) => {
+                {visibleCategories.map((cat) => {
                   const statusBoxes = [
                     { label: "Available", value: cat.available, ...themeConfig.tones.success },
                     { label: "Booked", value: cat.occupied + cat.reserved, ...themeConfig.tones.warning },
@@ -812,7 +823,6 @@ export default function AvailableRoomsPage({
                       key={cat._id}
                       onClick={() => {
                         setSelectedCategory(cat._id);
-                        setPage(0);
                       }}
                       sx={{
                         p: 2.25,
@@ -908,29 +918,11 @@ export default function AvailableRoomsPage({
                   );
                 })}
               </Box>
-              <TablePagination
-                component="div"
-                count={filteredCategories.length}
-                page={Math.min(cardPage, Math.max(0, Math.ceil(filteredCategories.length / cardRowsPerPage) - 1))}
-                onPageChange={(_, next) => setCardPage(next)}
-                rowsPerPage={cardRowsPerPage}
-                onRowsPerPageChange={(e) => {
-                  setCardRowsPerPage(parseInt(e.target.value, 10));
-                  setCardPage(0);
-                }}
-                rowsPerPageOptions={[5, 10, 15, 20, 25]}
-                labelRowsPerPage="Categories per page"
-                sx={{
-                  mt: 2,
-                  bgcolor: "transparent",
-                  backgroundColor: "transparent",
-                  borderTop: "none",
-                  "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": {
-                    fontWeight: 600,
-                    color: themeConfig.textMuted,
-                    fontSize: "0.8rem",
-                  },
-                }}
+              <InfiniteScrollSentinel
+                hasMore={hasMoreCategories}
+                onLoadMore={loadMoreCategories}
+                loadedCount={visibleCategoryCount}
+                endLabel={filteredCategories.length > 12 ? `Showing all ${filteredCategories.length} categories` : undefined}
               />
               </Box>
             )
@@ -958,7 +950,6 @@ export default function AvailableRoomsPage({
               value={roomSearch}
               onChange={(e) => {
                 setRoomSearch(e.target.value);
-                setPage(0);
               }}
               sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px", bgcolor: themeConfig.bgCard || "#FFFFFF", fontSize: "0.875rem" } }}
               slotProps={{
@@ -979,7 +970,6 @@ export default function AvailableRoomsPage({
               value={selectedFloor}
               onChange={(e) => {
                 setSelectedFloor(e.target.value);
-                setPage(0);
               }}
               sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px", bgcolor: themeConfig.bgCard || "#FFFFFF", fontSize: "0.875rem", fontWeight: 600 } }}
             >
@@ -998,7 +988,6 @@ export default function AvailableRoomsPage({
               value={selectedStatus}
               onChange={(e) => {
                 setSelectedStatus(e.target.value);
-                setPage(0);
               }}
               sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px", bgcolor: themeConfig.bgCard || "#FFFFFF", fontSize: "0.875rem", fontWeight: 600 } }}
             >
@@ -1052,7 +1041,7 @@ export default function AvailableRoomsPage({
                   width: "100%",
                 }}
               >
-                {filteredCategoryRooms.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((room) => {
+                {visibleRooms.map((room) => {
                   const isAvail = room.status === "AVAILABLE";
                   const isOcc = room.status === "OCCUPIED" || room.status === "RESERVED";
                   const isCln = room.status === "CLEANING";
@@ -1229,29 +1218,11 @@ export default function AvailableRoomsPage({
             )
           )}
           {filteredCategoryRooms.length > 0 && (
-            <TablePagination
-              component="div"
-              count={filteredCategoryRooms.length}
-              page={page}
-              onPageChange={(_, newPage) => setPage(newPage)}
-              rowsPerPage={rowsPerPage}
-              onRowsPerPageChange={(e) => {
-                setRowsPerPage(parseInt(e.target.value, 10));
-                setPage(0);
-              }}
-              rowsPerPageOptions={[5, 10, 15, 20, 25]}
-              labelRowsPerPage="Rooms per page"
-              sx={{
-                mt: 2,
-                bgcolor: "transparent",
-                backgroundColor: "transparent",
-                borderTop: "none",
-                "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": {
-                  fontWeight: 600,
-                  color: themeConfig.textMuted,
-                  fontSize: "0.8rem",
-                },
-              }}
+            <InfiniteScrollSentinel
+              hasMore={hasMoreRooms}
+              onLoadMore={loadMoreRooms}
+              loadedCount={visibleRoomCount}
+              endLabel={filteredCategoryRooms.length > 12 ? `Showing all ${filteredCategoryRooms.length} rooms` : undefined}
             />
           )}
         </Box>

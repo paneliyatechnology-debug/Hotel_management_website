@@ -19,6 +19,7 @@ export default function robots() {
           "/app/",
           "/admin/",
           "/receptionist/",
+          "/super-admin/",
           "/login",
           "/forgot-password",
           "/api/",

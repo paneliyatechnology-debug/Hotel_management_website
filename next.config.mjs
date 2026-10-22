@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
-const BACKEND_URL = (
+const IS_LOCAL_MODE = (process.env.NEXT_PUBLIC_API_MODE || "").trim().toUpperCase() === "LOCAL";
+const LOCAL_BACKEND_URL = (process.env.NEXT_PUBLIC_LOCAL_API_URL || "http://localhost:5001").trim().replace(/\/+$/, "");
+
+const BACKEND_URL = IS_LOCAL_MODE ? LOCAL_BACKEND_URL : (
   process.env.BACKEND_PROXY_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
   process.env.NEXT_PUBLIC_LIVE_API_URL ||

@@ -527,12 +527,12 @@ export function RevenueWaveChart({ dashboardData, isDarkMode }) {
                 top: 0,
                 left: `${(activePoint.x / width) * 100}%`,
                 transform: "translate(-50%, -10%)",
-                bgcolor: isDarkMode ? "rgba(15, 23, 42, 0.95)" : "rgba(30, 41, 59, 0.95)",
-                color: "#FFFFFF",
+                bgcolor: isDarkMode ? themeConfig.bgElevated : "rgba(30, 41, 59, 0.95)",
+                color: isDarkMode ? themeConfig.textMain : "#FFFFFF",
                 p: 1.2,
                 borderRadius: "10px",
                 boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-                border: "1px solid rgba(255,255,255,0.15)",
+                border: `1px solid ${isDarkMode ? themeConfig.border : "rgba(255,255,255,0.15)"}`,
                 pointerEvents: "none",
                 minWidth: "120px",
                 textAlign: "center",
@@ -803,7 +803,7 @@ export function DailyTargetGauge({ currentRevenue = 0, targetRevenue = 0, onUpda
         PaperProps={{
           sx: {
             borderRadius: "16px",
-            bgcolor: isDarkMode ? "#1E293B" : "#FFFFFF",
+            bgcolor: themeConfig.bgElevated,
             border: `1px solid ${themeConfig.border}`,
             overflow: "hidden",
           },
@@ -1173,7 +1173,7 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
                   fontWeight: 800,
                   borderRadius: "8px",
                   bgcolor: viewType === "HOURLY" ? (isDarkMode ? "rgba(255,255,255,0.15)" : "#FFFFFF") : "transparent",
-                  color: viewType === "HOURLY" ? (themeConfig.primaryDark || "#0C273B") : themeConfig.textMuted,
+                  color: viewType === "HOURLY" ? (themeConfig.accent || "#0C273B") : themeConfig.textMuted,
                   boxShadow: viewType === "HOURLY" ? "0 2px 6px rgba(0,0,0,0.08)" : "none",
                   minWidth: "auto",
                 }}
@@ -1190,7 +1190,7 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
                   fontWeight: 800,
                   borderRadius: "8px",
                   bgcolor: viewType === "WEEKLY" ? (isDarkMode ? "rgba(255,255,255,0.15)" : "#FFFFFF") : "transparent",
-                  color: viewType === "WEEKLY" ? (themeConfig.primaryDark || "#0C273B") : themeConfig.textMuted,
+                  color: viewType === "WEEKLY" ? (themeConfig.accent || "#0C273B") : themeConfig.textMuted,
                   boxShadow: viewType === "WEEKLY" ? "0 2px 6px rgba(0,0,0,0.08)" : "none",
                   minWidth: "auto",
                 }}
@@ -1347,7 +1347,7 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
               ? hourlyDateFilter === "TODAY" ? "Today's Traffic Summary:" : "All Time Hourly Summary:"
               : "Last 7 Days Total Flow:"}
           </Typography>
-          <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.primaryDark, fontSize: "0.75rem" }}>
+          <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.accent, fontSize: "0.75rem" }}>
             {viewType === "HOURLY"
               ? (() => {
                   const peak = hourlyData.reduce((max, cur) => (cur.total > max.total ? cur : max), { total: 0, label: "", range: "" });

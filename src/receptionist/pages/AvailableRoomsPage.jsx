@@ -99,6 +99,7 @@ export default function AvailableRoomsPage({
   initialSelectedCategory = null,
   onClearInitialCategory,
   onNavigateTab,
+  resetToken = 0,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
 
@@ -168,6 +169,16 @@ export default function AvailableRoomsPage({
     if (typeof window === "undefined") return;
     if (selectedCategory) sessionStorage.setItem("receptionist.rooms.category", String(selectedCategory));
   }, [selectedCategory]);
+
+  // Clicking "Rooms" in the sidebar always lands on the category list, never on a previously opened category.
+  // ("none" also stops the single-category auto-select below from re-opening it.)
+  useEffect(() => {
+    if (!resetToken) return;
+    if (typeof window !== "undefined") sessionStorage.setItem("receptionist.rooms.category", "none");
+    setSelectedCategory(null);
+    setCameFromExternalRoute(false);
+    setPage(0);
+  }, [resetToken]);
 
   // Filters for Table View & Category Drilldown
   const [roomSearch, setRoomSearch] = useState("");
@@ -677,7 +688,7 @@ export default function AvailableRoomsPage({
               <Avatar
                 sx={{
                   bgcolor: themeConfig.champagne,
-                  color: themeConfig.primaryDark,
+                  color: themeConfig.accent,
                   width: 38,
                   height: 38,
                   borderRadius: "10px",
@@ -728,7 +739,7 @@ export default function AvailableRoomsPage({
             <Box sx={{ display: "flex", gap: 0.8, flexWrap: "wrap", alignItems: "center" }}>
               <Chip label={`${categoryStats.length} ${categoryStats.length === 1 ? "category" : "categories"}`} size="small" sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9", color: themeConfig.textMuted, fontWeight: 700, fontSize: "0.72rem" }} />
               <Chip label={`${overviewTotals.total} rooms`} size="small" sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9", color: themeConfig.textMuted, fontWeight: 700, fontSize: "0.72rem" }} />
-              <Chip label={`${overviewTotals.available} available`} size="small" sx={{ bgcolor: "#ECFDF5", color: "#047857", fontWeight: 700, fontSize: "0.72rem", border: "1px solid #A7F3D0" }} />
+              <Chip label={`${overviewTotals.available} available`} size="small" sx={{ bgcolor: themeConfig.tones.success.bg, color: themeConfig.tones.success.color, fontWeight: 700, fontSize: "0.72rem", border: `1px solid ${themeConfig.tones.success.border}` }} />
             </Box>
           </Box>
         )}
@@ -737,9 +748,9 @@ export default function AvailableRoomsPage({
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", justifyContent: { xs: "space-between", sm: "flex-end" } }}>
           {selectedCategory !== null && activeCategory && (
             <Box sx={{ display: "flex", gap: 0.8, flexWrap: "wrap", alignItems: "center" }}>
-              <Chip label={`${activeCategory?.available || 0} available`} size="small" sx={{ bgcolor: "#ECFDF5", color: "#047857", fontWeight: 700, fontSize: "0.75rem", border: "1px solid #A7F3D0" }} />
-              <Chip label={`${(activeCategory?.occupied || 0) + (activeCategory?.reserved || 0)} booked`} size="small" sx={{ bgcolor: "#FFFBEB", color: "#B45309", fontWeight: 700, fontSize: "0.75rem", border: "1px solid #FDE68A" }} />
-              <Chip label={`${activeCategory?.cleaning || 0} cleaning`} size="small" sx={{ bgcolor: "#FEF2F2", color: "#B42318", fontWeight: 700, fontSize: "0.75rem", border: "1px solid #FECACA" }} />
+              <Chip label={`${activeCategory?.available || 0} available`} size="small" sx={{ bgcolor: themeConfig.tones.success.bg, color: themeConfig.tones.success.color, fontWeight: 700, fontSize: "0.75rem", border: `1px solid ${themeConfig.tones.success.border}` }} />
+              <Chip label={`${(activeCategory?.occupied || 0) + (activeCategory?.reserved || 0)} booked`} size="small" sx={{ bgcolor: themeConfig.tones.warning.bg, color: themeConfig.tones.warning.color, fontWeight: 700, fontSize: "0.75rem", border: `1px solid ${themeConfig.tones.warning.border}` }} />
+              <Chip label={`${activeCategory?.cleaning || 0} cleaning`} size="small" sx={{ bgcolor: themeConfig.tones.danger.bg, color: themeConfig.tones.danger.color, fontWeight: 700, fontSize: "0.75rem", border: `1px solid ${themeConfig.tones.danger.border}` }} />
             </Box>
           )}
         </Box>
@@ -784,17 +795,17 @@ export default function AvailableRoomsPage({
               >
                 {filteredCategories.slice(cardPage * cardRowsPerPage, cardPage * cardRowsPerPage + cardRowsPerPage).map((cat) => {
                   const statusBoxes = [
-                    { label: "Available", value: cat.available, color: "#0F766E", bg: "#ECFDF5", border: "#A7F3D0" },
-                    { label: "Booked", value: cat.occupied + cat.reserved, color: "#B45309", bg: "#FFFBEB", border: "#FDE68A" },
-                    { label: "Cleaning", value: cat.cleaning, color: "#B42318", bg: "#FEF2F2", border: "#FECACA" },
+                    { label: "Available", value: cat.available, ...themeConfig.tones.success },
+                    { label: "Booked", value: cat.occupied + cat.reserved, ...themeConfig.tones.warning },
+                    { label: "Cleaning", value: cat.cleaning, ...themeConfig.tones.danger },
                   ];
                   const barTotal = statusBoxes.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
                   const isEmptyCategory = cat.totalRooms === 0;
                   const statePill = isEmptyCategory
-                    ? { label: "No rooms", color: "#64748B", bg: "#F1F5F9", border: "#E2E8F0" }
+                    ? { label: "No rooms", ...themeConfig.tones.neutral }
                     : cat.available > 0
-                      ? { label: "Available", color: "#047857", bg: "#ECFDF5", border: "#A7F3D0" }
-                      : { label: "Unavailable", color: "#B45309", bg: "#FFFBEB", border: "#FDE68A" };
+                      ? { label: "Available", ...themeConfig.tones.success }
+                      : { label: "Unavailable", ...themeConfig.tones.warning };
 
                   return (
                     <Card
@@ -808,7 +819,7 @@ export default function AvailableRoomsPage({
                         borderRadius: "16px",
                         border: `1px solid ${themeConfig.border}`,
                         bgcolor: themeConfig.bgCard || "#FFFFFF",
-                        boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 24px rgba(15, 23, 42, 0.08)",
+                        boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(32, 41, 35, 0.05), 0 10px 24px rgba(32, 41, 35, 0.08)",
                         cursor: "pointer",
                         display: "flex",
                         flexDirection: "column",
@@ -817,7 +828,7 @@ export default function AvailableRoomsPage({
                         "&:hover": {
                           borderColor: "#99D5C9",
                           transform: "translateY(-2px)",
-                          boxShadow: isDarkMode ? "none" : "0 2px 6px rgba(15, 23, 42, 0.06), 0 16px 32px rgba(15, 23, 42, 0.1)",
+                          boxShadow: isDarkMode ? "none" : "0 2px 6px rgba(32, 41, 35, 0.06), 0 16px 32px rgba(32, 41, 35, 0.1)",
                         },
                       }}
                     >
@@ -881,7 +892,7 @@ export default function AvailableRoomsPage({
                               borderRadius: "12px",
                               bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : item.bg,
                               border: `1px solid ${item.border}`,
-                              boxShadow: isDarkMode || isEmptyCategory ? "none" : "0 2px 8px rgba(15, 23, 42, 0.05)",
+                              boxShadow: isDarkMode || isEmptyCategory ? "none" : "0 2px 8px rgba(32, 41, 35, 0.05)",
                               py: 1.1,
                               px: 0.5,
                               textAlign: "center",
@@ -1050,12 +1061,12 @@ export default function AvailableRoomsPage({
                   const bookedGuestName = getRoomGuestName(room);
 
                   const statusMeta = isAvail
-                    ? { label: "Available", color: "#047857", bg: "#ECFDF5", border: "#A7F3D0" }
+                    ? { label: "Available", ...themeConfig.tones.success }
                     : isOcc
-                      ? { label: room.status === "RESERVED" ? "Reserved" : "Booked", color: "#B45309", bg: "#FFFBEB", border: "#FDE68A" }
+                      ? { label: room.status === "RESERVED" ? "Reserved" : "Booked", ...themeConfig.tones.warning }
                       : isCln
-                        ? { label: "Cleaning", color: "#B42318", bg: "#FEF2F2", border: "#FECACA" }
-                        : { label: room.status === "BLOCKED" ? "Blocked" : "Maintenance", color: "#64748B", bg: "#F1F5F9", border: "#E2E8F0" };
+                        ? { label: "Cleaning", ...themeConfig.tones.danger }
+                        : { label: room.status === "BLOCKED" ? "Blocked" : "Maintenance", ...themeConfig.tones.neutral };
 
                   const actionButtonSx = {
                     minHeight: 38,
@@ -1078,9 +1089,9 @@ export default function AvailableRoomsPage({
                         borderRadius: "16px",
                         border: `1px solid ${isSelected ? themeConfig.primary : themeConfig.border}`,
                         bgcolor: isSelected
-                          ? (isDarkMode ? "rgba(15, 118, 110, 0.18)" : "#F0FDFA")
+                          ? (themeConfig.bgSoft)
                           : (themeConfig.bgCard || "#FFFFFF"),
-                        boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 24px rgba(15, 23, 42, 0.08)",
+                        boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(32, 41, 35, 0.05), 0 10px 24px rgba(32, 41, 35, 0.08)",
                         display: "flex",
                         flexDirection: "column",
                         gap: 2,
@@ -1089,7 +1100,7 @@ export default function AvailableRoomsPage({
                         "&:hover": {
                           borderColor: isSelected ? themeConfig.primary : "#99D5C9",
                           transform: "translateY(-2px)",
-                          boxShadow: isDarkMode ? "none" : "0 2px 6px rgba(15, 23, 42, 0.06), 0 16px 32px rgba(15, 23, 42, 0.1)",
+                          boxShadow: isDarkMode ? "none" : "0 2px 6px rgba(32, 41, 35, 0.06), 0 16px 32px rgba(32, 41, 35, 0.1)",
                         },
                       }}
                     >
@@ -1165,7 +1176,7 @@ export default function AvailableRoomsPage({
                               sx={{
                                 ...actionButtonSx,
                                 bgcolor: themeConfig.primary,
-                                color: "#FFFFFF",
+                                color: themeConfig.onPrimary,
                                 "&:hover": { bgcolor: themeConfig.primaryDark || themeConfig.primary, boxShadow: "none" },
                               }}
                             >
@@ -1275,11 +1286,11 @@ export default function AvailableRoomsPage({
             zIndex: 1300,
             p: { xs: 1.75, sm: 2 },
             borderRadius: "16px",
-            bgcolor: isDarkMode ? "rgba(15, 23, 42, 0.96)" : "#FFFFFF",
+            bgcolor: isDarkMode ? "rgba(32, 41, 35, 0.96)" : "#FFFFFF",
             border: `1px solid ${isDarkMode ? themeConfig.border : "#99D5C9"}`,
             boxShadow: isDarkMode
               ? "0 16px 40px rgba(0, 0, 0, 0.6)"
-              : "0 2px 6px rgba(15, 23, 42, 0.06), 0 18px 40px rgba(15, 23, 42, 0.14)",
+              : "0 2px 6px rgba(32, 41, 35, 0.06), 0 18px 40px rgba(32, 41, 35, 0.14)",
             animation: "slideUpDock 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
             "@keyframes slideUpDock": {
               "0%": { transform: "translate(-50%, 30px)", opacity: 0 },
@@ -1308,7 +1319,7 @@ export default function AvailableRoomsPage({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F0FDFA",
+                    bgcolor: themeConfig.bgSoft,
                     border: `1px solid ${themeConfig.border}`,
                     color: themeConfig.primary,
                     fontWeight: 700,
@@ -1385,7 +1396,7 @@ export default function AvailableRoomsPage({
                   flexGrow: { xs: 1, md: 0 },
                   textTransform: "none",
                   bgcolor: themeConfig.primary,
-                  color: "#FFFFFF",
+                  color: themeConfig.onPrimary,
                   px: 2.5,
                   boxShadow: "none",
                   "&:hover": { bgcolor: themeConfig.primaryDark || themeConfig.primary, boxShadow: "none" },

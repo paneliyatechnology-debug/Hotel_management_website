@@ -8,12 +8,20 @@ import { getCookie, setCookie, clearAuthCookies, getActiveHotelId } from '../sha
 
 export const ENVIRONMENT = "LIVE"; // 👉 Toggle "LOCAL" or "LIVE" here
 
-const envValue = (name) => {
-  const value = typeof process !== "undefined" ? process.env?.[name] : "";
-  return String(value || "").trim();
+// NEXT_PUBLIC_* values are inlined into the browser bundle only when referenced
+// statically, so each one is listed here instead of read with a dynamic key.
+const PUBLIC_ENV = {
+  NEXT_PUBLIC_API_MODE: process.env.NEXT_PUBLIC_API_MODE,
+  NEXT_PUBLIC_LOCAL_API_URL: process.env.NEXT_PUBLIC_LOCAL_API_URL,
+  NEXT_PUBLIC_LIVE_API_URL: process.env.NEXT_PUBLIC_LIVE_API_URL,
+  NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+  NEXT_PUBLIC_ADMIN_URL: process.env.NEXT_PUBLIC_ADMIN_URL,
+  NEXT_PUBLIC_LOCAL_ADMIN_URL: process.env.NEXT_PUBLIC_LOCAL_ADMIN_URL,
 };
 
-export const LOCAL_API_URL = (envValue("NEXT_PUBLIC_LOCAL_API_URL") || "http://localhost:5000").replace(/\/+$/, "");
+const envValue = (name) => String(PUBLIC_ENV[name] || "").trim();
+
+export const LOCAL_API_URL = (envValue("NEXT_PUBLIC_LOCAL_API_URL") || "http://localhost:5001").replace(/\/+$/, "");
 export const LIVE_API_URL = (
   envValue("NEXT_PUBLIC_API_URL") ||
   envValue("NEXT_PUBLIC_LIVE_API_URL") ||
@@ -143,6 +151,12 @@ export const API_ENDPOINTS = createCaseFlexibleProxy({
     DELETE: (id) => `${API_BASE_URL}/api/v1/subscription-plans/${id}`,
     PURCHASE: (id) => `${API_BASE_URL}/api/v1/subscription-plans/${id}/purchase`,
     RESET_DEFAULTS: `${API_BASE_URL}/api/v1/subscription-plans/reset-defaults`,
+  },
+
+  // GST report (hotel admin). `qs` is a query string: start_date, end_date and optional filters.
+  GST_REPORT: {
+    LIST: (qs) => `${API_BASE_URL}/api/v1/reports/gst?${qs}`,
+    EXPORT: (qs) => `${API_BASE_URL}/api/v1/reports/gst/export?${qs}`,
   },
 
   // 5. Room Types (Categories)
@@ -1844,7 +1858,7 @@ async function executeApiRequest(endpoint, options = {}) {
   let fullUrl;
   if (cleanEndpoint.startsWith("http://") || cleanEndpoint.startsWith("https://")) {
     fullUrl = cleanEndpoint
-      .replace(/^https?:\/\/(localhost|127\.0\.0\.1):5000/, currentBase)
+      .replace(/^https?:\/\/(localhost|127\.0\.0\.1):500[01]/, currentBase)
       .replace(/^https?:\/\/hotel-management-backend-9qf5\.onrender\.com/, currentBase)
       .replace(/^https?:\/\/hotelmanagementbackend-dev\.up\.railway\.app/, currentBase)
       .replace(/^https?:\/\/accomplished-smile-dev\.up\.railway\.app/, currentBase);
@@ -1910,6 +1924,7 @@ async function executeApiRequest(endpoint, options = {}) {
   if (
     typeof window !== "undefined" &&
     /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname) &&
+    resolvedBase !== LOCAL_API_URL &&
     /^https?:\/\//i.test(fullUrl)
   ) {
     try {

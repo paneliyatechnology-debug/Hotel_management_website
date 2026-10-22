@@ -215,7 +215,7 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
           label: planExpired ? "Expired on" : "Valid until",
           value: formatDate(periodEnd),
           note: planExpired ? "Renew to keep access" : `${daysLeft} ${daysLeft === 1 ? "day" : "days"} left`,
-          noteColor: planExpired ? themeConfig.danger : daysLeft <= 7 ? "#B45309" : themeConfig.textMuted,
+          noteColor: planExpired ? themeConfig.danger : daysLeft <= 7 ? themeConfig.tones.warning.color : themeConfig.textMuted,
         },
         autoRenew !== undefined && autoRenew !== null && { label: "Auto-renew", value: autoRenew ? "On" : "Off" },
       ].filter(Boolean)
@@ -228,8 +228,8 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
   const cardSx = {
     borderRadius: "14px",
     border: `1px solid ${themeConfig.border}`,
-    bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-    boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.04)",
+    bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
+    boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(32, 41, 35, 0.04)",
   };
 
   const sectionTitleSx = { fontWeight: 800, color: themeConfig.textMain, fontSize: "1.05rem" };
@@ -238,7 +238,7 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
     borderRadius: "10px",
     textTransform: "none",
     fontWeight: 700,
-    color: themeConfig.primaryDark,
+    color: themeConfig.accent,
     borderColor: themeConfig.border,
     "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne || "#F4F7F6" },
   };
@@ -450,7 +450,7 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
                                 ? { color: themeConfig.success, bgcolor: themeConfig.successBg }
                                 : trialLocked
                                   ? { color: themeConfig.textMuted, bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9" }
-                                  : { color: themeConfig.primaryDark, bgcolor: themeConfig.champagne || "#EAF6F3" }),
+                                  : { color: themeConfig.accent, bgcolor: themeConfig.champagne || "#EAF6F3" }),
                             }}
                           />
                         )}
@@ -490,7 +490,7 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
                           ...(!isLocked
                             ? { bgcolor: themeConfig.primary, "&:hover": { bgcolor: themeConfig.primaryDark, boxShadow: "none" } }
                             : {
-                                color: themeConfig.primaryDark,
+                                color: themeConfig.accent,
                                 borderColor: themeConfig.border,
                                 "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne || "#F4F7F6" },
                               }),

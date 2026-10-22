@@ -51,9 +51,9 @@ import {
 } from "@/shared/icons";
 
 const CATEGORY_STATUSES = [
-  { key: "available", label: "Available", color: "#0F766E", bg: "#ECFDF5", border: "#A7F3D0" },
-  { key: "booked", label: "Booked", color: "#B45309", bg: "#FFFBEB", border: "#FDE68A" },
-  { key: "cleaning", label: "Cleaning", color: "#B42318", bg: "#FEF2F2", border: "#FECACA" },
+  { key: "available", label: "Available", tone: "success" },
+  { key: "booked", label: "Booked", tone: "warning" },
+  { key: "cleaning", label: "Cleaning", tone: "danger" },
 ];
 
 function countFromRooms(roomList) {
@@ -212,6 +212,7 @@ export default function RoomTypesPage({
   onDeleteRoomType,
   subscription,
   onTabChange,
+  resetToken = 0,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
 
@@ -226,6 +227,13 @@ export default function RoomTypesPage({
   const [categoryRowsPerPage, setCategoryRowsPerPage] = useState(10);
   const [roomPage, setRoomPage] = useState(0);
   const [roomRowsPerPage, setRoomRowsPerPage] = useState(5);
+
+  // Clicking "Rooms & Tariffs" in the sidebar always lands on the category list, not an opened category
+  useEffect(() => {
+    if (!resetToken) return;
+    setSelectedCategoryId(null);
+    setRoomPage(0);
+  }, [resetToken]);
   const [serverRooms, setServerRooms] = useState(null);
   const [liveTick, setLiveTick] = useState(0);
 
@@ -288,7 +296,7 @@ export default function RoomTypesPage({
   );
 
   const fieldLabelSx = { fontWeight: 600, color: themeConfig.textMuted, mb: 0.6, display: "block", fontSize: "0.78rem" };
-  const RequiredMark = () => <Box component="span" sx={{ color: "#B42318" }}> *</Box>;
+  const RequiredMark = () => <Box component="span" sx={{ color: themeConfig.tones.danger.color }}> *</Box>;
   const fieldSx = (invalid) => ({
     "& .MuiOutlinedInput-root": {
       borderRadius: "10px",
@@ -556,8 +564,8 @@ export default function RoomTypesPage({
                 pr: 2.5,
                 borderRadius: "12px",
                 border: `1px solid ${themeConfig.border}`,
-                bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-                boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.04)",
+                bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
+                boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(32, 41, 35, 0.04)",
               }}
             >
               <Box
@@ -599,7 +607,7 @@ export default function RoomTypesPage({
                 textTransform: "none",
                 fontWeight: 700,
                 px: 2,
-                color: themeConfig.primaryDark,
+                color: themeConfig.accent,
                 borderColor: themeConfig.border,
                 bgcolor: isDarkMode ? "transparent" : "#FFFFFF",
                 "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne || "#F4F7F6" },
@@ -632,8 +640,8 @@ export default function RoomTypesPage({
         sx={{
           borderRadius: "16px",
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.04)",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(32, 41, 35, 0.04)",
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
         }}
       >
         <CardContent sx={{ p: { xs: 1.5, sm: 2 }, "&:last-child": { pb: { xs: 1.5, sm: 2 } } }}>
@@ -686,11 +694,11 @@ export default function RoomTypesPage({
                     <TableHead>
                       <TableRow>
                         {["Room", "Floor", "Nightly rate", "Status"].map((heading, index) => (
-                          <TableCell key={heading} sx={{ fontWeight: 700, fontSize: "0.72rem", letterSpacing: "0.06em", textTransform: "uppercase", color: themeConfig.primaryDark, py: 1.75, px: 2.5, pl: index === 0 ? 3 : 2.5, borderRadius: 0, borderBottom: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne || "#F4F7F6", whiteSpace: "nowrap" }}>
+                          <TableCell key={heading} sx={{ fontWeight: 700, fontSize: "0.72rem", letterSpacing: "0.06em", textTransform: "uppercase", color: themeConfig.accent, py: 1.75, px: 2.5, pl: index === 0 ? 3 : 2.5, borderRadius: 0, borderBottom: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne || "#F4F7F6", whiteSpace: "nowrap" }}>
                             {heading}
                           </TableCell>
                         ))}
-                        <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.72rem", letterSpacing: "0.06em", textTransform: "uppercase", color: themeConfig.primaryDark, py: 1.75, px: 2.5, pr: 3, borderRadius: 0, borderBottom: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne || "#F4F7F6", whiteSpace: "nowrap" }}>
+                        <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.72rem", letterSpacing: "0.06em", textTransform: "uppercase", color: themeConfig.accent, py: 1.75, px: 2.5, pr: 3, borderRadius: 0, borderBottom: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne || "#F4F7F6", whiteSpace: "nowrap" }}>
                           Actions
                         </TableCell>
                       </TableRow>
@@ -700,13 +708,13 @@ export default function RoomTypesPage({
                         const tariff = Number(room.customPricePerNight || selectedCategory.basePrice || room.basePrice || 0);
                         const statusKey = String(room.status || "AVAILABLE").toUpperCase();
                         const statusMeta = {
-                          AVAILABLE: { label: "Available", color: "#047857", bg: "#ECFDF5" },
-                          OCCUPIED: { label: "Occupied", color: "#B45309", bg: "#FFF6E8" },
-                          RESERVED: { label: "Reserved", color: "#B45309", bg: "#FFF6E8" },
-                          CLEANING: { label: "Cleaning", color: "#B42318", bg: "#FDECEC" },
-                          MAINTENANCE: { label: "Maintenance", color: "#B42318", bg: "#FDECEC" },
-                          BLOCKED: { label: "Blocked", color: themeConfig.textMuted, bg: "#F4F7F6" },
-                        }[statusKey] || { label: statusKey, color: themeConfig.textMuted, bg: "#F4F7F6" };
+                          AVAILABLE: { label: "Available", color: themeConfig.tones.success.color, bg: themeConfig.tones.success.bg },
+                          OCCUPIED: { label: "Occupied", color: themeConfig.tones.warning.color, bg: themeConfig.tones.warning.bg },
+                          RESERVED: { label: "Reserved", color: themeConfig.tones.warning.color, bg: themeConfig.tones.warning.bg },
+                          CLEANING: { label: "Cleaning", color: themeConfig.tones.danger.color, bg: themeConfig.tones.danger.bg },
+                          MAINTENANCE: { label: "Maintenance", color: themeConfig.tones.danger.color, bg: themeConfig.tones.danger.bg },
+                          BLOCKED: { label: "Blocked", color: themeConfig.textMuted, bg: themeConfig.bgSubtle },
+                        }[statusKey] || { label: statusKey, color: themeConfig.textMuted, bg: themeConfig.bgSubtle };
                         const actionSx = {
                           width: 32,
                           height: 32,
@@ -718,7 +726,7 @@ export default function RoomTypesPage({
                           <TableRow
                             key={room._id || room.roomNumber}
                             sx={{
-                              "&:hover": { bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC" },
+                              "&:hover": { bgcolor: themeConfig.bgSubtle },
                               "& td": { borderBottom: `1px solid ${themeConfig.border}` },
                             }}
                           >
@@ -733,7 +741,7 @@ export default function RoomTypesPage({
                               </Typography>
                             </TableCell>
                             <TableCell sx={{ py: 1.75, px: 2.5 }}>
-                              <Typography sx={{ fontWeight: 700, color: "#0F766E", fontSize: "0.9rem", whiteSpace: "nowrap" }}>
+                              <Typography sx={{ fontWeight: 700, color: themeConfig.accent, fontSize: "0.9rem", whiteSpace: "nowrap" }}>
                                 ₹{tariff.toLocaleString("en-IN")} / night
                               </Typography>
                             </TableCell>
@@ -784,7 +792,7 @@ export default function RoomTypesPage({
                     rowsPerPageOptions={[5, 10, 25, 50]}
                     sx={{
                       borderTop: `1px solid ${themeConfig.border}`,
-                      bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                      bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                       "& .MuiTablePagination-toolbar": { px: { xs: 1, sm: 2 }, minHeight: 52 },
                       "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": {
                         fontWeight: 600,
@@ -834,8 +842,8 @@ export default function RoomTypesPage({
                       width: "100%",
                       overflow: "hidden",
                       border: `1px solid ${themeConfig.border}`,
-                      bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-                      boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 24px rgba(15, 23, 42, 0.08)",
+                      bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
+                      boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(32, 41, 35, 0.05), 0 10px 24px rgba(32, 41, 35, 0.08)",
                       display: "flex",
                       flexDirection: "column",
                       gap: 2,
@@ -843,7 +851,7 @@ export default function RoomTypesPage({
                       "&:hover": {
                         borderColor: "#99D5C9",
                         transform: "translateY(-2px)",
-                        boxShadow: isDarkMode ? "none" : "0 2px 6px rgba(15, 23, 42, 0.06), 0 16px 32px rgba(15, 23, 42, 0.1)",
+                        boxShadow: isDarkMode ? "none" : "0 2px 6px rgba(32, 41, 35, 0.06), 0 16px 32px rgba(32, 41, 35, 0.1)",
                       },
                     }}
                   >
@@ -910,29 +918,32 @@ export default function RoomTypesPage({
                     >
                       {CATEGORY_STATUSES.map((item) =>
                         statusCounts[item.key] > 0 && totalRooms > 0 ? (
-                          <Box key={item.key} sx={{ width: `${(statusCounts[item.key] / (available + booked + cleaning || 1)) * 100}%`, bgcolor: item.color, opacity: 0.85 }} />
+                          <Box key={item.key} sx={{ width: `${(statusCounts[item.key] / (available + booked + cleaning || 1)) * 100}%`, bgcolor: themeConfig.tones[item.tone].color, opacity: 0.85 }} />
                         ) : null
                       )}
                     </Box>
 
                     <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 1 }}>
-                      {CATEGORY_STATUSES.map((item) => (
+                      {CATEGORY_STATUSES.map((item) => {
+                        const tone = themeConfig.tones[item.tone];
+                        return (
                         <Box
                           key={item.key}
                           sx={{
                             borderRadius: "12px",
-                            bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : item.bg,
-                            border: `1px solid ${isDarkMode ? themeConfig.border : item.border}`,
-                            boxShadow: isDarkMode ? "none" : "0 2px 8px rgba(15, 23, 42, 0.05)",
+                            bgcolor: tone.bg,
+                            border: `1px solid ${tone.border}`,
+                            boxShadow: isDarkMode ? "none" : "0 2px 8px rgba(32, 41, 35, 0.05)",
                             py: 1.1,
                             px: 0.5,
                             textAlign: "center",
                           }}
                         >
-                          <Typography sx={{ fontWeight: 700, color: item.color, fontSize: "0.95rem", lineHeight: 1 }}>{statusCounts[item.key]}</Typography>
-                          <Typography sx={{ color: item.color, fontSize: "0.62rem", fontWeight: 600, mt: 0.6, lineHeight: 1.2 }}>{item.label}</Typography>
+                          <Typography sx={{ fontWeight: 700, color: tone.color, fontSize: "0.95rem", lineHeight: 1 }}>{statusCounts[item.key]}</Typography>
+                          <Typography sx={{ color: tone.color, fontSize: "0.62rem", fontWeight: 600, mt: 0.6, lineHeight: 1.2 }}>{item.label}</Typography>
                         </Box>
-                      ))}
+                        );
+                      })}
                     </Box>
                   </Card>
                 );
@@ -1116,7 +1127,7 @@ export default function RoomTypesPage({
                       <Chip
                         size="small"
                         label={`${roomModal.data?.bedCount || 0} Beds`}
-                        sx={{ fontWeight: 700, bgcolor: isDarkMode ? "rgba(20, 184, 166, 0.2)" : "#CCFBF1", color: "#0F766E", borderRadius: "6px" }}
+                        sx={{ fontWeight: 700, bgcolor: themeConfig.champagne, color: themeConfig.accent, borderRadius: "6px" }}
                       />
                       <Chip
                         size="small"
@@ -1140,7 +1151,7 @@ export default function RoomTypesPage({
                         "& .MuiOutlinedInput-root": {
                           height: 40,
                           borderRadius: "10px",
-                          bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#FFFFFF",
+                          bgcolor: themeConfig.bgCard,
                         },
                       }}
                     >
@@ -1163,7 +1174,7 @@ export default function RoomTypesPage({
                         borderRadius: "10px",
                         height: 40,
                         px: 0.5,
-                        bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#FFFFFF",
+                        bgcolor: themeConfig.bgCard,
                       }}
                     >
                       <IconButton
@@ -1206,7 +1217,7 @@ export default function RoomTypesPage({
                         borderRadius: "10px",
                         fontWeight: 700,
                         bgcolor: themeConfig.primary,
-                        color: "#FFFFFF",
+                        color: themeConfig.onPrimary,
                         px: 2,
                         textTransform: "none",
                         boxShadow: "none",
@@ -1339,7 +1350,7 @@ export default function RoomTypesPage({
                     <Button
                       size="small"
                       onClick={() => handleResetToCategoryAmenities(roomModal.data?.roomType)}
-                      sx={{ fontSize: "0.78rem", fontWeight: 700, textTransform: "none", color: themeConfig.primaryDark, minWidth: 0 }}
+                      sx={{ fontSize: "0.78rem", fontWeight: 700, textTransform: "none", color: themeConfig.accent, minWidth: 0 }}
                     >
                       Use category amenities
                     </Button>
@@ -1355,10 +1366,10 @@ export default function RoomTypesPage({
                           size="small"
                           sx={{
                             fontWeight: 600,
-                            bgcolor: "#E7F6F2",
-                            color: "#0F766E",
+                            bgcolor: themeConfig.champagne,
+                            color: themeConfig.accent,
                             borderRadius: "8px",
-                            "& .MuiChip-deleteIcon": { color: "#0F766E" },
+                            "& .MuiChip-deleteIcon": { color: themeConfig.accent },
                           }}
                         />
                       ))}
@@ -1374,7 +1385,7 @@ export default function RoomTypesPage({
                       return (
                         <Chip
                           key={i}
-                          icon={isSelected ? <Check sx={{ fontSize: "16px !important", color: "#FFFFFF !important" }} /> : React.cloneElement(am.icon, { sx: { fontSize: "16px !important", color: isDarkMode ? "#14B8A6 !important" : "inherit" } })}
+                          icon={isSelected ? <Check sx={{ fontSize: "16px !important", color: `${themeConfig.onPrimary} !important` }} /> : React.cloneElement(am.icon, { sx: { fontSize: "16px !important", color: isDarkMode ? `${themeConfig.accent} !important` : "inherit" } })}
                           label={am.label}
                           clickable
                           onClick={() => toggleRoomAmenity(am.label)}
@@ -1383,8 +1394,8 @@ export default function RoomTypesPage({
                             borderRadius: "8px",
                             fontWeight: 600,
                             fontSize: "0.75rem",
-                            bgcolor: isSelected ? (themeConfig.primaryDark || "#115E59") : (isDarkMode ? "rgba(255,255,255,0.06)" : "#FFFFFF"),
-                            color: isSelected ? "#FFFFFF" : themeConfig.textMain,
+                            bgcolor: isSelected ? (themeConfig.primaryDark || "#115E59") : (themeConfig.bgCard),
+                            color: isSelected ? themeConfig.onPrimary : themeConfig.textMain,
                             border: `1px solid ${isSelected ? themeConfig.primaryLight || themeConfig.primary : themeConfig.border}`,
                             transition: "all 0.15s ease",
                             "&:hover": {
@@ -1420,7 +1431,7 @@ export default function RoomTypesPage({
                         borderRadius: "10px",
                         fontWeight: 700,
                         bgcolor: themeConfig.primary,
-                        color: "#FFFFFF",
+                        color: themeConfig.onPrimary,
                         px: 2,
                         boxShadow: "none",
                         textTransform: "none",

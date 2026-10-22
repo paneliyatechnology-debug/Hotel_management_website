@@ -137,8 +137,8 @@ export default function SubscriptionExpiredScreen({
 
   const getPlanIcon = (idx) => {
     if (idx === 0) return <HotelIcon sx={{ fontSize: 24, color: themeConfig.primary }} />;
-    if (idx === 1) return <Apartment sx={{ fontSize: 24, color: themeConfig.accent || "#D97706" }} />;
-    return <CorporateFare sx={{ fontSize: 24, color: themeConfig.primaryDark }} />;
+    if (idx === 1) return <Apartment sx={{ fontSize: 24, color: "#D97706" }} />;
+    return <CorporateFare sx={{ fontSize: 24, color: themeConfig.accent }} />;
   };
 
   // Free Trial Extension Request State (Hotel Admin)
@@ -270,8 +270,8 @@ export default function SubscriptionExpiredScreen({
           width: "100%",
           borderRadius: "28px",
           border: `1.5px solid ${themeConfig.border || "#E2E8F0"}`,
-          boxShadow: "0 24px 60px -12px rgba(12, 39, 59, 0.15), inset 0 1px 1px #FFFFFF",
-          background: "#FFFFFF",
+          boxShadow: "0 24px 60px -12px rgba(32, 41, 35, 0.15), inset 0 1px 1px #FFFFFF",
+          background: themeConfig.bgCard || "#FFFFFF",
           overflow: "hidden",
           position: "relative",
           zIndex: 1,
@@ -377,8 +377,8 @@ export default function SubscriptionExpiredScreen({
               mb: 3.5,
               fontWeight: 600,
               fontSize: "0.92rem",
-              border: `1px solid ${isSuspended ? "#FECACA" : "#FDE68A"}`,
-              bgcolor: isSuspended ? "#FEF2F2" : "#FFFBEB",
+              border: `1px solid ${isSuspended ? themeConfig.tones.danger.border : themeConfig.tones.warning.border}`,
+              bgcolor: isSuspended ? themeConfig.tones.danger.bg : themeConfig.tones.warning.bg,
             }}
           >
             {isSuspended ? (
@@ -431,7 +431,7 @@ export default function SubscriptionExpiredScreen({
                 <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
                   Concluded On
                 </Typography>
-                <Typography variant="body1" sx={{ fontWeight: 800, color: themeConfig.primaryDark }}>
+                <Typography variant="body1" sx={{ fontWeight: 800, color: themeConfig.accent }}>
                   {trialEndDateStr}
                 </Typography>
               </Grid>
@@ -470,8 +470,8 @@ export default function SubscriptionExpiredScreen({
                       fontSize: "0.75rem",
                       color: themeConfig.textMuted,
                       "&.Mui-selected": {
-                        bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-                        color: themeConfig.primaryDark,
+                        bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
+                        color: themeConfig.accent,
                         boxShadow: isDarkMode ? "none" : "0 2px 6px rgba(0,0,0,0.08)",
                       },
                     },
@@ -502,7 +502,7 @@ export default function SubscriptionExpiredScreen({
                             p: 2.5,
                             borderRadius: "18px",
                             border: isPopular ? `2px solid ${themeConfig.primary}` : `1px solid ${themeConfig.border}`,
-                            bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                            bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                             position: "relative",
                             boxShadow: isPopular ? `0 12px 28px -4px ${themeConfig.primaryGlow}` : (isDarkMode ? "none" : "0 4px 16px rgba(0,0,0,0.04)"),
                             display: "flex",
@@ -521,7 +521,7 @@ export default function SubscriptionExpiredScreen({
                                 top: -10,
                                 right: 16,
                                 bgcolor: themeConfig.primary,
-                                color: "#FFFFFF",
+                                color: themeConfig.onPrimary,
                                 fontWeight: 900,
                                 fontSize: "0.62rem",
                                 boxShadow: `0 4px 10px ${themeConfig.primaryGlow}`,
@@ -552,7 +552,7 @@ export default function SubscriptionExpiredScreen({
                             </Typography>
 
                             <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5, my: 1 }}>
-                              <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.primaryDark }}>
+                              <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.accent }}>
                                 ₹{plan.price?.toLocaleString("en-IN")}
                               </Typography>
                               <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
@@ -586,11 +586,11 @@ export default function SubscriptionExpiredScreen({
                               ...(isPopular
                                 ? {
                                     background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                                    color: "#FFFFFF",
+                                    color: themeConfig.onPrimary,
                                   }
                                 : {
                                     borderColor: themeConfig.border,
-                                    color: themeConfig.primaryDark,
+                                    color: themeConfig.accent,
                                   }),
                             }}
                           >
@@ -626,7 +626,7 @@ export default function SubscriptionExpiredScreen({
                     p: 2.2,
                     borderRadius: "16px",
                     border: `1px solid ${themeConfig.border}`,
-                    bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                    bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                     textAlign: "center",
                     transition: "all 0.2s ease",
                     "&:hover": { transform: "translateY(-3px)", borderColor: themeConfig.primary },
@@ -661,7 +661,7 @@ export default function SubscriptionExpiredScreen({
                     p: 2.2,
                     borderRadius: "16px",
                     border: `1px solid ${themeConfig.border}`,
-                    bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                    bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                     textAlign: "center",
                     transition: "all 0.2s ease",
                     "&:hover": { transform: "translateY(-3px)", borderColor: "#25D366" },
@@ -706,7 +706,7 @@ export default function SubscriptionExpiredScreen({
                     p: 2.2,
                     borderRadius: "16px",
                     border: `1px solid ${themeConfig.border}`,
-                    bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                    bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                     textAlign: "center",
                     transition: "all 0.2s ease",
                     "&:hover": { transform: "translateY(-3px)", borderColor: themeConfig.info },
@@ -745,7 +745,7 @@ export default function SubscriptionExpiredScreen({
               startIcon={<HourglassBottom />}
               onClick={() => setTrialDialogOpen(true)}
               sx={{
-                background: `linear-gradient(135deg, ${themeConfig.accent || "#D97706"} 0%, #B45309 100%)`,
+                background: `linear-gradient(135deg, #D97706 0%, #B45309 100%)`,
                 color: "#FFFFFF",
                 fontWeight: 800,
                 fontSize: "0.88rem",
@@ -765,7 +765,7 @@ export default function SubscriptionExpiredScreen({
               onClick={() => handleOpenUpgrade("Priority Commercial Plan")}
               sx={{
                 background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                color: "#FFFFFF",
+                color: themeConfig.onPrimary,
                 fontWeight: 800,
                 fontSize: "0.88rem",
                 px: 3.5,

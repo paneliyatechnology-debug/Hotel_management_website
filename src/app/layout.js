@@ -1,5 +1,5 @@
 import "./globals.css";
-import { themeConfig } from "@/config/theme";
+import { themeConfig, darkThemePalettes, getThemeCssVars } from "@/config/theme";
 import FloatingTabBar from "@/components/FloatingTabBar";
 import ReactQueryProvider from "@/shared/providers/ReactQueryProvider";
 import DisableBrowserAutofill from "@/shared/components/DisableBrowserAutofill";
@@ -125,34 +125,27 @@ const jsonLd = {
   ],
 };
 
+// Runs before first paint on themed (signed-in / login) routes so a saved dark theme never flashes light.
+// Public marketing pages keep their own light design and are intentionally excluded.
+const themeBootScript = `(function(){try{var p=location.pathname;var themed=/^\/(app|login|admin|receptionist|super-admin)(\/|$)/.test(p);if(!themed)return;if(localStorage.getItem("admin_theme_mode")==="dark"){var d=document.documentElement;d.classList.add("dark-theme");d.setAttribute("data-theme-mode","dark");d.style.colorScheme="dark";var v=${JSON.stringify(getThemeCssVars(darkThemePalettes.palette1))};for(var k in v)d.style.setProperty(k,v[k]);}}catch(e){}})();`;
+
 export default function RootLayout({ children }) {
-  const themeStyles = {
-    "--color-primary": themeConfig.primary,
-    "--color-primary-dark": themeConfig.primaryDark,
-    "--color-primary-light": themeConfig.primaryLight,
-    "--color-primary-glow": themeConfig.primaryGlow || "rgba(0, 0, 0, 0.15)",
-    "--color-bg-main": themeConfig.bgMain,
-    "--color-bg-header": themeConfig.bgHeader || "#ffffff",
-    "--color-bg-card": themeConfig.bgCard || "#ffffff",
-    "--color-bg-footer": themeConfig.bgFooter || "#ffffff",
-    "--color-text-main": themeConfig.textMain,
-    "--color-text-muted": themeConfig.textMuted,
-    "--color-border": themeConfig.border,
-    "--color-border-hover": themeConfig.borderHover || themeConfig.primary,
-  };
+  const themeStyles = getThemeCssVars(themeConfig);
 
   return (
     <html
       lang="en"
       style={themeStyles}
+      suppressHydrationWarning
     >
       <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       </head>
-      <body className="min-h-screen pb-14 md:pb-0 font-sans antialiased" style={{ backgroundColor: themeConfig.bgMain, color: themeConfig.textMain }}>
+      <body suppressHydrationWarning className="min-h-screen pb-14 md:pb-0 font-sans antialiased" style={{ backgroundColor: themeConfig.bgMain, color: themeConfig.textMain }}>
         <ReactQueryProvider>
           <DisableBrowserAutofill />
           {children}

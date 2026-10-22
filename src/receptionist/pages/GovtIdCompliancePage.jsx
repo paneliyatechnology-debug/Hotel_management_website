@@ -138,7 +138,7 @@ export default function GovtIdCompliancePage({
     if (t === "VOTER_ID") {
       return { label: "VOTER ID", bgcolor: "rgba(16, 185, 129, 0.1)", color: "#059669", border: "rgba(16, 185, 129, 0.3)" };
     }
-    return { label: "AADHAAR", bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, border: themeConfig.border };
+    return { label: "AADHAAR", bgcolor: themeConfig.champagne, color: themeConfig.accent, border: themeConfig.border };
   };
 
   return (
@@ -168,7 +168,7 @@ export default function GovtIdCompliancePage({
             sx={{
               borderRadius: "12px",
               borderColor: themeConfig.border,
-              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+              bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
               color: themeConfig.textMain,
               fontWeight: 700,
               textTransform: "none",
@@ -199,10 +199,10 @@ export default function GovtIdCompliancePage({
           sx={{
             p: 2.2,
             borderRadius: "16px",
-            bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+            bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
             border: `1px solid ${themeConfig.border}`,
             background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #FAFBFD 100%)",
-            boxShadow: isDarkMode ? "none" : "0 6px 16px rgba(12, 39, 59, 0.04), inset 0 1px 1px #FFFFFF",
+            boxShadow: isDarkMode ? "none" : "0 6px 16px rgba(32, 41, 35, 0.04), inset 0 1px 1px #FFFFFF",
           }}
         >
           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -227,10 +227,10 @@ export default function GovtIdCompliancePage({
           sx={{
             p: 2.2,
             borderRadius: "16px",
-            bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+            bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
             border: `1px solid ${themeConfig.border}`,
             background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #F0FDF4 100%)",
-            boxShadow: isDarkMode ? "none" : "0 6px 16px rgba(12, 39, 59, 0.04), inset 0 1px 1px #FFFFFF",
+            boxShadow: isDarkMode ? "none" : "0 6px 16px rgba(32, 41, 35, 0.04), inset 0 1px 1px #FFFFFF",
           }}
         >
           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -255,10 +255,10 @@ export default function GovtIdCompliancePage({
           sx={{
             p: 2.2,
             borderRadius: "16px",
-            bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+            bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
             border: `1px solid ${themeConfig.border}`,
             background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #FFFBEB 100%)",
-            boxShadow: isDarkMode ? "none" : "0 6px 16px rgba(12, 39, 59, 0.04), inset 0 1px 1px #FFFFFF",
+            boxShadow: isDarkMode ? "none" : "0 6px 16px rgba(32, 41, 35, 0.04), inset 0 1px 1px #FFFFFF",
           }}
         >
           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -283,10 +283,10 @@ export default function GovtIdCompliancePage({
           sx={{
             p: 2.2,
             borderRadius: "16px",
-            bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+            bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
             border: `1px solid ${themeConfig.border}`,
             background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #FAF5FF 100%)",
-            boxShadow: isDarkMode ? "none" : "0 6px 16px rgba(12, 39, 59, 0.04), inset 0 1px 1px #FFFFFF",
+            boxShadow: isDarkMode ? "none" : "0 6px 16px rgba(32, 41, 35, 0.04), inset 0 1px 1px #FFFFFF",
           }}
         >
           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -312,9 +312,9 @@ export default function GovtIdCompliancePage({
         sx={{
           p: 2,
           borderRadius: "18px",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 8px 20px rgba(12, 39, 59, 0.04), inset 0 1px 1px #FFFFFF",
+          boxShadow: isDarkMode ? "none" : "0 8px 20px rgba(32, 41, 35, 0.04), inset 0 1px 1px #FFFFFF",
         }}
       >
         <Box
@@ -363,7 +363,7 @@ export default function GovtIdCompliancePage({
                   setSelectedType(e.target.value);
                   setPage(0);
                 }}
-                sx={{ borderRadius: "12px", bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF") }}
+                sx={{ borderRadius: "12px", bgcolor: themeConfig.bgCard || (themeConfig.bgCard) }}
               >
                 <MenuItem value="ALL">All ID Types</MenuItem>
                 <MenuItem value="AADHAAR">🪪 Aadhaar</MenuItem>
@@ -383,7 +383,7 @@ export default function GovtIdCompliancePage({
                   setSelectedStatus(e.target.value);
                   setPage(0);
                 }}
-                sx={{ borderRadius: "12px", bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF") }}
+                sx={{ borderRadius: "12px", bgcolor: themeConfig.bgCard || (themeConfig.bgCard) }}
               >
                 <MenuItem value="ALL">All Records</MenuItem>
                 <MenuItem value="VERIFIED">🟢 Verified Only</MenuItem>
@@ -399,9 +399,9 @@ export default function GovtIdCompliancePage({
         className="card-3d"
         sx={{
           borderRadius: "20px",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 10px 30px rgba(12, 39, 59, 0.06), inset 0 1px 1px #FFFFFF",
+          boxShadow: isDarkMode ? "none" : "0 10px 30px rgba(32, 41, 35, 0.06), inset 0 1px 1px #FFFFFF",
           overflow: "hidden",
         }}
       >
@@ -436,7 +436,7 @@ export default function GovtIdCompliancePage({
                       key={g._id}
                       hover
                       sx={{
-                        "&:hover": { bgcolor: "rgba(12, 39, 59, 0.02)" },
+                        "&:hover": { bgcolor: "rgba(32, 41, 35, 0.02)" },
                         transition: "background-color 0.2s ease",
                       }}
                     >
@@ -450,7 +450,7 @@ export default function GovtIdCompliancePage({
                               fontSize: "0.9rem",
                               fontWeight: 800,
                               bgcolor: g.idVerified ? themeConfig.primary : themeConfig.warning,
-                              color: "#FFFFFF",
+                              color: themeConfig.onPrimary,
                               boxShadow: `0 4px 10px ${g.idVerified ? themeConfig.primaryGlow : "rgba(217, 119, 6, 0.3)"}`,
                             }}
                           >
@@ -565,7 +565,7 @@ export default function GovtIdCompliancePage({
                                 size="small"
                                 onClick={() => setDossierModal({ open: true, guest: g })}
                                 sx={{
-                                  color: themeConfig.primaryDark,
+                                  color: themeConfig.accent,
                                   bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : themeConfig.champagne,
                                   borderRadius: "10px",
                                   border: `1px solid ${themeConfig.border}`,
@@ -575,7 +575,7 @@ export default function GovtIdCompliancePage({
                                   },
                                 }}
                               >
-                                <Visibility sx={{ fontSize: 16, color: themeConfig.primaryDark }} />
+                                <Visibility sx={{ fontSize: 16, color: themeConfig.accent }} />
                               </IconButton>
                             </Tooltip>
                           )}
@@ -656,7 +656,7 @@ export default function GovtIdCompliancePage({
                       width: 48,
                       height: 48,
                       bgcolor: themeConfig.primary,
-                      color: "#FFFFFF",
+                      color: themeConfig.onPrimary,
                       fontWeight: 900,
                       fontSize: "1.1rem",
                     }}
@@ -689,7 +689,7 @@ export default function GovtIdCompliancePage({
                   <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
                     Document # / Verified Hash
                   </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 900, fontFamily: "monospace", color: themeConfig.primaryDark, mt: 0.5 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 900, fontFamily: "monospace", color: themeConfig.accent, mt: 0.5 }}>
                     {dossierModal.guest.govtIdNumber || "N/A"}
                   </Typography>
                 </Paper>
@@ -724,14 +724,14 @@ export default function GovtIdCompliancePage({
                 </Paper>
               )}
 
-              <Box sx={{ p: 2, borderRadius: "12px", bgcolor: "#F0FDF4", border: "1px solid #A7F3D0" }}>
+              <Box sx={{ p: 2, borderRadius: "12px", bgcolor: themeConfig.tones.success.bg, border: `1px solid ${themeConfig.tones.success.border}` }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <CheckCircle sx={{ color: "#059669", fontSize: 18 }} />
                   <Typography variant="caption" sx={{ fontWeight: 800, color: "#059669" }}>
                     Official Tourism / Police Compliance Seal Stamped
                   </Typography>
                 </Box>
-                <Typography variant="caption" sx={{ color: "#047857", display: "block", mt: 0.5 }}>
+                <Typography variant="caption" sx={{ color: themeConfig.tones.success.color, display: "block", mt: 0.5 }}>
                   This guest record has been verified against government-issued credentials and stamped for local hotel compliance audits.
                 </Typography>
               </Box>

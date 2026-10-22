@@ -365,7 +365,7 @@ export default function InHouseFoliosPage({
         <div>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 0.5 }}>
             <Avatar sx={{ bgcolor: themeConfig.primary, width: 38, height: 38, borderRadius: "12px", boxShadow: `0 4px 12px ${themeConfig.primaryGlow}` }}>
-              <Receipt sx={{ color: "#FFFFFF", fontSize: 22 }} />
+              <Receipt sx={{ color: themeConfig.onPrimary, fontSize: 22 }} />
             </Avatar>
             <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5 }}>
               In-House Guest Folios & Account Ledgers
@@ -377,11 +377,11 @@ export default function InHouseFoliosPage({
         </div>
 
         <Chip
-          icon={<Schedule sx={{ fontSize: 16, color: `${themeConfig.primaryDark} !important` }} />}
+          icon={<Schedule sx={{ fontSize: 16, color: `${themeConfig.accent} !important` }} />}
           label={`Standard Check-Out: ${checkOutTimeFormatted} (${timezoneStr})`}
           sx={{
             bgcolor: themeConfig.champagne,
-            color: themeConfig.primaryDark,
+            color: themeConfig.accent,
             fontWeight: 800,
             borderRadius: "12px",
             border: `1px solid ${themeConfig.border}`,
@@ -458,7 +458,7 @@ export default function InHouseFoliosPage({
           border: `1px solid ${themeConfig.border}`,
           boxShadow: isDarkMode
             ? "0 10px 30px -5px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05)"
-            : "0 10px 30px -5px rgba(12, 39, 59, 0.08), inset 0 1px 1px #FFFFFF",
+            : "0 10px 30px -5px rgba(32, 41, 35, 0.08), inset 0 1px 1px #FFFFFF",
         }}
       >
         {/* Controls Bar: Search, Status Tabs & Balance Filter */}
@@ -482,7 +482,7 @@ export default function InHouseFoliosPage({
                 color: themeConfig.textMuted,
                 "&.Mui-selected": {
                   bgcolor: themeConfig.primary,
-                  color: "#FFFFFF",
+                  color: themeConfig.onPrimary,
                   boxShadow: `0 4px 12px ${themeConfig.primaryGlow}`,
                 },
               },
@@ -665,13 +665,13 @@ export default function InHouseFoliosPage({
                           {roomsList.length > 1 ? (
                             <Box sx={{ mb: 0.3 }}>
                               <Chip
-                                icon={<MeetingRoom sx={{ fontSize: 14, color: `${themeConfig.primaryDark} !important` }} />}
+                                icon={<MeetingRoom sx={{ fontSize: 14, color: `${themeConfig.accent} !important` }} />}
                                 label={`Rooms ${roomsList.join(", ")}`}
                                 size="small"
                                 sx={{
                                   fontWeight: 800,
                                   bgcolor: themeConfig.champagne,
-                                  color: themeConfig.primaryDark,
+                                  color: themeConfig.accent,
                                   border: `1px solid ${themeConfig.border}`,
                                   height: 24,
                                 }}
@@ -683,13 +683,13 @@ export default function InHouseFoliosPage({
                           ) : (
                             <Box sx={{ mb: 0.3 }}>
                               <Chip
-                                icon={<MeetingRoom sx={{ fontSize: 14, color: `${themeConfig.primaryDark} !important` }} />}
+                                icon={<MeetingRoom sx={{ fontSize: 14, color: `${themeConfig.accent} !important` }} />}
                                 label={`Room ${roomsList[0] || "N/A"}`}
                                 size="small"
                                 sx={{
                                   fontWeight: 800,
                                   bgcolor: themeConfig.champagne,
-                                  color: themeConfig.primaryDark,
+                                  color: themeConfig.accent,
                                   border: `1px solid ${themeConfig.border}`,
                                   height: 24,
                                 }}
@@ -823,7 +823,7 @@ export default function InHouseFoliosPage({
                               booking={b}
                               iconOnly
                               sx={{
-                                color: themeConfig.primaryDark,
+                                color: themeConfig.accent,
                                 bgcolor: themeConfig.champagne,
                                 border: `1px solid ${themeConfig.border}`,
                                 borderRadius: "10px",
@@ -952,7 +952,7 @@ export default function InHouseFoliosPage({
 
                   {b.accompanyingGuests && b.accompanyingGuests.length > 0 && (
                     <Box sx={{ mt: 1.5, pt: 1, borderTop: `1px dashed ${themeConfig.border}` }}>
-                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.primaryDark, display: "block", mb: 0.5 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.accent, display: "block", mb: 0.5 }}>
                         👥 Accompanying Members ({b.accompanyingGuests.length}):
                       </Typography>
                       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
@@ -971,7 +971,7 @@ export default function InHouseFoliosPage({
                   {/* Guest ID & Documents Showcase */}
                   {(b.guest?.idProof?.frontImage || b.guest?.frontImage || b.guest?.idProof?.backImage || b.guest?.backImage || (b.accompanyingGuests && b.accompanyingGuests.some(m => m.frontImage || m.backImage))) && (
                     <Box sx={{ mt: 2, pt: 1.5, borderTop: `1px dashed ${themeConfig.border}` }}>
-                      <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.primaryDark, display: "block", mb: 1 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.accent, display: "block", mb: 1 }}>
                         📄 Guest ID Documents & Photo Verification:
                       </Typography>
                       <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
@@ -1191,7 +1191,7 @@ export default function InHouseFoliosPage({
               className="btn-3d"
               sx={{
                 background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                color: "#FFFFFF",
+                color: themeConfig.onPrimary,
                 fontWeight: 800,
                 borderRadius: "10px",
               }}

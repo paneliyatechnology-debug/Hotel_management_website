@@ -50,7 +50,7 @@ export default function MoreOperationsPage({ user, hotelSettings, onLogout }) {
           bgcolor: themeConfig.bgCard,
           boxShadow: isDarkMode
             ? "0 10px 30px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05)"
-            : "0 10px 30px rgba(12, 39, 59, 0.06), inset 0 1px 1px #FFFFFF",
+            : "0 10px 30px rgba(32, 41, 35, 0.06), inset 0 1px 1px #FFFFFF",
           mb: 3,
         }}
       >
@@ -77,7 +77,7 @@ export default function MoreOperationsPage({ user, hotelSettings, onLogout }) {
                 width: { xs: 76, sm: 84 },
                 height: { xs: 76, sm: 84 },
                 bgcolor: themeConfig.primary,
-                color: "#FFFFFF",
+                color: themeConfig.onPrimary,
                 fontSize: "2rem",
                 fontWeight: 900,
               }}
@@ -153,7 +153,7 @@ export default function MoreOperationsPage({ user, hotelSettings, onLogout }) {
                 size="small"
                 sx={{
                   bgcolor: themeConfig.champagne,
-                  color: isDarkMode ? "#FFFFFF" : themeConfig.primaryDark,
+                  color: isDarkMode ? "#FFFFFF" : themeConfig.accent,
                   fontWeight: 800,
                   fontSize: "0.75rem",
                   border: `1px solid ${themeConfig.border}`,
@@ -176,7 +176,7 @@ export default function MoreOperationsPage({ user, hotelSettings, onLogout }) {
           bgcolor: themeConfig.bgCard,
           boxShadow: isDarkMode
             ? "0 10px 30px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05)"
-            : "0 8px 24px rgba(12, 39, 59, 0.05)",
+            : "0 8px 24px rgba(32, 41, 35, 0.05)",
         }}
       >
         <Typography

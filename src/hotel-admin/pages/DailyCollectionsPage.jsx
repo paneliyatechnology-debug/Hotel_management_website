@@ -264,15 +264,15 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
     const m = (method || "").toUpperCase();
     switch (m) {
       case "UPI":
-        return { label: "UPI QR", icon: <QrCode2 sx={{ fontSize: 16 }} />, bg: "#F5F3FF", color: "#7C3AED", border: "#DDD6FE" };
+        return { label: "UPI QR", icon: <QrCode2 sx={{ fontSize: 16 }} />, ...themeConfig.tones.violet };
       case "CASH":
-        return { label: "Cash", icon: <Payments sx={{ fontSize: 16 }} />, bg: "#ECFDF5", color: "#059669", border: "#A7F3D0" };
+        return { label: "Cash", icon: <Payments sx={{ fontSize: 16 }} />, ...themeConfig.tones.success };
       case "CARD":
-        return { label: "Card POS", icon: <CreditCard sx={{ fontSize: 16 }} />, bg: "#EFF6FF", color: "#2563EB", border: "#BFDBFE" };
+        return { label: "Card POS", icon: <CreditCard sx={{ fontSize: 16 }} />, ...themeConfig.tones.blue };
       case "BANK_TRANSFER":
-        return { label: "Bank NEFT", icon: <AccountBalance sx={{ fontSize: 16 }} />, bg: "#FFFBEB", color: "#D97706", border: "#FDE68A" };
+        return { label: "Bank NEFT", icon: <AccountBalance sx={{ fontSize: 16 }} />, ...themeConfig.tones.warning };
       default:
-        return { label: "Online", icon: <AccountBalanceWallet sx={{ fontSize: 16 }} />, bg: "#F3F4F6", color: "#4B5563", border: "#E5E7EB" };
+        return { label: "Online", icon: <AccountBalanceWallet sx={{ fontSize: 16 }} />, ...themeConfig.tones.neutral };
     }
   };
 
@@ -580,7 +580,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
           borderRadius: "20px",
           bgcolor: themeConfig.bgCard,
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "0 10px 30px rgba(0,0,0,0.4)" : "0 10px 30px rgba(12, 39, 59, 0.06), inset 0 1px 1px #FFFFFF",
+          boxShadow: isDarkMode ? "0 10px 30px rgba(0,0,0,0.4)" : "0 10px 30px rgba(32, 41, 35, 0.06), inset 0 1px 1px #FFFFFF",
           overflow: "hidden",
         }}
       >
@@ -593,7 +593,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
             flexDirection: { xs: "column", md: "row" },
             gap: 2,
             borderBottom: `1px solid ${themeConfig.border}`,
-            bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+            bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
             background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #FAFBFD 100%)",
           }}
         >
@@ -748,7 +748,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
                                 py: 0.3,
                                 borderRadius: "8px",
                                 bgcolor: themeConfig.champagne,
-                                color: themeConfig.primaryDark,
+                                color: themeConfig.accent,
                                 fontWeight: 800,
                                 fontSize: "0.75rem",
                                 border: `1px solid ${themeConfig.border}`,
@@ -850,10 +850,10 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
                               fontWeight: 800,
                               fontSize: "0.7rem",
                               height: 22,
-                              bgcolor: isSettled ? "#ECFDF5" : "#FEF3C7",
-                              color: isSettled ? "#059669" : "#D97706",
+                              bgcolor: isSettled ? themeConfig.tones.success.bg : themeConfig.tones.warning.bg,
+                              color: isSettled ? themeConfig.tones.success.color : themeConfig.tones.warning.color,
                               borderRadius: "6px",
-                              border: isSettled ? "1px solid rgba(5, 150, 105, 0.2)" : "1px solid rgba(217, 119, 6, 0.2)",
+                              border: `1px solid ${isSettled ? themeConfig.tones.success.border : themeConfig.tones.warning.border}`,
                             }}
                           />
                         </TableCell>
@@ -884,7 +884,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
               }}
               sx={{
                 borderTop: `1px solid ${themeConfig.border}`,
-                bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                 "& .MuiTablePagination-toolbar": {
                   flexWrap: "wrap",
                   px: { xs: 1, sm: 2 },
@@ -909,9 +909,9 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
           className="card-3d"
           sx={{
             borderRadius: "20px",
-            bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+            bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
             border: `1px solid ${themeConfig.border}`,
-            boxShadow: isDarkMode ? "0 6px 20px rgba(0,0,0,0.3)" : "0 6px 20px rgba(12, 39, 59, 0.05), inset 0 1px 1px #FFFFFF",
+            boxShadow: isDarkMode ? "0 6px 20px rgba(0,0,0,0.3)" : "0 6px 20px rgba(32, 41, 35, 0.05), inset 0 1px 1px #FFFFFF",
             overflow: "hidden",
           }}
         >
@@ -1014,7 +1014,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
             }}
             sx={{
               borderTop: `1px solid ${themeConfig.border}`,
-              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+              bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
               "& .MuiTablePagination-toolbar": {
                 flexWrap: "wrap",
                 px: { xs: 1, sm: 2 },
@@ -1089,7 +1089,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
               fontWeight: 800,
             }}
           >
-            {settling ? <CircularProgress size={20} sx={{ color: "#FFFFFF" }} /> : "Confirm Settlement (Reset to 0)"}
+            {settling ? <CircularProgress size={20} sx={{ color: themeConfig.onPrimary }} /> : "Confirm Settlement (Reset to 0)"}
           </Button>
         </DialogActions>
       </Dialog>

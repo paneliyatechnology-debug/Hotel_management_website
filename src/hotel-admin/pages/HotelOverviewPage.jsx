@@ -779,7 +779,7 @@ export default function HotelOverviewPage({
             icon={<TrendingUp sx={{ fontSize: "14px !important", color: themeConfig.primary }} />}
             label="Live Realtime Telemetry"
             size="small"
-            sx={{ fontWeight: 800, fontSize: "0.7rem", borderRadius: "8px", bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, maxWidth: "100%" }}
+            sx={{ fontWeight: 800, fontSize: "0.7rem", borderRadius: "8px", bgcolor: themeConfig.champagne, color: themeConfig.accent, maxWidth: "100%" }}
           />
         </Box>
 
@@ -816,8 +816,8 @@ export default function HotelOverviewPage({
         sx={{
           borderRadius: "22px",
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 10px 30px -5px rgba(12, 39, 59, 0.08), inset 0 1px 1px #FFFFFF",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          boxShadow: isDarkMode ? "none" : "0 10px 30px -5px rgba(32, 41, 35, 0.08), inset 0 1px 1px #FFFFFF",
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
           background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #F9FBFC 100%)",
           mb: 4,
         }}
@@ -843,7 +843,7 @@ export default function HotelOverviewPage({
                 fontWeight: 800,
                 fontSize: "0.82rem",
                 borderColor: themeConfig.border,
-                bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                 color: themeConfig.textMain,
                 width: { xs: "100%", sm: "auto" },
                 whiteSpace: "nowrap",
@@ -892,9 +892,9 @@ export default function HotelOverviewPage({
                       p: { xs: 2, sm: 2.2, md: 2.5 },
                       borderRadius: "20px",
                       border: isSelected
-                        ? "2px solid #0D9488"
-                        : `2px solid ${hasAvailable ? "rgba(13, 148, 136, 0.25)" : themeConfig.border}`,
-                      bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                        ? `2px solid ${themeConfig.primary}`
+                        : `2px solid ${hasAvailable ? themeConfig.primaryGlow : themeConfig.border}`,
+                      bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                       background: isDarkMode
                         ? (themeConfig.bgCard || "#0E312C")
                         : (hasAvailable
@@ -902,7 +902,7 @@ export default function HotelOverviewPage({
                           : "linear-gradient(135deg, #FFFFFF 0%, #FAFAFA 100%)"),
                       boxShadow: isSelected
                         ? "0 12px 28px -6px rgba(13, 148, 136, 0.25), inset 0 1px 1px #FFFFFF"
-                        : (isDarkMode ? "none" : "0 8px 24px rgba(12, 39, 59, 0.06), inset 0 1px 1px #FFFFFF"),
+                        : (isDarkMode ? "none" : "0 8px 24px rgba(32, 41, 35, 0.06), inset 0 1px 1px #FFFFFF"),
                       cursor: "default",
                       userSelect: "none",
                       display: "flex",
@@ -942,7 +942,7 @@ export default function HotelOverviewPage({
                         </Box>
 
                         <Box sx={{ textAlign: "right", flexShrink: 0, whiteSpace: "nowrap" }}>
-                          <Typography variant="h6" sx={{ fontWeight: 900, color: "#0F766E", lineHeight: 1, fontSize: { xs: "1.15rem", sm: "1.25rem" } }}>
+                          <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.accent, lineHeight: 1, fontSize: { xs: "1.15rem", sm: "1.25rem" } }}>
                             ₹{Number(cat.basePrice || 0).toLocaleString("en-IN")}
                           </Typography>
                           <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block", mt: 0.3, fontSize: "0.72rem" }}>
@@ -979,7 +979,7 @@ export default function HotelOverviewPage({
                         </Typography>
 
                         <Chip
-                          icon={<Bed sx={{ fontSize: 13, color: "#0F766E !important" }} />}
+                          icon={<Bed sx={{ fontSize: 13, color: `${themeConfig.accent} !important` }} />}
                           label={
                             cat.bedType
                               ? String(cat.bedType).toLowerCase().includes("bed")
@@ -990,7 +990,7 @@ export default function HotelOverviewPage({
                           size="small"
                           sx={{
                             bgcolor: "rgba(20, 184, 166, 0.12)",
-                            color: "#0F766E",
+                            color: themeConfig.accent,
                             fontWeight: 800,
                             fontSize: "0.7rem",
                             height: 23,
@@ -1068,7 +1068,7 @@ export default function HotelOverviewPage({
                         variant="caption"
                         sx={{
                           fontWeight: 800,
-                          color: "#0F766E",
+                          color: themeConfig.accent,
                           fontSize: "0.8rem",
                           cursor: "default",
                           userSelect: "none",
@@ -1094,7 +1094,7 @@ export default function HotelOverviewPage({
         sx={{
           borderRadius: "22px",
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: "0 10px 30px -5px rgba(12, 39, 59, 0.08)",
+          boxShadow: "0 10px 30px -5px rgba(32, 41, 35, 0.08)",
           background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #F9FBFC 100%)",
         }}
       >
@@ -1172,7 +1172,7 @@ export default function HotelOverviewPage({
                       >
                         <TableCell sx={{ fontWeight: 700, color: themeConfig.textMain }}>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                            <Avatar sx={{ width: 32, height: 32, fontSize: "0.8rem", fontWeight: 800, bgcolor: themeConfig.primary, color: "#FFFFFF" }}>
+                            <Avatar sx={{ width: 32, height: 32, fontSize: "0.8rem", fontWeight: 800, bgcolor: themeConfig.primary, color: themeConfig.onPrimary }}>
                               {(g.name || "G").charAt(0).toUpperCase()}
                             </Avatar>
                             <Box>
@@ -1189,7 +1189,7 @@ export default function HotelOverviewPage({
                           <Chip
                             label={`Room #${g.roomAssigned}`}
                             size="small"
-                            sx={{ fontWeight: 800, borderRadius: "6px", bgcolor: themeConfig.champagne, color: themeConfig.primaryDark }}
+                            sx={{ fontWeight: 800, borderRadius: "6px", bgcolor: themeConfig.champagne, color: themeConfig.accent }}
                           />
                         </TableCell>
                         <TableCell sx={{ color: themeConfig.textMuted, fontSize: "0.82rem" }}>

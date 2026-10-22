@@ -38,9 +38,9 @@ export default function FolioPdfButton({ booking, label = "Generate Folio", icon
               width: 34,
               height: 34,
               borderRadius: "50%",
-              bgcolor: "rgba(15, 118, 110, 0.12)",
-              color: "#0F766E",
-              "&:hover": { bgcolor: "rgba(15, 118, 110, 0.2)" },
+              bgcolor: "var(--color-champagne)",
+              color: "var(--color-accent)",
+              "&:hover": { bgcolor: "var(--color-primary-glow)" },
               ...sx,
             }}
           >

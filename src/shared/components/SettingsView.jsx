@@ -347,8 +347,8 @@ export default function SettingsView({ user, onUpdateHotelSettings }) {
   const cardSx = {
     borderRadius: "14px",
     border: `1px solid ${themeConfig.border}`,
-    bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-    boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.04)",
+    bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
+    boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(32, 41, 35, 0.04)",
   };
   const cardContentSx = { p: { xs: 2, sm: 2.5 }, "&:last-child": { pb: { xs: 2, sm: 2.5 } } };
   const inputSx = {
@@ -480,7 +480,7 @@ export default function SettingsView({ user, onUpdateHotelSettings }) {
               minHeight: 44,
               px: 2,
               color: themeConfig.textMuted,
-              "&.Mui-selected": { color: themeConfig.primaryDark },
+              "&.Mui-selected": { color: themeConfig.accent },
             },
             "& .MuiTabs-indicator": { height: 2, borderRadius: "2px", bgcolor: themeConfig.primary },
           }}
@@ -535,7 +535,7 @@ export default function SettingsView({ user, onUpdateHotelSettings }) {
                               borderRadius: "8px",
                               textTransform: "none",
                               fontWeight: 700,
-                              color: themeConfig.primaryDark,
+                              color: themeConfig.accent,
                               borderColor: themeConfig.border,
                               "&:hover": { borderColor: themeConfig.primary, bgcolor: "transparent" },
                             }}

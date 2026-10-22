@@ -85,20 +85,20 @@ export const muiTheme = createTheme({
           backgroundImage: "none",
           borderRadius: 18,
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: "0 10px 25px -5px rgba(12, 39, 59, 0.06), 0 4px 10px -4px rgba(12, 39, 59, 0.03), inset 0 1px 1px rgba(255, 255, 255, 0.95)",
+          boxShadow: "0 10px 25px -5px rgba(32, 41, 35, 0.06), 0 4px 10px -4px rgba(32, 41, 35, 0.03), inset 0 1px 1px rgba(255, 255, 255, 0.95)",
         },
         elevation0: {
           boxShadow: "none",
           border: `1px solid ${themeConfig.border}`,
         },
         elevation1: {
-          boxShadow: "0 4px 20px -2px rgba(12, 39, 59, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.9)",
+          boxShadow: "0 4px 20px -2px rgba(32, 41, 35, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.9)",
         },
         elevation2: {
-          boxShadow: "0 10px 25px -5px rgba(12, 39, 59, 0.08), 0 8px 10px -6px rgba(12, 39, 59, 0.04), inset 0 1px 1px rgba(255, 255, 255, 0.95)",
+          boxShadow: "0 10px 25px -5px rgba(32, 41, 35, 0.08), 0 8px 10px -6px rgba(32, 41, 35, 0.04), inset 0 1px 1px rgba(255, 255, 255, 0.95)",
         },
         elevation3: {
-          boxShadow: "0 18px 36px -6px rgba(12, 39, 59, 0.12), inset 0 1px 2px rgba(255, 255, 255, 1)",
+          boxShadow: "0 18px 36px -6px rgba(32, 41, 35, 0.12), inset 0 1px 2px rgba(255, 255, 255, 1)",
         },
       },
     },
@@ -108,11 +108,11 @@ export const muiTheme = createTheme({
           backgroundColor: themeConfig.bgCard,
           border: `1px solid ${themeConfig.border}`,
           borderRadius: 20,
-          boxShadow: "0 10px 25px -5px rgba(12, 39, 59, 0.06), 0 8px 10px -6px rgba(12, 39, 59, 0.03), inset 0 1px 1px rgba(255, 255, 255, 0.95)",
+          boxShadow: "0 10px 25px -5px rgba(32, 41, 35, 0.06), 0 8px 10px -6px rgba(32, 41, 35, 0.03), inset 0 1px 1px rgba(255, 255, 255, 0.95)",
           position: "relative",
           transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
           "&:hover": {
-            boxShadow: "0 16px 32px -6px rgba(12, 39, 59, 0.1), 0 8px 16px -4px rgba(12, 39, 59, 0.04), inset 0 1px 2px #FFFFFF",
+            boxShadow: "0 16px 32px -6px rgba(32, 41, 35, 0.1), 0 8px 16px -4px rgba(32, 41, 35, 0.04), inset 0 1px 2px #FFFFFF",
           },
         },
       },
@@ -150,7 +150,7 @@ export const muiTheme = createTheme({
           "&.Mui-selected": {
             color: themeConfig.primaryDark,
             backgroundColor: "#FFFFFF",
-            boxShadow: "0 4px 12px rgba(12, 39, 59, 0.08), inset 0 1px 0 #FFFFFF",
+            boxShadow: "0 4px 12px rgba(32, 41, 35, 0.08), inset 0 1px 0 #FFFFFF",
           },
           "&:hover": {
             color: themeConfig.textMain,
@@ -223,7 +223,7 @@ export const muiTheme = createTheme({
         root: {
           borderRadius: 18,
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: "0 10px 25px -5px rgba(12, 39, 59, 0.06), inset 0 1px 1px #FFFFFF",
+          boxShadow: "0 10px 25px -5px rgba(32, 41, 35, 0.06), inset 0 1px 1px #FFFFFF",
           overflow: "hidden",
         },
       },
@@ -281,7 +281,7 @@ export const muiTheme = createTheme({
       styleOverrides: {
         paper: {
           borderRadius: 22,
-          boxShadow: "0 24px 48px -12px rgba(12, 39, 59, 0.22), 0 12px 24px -8px rgba(12, 39, 59, 0.1), inset 0 1px 1px rgba(255, 255, 255, 0.95)",
+          boxShadow: "0 24px 48px -12px rgba(32, 41, 35, 0.22), 0 12px 24px -8px rgba(32, 41, 35, 0.1), inset 0 1px 1px rgba(255, 255, 255, 0.95)",
           border: `1px solid ${themeConfig.border}`,
         },
       },
@@ -290,7 +290,7 @@ export const muiTheme = createTheme({
       styleOverrides: {
         paper: {
           borderRadius: 16,
-          boxShadow: "0 12px 28px -6px rgba(12, 39, 59, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.9)",
+          boxShadow: "0 12px 28px -6px rgba(32, 41, 35, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.9)",
           border: `1px solid ${themeConfig.border}`,
         },
       },
@@ -304,7 +304,7 @@ export const muiTheme = createTheme({
           borderTop: "none",
           borderBottom: "none",
           borderLeft: "none",
-          boxShadow: "4px 0 24px rgba(12, 39, 59, 0.04)",
+          boxShadow: "4px 0 24px rgba(32, 41, 35, 0.04)",
         },
       },
     },
@@ -318,7 +318,7 @@ export const muiTheme = createTheme({
           borderLeft: "none",
           borderRight: "none",
           backdropFilter: "blur(12px)",
-          boxShadow: "0 4px 20px -4px rgba(12, 39, 59, 0.04)",
+          boxShadow: "0 4px 20px -4px rgba(32, 41, 35, 0.04)",
         },
       },
     },
@@ -327,7 +327,7 @@ export const muiTheme = createTheme({
         root: {
           borderRadius: "16px !important",
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: "0 4px 14px rgba(12, 39, 59, 0.04), inset 0 1px 0 #FFFFFF",
+          boxShadow: "0 4px 14px rgba(32, 41, 35, 0.04), inset 0 1px 0 #FFFFFF",
           "&:before": {
             display: "none",
           },
@@ -339,7 +339,7 @@ export const muiTheme = createTheme({
       styleOverrides: {
         root: {
           borderRadius: 14,
-          boxShadow: "0 4px 14px rgba(12, 39, 59, 0.06)",
+          boxShadow: "0 4px 14px rgba(32, 41, 35, 0.06)",
         },
       },
     },

@@ -24,6 +24,7 @@ import {
 } from "@mui/material";
 import { Download, Print, WhatsApp, CheckCircle, FileDownload } from "@/shared/icons";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
+import { getActiveHotelId } from "@/shared/utils/cookieAuth";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { toast } from "@/shared/utils/toast";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
@@ -48,7 +49,7 @@ const CheckInWizardPage = dynamic(() => import("../pages/CheckInWizardPage"), { 
 const MoreOperationsPage = dynamic(() => import("../pages/MoreOperationsPage"), { loading: () => <ComponentSpinner /> });
 const GuestListPage = dynamic(() => import("@/hotel-admin/pages/GuestListPage"), { loading: () => <ComponentSpinner /> });
 
-export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange, onLogout }) {
+export default function ReceptionistDashboard({ user, activeNav = 0, navClick = null, onTabChange, onLogout }) {
   const { themeConfig } = useAppTheme();
 
   const [hotelSettings, setHotelSettings] = useState(
@@ -822,7 +823,8 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
             zIndex: 9999,
             boxShadow: themeConfig.shadowModal,
             borderRadius: 0,
-            bgcolor: notification.severity === "success" ? "#FAF9F6" : "#FFF5F5",
+            bgcolor: notification.severity === "success" ? themeConfig.tones.success.bg : themeConfig.tones.danger.bg,
+            color: notification.severity === "success" ? themeConfig.tones.success.color : themeConfig.tones.danger.color,
             border: `1px solid ${notification.severity === "success" ? themeConfig.success : themeConfig.danger}`,
           }}
         >
@@ -855,6 +857,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
       <Box sx={{ display: activeNav === 1 && !isCheckInOpen ? "block" : "none" }}>
         <AvailableRoomsPage
           user={user}
+          resetToken={navClick?.tab === 1 ? navClick.id : 0}
           initialSelectedCategory={initialSelectedCategory}
           onClearInitialCategory={() => setInitialSelectedCategory(null)}
           rooms={rooms}
@@ -1023,7 +1026,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
                 background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
                 borderRadius: "10px",
                 fontWeight: 800,
-                color: "#FFFFFF",
+                color: themeConfig.onPrimary,
               }}
             >
               Post to Folio
@@ -1299,7 +1302,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
               </Box>
               <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Room Allocation:</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.primaryDark }}>
+                <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.accent }}>
                   Room {checkInSuccessModal.booking?.roomNumber}
                 </Typography>
               </Box>

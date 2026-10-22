@@ -387,10 +387,10 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
 
   const getMethodColor = (method) => {
     switch (method?.toUpperCase()) {
-      case "CASH": return { bg: "rgba(16, 185, 129, 0.12)", color: "#059669", border: "rgba(16, 185, 129, 0.3)" };
-      case "UPI": return { bg: "rgba(14, 165, 233, 0.12)", color: "#0284C7", border: "rgba(14, 165, 233, 0.3)" };
-      case "CARD": return { bg: "rgba(139, 92, 246, 0.12)", color: "#7C3AED", border: "rgba(139, 92, 246, 0.3)" };
-      default: return { bg: "rgba(100, 116, 139, 0.12)", color: "#475569", border: "rgba(100, 116, 139, 0.3)" };
+      case "CASH": return { bg: "rgba(16, 185, 129, 0.12)", color: themeConfig.tones.success.color, border: "rgba(16, 185, 129, 0.3)" };
+      case "UPI": return { bg: "rgba(14, 165, 233, 0.12)", color: themeConfig.tones.blue.color, border: "rgba(14, 165, 233, 0.3)" };
+      case "CARD": return { bg: "rgba(139, 92, 246, 0.12)", color: themeConfig.tones.violet.color, border: "rgba(139, 92, 246, 0.3)" };
+      default: return { bg: "rgba(100, 116, 139, 0.12)", color: themeConfig.tones.neutral.color, border: "rgba(100, 116, 139, 0.3)" };
     }
   };
 
@@ -402,7 +402,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
         sx={{
           p: { xs: 2, sm: 3 },
           borderRadius: "20px",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
           border: `1.5px solid ${themeConfig.border}`,
           boxShadow: isDarkMode ? "0 4px 20px rgba(0,0,0,0.4)" : "0 4px 20px rgba(0,0,0,0.04)",
         }}
@@ -532,7 +532,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
             sx={{
               p: 2.8,
               borderRadius: "20px",
-              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+              bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
               border: `1.5px solid ${themeConfig.border}`,
               position: "relative",
               overflow: "hidden",
@@ -573,7 +573,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
             sx={{
               p: 2.8,
               borderRadius: "20px",
-              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+              bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
               border: `1.5px solid ${themeConfig.border}`,
               position: "relative",
               overflow: "hidden",
@@ -614,7 +614,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
             sx={{
               p: 2.8,
               borderRadius: "20px",
-              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+              bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
               border: `1.5px solid ${themeConfig.border}`,
               position: "relative",
               overflow: "hidden",
@@ -656,7 +656,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
         sx={{
           p: { xs: 1.5, sm: 1.75 },
           borderRadius: "16px",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
           border: `1.5px solid ${themeConfig.border}`,
         }}
       >
@@ -858,7 +858,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
         sx={{
           p: { xs: 2, sm: 3 },
           borderRadius: "20px",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
           border: `1.5px solid ${themeConfig.border}`,
         }}
       >
@@ -1000,7 +1000,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                             }}
                           />
                         </TableCell>
-                        <TableCell sx={{ fontWeight: 900, color: "#0F766E", whiteSpace: "nowrap" }}>
+                        <TableCell sx={{ fontWeight: 900, color: themeConfig.accent, whiteSpace: "nowrap" }}>
                           ₹{billAmount(t, bookingRows).toLocaleString("en-IN")}
                         </TableCell>
                         <TableCell>
@@ -1071,7 +1071,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
             paper: {
               sx: {
                 borderRadius: "20px",
-                bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                 border: `1.5px solid ${themeConfig.border}`,
                 backgroundImage: "none",
               },

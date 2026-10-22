@@ -968,7 +968,7 @@ export default function ReceptionistOverviewPage({
                 <Typography noWrap sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 800, textTransform: "uppercase" }}>{card.label}</Typography>
                 <Typography noWrap sx={{ fontWeight: 900, color: card.color, fontSize: { xs: "1.35rem", sm: "1.7rem" }, mt: 0.4 }}>{card.value}</Typography>
               </Box>
-              <Box sx={{ width: 36, height: 36, borderRadius: "10px", display: "grid", placeItems: "center", bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F0FDFA", color: card.color, flexShrink: 0 }}>
+              <Box sx={{ width: 36, height: 36, borderRadius: "10px", display: "grid", placeItems: "center", bgcolor: themeConfig.bgSoft, color: card.color, flexShrink: 0 }}>
                 {card.icon}
               </Box>
             </Box>
@@ -993,7 +993,7 @@ export default function ReceptionistOverviewPage({
               <LinearProgress
                 variant="determinate"
                 value={sharePercent(item.amount)}
-                sx={{ mt: 0.7, height: 4, borderRadius: 3, bgcolor: "#E2E8F0", "& .MuiLinearProgress-bar": { bgcolor: item.color, borderRadius: 3 } }}
+                sx={{ mt: 0.7, height: 4, borderRadius: 3, bgcolor: themeConfig.tones.neutral.bg, "& .MuiLinearProgress-bar": { bgcolor: item.color, borderRadius: 3 } }}
               />
             </Box>
           ))}
@@ -1033,7 +1033,7 @@ export default function ReceptionistOverviewPage({
                 <LinearProgress
                   variant="determinate"
                   value={percent}
-                  sx={{ mt: 0.7, height: 4, borderRadius: 3, bgcolor: "#E2E8F0", "& .MuiLinearProgress-bar": { bgcolor: item.color, borderRadius: 3 } }}
+                  sx={{ mt: 0.7, height: 4, borderRadius: 3, bgcolor: themeConfig.tones.neutral.bg, "& .MuiLinearProgress-bar": { bgcolor: item.color, borderRadius: 3 } }}
                 />
               </Box>
             );
@@ -1049,8 +1049,8 @@ export default function ReceptionistOverviewPage({
         sx={{
           borderRadius: "22px",
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 10px 30px -5px rgba(12, 39, 59, 0.08), inset 0 1px 1px #FFFFFF",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          boxShadow: isDarkMode ? "none" : "0 10px 30px -5px rgba(32, 41, 35, 0.08), inset 0 1px 1px #FFFFFF",
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
           background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #F9FBFC 100%)",
           mb: 4,
         }}
@@ -1072,7 +1072,7 @@ export default function ReceptionistOverviewPage({
                 fontWeight: 800,
                 fontSize: "0.82rem",
                 borderColor: themeConfig.border,
-                bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                 color: themeConfig.textMain,
                 width: { xs: "100%", sm: "auto" },
                 whiteSpace: "nowrap",
@@ -1106,17 +1106,17 @@ export default function ReceptionistOverviewPage({
             >
               {categoryStats.map((cat) => {
                 const statusBoxes = [
-                  { label: "Available", value: cat.available, color: "#0F766E", bg: "#ECFDF5", border: "#A7F3D0" },
-                  { label: "Booked", value: cat.occupied + cat.reserved, color: "#B45309", bg: "#FFFBEB", border: "#FDE68A" },
-                  { label: "Cleaning", value: cat.cleaning, color: "#B42318", bg: "#FEF2F2", border: "#FECACA" },
+                  { label: "Available", value: cat.available, ...themeConfig.tones.success },
+                  { label: "Booked", value: cat.occupied + cat.reserved, ...themeConfig.tones.warning },
+                  { label: "Cleaning", value: cat.cleaning, ...themeConfig.tones.danger },
                 ];
                 const barTotal = statusBoxes.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
                 const isEmptyCategory = cat.totalRooms === 0;
                 const statePill = isEmptyCategory
-                  ? { label: "No rooms", color: "#64748B", bg: "#F1F5F9", border: "#E2E8F0" }
+                  ? { label: "No rooms", ...themeConfig.tones.neutral }
                   : cat.available > 0
-                    ? { label: "Available", color: "#047857", bg: "#ECFDF5", border: "#A7F3D0" }
-                    : { label: "Unavailable", color: "#B45309", bg: "#FFFBEB", border: "#FDE68A" };
+                    ? { label: "Available", ...themeConfig.tones.success }
+                    : { label: "Unavailable", ...themeConfig.tones.warning };
 
                 return (
                   <Card
@@ -1127,7 +1127,7 @@ export default function ReceptionistOverviewPage({
                       borderRadius: "16px",
                       border: `1px solid ${themeConfig.border}`,
                       bgcolor: themeConfig.bgCard || "#FFFFFF",
-                      boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 24px rgba(15, 23, 42, 0.08)",
+                      boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(32, 41, 35, 0.05), 0 10px 24px rgba(32, 41, 35, 0.08)",
                       cursor: "pointer",
                       display: "flex",
                       flexDirection: "column",
@@ -1153,7 +1153,7 @@ export default function ReceptionistOverviewPage({
                         {statePill.label}
                       </Box>
                     </Box>
-                    <Box sx={{ display: "flex", height: 4, borderRadius: 999, overflow: "hidden", bgcolor: "#EEF2F6" }}>
+                    <Box sx={{ display: "flex", height: 4, borderRadius: 999, overflow: "hidden", bgcolor: themeConfig.tones.neutral.bg }}>
                       {barTotal > 0 && statusBoxes.map((item) => (
                         item.value > 0 ? <Box key={item.label} sx={{ width: `${(item.value / barTotal) * 100}%`, bgcolor: item.color }} /> : null
                       ))}
@@ -1182,8 +1182,8 @@ export default function ReceptionistOverviewPage({
         sx={{
           borderRadius: "22px",
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 10px 30px -5px rgba(12, 39, 59, 0.08), inset 0 1px 1px #FFFFFF",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          boxShadow: isDarkMode ? "none" : "0 10px 30px -5px rgba(32, 41, 35, 0.08), inset 0 1px 1px #FFFFFF",
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
           background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #F9FBFC 100%)",
         }}
       >
@@ -1257,7 +1257,7 @@ export default function ReceptionistOverviewPage({
                       >
                         <TableCell sx={{ fontWeight: 700, color: themeConfig.textMain }}>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                            <Avatar sx={{ width: 30, height: 30, fontSize: "0.75rem", fontWeight: 800, bgcolor: themeConfig.primary, color: "#FFFFFF" }}>
+                            <Avatar sx={{ width: 30, height: 30, fontSize: "0.75rem", fontWeight: 800, bgcolor: themeConfig.primary, color: themeConfig.onPrimary }}>
                               {(g.name || "G").charAt(0).toUpperCase()}
                             </Avatar>
                             <Box>
@@ -1282,7 +1282,7 @@ export default function ReceptionistOverviewPage({
                                     fontWeight: 800,
                                     borderRadius: "8px",
                                     bgcolor: themeConfig.champagne,
-                                    color: themeConfig.primaryDark,
+                                    color: themeConfig.accent,
                                     border: `1px solid ${themeConfig.border}`,
                                   }}
                                 />
@@ -1296,7 +1296,7 @@ export default function ReceptionistOverviewPage({
                                 fontWeight: 800,
                                 borderRadius: "8px",
                                 bgcolor: themeConfig.champagne,
-                                color: themeConfig.primaryDark,
+                                color: themeConfig.accent,
                                 border: `1px solid ${themeConfig.border}`,
                               }}
                             />
@@ -1417,7 +1417,7 @@ export default function ReceptionistOverviewPage({
             paper: {
               sx: {
                 borderRadius: "22px",
-                bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                 border: `1.5px solid ${themeConfig.border}`,
                 boxShadow: isDarkMode ? "0 20px 60px rgba(0,0,0,0.6)" : "0 20px 60px rgba(12,39,59,0.15)",
                 overflow: "hidden",
@@ -1553,12 +1553,12 @@ export default function ReceptionistOverviewPage({
                             }}
                             sx={{ cursor: "pointer" }}
                           >
-                            <TableCell sx={{ fontWeight: 900, color: themeConfig.primaryDark, whiteSpace: "nowrap" }}>
+                            <TableCell sx={{ fontWeight: 900, color: themeConfig.accent, whiteSpace: "nowrap" }}>
                               <Chip
                                 icon={<MeetingRoom sx={{ fontSize: "14px !important" }} />}
                                 label={`Room ${r.roomNumber}`}
                                 size="small"
-                                sx={{ fontWeight: 800, bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, cursor: "pointer" }}
+                                sx={{ fontWeight: 800, bgcolor: themeConfig.champagne, color: themeConfig.accent, cursor: "pointer" }}
                               />
                             </TableCell>
                             <TableCell sx={{ fontWeight: 700, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
@@ -1662,12 +1662,12 @@ export default function ReceptionistOverviewPage({
                         const due = booking ? Math.max(0, (booking.totalAmount || 0) - (booking.paidAmount || 0)) : 0;
                         return (
                           <TableRow key={room._id} hover>
-                            <TableCell sx={{ fontWeight: 900, color: themeConfig.primaryDark, whiteSpace: "nowrap" }}>
+                            <TableCell sx={{ fontWeight: 900, color: themeConfig.accent, whiteSpace: "nowrap" }}>
                               <Chip
                                 icon={<MeetingRoom sx={{ fontSize: "14px !important" }} />}
                                 label={`Room ${room.roomNumber}`}
                                 size="small"
-                                sx={{ fontWeight: 800, bgcolor: themeConfig.champagne, color: themeConfig.primaryDark }}
+                                sx={{ fontWeight: 800, bgcolor: themeConfig.champagne, color: themeConfig.accent }}
                               />
                             </TableCell>
                             <TableCell sx={{ whiteSpace: "nowrap" }}>
@@ -1770,7 +1770,7 @@ export default function ReceptionistOverviewPage({
                         const isDone = timerData?.isComplete;
                         return (
                           <TableRow key={r._id} hover>
-                            <TableCell sx={{ fontWeight: 900, color: themeConfig.primaryDark, whiteSpace: "nowrap" }}>
+                            <TableCell sx={{ fontWeight: 900, color: themeConfig.accent, whiteSpace: "nowrap" }}>
                               <Chip
                                 icon={<CleaningServices sx={{ fontSize: "14px !important" }} />}
                                 label={`Room ${r.roomNumber}`}
@@ -1968,7 +1968,7 @@ export default function ReceptionistOverviewPage({
                                   icon={<MeetingRoom sx={{ fontSize: "14px !important" }} />}
                                   label={`Room ${room}`}
                                   size="small"
-                                  sx={{ fontWeight: 800, bgcolor: themeConfig.champagne, color: themeConfig.primaryDark }}
+                                  sx={{ fontWeight: 800, bgcolor: themeConfig.champagne, color: themeConfig.accent }}
                                 />
                               ) : (
                                 <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>

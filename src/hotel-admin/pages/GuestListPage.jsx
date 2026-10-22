@@ -513,7 +513,7 @@ export default function GuestListPage({
         sx={{
           p: { xs: 2, sm: 3 },
           borderRadius: "20px",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
           border: `1.5px solid ${themeConfig.border}`,
         }}
       >
@@ -646,7 +646,7 @@ export default function GuestListPage({
                     <TableCell sx={{ fontWeight: 700, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
                       {formatDateTime(g.checkOut)}
                     </TableCell>
-                    <TableCell sx={{ fontWeight: 900, color: "#0F766E", whiteSpace: "nowrap" }}>
+                    <TableCell sx={{ fontWeight: 900, color: themeConfig.accent, whiteSpace: "nowrap" }}>
                       {formatCurrency(g.totalAmount)}
                       {g.dueAmount > 0 ? (
                         <Typography variant="caption" sx={{ color: "#DC2626", fontWeight: 800, display: "block" }}>

@@ -1,83 +1,127 @@
 /**
  * ====================================================================
- * CENTRAL THEME CONFIGURATION SYSTEM (2026 Modern Luxury Emerald Teal)
+ * CENTRAL THEME CONFIGURATION SYSTEM (Charcoal + Emerald Green)
  * ====================================================================
+ * Single source of truth for both colour modes. Components read these tokens through
+ * `useAppTheme()` (MUI + inline styles) or the CSS variables set by `applyDomStyles`
+ * (Tailwind / plain CSS) - never hardcode colours in components.
+ *
+ * Token cheat-sheet
+ *   bgMain      page background            bgHeader   sidebar / app bar
+ *   bgCard      cards & panels             bgElevated menus, popovers, dialogs
+ *   champagne   hover / selected surface   bgSoft     tinted callouts & table heads
+ *   bgSubtle    inset sub-panels           bgInput    form field fill
+ *   primary     solid brand fills          accent     brand colour for text & icons
+ *   onPrimary   text on solid primary      tones.*    status colours { color, bg, border }
  */
 
 export const themePalettes = {
-  // 💎 2026 Modern Luxury Hotel Palette
+  // Light: soft mint-white canvas, white surfaces, deep emerald accent
   palette1: {
-    name: "Modern Luxury Emerald Teal",
+    name: "Charcoal Emerald Light",
     mode: "light",
-    primary: "#0F766E", // Deep Emerald Teal
-    primaryDark: "#115E59",
-    primaryLight: "#14B8A6", // Vibrant Mint Teal
-    primaryGlow: "rgba(15, 118, 110, 0.25)",
-    bgMain: "#F0FDFA", // Light Mint Surface
+    primary: "#047857",
+    primaryDark: "#065F46", // hover / pressed fill
+    primaryLight: "#10B981",
+    primaryGlow: "rgba(4, 120, 87, 0.18)",
+    bgMain: "#F7F9F7",
     bgHeader: "#FFFFFF",
     bgCard: "#FFFFFF",
     bgFooter: "#FFFFFF",
-    textMain: "#0F2926",
-    textMuted: "#3E6661",
-    textLight: "#64948E",
-    border: "#CCFBF1",
-    borderLight: "#E6FFFA",
-    borderHover: "#0F766E",
-    champagne: "#CCFBF1",
-    success: "#059669",
-    successBg: "rgba(5, 150, 105, 0.12)",
-    warning: "#D97706",
-    warningBg: "rgba(217, 119, 6, 0.12)",
-    danger: "#EF4444",
-    dangerBg: "rgba(239, 68, 68, 0.12)",
+    textMain: "#202923",
+    textMuted: "#647067",
+    textLight: "#7A867E",
+    border: "#DDE5DF",
+    borderLight: "#EBF0EC",
+    borderHover: "#047857",
+    champagne: "#EDF5EF", // hover / selected surface
+    success: "#047857",
+    successBg: "rgba(4, 120, 87, 0.12)",
+    warning: "#B45309",
+    warningBg: "rgba(180, 83, 9, 0.12)",
+    danger: "#B42318",
+    dangerBg: "rgba(180, 35, 24, 0.10)",
     info: "#0F766E",
     infoBg: "rgba(15, 118, 110, 0.12)",
-    cleaning: "#06B6D4",
-    cleaningBg: "rgba(6, 182, 212, 0.12)",
-    shadowCard: "0 4px 20px rgba(15, 41, 38, 0.05)",
-    shadowHover: "0 8px 24px rgba(15, 118, 110, 0.18)",
-    shadowModal: "0 16px 48px rgba(15, 41, 38, 0.16)",
+    cleaning: "#0E7490",
+    cleaningBg: "rgba(14, 116, 144, 0.12)",
+    shadowCard: "0 1px 2px rgba(32, 41, 35, 0.04), 0 6px 20px -8px rgba(32, 41, 35, 0.08)",
+    shadowHover: "0 10px 28px -8px rgba(32, 41, 35, 0.16)",
+    shadowModal: "0 20px 50px rgba(32, 41, 35, 0.18)",
+    // Semantic surface / accent tokens (shared by light + dark so components never hardcode colors)
+    accent: "#047857",
+    onPrimary: "#FFFFFF",
+    bgSoft: "#EDF5EF",
+    bgSubtle: "#F3F7F4",
+    bgInput: "#FFFFFF",
+    bgElevated: "#FFFFFF",
+    overlay: "rgba(20, 28, 23, 0.45)",
+    tones: {
+      success: { color: "#047857", bg: "#ECFDF5", border: "#A7F3D0" },
+      warning: { color: "#B45309", bg: "#FFFBEB", border: "#FDE68A" },
+      danger: { color: "#B42318", bg: "#FEF2F2", border: "#FECACA" },
+      info: { color: "#0F766E", bg: "#F0FDFA", border: "#99F6E4" },
+      neutral: { color: "#647067", bg: "#F1F5F2", border: "#DDE5DF" },
+      violet: { color: "#6D28D9", bg: "#F5F3FF", border: "#DDD6FE" },
+      blue: { color: "#1D4ED8", bg: "#EFF6FF", border: "#BFDBFE" },
+    },
   },
 };
 
 /**
  * ====================================================================
- * 🌙 DARK THEME PALETTE (Sleek OLED / Emerald Dark Mode)
+ * DARK THEME PALETTE (Charcoal + Emerald)
  * ====================================================================
  */
 export const darkThemePalettes = {
-  // 💎 2026 Dark Emerald Teal & Mint
+  // Dark: charcoal surfaces with a restrained emerald accent; elevation by lighter surface + hairline border
   palette1: {
-    name: "Dark Emerald Teal & Mint",
+    name: "Charcoal Emerald Dark",
     mode: "dark",
-    primary: "#14B8A6", // Vibrant Mint Teal
-    primaryDark: "#0F766E", // Deep Emerald
-    primaryLight: "#5EEAD4", // Mint Glow
-    primaryGlow: "rgba(20, 184, 166, 0.35)",
-    bgMain: "#061B18", // Deep Luxury Obsidian Emerald
-    bgHeader: "#0A2522",
-    bgCard: "#0E312C",
-    bgFooter: "#0A2522",
-    textMain: "#F0FDFA",
-    textMuted: "#99B8B3",
-    textLight: "#5EEAD4",
-    border: "rgba(20, 184, 166, 0.22)",
-    borderLight: "rgba(20, 184, 166, 0.1)",
-    borderHover: "#14B8A6",
-    champagne: "rgba(20, 184, 166, 0.14)",
-    success: "#10B981",
-    successBg: "rgba(16, 185, 129, 0.18)",
-    warning: "#F59E0B",
-    warningBg: "rgba(245, 158, 11, 0.18)",
-    danger: "#EF4444",
-    dangerBg: "rgba(239, 68, 68, 0.18)",
-    info: "#14B8A6",
-    infoBg: "rgba(20, 184, 166, 0.18)",
+    primary: "#34D399",
+    primaryDark: "#10B981", // hover / pressed fill
+    primaryLight: "#6EE7B7",
+    primaryGlow: "rgba(52, 211, 153, 0.16)", // focus ring & soft tint
+    bgMain: "#101412",
+    bgHeader: "#141A16",
+    bgCard: "#191F1B",
+    bgFooter: "#141A16",
+    textMain: "#F3F6F4",
+    textMuted: "#A7B0AA",
+    textLight: "#7F8A83",
+    border: "#2A342D",
+    borderLight: "#222B25",
+    borderHover: "#34D399",
+    champagne: "#222C25", // hover / selected surface
+    success: "#34D399",
+    successBg: "rgba(52, 211, 153, 0.14)",
+    warning: "#FBBF24",
+    warningBg: "rgba(251, 191, 36, 0.14)",
+    danger: "#F87171",
+    dangerBg: "rgba(248, 113, 113, 0.14)",
+    info: "#2DD4BF",
+    infoBg: "rgba(45, 212, 191, 0.14)",
     cleaning: "#22D3EE",
-    cleaningBg: "rgba(34, 211, 238, 0.18)",
-    shadowCard: "0 10px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(20, 184, 166, 0.1)",
-    shadowHover: "0 14px 40px rgba(0, 0, 0, 0.65)",
-    shadowModal: "0 24px 60px rgba(0, 0, 0, 0.9)",
+    cleaningBg: "rgba(34, 211, 238, 0.14)",
+    shadowCard: "0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px -12px rgba(0, 0, 0, 0.55)",
+    shadowHover: "0 12px 32px -10px rgba(0, 0, 0, 0.65)",
+    shadowModal: "0 24px 64px rgba(0, 0, 0, 0.7)",
+    accent: "#34D399",
+    onPrimary: "#06281C", // dark text on the bright emerald fill (AA contrast)
+    bgSoft: "rgba(52, 211, 153, 0.08)",
+    bgSubtle: "rgba(255, 255, 255, 0.03)",
+    bgInput: "#141A16",
+    bgElevated: "#1E2621",
+    overlay: "rgba(5, 8, 6, 0.7)",
+    tones: {
+      success: { color: "#34D399", bg: "rgba(52, 211, 153, 0.12)", border: "rgba(52, 211, 153, 0.28)" },
+      warning: { color: "#FBBF24", bg: "rgba(251, 191, 36, 0.12)", border: "rgba(251, 191, 36, 0.28)" },
+      danger: { color: "#F87171", bg: "rgba(248, 113, 113, 0.12)", border: "rgba(248, 113, 113, 0.28)" },
+      info: { color: "#5EEAD4", bg: "rgba(45, 212, 191, 0.12)", border: "rgba(45, 212, 191, 0.28)" },
+      neutral: { color: "#A7B0AA", bg: "rgba(255, 255, 255, 0.06)", border: "rgba(255, 255, 255, 0.12)" },
+      violet: { color: "#A78BFA", bg: "rgba(167, 139, 250, 0.12)", border: "rgba(167, 139, 250, 0.28)" },
+      blue: { color: "#60A5FA", bg: "rgba(96, 165, 250, 0.12)", border: "rgba(96, 165, 250, 0.28)" },
+    },
   },
 };
 
@@ -92,6 +136,39 @@ export function getThemeConfig(paletteKey = "palette1", mode = "light") {
 }
 
 /**
- * 👉 DEFAULT ACTIVE THEME:
+ * CSS custom properties for a palette. Used by the root layout (light defaults), the pre-paint
+ * boot script (saved dark mode) and ThemeContext (live switching) so all three stay identical.
+ */
+export function getThemeCssVars(pal) {
+  const tones = pal.tones || {};
+  return {
+    "--color-primary": pal.primary,
+    "--color-primary-dark": pal.primaryDark,
+    "--color-primary-light": pal.primaryLight,
+    "--color-primary-glow": pal.primaryGlow,
+    "--color-bg-main": pal.bgMain,
+    "--color-bg-card": pal.bgCard,
+    "--color-bg-header": pal.bgHeader,
+    "--color-bg-footer": pal.bgFooter,
+    "--color-bg-elevated": pal.bgElevated || pal.bgCard,
+    "--color-bg-subtle": pal.bgSubtle || pal.bgCard,
+    "--color-bg-input": pal.bgInput || pal.bgCard,
+    "--color-text-main": pal.textMain,
+    "--color-text-muted": pal.textMuted,
+    "--color-border": pal.border,
+    "--color-border-hover": pal.borderHover || pal.primary,
+    "--color-champagne": pal.champagne,
+    "--color-accent": pal.accent || pal.primaryDark,
+    "--color-on-primary": pal.onPrimary || "#FFFFFF",
+    "--color-overlay": pal.overlay,
+    "--color-success": tones.success?.color || pal.success,
+    "--color-warning": tones.warning?.color || pal.warning,
+    "--color-danger": tones.danger?.color || pal.danger,
+    "--color-info": tones.info?.color || pal.info,
+  };
+}
+
+/**
+ * DEFAULT ACTIVE THEME:
  */
 export const themeConfig = themePalettes.palette1;

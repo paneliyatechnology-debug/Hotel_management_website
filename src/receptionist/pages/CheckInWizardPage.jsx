@@ -2100,7 +2100,7 @@ export default function CheckInWizardPage({
               </Grid>
 
               {/* Bill summary */}
-              <Box sx={{ mt: 3, p: 2.5, borderRadius: "12px", border: `1px solid ${themeConfig.border}`, bgcolor: "#FFFFFF" }}>
+              <Box sx={{ mt: 3, p: 2.5, borderRadius: "12px", border: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "#FFFFFF" }}>
                 <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.85rem", mb: 1.5 }}>
                   Bill summary
                 </Typography>
@@ -2164,7 +2164,7 @@ export default function CheckInWizardPage({
                       {paymentMethodLabel}
                     </Typography>
                   </Typography>
-                  <Typography sx={{ color: "#047857", fontSize: "0.88rem", fontWeight: 600 }}>
+                  <Typography sx={{ color: isDarkMode ? "#6EE7B7" : "#047857", fontSize: "0.88rem", fontWeight: 600 }}>
                     -₹{advancePaid.toLocaleString("en-IN")}
                   </Typography>
                 </Box>
@@ -2177,13 +2177,15 @@ export default function CheckInWizardPage({
                     px: 1.5,
                     py: 1,
                     borderRadius: "10px",
-                    bgcolor: balanceDue > 0 ? "#FEF2F2" : "#ECFDF5",
+                    bgcolor: balanceDue > 0
+                      ? (isDarkMode ? "rgba(239, 68, 68, 0.16)" : "#FEF2F2")
+                      : (isDarkMode ? "rgba(16, 185, 129, 0.16)" : "#ECFDF5"),
                   }}
                 >
-                  <Typography sx={{ fontWeight: 700, fontSize: "0.9rem", color: balanceDue > 0 ? "#B42318" : "#047857" }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: "0.9rem", color: balanceDue > 0 ? "#FCA5A5" : (isDarkMode ? "#6EE7B7" : "#047857") }}>
                     Balance due
                   </Typography>
-                  <Typography sx={{ fontWeight: 700, fontSize: "1.05rem", color: balanceDue > 0 ? "#B42318" : "#047857" }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: "1.05rem", color: balanceDue > 0 ? "#FCA5A5" : (isDarkMode ? "#6EE7B7" : "#047857") }}>
                     ₹{balanceDue.toLocaleString("en-IN")}
                   </Typography>
                 </Box>
@@ -2220,14 +2222,14 @@ export default function CheckInWizardPage({
                             icon={<CheckCircle sx={{ fontSize: "14px !important", color: "#047857 !important" }} />}
                             label="Signed"
                             size="small"
-                            sx={{ bgcolor: "#ECFDF5", color: "#047857", fontWeight: 700, fontSize: "0.72rem", border: "1px solid #A7F3D0" }}
+                            sx={{ bgcolor: isDarkMode ? "rgba(16, 185, 129, 0.16)" : "#ECFDF5", color: isDarkMode ? "#6EE7B7" : "#047857", fontWeight: 700, fontSize: "0.72rem", border: "1px solid #A7F3D0" }}
                           />
                           <Chip
                             label="View signature"
                             size="small"
                             clickable
                             onClick={() => setPreviewImageSrc(checkInData.signature)}
-                            sx={{ bgcolor: "#F8FAFC", color: themeConfig.textMain, fontWeight: 600, fontSize: "0.72rem", border: `1px solid ${themeConfig.border}` }}
+                            sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F8FAFC", color: themeConfig.textMain, fontWeight: 600, fontSize: "0.72rem", border: `1px solid ${themeConfig.border}` }}
                           />
                         </>
                       ) : (
@@ -2298,7 +2300,7 @@ export default function CheckInWizardPage({
                         size="small"
                         clickable
                         onClick={() => setPreviewImageSrc(imgSrc)}
-                        sx={{ bgcolor: "#F8FAFC", color: themeConfig.textMain, fontWeight: 600, fontSize: "0.72rem", border: `1px solid ${themeConfig.border}` }}
+                        sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F8FAFC", color: themeConfig.textMain, fontWeight: 600, fontSize: "0.72rem", border: `1px solid ${themeConfig.border}` }}
                       />
                     );
                   })}
@@ -2307,7 +2309,7 @@ export default function CheckInWizardPage({
             )}
 
             {/* Payment summary */}
-            <Box sx={{ p: 2, borderRadius: "12px", bgcolor: "#F0FDFA", border: `1px solid ${themeConfig.border}` }}>
+            <Box sx={{ p: 2, borderRadius: "12px", bgcolor: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "#F0FDFA", border: `1px solid ${themeConfig.border}` }}>
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 2 }}>
                 <Box>
                   <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 600 }}>Total amount</Typography>
@@ -2319,7 +2321,7 @@ export default function CheckInWizardPage({
                   <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 600 }}>
                     Advance paid ({paymentMethodLabel})
                   </Typography>
-                  <Typography sx={{ fontWeight: 700, color: "#047857", fontSize: "1.2rem" }}>
+                  <Typography sx={{ fontWeight: 700, color: isDarkMode ? "#6EE7B7" : "#047857", fontSize: "1.2rem" }}>
                     ₹{advancePaid.toLocaleString("en-IN")}
                   </Typography>
                 </Box>
@@ -2329,7 +2331,7 @@ export default function CheckInWizardPage({
                     sx={{
                       fontWeight: 700,
                       fontSize: "1.2rem",
-                      color: balanceDue > 0 ? "#B42318" : "#047857",
+                      color: balanceDue > 0 ? (isDarkMode ? "#FCA5A5" : "#B42318") : (isDarkMode ? "#6EE7B7" : "#047857"),
                     }}
                   >
                     ₹{balanceDue.toLocaleString("en-IN")}

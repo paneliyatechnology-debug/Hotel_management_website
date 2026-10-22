@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -88,6 +88,22 @@ function num(val) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function unwrapBooking(res) {
+  const data = res?.data?.data || res?.data || res?.booking || null;
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  if (data.booking && typeof data.booking === "object" && !Array.isArray(data.booking)) {
+    return { ...data, ...data.booking };
+  }
+  return data;
+}
+
+function staySources(record) {
+  if (!record || typeof record !== "object") return [];
+  return [record, record.booking, record.guest, record.stay, record.folio, record.billing, record.invoice].filter(
+    (item) => item && typeof item === "object" && !Array.isArray(item)
+  );
+}
+
 function firstValue(sources, keys) {
   for (const source of sources) {
     if (!source || typeof source !== "object") continue;
@@ -97,6 +113,63 @@ function firstValue(sources, keys) {
     }
   }
   return null;
+}
+
+function readBookingPage(res) {
+  const data = res?.data;
+  let list = [];
+  if (Array.isArray(data)) list = data;
+  else if (Array.isArray(data?.bookings)) list = data.bookings;
+  else if (Array.isArray(data?.results)) list = data.results;
+  else if (Array.isArray(data?.items)) list = data.items;
+  else if (Array.isArray(res?.bookings)) list = res.bookings;
+  const totalRaw = data?.pagination?.total
+    ?? data?.pagination?.totalRecords
+    ?? data?.total
+    ?? data?.totalRecords
+    ?? res?.pagination?.total
+    ?? res?.total;
+  const total = Number.isFinite(Number(totalRaw)) ? Number(totalRaw) : list.length;
+  return { list: list.filter((item) => item && typeof item === "object"), total };
+}
+
+function recordKey(record) {
+  return String(record?.id || record?._id || record?.booking_number || record?.bookingNumber || "");
+}
+
+function filledScore(record) {
+  if (!record) return 0;
+  let score = 0;
+  if (record.check_in_date || record.checkInDate || record.actual_check_in || record.actualCheckIn || record.checkIn) score += 4;
+  if (record.check_out_date || record.checkOutDate || record.actual_check_out || record.checkOut) score += 2;
+  if (Number(record.total_amount || record.totalAmount || record.base_amount || record.baseAmount || record.paid_amount || record.paidAmount) > 0) score += 4;
+  if (record.primary_guest_name || record.guestName || record.fullName || record.name) score += 1;
+  return score;
+}
+
+function mergePair(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  const primary = filledScore(b) >= filledScore(a) ? b : a;
+  const secondary = primary === b ? a : b;
+  const merged = { ...secondary, ...primary };
+  Object.entries(secondary).forEach(([key, value]) => {
+    const current = merged[key];
+    const empty = current === undefined || current === null || current === "" || current === 0;
+    if (empty && value) merged[key] = value;
+  });
+  return merged;
+}
+
+function mergeLists(...lists) {
+  const map = new Map();
+  lists.flat().forEach((item) => {
+    if (!item || typeof item !== "object") return;
+    const key = recordKey(item);
+    if (!key) return;
+    map.set(key, mergePair(map.get(key), item));
+  });
+  return Array.from(map.values());
 }
 
 function asRecordList(value) {
@@ -150,6 +223,7 @@ export default function GuestListPage({
   const [rowsPerPage, setRowsPerPage] = useState(defaultRowsPerPage);
   const [bookingDetails, setBookingDetails] = useState({});
   const [serverPage, setServerPage] = useState(null);
+  const detailAttempts = useRef(new Set());
 
   const [liveTick, setLiveTick] = useState(0);
 
@@ -195,14 +269,18 @@ export default function GuestListPage({
       let total = prev.total;
       if (!exists) total += 1;
       else if (payload.deleted_at) total = Math.max(0, total - 1);
-      return { list: mergeBookingEvent(prev.list, payload).slice(0, rowsPerPage), total };
+      return { list: mergeBookingEvent(prev.list, payload), total };
     });
   });
 
   // List the bookings API records (check-in / check-out stays) as they arrive.
   const unifiedGuests = useMemo(() => {
-    const source = serverPage?.list || asRecordList(bookings);
-    const records = source.length > 0 ? source : asRecordList(guests);
+    const records = mergeLists(
+      serverPage?.list || [],
+      asRecordList(bookings),
+      asRecordList(guests),
+      Object.values(bookingDetails)
+    );
     const items = [];
     const seenIds = new Set();
 
@@ -215,11 +293,13 @@ export default function GuestListPage({
       const normalizedStatus =
         rawStatus === "IN-HOUSE" || rawStatus === "IN_HOUSE" ? "CHECKED_IN" : rawStatus;
 
-      const sources = [b, b.booking, b.guest?.booking];
-      const baseAmount = num(firstValue(sources, ["base_amount", "baseAmount", "room_amount", "roomAmount"]));
-      const gstAmount = num(firstValue(sources, ["gst_amount", "gstAmount", "tax_amount", "taxAmount"]));
-      const total = num(firstValue(sources, ["total_amount", "totalAmount", "grand_total", "grandTotal"])) || baseAmount + gstAmount;
-      const paid = num(firstValue(sources, ["paid_amount", "paidAmount"]));
+      const sources = staySources(b);
+      const baseAmount = num(firstValue(sources, ["base_amount", "baseAmount", "room_amount", "roomAmount", "room_tariff", "roomTariff"]));
+      const gstAmount = num(firstValue(sources, ["gst_amount", "gstAmount", "tax_amount", "taxAmount", "cgst_amount", "sgst_amount"]));
+      const nights = num(firstValue(sources, ["number_of_nights", "numberOfNights", "nights"])) || 1;
+      const rate = num(firstValue(sources, ["price_per_night", "pricePerNight", "rate_per_night", "ratePerNight", "custom_price_per_night", "nightly_rate", "rate"]));
+      const total = num(firstValue(sources, ["total_amount", "totalAmount", "grand_total", "grandTotal", "invoice_total", "bill_amount"])) || baseAmount + gstAmount || (rate > 0 ? rate * nights : 0);
+      const paid = num(firstValue(sources, ["paid_amount", "paidAmount", "advance_paid", "advancePaid", "advance_payment_amount", "advancePaymentAmount"]));
       const due = num(firstValue(sources, ["due_amount", "dueAmount"])) || Math.max(0, total - paid);
       const rawPaymentStatus = String(firstValue(sources, ["payment_status", "paymentStatus"]) || "").toUpperCase();
       const paymentStatus = rawPaymentStatus === "PARTIALLY_PAID" || rawPaymentStatus === "PARTIAL"
@@ -249,8 +329,8 @@ export default function GuestListPage({
         roomAssigned: roomLabelFor(b, rooms),
         roomType: roomType || "—",
         status: normalizedStatus,
-        checkInDate: firstValue(sources, ["check_in_date", "checkInDate", "check_in", "checkIn"]),
-        checkOutDate: firstValue(sources, ["check_out_date", "checkOutDate", "check_out", "checkOut"]),
+        checkInDate: firstValue(sources, ["actual_check_in", "actualCheckIn", "check_in_date", "checkInDate", "check_in", "checkIn", "expected_check_in", "from_date", "arrival_date"]),
+        checkOutDate: firstValue(sources, ["actual_check_out", "actualCheckOut", "check_out_date", "checkOutDate", "check_out", "checkOut", "expected_check_out", "to_date", "departure_date"]),
         actualCheckIn: firstValue(sources, ["actual_check_in", "actualCheckIn"]),
         actualCheckOut: firstValue(sources, ["actual_check_out", "actualCheckOut"]),
         baseAmount,
@@ -265,23 +345,18 @@ export default function GuestListPage({
     });
 
     return items;
-  }, [bookings, guests, rooms, serverPage]);
+  }, [bookings, guests, rooms, serverPage, bookingDetails]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const params = new URLSearchParams({
-        page: String(page + 1),
-        limit: String(rowsPerPage),
-      });
+      const params = new URLSearchParams({ page: "1", limit: "100" });
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
-      if (statusFilter !== "ALL") params.set("booking_status", statusFilter);
       try {
         const res = await apiRequest(`${API_ENDPOINTS.BOOKINGS.ALL}?${params.toString()}`, { forceRefresh: true });
-        const list = Array.isArray(res?.data) ? res.data : [];
-        const rawTotal = res?.data?.total ?? res?.data?.pagination?.total ?? res?.data?.pagination?.totalRecords;
-        if (!cancelled && Number.isFinite(Number(rawTotal))) {
-          setServerPage({ list, total: Number(rawTotal) });
+        const pageData = readBookingPage(res);
+        if (!cancelled && pageData.list.length > 0) {
+          setServerPage(pageData);
         } else if (!cancelled) {
           setServerPage(null);
         }
@@ -292,17 +367,17 @@ export default function GuestListPage({
     return () => {
       cancelled = true;
     };
-  }, [page, rowsPerPage, searchQuery, statusFilter, liveTick]);
+  }, [searchQuery, liveTick]);
 
   useEffect(() => {
     const missing = unifiedGuests.filter((g) => {
-      const known = bookingDetails[g.id];
-      if (known) return false;
-      return !g.actualCheckIn || !(g.baseAmount || g.gstAmount || g.totalAmount);
+      if (!g.id || detailAttempts.current.has(String(g.id))) return false;
+      const hasStay = Boolean(g.checkInDate || g.actualCheckIn);
+      const hasMoney = Boolean(g.baseAmount || g.gstAmount || g.totalAmount);
+      return !hasStay || !hasMoney;
     });
-    if (missing.length === 0) return;
-
-    let cancelled = false;
+    if (missing.length === 0) return undefined;
+    missing.forEach((g) => detailAttempts.current.add(String(g.id)));
     (async () => {
       const loaded = {};
       await Promise.all(
@@ -312,36 +387,45 @@ export default function GuestListPage({
               (typeof API_ENDPOINTS.BOOKINGS?.BY_ID === "function" && API_ENDPOINTS.BOOKINGS.BY_ID(g.id)) ||
               `${API_ENDPOINTS.BOOKINGS.ALL}/${g.id}`;
             const res = await apiRequest(endpoint, { forceRefresh: true });
-            const detail = res?.data?.data || res?.data || res?.booking || null;
-            if (detail && typeof detail === "object" && !Array.isArray(detail)) loaded[g.id] = detail;
+            const detail = unwrapBooking(res);
+            if (detail) loaded[g.id] = detail;
+            else detailAttempts.current.delete(String(g.id));
           } catch {
-            loaded[g.id] = {};
+            detailAttempts.current.delete(String(g.id));
           }
         })
       );
-      if (!cancelled) setBookingDetails((prev) => ({ ...prev, ...loaded }));
+      if (Object.keys(loaded).length) setBookingDetails((prev) => ({ ...prev, ...loaded }));
     })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [unifiedGuests, bookingDetails]);
+  }, [unifiedGuests]);
 
   const withApiStay = (g) => {
     const d = bookingDetails[g.id];
-    const sources = [d, g.raw, g];
-    const checkIn = firstValue(sources, ["actual_check_in", "actualCheckIn", "check_in_date", "checkInDate", "check_in", "checkIn"]);
-    const checkOut = firstValue(sources, ["actual_check_out", "actualCheckOut", "check_out_date", "checkOutDate", "check_out", "checkOut"]);
-    const baseAmount = num(firstValue(sources, ["base_amount", "baseAmount", "room_amount", "roomAmount"]));
+    const sources = [...staySources(d), ...staySources(g.raw), g];
+    const checkIn = firstValue(sources, ["actual_check_in", "actualCheckIn", "check_in_date", "checkInDate", "check_in", "checkIn", "expected_check_in", "from_date", "arrival_date"]);
+    const checkOut = firstValue(sources, ["actual_check_out", "actualCheckOut", "check_out_date", "checkOutDate", "check_out", "checkOut", "expected_check_out", "to_date", "departure_date"]);
+    const baseAmount = num(firstValue(sources, ["base_amount", "baseAmount", "room_amount", "roomAmount", "room_tariff", "roomTariff"]));
     const gstAmount = num(firstValue(sources, ["gst_amount", "gstAmount", "tax_amount", "taxAmount"]));
+    const nights = num(firstValue(sources, ["number_of_nights", "numberOfNights", "nights"])) || 1;
+    const rate = num(firstValue(sources, ["price_per_night", "pricePerNight", "rate_per_night", "ratePerNight", "custom_price_per_night", "nightly_rate", "rate"]));
     const bookedPlusGst = baseAmount + gstAmount;
-    const totalAmount = bookedPlusGst > 0 ? bookedPlusGst : num(firstValue(sources, ["total_amount", "totalAmount", "grand_total", "grandTotal", "totalAmount"]));
-    const paidAmount = num(firstValue(sources, ["paid_amount", "paidAmount", "advance_paid", "advancePaid"])) || g.paidAmount || 0;
+    const totalAmount = bookedPlusGst > 0
+      ? bookedPlusGst
+      : num(firstValue(sources, ["total_amount", "totalAmount", "grand_total", "grandTotal", "invoice_total", "bill_amount"])) || (rate > 0 ? rate * nights : 0);
+    const paidAmount = num(firstValue(sources, ["paid_amount", "paidAmount", "advance_paid", "advancePaid", "advance_payment_amount", "advancePaymentAmount"])) || g.paidAmount || 0;
     const dueFromApi = firstValue(sources, ["due_amount", "dueAmount"]);
     const dueAmount = dueFromApi !== undefined && dueFromApi !== null && dueFromApi !== ""
       ? num(dueFromApi)
       : Math.max(0, totalAmount - paidAmount);
-    return { ...g, checkIn, checkOut, baseAmount, gstAmount, totalAmount, paidAmount, dueAmount };
+    const guestName = firstValue(sources, ["primary_guest_name", "guest_name", "guestName", "full_name", "fullName", "name"]) || g.guestName;
+    const phone = firstValue(sources, ["mobile_number", "phone", "mobile"]) || g.phone;
+    const email = firstValue(sources, ["email"]) || g.email;
+    const bookingNumber = firstValue(sources, ["booking_number", "bookingNumber"]) || g.bookingNumber;
+    const roomFromDetail = d ? roomLabelFor(d, rooms) : "";
+    const roomAssigned = roomFromDetail && roomFromDetail !== "—" ? roomFromDetail : g.roomAssigned;
+    const rawStatus = String(firstValue(sources, ["booking_status", "status"]) || g.status || "").toUpperCase();
+    const status = rawStatus === "IN-HOUSE" || rawStatus === "IN_HOUSE" ? "CHECKED_IN" : (rawStatus || g.status);
+    return { ...g, checkIn, checkOut, baseAmount, gstAmount, totalAmount, paidAmount, dueAmount, guestName, phone, email, bookingNumber, roomAssigned, status };
   };
 
   // Filtered & Sorted List
@@ -394,10 +478,9 @@ export default function GuestListPage({
 
   // Paginated Slices
   const paginatedGuests = useMemo(() => {
-    if (serverPage) return filteredGuests;
     const start = page * rowsPerPage;
     return filteredGuests.slice(start, start + rowsPerPage);
-  }, [filteredGuests, page, rowsPerPage, serverPage]);
+  }, [filteredGuests, page, rowsPerPage]);
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
@@ -624,7 +707,7 @@ export default function GuestListPage({
 
           <TablePagination
             component="div"
-            count={serverPage ? serverPage.total : filteredGuests.length}
+            count={filteredGuests.length}
             page={page}
             onPageChange={handleChangePage}
             rowsPerPage={rowsPerPage}

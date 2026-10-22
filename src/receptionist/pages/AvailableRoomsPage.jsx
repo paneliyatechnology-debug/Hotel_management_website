@@ -145,7 +145,11 @@ export default function AvailableRoomsPage({
   };
 
   // Box View Navigation: null = Categories Overview, string (categoryId) = Category Drilldown
-  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState(() => {
+    if (typeof window === "undefined") return null;
+    const stored = sessionStorage.getItem("receptionist.rooms.category");
+    return stored && stored !== "none" ? stored : null;
+  });
 
   // Track if user navigated here from another route (e.g. Dashboard)
   const [cameFromExternalRoute, setCameFromExternalRoute] = useState(false);
@@ -159,6 +163,11 @@ export default function AvailableRoomsPage({
       if (onClearInitialCategory) onClearInitialCategory();
     }
   }, [initialSelectedCategory]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (selectedCategory) sessionStorage.setItem("receptionist.rooms.category", String(selectedCategory));
+  }, [selectedCategory]);
 
   // Filters for Table View & Category Drilldown
   const [roomSearch, setRoomSearch] = useState("");
@@ -433,6 +442,13 @@ export default function AvailableRoomsPage({
     }
   }, [selectedCategory, activeCategory, categoryStats]);
 
+  useEffect(() => {
+    if (selectedCategory || categoryStats.length !== 1) return;
+    if (typeof window !== "undefined" && sessionStorage.getItem("receptionist.rooms.category") === "none") return;
+    const only = categoryStats[0];
+    setSelectedCategory(only?._id || only?.id || only?.name || null);
+  }, [categoryStats, selectedCategory]);
+
   // Distinct floors across all rooms
   const distinctFloors = useMemo(() => {
     const list = selectedCategory && activeCategory ? activeCategory.rooms : rooms;
@@ -634,6 +650,7 @@ export default function AvailableRoomsPage({
             <Tooltip title="All categories">
               <IconButton
                 onClick={() => {
+                  if (typeof window !== "undefined") sessionStorage.setItem("receptionist.rooms.category", "none");
                   if (cameFromExternalRoute && onNavigateTab) {
                     setCameFromExternalRoute(false);
                     setSelectedCategory(null);
@@ -996,6 +1013,7 @@ export default function AvailableRoomsPage({
                       size="small"
                       startIcon={<ArrowBack />}
                       onClick={() => {
+                        if (typeof window !== "undefined") sessionStorage.setItem("receptionist.rooms.category", "none");
                         setSelectedFloor("ALL");
                         setSelectedStatus("ALL");
                         setRoomSearch("");

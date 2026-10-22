@@ -550,7 +550,7 @@ export default function SettingsView({ user, onUpdateHotelSettings }) {
               </Alert>
             )}
 
-            <Grid container spacing={2.5} alignItems="flex-start">
+            <Grid container spacing={2.5} sx={{ alignItems: "flex-start" }}>
               {/* Left column: identity and guest information */}
               <Grid size={{ xs: 12, lg: 6 }}>
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>

@@ -302,6 +302,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
               setBookings(extractBookings(res));
               setBookingsError("");
             }).catch((err) => setBookingsError(err?.message || "Could not load guests")),
+            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.GUESTS}?page=1&limit=100`, skipCache).then((res) => setGuests(extractGuests(res))),
             apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?page=1&limit=100`, skipCache).then((res) => setRooms(extractRooms(res)))
           );
         } else if (tabIndex === 3) {

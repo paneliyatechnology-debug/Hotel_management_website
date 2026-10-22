@@ -20,8 +20,33 @@ function extractRecords(res) {
   else if (Array.isArray(payload?.data)) list = payload.data;
   else if (Array.isArray(payload?.data?.bookings)) list = payload.data.bookings;
   const rawTotal = payload?.total ?? payload?.pagination?.total ?? payload?.pagination?.totalRecords ?? payload?.pagination?.total_records;
-  if (Number.isFinite(Number(rawTotal))) list.total = Number(rawTotal);
-  return list;
+  const records = list.filter((item) => item && typeof item === "object").map((b) => {
+    const id = b.id || b._id;
+    const totalAmount = Number(b.totalAmount ?? b.total_amount ?? b.total ?? b.grandTotal ?? 0);
+    const paidAmount = Number(b.paidAmount ?? b.paid_amount ?? b.advancePaymentAmount ?? b.advance_paid ?? b.advance_payment_amount ?? 0);
+    const dueAmount = Number(b.dueAmount ?? b.due_amount ?? b.due ?? Math.max(0, totalAmount - paidAmount));
+    return {
+      ...b,
+      id,
+      _id: id,
+      totalAmount,
+      total_amount: totalAmount,
+      paidAmount,
+      paid_amount: paidAmount,
+      dueAmount,
+      due_amount: dueAmount,
+      baseAmount: Number(b.baseAmount ?? b.base_amount ?? 0),
+      base_amount: Number(b.baseAmount ?? b.base_amount ?? 0),
+      gstAmount: Number(b.gstAmount ?? b.gst_amount ?? 0),
+      gst_amount: Number(b.gstAmount ?? b.gst_amount ?? 0),
+      status: String(b.booking_status || b.status || "").toUpperCase(),
+      booking_status: String(b.booking_status || b.status || "").toUpperCase(),
+      guestName: b.primary_guest_name || b.guest_name || b.guestName || b.guest?.name || b.guest?.fullName || b.name || "",
+      primary_guest_name: b.primary_guest_name || b.guest_name || b.guestName || b.name || "",
+    };
+  });
+  if (Number.isFinite(Number(rawTotal))) records.total = Number(rawTotal);
+  return records;
 }
 
 function asRoomList(res) {
@@ -278,8 +303,8 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         endpointsToFetch.push(
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(adaptHotelDashboard(res.data))),
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => setBookings(extractRecords(res))),
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => setGuests(extractRecords(res))),
+          apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`).then((res) => setBookings(extractRecords(res))),
+          apiRequest(`${API_ENDPOINTS.RECEPTIONIST.GUESTS}?page=1&limit=100`).then((res) => setGuests(extractRecords(res))),
           apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=100`).then((res) => setRoomTypes(normalizeRoomTypes(res))),
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings)),
           reloadStaffList()
@@ -291,16 +316,16 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(adaptHotelDashboard(res.data))),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
             apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=100`).then((res) => setRoomTypes(normalizeRoomTypes(res))),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => setBookings(extractRecords(res))),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => setGuests(extractRecords(res))),
+            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`).then((res) => setBookings(extractRecords(res))),
+            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.GUESTS}?page=1&limit=100`).then((res) => setGuests(extractRecords(res))),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
           );
         }
         // Route 1: GUEST DIRECTORY & PROFILES
         else if (tabIndex === 1) {
           endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS).then((res) => setBookings(extractRecords(res))),
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS).then((res) => setGuests(extractRecords(res))),
+            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`).then((res) => setBookings(extractRecords(res))),
+            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.GUESTS}?page=1&limit=100`).then((res) => setGuests(extractRecords(res))),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
           );

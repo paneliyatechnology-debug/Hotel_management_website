@@ -595,35 +595,38 @@ export default function HotelOverviewPage({
     });
   }, [bookings, guests, stayById, todayStr]);
 
+  const stayFetchIds = useRef(new Set());
+
   useEffect(() => {
     const missing = (bookings || []).filter((booking) => {
       const id = String(booking?.id || booking?._id || "");
-      return id && !stayById[id] && (formatStayLabel(booking, "in") === "—" || formatStayLabel(booking, "out") === "—");
+      if (!id || stayFetchIds.current.has(id)) return false;
+      return formatStayLabel(booking, "in") === "—" || formatStayLabel(booking, "out") === "—";
     });
     if (!missing.length) return undefined;
-    let cancelled = false;
+    missing.forEach((booking) => stayFetchIds.current.add(String(booking.id || booking._id)));
     (async () => {
       const loaded = {};
-      await Promise.all(missing.slice(0, 20).map(async (booking) => {
+      await Promise.all(missing.map(async (booking) => {
         const id = String(booking.id || booking._id);
         try {
           const res = await apiRequest(API_ENDPOINTS.BOOKINGS.BY_ID(id), { forceRefresh: true });
-          const body = res?.data?.booking || res?.data?.data || res?.data || res?.booking || {};
-          loaded[id] = body && typeof body === "object" ? body : {};
+          const body = res?.data?.booking || res?.data?.data || res?.data || res?.booking || null;
+          if (body && typeof body === "object" && !Array.isArray(body) && Object.keys(body).length) loaded[id] = body;
+          else stayFetchIds.current.delete(id);
         } catch {
-          loaded[id] = {};
+          stayFetchIds.current.delete(id);
         }
       }));
-      if (!cancelled) setStayById((prev) => ({ ...prev, ...loaded }));
+      if (Object.keys(loaded).length) setStayById((prev) => ({ ...prev, ...loaded }));
     })();
-    return () => { cancelled = true; };
-  }, [bookings, stayById]);
+  }, [bookings]);
 
   function formatStayLabel(record, kind) {
     if (!record || typeof record !== "object") return "—";
     const names = kind === "in"
-      ? ["actual_check_in", "actualCheckIn", "check_in_date", "checkInDate", "check_in", "checkIn"]
-      : ["actual_check_out", "actualCheckOut", "check_out_date", "checkOutDate", "check_out", "checkOut"];
+      ? ["actual_check_in", "actualCheckIn", "check_in_date", "checkInDate", "check_in", "checkIn", "expected_check_in", "from_date", "arrival_date", "created_at", "createdAt", "booked_at", "booking_date"]
+      : ["actual_check_out", "actualCheckOut", "check_out_date", "checkOutDate", "check_out", "checkOut", "expected_check_out", "to_date", "departure_date", "updated_at", "updatedAt"];
     const sources = [record, record.booking, record.activeBooking, record.data].filter((item) => item && typeof item === "object");
     let raw = "";
     for (const source of sources) {

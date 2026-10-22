@@ -302,8 +302,8 @@ export function buildMuiTheme(themeConfig, mode = "light") {
         styleOverrides: {
           root: {
             color: themeConfig.textMain,
-            backgroundColor: themeConfig.bgCard || (isDark ? "#0E312C" : "#FFFFFF"),
-            borderTop: `1px solid ${themeConfig.border}`,
+            backgroundColor: "transparent",
+            borderTop: "none",
           },
           toolbar: {
             minHeight: 52,

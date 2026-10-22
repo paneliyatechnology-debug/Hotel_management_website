@@ -68,6 +68,7 @@ import { toast } from "@/shared/utils/toast";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { createSafeGuestModalData } from "@/shared/utils/guestModalUtils";
 import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
+import FolioPdfButton from "@/shared/components/FolioPdfButton";
 
 export default function InHouseFoliosPage({
   bookings = [],
@@ -818,6 +819,17 @@ export default function InHouseFoliosPage({
                               </IconButton>
                             </Tooltip>
 
+                            <FolioPdfButton
+                              booking={b}
+                              iconOnly
+                              sx={{
+                                color: themeConfig.primaryDark,
+                                bgcolor: themeConfig.champagne,
+                                border: `1px solid ${themeConfig.border}`,
+                                borderRadius: "10px",
+                                p: 0.8,
+                              }}
+                            />
 
                             {/* 3. Check-Out Guest */}
                             {b.status === "CHECKED_IN" && (
@@ -1167,6 +1179,7 @@ export default function InHouseFoliosPage({
             <Button onClick={() => setDetailsModal({ open: false, booking: null })} sx={{ borderRadius: "10px" }}>
               Close
             </Button>
+            <FolioPdfButton booking={detailsModal.booking} label="Generate Folio" />
             <Button
               variant="contained"
               startIcon={<Receipt />}

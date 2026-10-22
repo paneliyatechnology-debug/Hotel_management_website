@@ -53,6 +53,7 @@ import {
   Security,
   Payments,
   WhatsApp,
+  Print,
   RoomService,
   WarningAmber,
   NotificationsActive,
@@ -73,6 +74,9 @@ import StatCard from "@/shared/components/StatCard";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
+import FolioPdfButton from "@/shared/components/FolioPdfButton";
+import { downloadBookingBill } from "@/shared/utils/bookingPdf";
+import { toast } from "@/shared/utils/toast";
 import { createSafeGuestModalData } from "@/shared/utils/guestModalUtils";
 import RevenueDetailsPage from "./RevenueDetailsPage";
 import { formatTime12Hour, getTurnaroundWindow } from "@/shared/utils/timeUtils";
@@ -106,6 +110,7 @@ export default function HotelOverviewPage({
   const [nowTime, setNowTime] = useState(Date.now());
   const [guestPage, setGuestPage] = useState(0);
   const [guestRowsPerPage, setGuestRowsPerPage] = useState(5);
+  const [billBusyId, setBillBusyId] = useState("");
   const [stayById, setStayById] = useState({});
   const [selectedGuestModal, setSelectedGuestModal] = useState({
     open: false,
@@ -1197,7 +1202,43 @@ export default function HotelOverviewPage({
                           <StatusChip status={g.status} size="small" />
                         </TableCell>
                         <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                          <Tooltip title="Send Folio & Invoice on WhatsApp">
+                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0.5 }}>
+                            <Tooltip title={billBusyId === String(g.id || g._id || "") ? "Preparing bill" : "Bill"}>
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  aria-label="Bill"
+                                  disabled={billBusyId === String(g.id || g._id || "")}
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    const id = g.id || g._id || g.bookingId || g.booking_id;
+                                    if (!id) return;
+                                    try {
+                                      setBillBusyId(String(id));
+                                      const label = String(g.bookingNumber || g.booking_number || g.name || `bill-${id}`).replace(/\s+/g, "-");
+                                      await downloadBookingBill(id, label);
+                                      toast.show("Bill ready", "success");
+                                    } catch (err) {
+                                      toast.show(err?.message || "Could not generate the bill", "error");
+                                    } finally {
+                                      setBillBusyId("");
+                                    }
+                                  }}
+                                  sx={{
+                                    width: 34,
+                                    height: 34,
+                                    borderRadius: "50%",
+                                    bgcolor: "rgba(2, 132, 199, 0.12)",
+                                    color: "#0284C7",
+                                    "&:hover": { bgcolor: "rgba(2, 132, 199, 0.2)" },
+                                  }}
+                                >
+                                  <Print sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                            <FolioPdfButton booking={g} iconOnly />
+                            <Tooltip title="Send Folio & Invoice on WhatsApp">
                             <IconButton
                               size="small"
                               onClick={() => handleSendWhatsAppInvoice(g)}
@@ -1210,6 +1251,7 @@ export default function HotelOverviewPage({
                               <WhatsApp fontSize="small" />
                             </IconButton>
                           </Tooltip>
+                          </Box>
                         </TableCell>
                       </TableRow>
                     ))

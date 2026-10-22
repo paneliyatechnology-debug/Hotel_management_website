@@ -53,7 +53,8 @@ import { formatTime12Hour } from "@/shared/utils/timeUtils";
 import { computeBookingBill } from "@/shared/utils/billingUtils";
 import { toast } from "@/shared/utils/toast";
 import { useSocket } from "@/shared/context/SocketContext";
-import { downloadBookingPdf } from "@/shared/utils/bookingPdf";
+import { downloadBookingBill } from "@/shared/utils/bookingPdf";
+import FolioPdfButton from "@/shared/components/FolioPdfButton";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 
@@ -387,10 +388,10 @@ export default function GuestDetailPage({
     try {
       setPdfLoading(true);
       const label = String(b.booking_number || b.bookingNumber || `guest-${effectiveId}`).replace(/\s+/g, "-");
-      await downloadBookingPdf(effectiveId, label);
-      toast.show("Guest PDF ready", "success");
+      await downloadBookingBill(effectiveId, label);
+      toast.show("Bill ready", "success");
     } catch (err) {
-      toast.show(err?.message || "Could not download the guest PDF", "error");
+      toast.show(err?.message || "Could not generate the bill", "error");
     } finally {
       setPdfLoading(false);
     }
@@ -461,40 +462,46 @@ export default function GuestDetailPage({
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
           {guestPhone && (
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<WhatsApp sx={{ color: "#25D366" }} />}
-              onClick={handleOpenWhatsApp}
-              sx={{
-                borderRadius: "10px",
-                textTransform: "none",
-                fontWeight: 700,
-                borderColor: "rgba(37, 211, 102, 0.4)",
-                color: themeConfig.textMain,
-                "&:hover": { bgcolor: "rgba(37, 211, 102, 0.08)" },
-              }}
-            >
-              WhatsApp
-            </Button>
+            <Tooltip title="WhatsApp">
+              <IconButton
+                size="small"
+                onClick={handleOpenWhatsApp}
+                aria-label="WhatsApp"
+                sx={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: "10px",
+                  border: "1px solid rgba(37, 211, 102, 0.4)",
+                  color: "#25D366",
+                  "&:hover": { bgcolor: "rgba(37, 211, 102, 0.08)" },
+                }}
+              >
+                <WhatsApp fontSize="small" />
+              </IconButton>
+            </Tooltip>
           )}
 
-          <Button
-            variant="outlined"
-            size="small"
-            disabled={pdfLoading}
-            startIcon={pdfLoading ? <CircularProgress size={14} color="inherit" /> : <Print />}
-            onClick={handleGuestPdf}
-            sx={{
-              borderRadius: "10px",
-              textTransform: "none",
-              fontWeight: 700,
-              color: themeConfig.textMain,
-              borderColor: themeConfig.border,
-            }}
-          >
-            {pdfLoading ? "Preparing..." : "Guest PDF"}
-          </Button>
+          <Tooltip title={pdfLoading ? "Preparing bill" : "Bill"}>
+            <span>
+              <IconButton
+                size="small"
+                disabled={pdfLoading}
+                onClick={handleGuestPdf}
+                aria-label="Bill"
+                sx={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: "10px",
+                  border: `1px solid ${themeConfig.border}`,
+                  color: themeConfig.textMain,
+                  "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
+                }}
+              >
+                {pdfLoading ? <CircularProgress size={16} /> : <Print fontSize="small" />}
+              </IconButton>
+            </span>
+          </Tooltip>
+          <FolioPdfButton booking={{ id: effectiveId, bookingNumber: b.booking_number || b.bookingNumber || guestName }} iconOnly />
         </Box>
       </Paper>
 

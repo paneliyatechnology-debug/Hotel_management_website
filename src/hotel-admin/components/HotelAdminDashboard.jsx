@@ -857,6 +857,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
           rooms={rooms}
           hotelSettings={hotelSettings}
           onRefresh={fetchAllData}
+          defaultRowsPerPage={5}
         />
       )}
 

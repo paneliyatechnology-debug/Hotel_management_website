@@ -20,6 +20,7 @@ import { Check, Close, ContentCopy, Logout, MeetingRoom } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { loadBookingDetail } from "@/shared/utils/folioMoney";
 import { computeCheckoutBill } from "@/shared/utils/billingUtils";
+import FolioPdfButton from "@/shared/components/FolioPdfButton";
 
 const sanitizeAmount = (value) => {
   const cleaned = String(value || "").replace(/[^\d.]/g, "");
@@ -480,6 +481,7 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
         <Button onClick={onClose} disabled={submitting} sx={{ borderRadius: "10px", fontWeight: 700 }}>
           Cancel
         </Button>
+        <FolioPdfButton booking={state.detail || booking} label="Generate Folio" />
         <Button
           variant="contained"
           disabled={submitting || loading || !detail || Boolean(collectError)}

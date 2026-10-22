@@ -60,6 +60,7 @@ import {
   TrendingUp,
   Search,
   Logout,
+  Print,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import StatusChip from "@/shared/components/StatusChip";
@@ -69,6 +70,8 @@ import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
 import { createSafeGuestModalData } from "@/shared/utils/guestModalUtils";
 import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
+import FolioPdfButton from "@/shared/components/FolioPdfButton";
+import { downloadBookingBill } from "@/shared/utils/bookingPdf";
 
 export default function ReceptionistOverviewPage({
   user,
@@ -148,6 +151,7 @@ export default function ReceptionistOverviewPage({
   // Pagination for Recent Check-Ins Table
   const [guestPage, setGuestPage] = useState(0);
   const [guestRowsPerPage, setGuestRowsPerPage] = useState(5);
+  const [billBusyId, setBillBusyId] = useState("");
   // Filter for Recent Front Desk Table: "TODAY_ALL" (Default: In & Out) | "TODAY_CHECKIN" | "TODAY_CHECKOUT" | "IN_HOUSE" | "ALL"
   const [recentFilter, setRecentFilter] = useState("ALL");
 
@@ -1307,37 +1311,66 @@ export default function ReceptionistOverviewPage({
                           <StatusChip status={g.status || "IN-HOUSE"} size="small" />
                         </TableCell>
                         <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                          {(g.status === "IN-HOUSE" || g.status === "CHECKED_IN") ? (
-                            <Button
-                              variant="contained"
-                              color="error"
-                              size="small"
-                              startIcon={<Logout sx={{ fontSize: 15 }} />}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (onRequestCheckout) onRequestCheckout(g);
-                                else handleOpenCheckoutModal(g);
-                              }}
-                              sx={{
-                                fontWeight: 800,
-                                fontSize: "0.78rem",
-                                borderRadius: "8px",
-                                textTransform: "none",
-                                bgcolor: "#EF4444",
-                                color: "#FFFFFF",
-                                minWidth: "105px",
-                                "&:hover": { bgcolor: "#DC2626" },
-                                boxShadow: "0 2px 6px rgba(239, 68, 68, 0.3)",
-                                py: 0.5,
-                                px: 1.5,
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              Check-Out
-                            </Button>
-                          ) : (
-                            <Chip label={g.status || "DEPARTED"} size="small" variant="outlined" sx={{ fontSize: "0.7rem", fontWeight: 700 }} />
-                          )}
+                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0.75 }}>
+                            <Tooltip title={billBusyId === String(g.id || g._id || "") ? "Preparing bill" : "Bill"}>
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  aria-label="Bill"
+                                  disabled={billBusyId === String(g.id || g._id || "")}
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    const id = g.id || g._id || g.bookingId || g.booking_id;
+                                    if (!id) return;
+                                    try {
+                                      setBillBusyId(String(id));
+                                      const label = String(g.bookingNumber || g.booking_number || g.name || `bill-${id}`).replace(/\s+/g, "-");
+                                      await downloadBookingBill(id, label);
+                                      toast.show("Bill ready", "success");
+                                    } catch (err) {
+                                      toast.show(err?.message || "Could not generate the bill", "error");
+                                    } finally {
+                                      setBillBusyId("");
+                                    }
+                                  }}
+                                  sx={{
+                                    width: 34,
+                                    height: 34,
+                                    borderRadius: "50%",
+                                    bgcolor: "rgba(2, 132, 199, 0.12)",
+                                    color: "#0284C7",
+                                    "&:hover": { bgcolor: "rgba(2, 132, 199, 0.2)" },
+                                  }}
+                                >
+                                  <Print sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                            <FolioPdfButton booking={g} iconOnly />
+                            {(g.status === "IN-HOUSE" || g.status === "CHECKED_IN") ? (
+                            <Tooltip title="Check-Out">
+                              <IconButton
+                                size="small"
+                                aria-label="Check-Out"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (onRequestCheckout) onRequestCheckout(g);
+                                  else handleOpenCheckoutModal(g);
+                                }}
+                                sx={{
+                                  width: 34,
+                                  height: 34,
+                                  borderRadius: "50%",
+                                  bgcolor: "rgba(239, 68, 68, 0.12)",
+                                  color: "#EF4444",
+                                  "&:hover": { bgcolor: "rgba(239, 68, 68, 0.2)" },
+                                }}
+                              >
+                                <Logout sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Tooltip>
+                          ) : null}
+                          </Box>
                         </TableCell>
                       </TableRow>
                     ))

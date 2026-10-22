@@ -181,6 +181,7 @@ export const API_ENDPOINTS = createCaseFlexibleProxy({
     DELETE: (id) => `${API_BASE_URL}/api/v1/bookings/${id}`,
     FOLIO_PDF: (id) => `${API_BASE_URL}/api/v1/bookings/${id}/pdf`,
     PDF: (id) => `${API_BASE_URL}/api/v1/bookings/${id}/pdf`,
+    BILL: (id) => `${API_BASE_URL}/api/v1/bookings/${id}/bill`,
   },
 
   // 8. User & Staff Management

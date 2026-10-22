@@ -4,16 +4,10 @@ import { useState, useMemo, useEffect } from "react";
 import {
   Box,
   Typography,
-  Card,
-  CardContent,
   Paper,
   Button,
-  Chip,
-  Avatar,
-  Divider,
   IconButton,
   Tooltip,
-  Grid,
   TextField,
   InputAdornment,
   MenuItem,
@@ -29,7 +23,6 @@ import {
   Search,
   Print,
   WhatsApp,
-  ArrowForward,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
@@ -39,7 +32,8 @@ import { toast } from "@/shared/utils/toast";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
-import { downloadBookingPdf } from "@/shared/utils/bookingPdf";
+import { downloadBookingBill } from "@/shared/utils/bookingPdf";
+import FolioPdfButton from "@/shared/components/FolioPdfButton";
 
 function formatCurrency(val) {
   const n = Number(val);
@@ -137,6 +131,7 @@ export default function GuestListPage({
   rooms = [],
   hotelSettings = {},
   onRefresh,
+  defaultRowsPerPage = 10,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
 
@@ -152,7 +147,7 @@ export default function GuestListPage({
 
   // Pagination
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(defaultRowsPerPage);
   const [bookingDetails, setBookingDetails] = useState({});
   const [serverPage, setServerPage] = useState(null);
 
@@ -226,6 +221,18 @@ export default function GuestListPage({
       const total = num(firstValue(sources, ["total_amount", "totalAmount", "grand_total", "grandTotal"])) || baseAmount + gstAmount;
       const paid = num(firstValue(sources, ["paid_amount", "paidAmount"]));
       const due = num(firstValue(sources, ["due_amount", "dueAmount"])) || Math.max(0, total - paid);
+      const rawPaymentStatus = String(firstValue(sources, ["payment_status", "paymentStatus"]) || "").toUpperCase();
+      const paymentStatus = rawPaymentStatus === "PARTIALLY_PAID" || rawPaymentStatus === "PARTIAL"
+        ? "PARTIAL"
+        : rawPaymentStatus === "PAID" || rawPaymentStatus === "FULLY_PAID"
+          ? "PAID"
+          : rawPaymentStatus === "UNPAID" || rawPaymentStatus === "DUE" || rawPaymentStatus === "PENDING"
+            ? "UNPAID"
+            : paid > 0 && due > 0
+              ? "PARTIAL"
+              : total > 0 && due <= 0
+                ? "PAID"
+                : "UNPAID";
       const roomType =
         (Array.isArray(b.rooms) && (b.rooms[0]?.room_type_name || b.rooms[0]?.roomTypeName)) ||
         b.room_type_name ||
@@ -251,6 +258,7 @@ export default function GuestListPage({
         totalAmount: total,
         paidAmount: paid,
         dueAmount: due,
+        paymentStatus,
         createdAt: b.created_at || b.createdAt || b.check_in_date || b.checkInDate,
         raw: b,
       });
@@ -349,8 +357,7 @@ export default function GuestListPage({
         }
 
         // Payment status filter
-        if (paymentFilter === "PAID" && item.dueAmount > 0) return false;
-        if (paymentFilter === "DUE" && item.dueAmount <= 0) return false;
+        if (paymentFilter !== "ALL" && item.paymentStatus !== paymentFilter) return false;
 
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
@@ -407,10 +414,10 @@ export default function GuestListPage({
     try {
       setPdfGuestId(String(id));
       const label = String(guest.bookingNumber || guest.booking_number || guest.name || `guest-${id}`).replace(/\s+/g, "-");
-      await downloadBookingPdf(id, label);
-      toast.show("Guest PDF ready", "success");
+      await downloadBookingBill(id, label);
+      toast.show("Bill ready", "success");
     } catch (err) {
-      toast.show(err?.message || "Could not download the guest PDF", "error");
+      toast.show(err?.message || "Could not generate the bill", "error");
     } finally {
       setPdfGuestId("");
     }
@@ -421,42 +428,39 @@ export default function GuestListPage({
       <Paper
         elevation={0}
         sx={{
-          borderRadius: "16px",
+          p: { xs: 2, sm: 3 },
+          borderRadius: "20px",
           bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-          border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.04)",
-          overflow: "hidden",
+          border: `1.5px solid ${themeConfig.border}`,
         }}
       >
         <Box
           sx={{
-            px: { xs: 2, sm: 2.5 },
-            py: 2,
             display: "flex",
             flexWrap: "wrap",
             alignItems: "center",
             gap: 1.5,
-            borderBottom: `1px solid ${themeConfig.border}`,
+            mb: 2,
           }}
         >
           <TextField
             size="small"
-            placeholder="Search by name, phone, room, or booking"
+            placeholder="Search guest, booking, or room"
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
               setPage(0);
             }}
             sx={{
-              flex: { xs: "1 1 100%", sm: "1 1 280px" },
-              maxWidth: { sm: 360 },
+              flex: { xs: "1 1 100%", sm: "1 1 240px" },
+              maxWidth: { sm: 320 },
               "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain },
             }}
             slotProps={{
               input: {
                 startAdornment: (
                   <InputAdornment position="start">
-                    <Search fontSize="small" sx={{ color: themeConfig.textMuted }} />
+                    <Search sx={{ fontSize: 18, color: themeConfig.textMuted }} />
                   </InputAdornment>
                 ),
               },
@@ -470,13 +474,13 @@ export default function GuestListPage({
               setStatusFilter(e.target.value);
               setPage(0);
             }}
-            sx={{ width: { xs: "100%", sm: 210 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
+            sx={{ width: { xs: "100%", sm: 180 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
           >
-            <MenuItem value="ALL">All statuses ({unifiedGuests.length})</MenuItem>
-            <MenuItem value="CHECKED_IN">In-house ({unifiedGuests.filter((g) => g.status === "CHECKED_IN").length})</MenuItem>
-            <MenuItem value="CHECKED_OUT">Checked out ({unifiedGuests.filter((g) => g.status === "CHECKED_OUT" || g.status === "DEPARTED").length})</MenuItem>
-            <MenuItem value="CONFIRMED">Upcoming ({unifiedGuests.filter((g) => g.status === "CONFIRMED" || g.status === "PENDING" || g.status === "BOOKED").length})</MenuItem>
-            <MenuItem value="CANCELLED">Cancelled ({unifiedGuests.filter((g) => g.status === "CANCELLED").length})</MenuItem>
+            <MenuItem value="ALL">All statuses</MenuItem>
+            <MenuItem value="CHECKED_IN">Checked in</MenuItem>
+            <MenuItem value="CHECKED_OUT">Checked out</MenuItem>
+            <MenuItem value="CONFIRMED">Upcoming</MenuItem>
+            <MenuItem value="CANCELLED">Cancelled</MenuItem>
           </TextField>
           <TextField
             select
@@ -486,18 +490,22 @@ export default function GuestListPage({
               setPaymentFilter(e.target.value);
               setPage(0);
             }}
-            sx={{ width: { xs: "100%", sm: 180 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
+            sx={{ width: { xs: "100%", sm: 170 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
           >
             <MenuItem value="ALL">All payments</MenuItem>
-            <MenuItem value="PAID">Fully settled</MenuItem>
-            <MenuItem value="DUE">Balance pending</MenuItem>
+            <MenuItem value="PAID">Paid</MenuItem>
+            <MenuItem value="PARTIAL">Partial</MenuItem>
+            <MenuItem value="UNPAID">Unpaid</MenuItem>
           </TextField>
           <TextField
             select
             size="small"
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            sx={{ width: { xs: "100%", sm: 180 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
+            onChange={(e) => {
+              setSortBy(e.target.value);
+              setPage(0);
+            }}
+            sx={{ width: { xs: "100%", sm: 170 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
           >
             <MenuItem value="NEWEST">Newest stay</MenuItem>
             <MenuItem value="OLDEST">Oldest stay</MenuItem>
@@ -515,11 +523,11 @@ export default function GuestListPage({
           />
         ) : (
           <>
-          <TableContainer sx={{ overflowX: "auto" }}>
-            <Table sx={{ minWidth: 980 }}>
+          <TableContainer sx={{ borderRadius: "14px", border: `1px solid ${themeConfig.border}`, overflowX: "auto" }}>
+            <Table size="medium" sx={{ minWidth: 720 }}>
               <TableHead>
-                <TableRow sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F0FDFA" }}>
-                  {["Guest", "Room", "Check-In", "Check-Out", "Billing", "Stay Status"].map((heading) => (
+                <TableRow>
+                  {["Guest", "Room", "Check-In", "Check-Out", "Amount", "Status"].map((heading) => (
                     <TableCell key={heading}>{heading}</TableCell>
                   ))}
                   <TableCell align="right">Actions</TableCell>
@@ -538,70 +546,30 @@ export default function GuestListPage({
                     }}
                     onClick={() => setSelectedGuest(g)}
                   >
-                    <TableCell sx={{ py: 1.75 }}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 180 }}>
-                        <Avatar
-                          sx={{
-                            width: 40,
-                            height: 40,
-                            fontWeight: 800,
-                            bgcolor: themeConfig.primary,
-                            color: "#FFFFFF",
-                            fontSize: "0.95rem",
-                            flexShrink: 0,
-                          }}
-                        >
-                          {g.guestName.charAt(0).toUpperCase()}
-                        </Avatar>
-                        <Box sx={{ minWidth: 0 }}>
-                          <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.92rem", lineHeight: 1.2 }}>
-                            {g.guestName}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", fontWeight: 600 }}>
-                            {g.phone || "No contact"}
-                          </Typography>
-                          {g.bookingNumber ? (
-                            <Typography variant="caption" sx={{ color: themeConfig.primary, display: "block", fontWeight: 700 }}>
-                              {g.bookingNumber}
-                            </Typography>
-                          ) : null}
-                        </Box>
-                      </Box>
-                    </TableCell>
-
-                    <TableCell sx={{ py: 1.75, whiteSpace: "nowrap" }}>
-                      <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.9rem" }}>
-                        Room {g.roomAssigned}
+                    <TableCell>
+                      <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.9rem", lineHeight: 1.2 }}>
+                        {g.guestName}
                       </Typography>
                       <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 600 }}>
-                        {g.roomType}
+                        {g.phone || g.bookingNumber || "—"}
                       </Typography>
                     </TableCell>
-
-                    <TableCell sx={{ py: 1.75, whiteSpace: "nowrap" }}>
-                      <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.88rem" }}>
-                        {formatDateTime(g.checkIn)}
-                      </Typography>
+                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
+                      Room {g.roomAssigned}
                     </TableCell>
-
-                    <TableCell sx={{ py: 1.75, whiteSpace: "nowrap" }}>
-                      <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.88rem" }}>
-                        {formatDateTime(g.checkOut)}
-                      </Typography>
+                    <TableCell sx={{ fontWeight: 700, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
+                      {formatDateTime(g.checkIn)}
                     </TableCell>
-
-                    <TableCell sx={{ py: 1.75, whiteSpace: "nowrap" }}>
-                      <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.92rem" }}>
-                        {formatCurrency(g.totalAmount)}
-                      </Typography>
-                      {(g.baseAmount > 0 || g.gstAmount > 0) && (
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", fontWeight: 600 }}>
-                          {formatCurrency(g.baseAmount)} + GST {formatCurrency(g.gstAmount)}
+                    <TableCell sx={{ fontWeight: 700, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
+                      {formatDateTime(g.checkOut)}
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 900, color: "#0F766E", whiteSpace: "nowrap" }}>
+                      {formatCurrency(g.totalAmount)}
+                      {g.dueAmount > 0 ? (
+                        <Typography variant="caption" sx={{ color: "#DC2626", fontWeight: 800, display: "block" }}>
+                          Due {formatCurrency(g.dueAmount)}
                         </Typography>
-                      )}
-                      <Typography variant="caption" sx={{ color: g.dueAmount > 0 ? "#DC2626" : "#059669", fontWeight: 800, display: "block" }}>
-                        {g.dueAmount > 0 ? `Due ${formatCurrency(g.dueAmount)}` : "Fully Paid"}
-                      </Typography>
+                      ) : null}
                     </TableCell>
 
                     {/* Status */}
@@ -627,7 +595,7 @@ export default function GuestListPage({
                           </Tooltip>
                         )}
 
-                        <Tooltip title={pdfGuestId === String(g.id) ? "Preparing PDF" : "Guest PDF"}>
+                        <Tooltip title={pdfGuestId === String(g.id) ? "Preparing bill" : "Bill"}>
                           <span>
                             <IconButton
                               size="small"
@@ -644,20 +612,7 @@ export default function GuestListPage({
                             </IconButton>
                           </span>
                         </Tooltip>
-                        <Tooltip title="Details">
-                          <IconButton
-                            size="small"
-                            onClick={() => setSelectedGuest(g)}
-                            sx={{
-                              border: `1px solid ${themeConfig.border}`,
-                              borderRadius: "8px",
-                              color: themeConfig.textMain,
-                              "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
-                            }}
-                          >
-                            <ArrowForward fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                        <FolioPdfButton booking={g} iconOnly />
                       </Box>
                     </TableCell>
                   </TableRow>

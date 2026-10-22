@@ -939,24 +939,24 @@ export default function RoomTypesPage({
               })}
             </Box>
           )}
-          {!selectedCategory && roomTypes.length > 0 && (
-            <TablePagination
-              component="div"
-              count={roomTypes.length}
-              page={categoryPage}
-              onPageChange={(e, next) => setCategoryPage(next)}
-              rowsPerPage={categoryRowsPerPage}
-              onRowsPerPageChange={(e) => {
-                setCategoryRowsPerPage(parseInt(e.target.value, 10));
-                setCategoryPage(0);
-              }}
-              rowsPerPageOptions={[5, 10, 15, 20, 25]}
-              labelRowsPerPage="Categories per page"
-              sx={{ mt: 1.5, borderTop: `1px solid ${themeConfig.border}` }}
-            />
-          )}
         </CardContent>
       </Card>
+      {!selectedCategory && roomTypes.length > 0 && (
+        <TablePagination
+          component="div"
+          count={roomTypes.length}
+          page={categoryPage}
+          onPageChange={(e, next) => setCategoryPage(next)}
+          rowsPerPage={categoryRowsPerPage}
+          onRowsPerPageChange={(e) => {
+            setCategoryRowsPerPage(parseInt(e.target.value, 10));
+            setCategoryPage(0);
+          }}
+          rowsPerPageOptions={[5, 10, 15, 20, 25]}
+          labelRowsPerPage="Categories per page"
+          sx={{ bgcolor: "transparent", background: "transparent", borderTop: "none", boxShadow: "none" }}
+        />
+      )}
 
       {/* ========================================================================= */}
       {/* 3D MODAL: ADD / EDIT ROOM (WITH CATEGORY & AMENITIES SELECTOR)             */}

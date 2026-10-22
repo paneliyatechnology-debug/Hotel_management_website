@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -53,6 +53,35 @@ import { useSocket } from "@/shared/context/SocketContext";
 import { folioMoney } from "@/shared/utils/folioMoney";
 import EmptyState from "@/shared/components/EmptyState";
 
+function billAmount(record, bookings = []) {
+  const pick = (obj) => {
+    if (!obj || typeof obj !== "object") return 0;
+    const money = folioMoney(obj);
+    const room = Array.isArray(obj.rooms) ? obj.rooms[0] : null;
+    const nights = Number(obj.number_of_nights ?? obj.numberOfNights ?? obj.nights ?? obj.stay_nights ?? 0);
+    const rate = Number(
+      obj.price_per_night ?? obj.pricePerNight ?? obj.rate_per_night ?? obj.ratePerNight ??
+      obj.custom_price_per_night ?? obj.customPricePerNight ??
+      room?.custom_price_per_night ?? room?.customPricePerNight ?? room?.price_per_night ?? room?.base_price ?? room?.basePrice ?? 0
+    );
+    const direct = [obj.amount, obj.collected_amount, obj.collectedAmount, obj.payment_amount, obj.paymentAmount, obj.settlement_payment_amount]
+      .map((value) => Number(value))
+      .find((value) => Number.isFinite(value) && value > 0) || 0;
+    return money.total || money.paid || money.base || direct || (nights > 0 && rate > 0 ? nights * rate : 0);
+  };
+
+  const own = pick(record) || pick(record?.booking);
+  if (own > 0) return own;
+  const match = bookings.find((booking) => {
+    const id = String(booking.id || booking._id || "");
+    const number = String(booking.booking_number || booking.bookingNumber || "");
+    return (record?.bookingId && id && id === String(record.bookingId))
+      || (record?.id && id && id === String(record.id))
+      || (record?.bookingNumber && number && number === String(record.bookingNumber));
+  });
+  return pick(match);
+}
+
 export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, initialFilter = "THIS_WEEK", dashboardData }) {
   const { themeConfig, isDarkMode } = useAppTheme();
   const [liveTick, setLiveTick] = useState(0);
@@ -82,11 +111,12 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
   const [summary, setSummary] = useState(null);
   const [txnState, setTxnState] = useState({ rows: [], total: 0 });
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
 
   // Selected Transaction for Dialog
   const [selectedTxn, setSelectedTxn] = useState(null);
   const [bookingRows, setBookingRows] = useState([]);
+  const amountFetches = useRef(new Set());
 
   const toYmd = (value) => {
     if (!value) return "";
@@ -134,6 +164,34 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
     })();
     return () => { cancelled = true; };
   }, [filterType, startDate, endDate, liveTick]);
+
+  useEffect(() => {
+    const missing = bookingRows.filter((booking) => {
+      const id = booking?.id || booking?._id;
+      return id && !amountFetches.current.has(String(id)) && billAmount(booking) <= 0;
+    });
+    if (missing.length === 0) return undefined;
+    let cancelled = false;
+    missing.forEach((booking) => amountFetches.current.add(String(booking.id || booking._id)));
+    (async () => {
+      const updates = {};
+      await Promise.all(missing.map(async (booking) => {
+        const id = booking.id || booking._id;
+        try {
+          const endpoint = (typeof API_ENDPOINTS.BOOKINGS?.BY_ID === "function" && API_ENDPOINTS.BOOKINGS.BY_ID(id)) || `${API_ENDPOINTS.BOOKINGS.ALL}/${id}`;
+          const res = await apiRequest(endpoint, { forceRefresh: true });
+          const detail = res?.data?.data || res?.data;
+          if (detail && typeof detail === "object" && !Array.isArray(detail)) updates[String(id)] = { ...booking, ...detail };
+        } catch {
+          updates[String(id)] = booking;
+        }
+      }));
+      if (!cancelled) {
+        setBookingRows((prev) => prev.map((booking) => updates[String(booking.id || booking._id)] || booking));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [bookingRows]);
 
   const fetchRevenueDetails = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -187,8 +245,8 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
         const params = new URLSearchParams({
           start_date: start,
           end_date: end,
-          page: String(page + 1),
-          limit: String(rowsPerPage),
+          page: "1",
+          limit: "100",
         });
         const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.TRANSACTIONS(params.toString()), { forceRefresh: true });
         const payload = res?.data && !Array.isArray(res.data) ? res.data : {};
@@ -201,11 +259,12 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
           bookingNumber: txn.booking_number || txn.booking_id || "—",
           roomNumber: "—",
           description: txn.source || "Payment",
-          paymentMethod: String(txn.payment_method || "CASH").toUpperCase(),
-          amount: Number(txn.amount || 0),
+          paymentMethod: String(txn.payment_method || txn.paymentMethod || "CASH").toUpperCase(),
+          amount: billAmount(txn),
+          bookingId: txn.booking_id || txn.bookingId || "",
           tax: 0,
-          total: Number(txn.amount || 0),
-          status: String(txn.status || "PAID").toUpperCase(),
+          total: billAmount(txn),
+          status: String(txn.booking_status || txn.status || txn.payment_status || "PAID").toUpperCase(),
           receivedBy: txn.received_by?.name || "",
         }));
         if (!cancelled) setTxnState({ rows, total: Number(payload.total ?? rows.length) });
@@ -214,7 +273,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
       }
     })();
     return () => { cancelled = true; };
-  }, [filterType, startDate, endDate, page, rowsPerPage, liveTick]);
+  }, [filterType, startDate, endDate, liveTick]);
 
   const handleSearchSubmit = (e) => {
     e?.preventDefault?.();
@@ -270,9 +329,9 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
         roomNumber: room,
         description: b.room_type_name || b.roomTypeName || "Room booking",
         paymentMethod: String(b.payment_method || b.paymentMethod || "CASH").toUpperCase(),
-        amount: money.base || money.total,
+        amount: billAmount(b),
         tax: money.gst,
-        total: money.total || money.paid,
+        total: billAmount(b),
         status: String(b.payment_status || b.paymentStatus || b.booking_status || b.status || "PAID").toUpperCase(),
       };
     });
@@ -289,7 +348,19 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
     });
   })();
 
-  const transactions = txnState.rows.length > 0 || txnState.total > 0 ? txnState.rows : (apiTransactions.length > 0 ? apiTransactions : bookingTransactions);
+  const sourceRows = txnState.rows.length > 0 || txnState.total > 0 ? txnState.rows : (apiTransactions.length > 0 ? apiTransactions : bookingTransactions);
+  const filteredTransactions = sourceRows.filter((row) => {
+    if (paymentMethod !== "ALL" && String(row.paymentMethod || "").toUpperCase() !== paymentMethod) return false;
+    if (paymentStatus !== "ALL" && String(row.status || "").toUpperCase() !== paymentStatus) return false;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      return [row.guestName, row.transactionId, row.bookingNumber, row.roomNumber, row.paymentMethod, row.status]
+        .some((value) => String(value || "").toLowerCase().includes(q));
+    }
+    return true;
+  });
+  const tablePage = Math.min(page, Math.max(0, Math.ceil(filteredTransactions.length / rowsPerPage) - 1));
+  const pagedTransactions = filteredTransactions.slice(tablePage * rowsPerPage, tablePage * rowsPerPage + rowsPerPage);
   const breakdown = {
     roomBooking: cashTotal,
     extraServices: upiTotal,
@@ -791,93 +862,84 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
           border: `1.5px solid ${themeConfig.border}`,
         }}
       >
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2.5, flexWrap: "wrap", gap: 2 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 900, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 1 }}>
+        <Box
+          sx={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: 1.5,
+            mb: 2,
+          }}
+        >
+          <Typography variant="subtitle1" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 1, mr: { sm: 1 } }}>
             <CreditCard sx={{ fontSize: 20, color: themeConfig.primary }} />
-            Transaction Records ({txnState.total || transactions.length})
+            Transactions ({filteredTransactions.length})
           </Typography>
-
-          {/* Search and Filters Bar */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", flexDirection: { xs: "column", sm: "row" }, width: { xs: "100%", sm: "auto" } }}>
-            <TextField
-              size="small"
-              placeholder="Search Guest, TXN, Room..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSearchSubmit(e)}
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Search sx={{ fontSize: 18, color: themeConfig.textMuted }} />
-                    </InputAdornment>
-                  ),
-                  endAdornment: search ? (
-                    <InputAdornment position="end">
-                      <IconButton size="small" onClick={handleClearSearch}>
-                        <Close sx={{ fontSize: 16 }} />
-                      </IconButton>
-                    </InputAdornment>
-                  ) : null,
-                },
-              }}
-              sx={{
-                width: { xs: "100%", sm: 240 },
-                "& .MuiOutlinedInput-root": {
-                  height: 40,
-                  borderRadius: "10px",
-                  bgcolor: themeConfig.bgMain,
-                },
-              }}
-            />
-
-            <Box sx={{ display: "flex", gap: 1, width: { xs: "100%", sm: "auto" } }}>
-              <TextField
-                select
-                size="small"
-                label="Payment Method"
-                value={paymentMethod}
-                onChange={(e) => {
-                  setPaymentMethod(e.target.value);
-                  setPage(0);
-                }}
-                sx={{
-                  flex: 1,
-                  width: { xs: "50%", sm: 160 },
-                  "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain },
-                }}
-              >
-                <MenuItem value="ALL">All Methods</MenuItem>
-                <MenuItem value="UPI">UPI</MenuItem>
-                <MenuItem value="CASH">Cash</MenuItem>
-                <MenuItem value="CARD">Card</MenuItem>
-                <MenuItem value="ONLINE">Online Gateway</MenuItem>
-                <MenuItem value="BANK_TRANSFER">Bank Transfer</MenuItem>
-              </TextField>
-
-              <TextField
-                select
-                size="small"
-                label="Status"
-                value={paymentStatus}
-                onChange={(e) => {
-                  setPaymentStatus(e.target.value);
-                  setPage(0);
-                }}
-                sx={{
-                  flex: 1,
-                  width: { xs: "50%", sm: 140 },
-                  "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain },
-                }}
-              >
-                <MenuItem value="ALL">All Status</MenuItem>
-                <MenuItem value="PAID">Paid</MenuItem>
-                <MenuItem value="PARTIALLY_PAID">Partial</MenuItem>
-                <MenuItem value="FAILED">Failed</MenuItem>
-                <MenuItem value="REFUNDED">Refunded</MenuItem>
-              </TextField>
-            </Box>
-          </Box>
+          <TextField
+            size="small"
+            placeholder="Search guest, booking, or room"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(0);
+            }}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search sx={{ fontSize: 18, color: themeConfig.textMuted }} />
+                  </InputAdornment>
+                ),
+                endAdornment: search ? (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={handleClearSearch} aria-label="Clear search">
+                      <Close sx={{ fontSize: 16 }} />
+                    </IconButton>
+                  </InputAdornment>
+                ) : null,
+              },
+            }}
+            sx={{
+              flex: { xs: "1 1 100%", sm: "1 1 240px" },
+              maxWidth: { sm: 320 },
+              "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain },
+            }}
+          />
+          <TextField
+            select
+            size="small"
+            value={paymentMethod}
+            onChange={(e) => {
+              setPaymentMethod(e.target.value);
+              setPage(0);
+            }}
+            sx={{ width: { xs: "100%", sm: 170 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
+          >
+            <MenuItem value="ALL">All methods</MenuItem>
+            <MenuItem value="UPI">UPI</MenuItem>
+            <MenuItem value="CASH">Cash</MenuItem>
+            <MenuItem value="CARD">Card</MenuItem>
+            <MenuItem value="ONLINE">Online</MenuItem>
+            <MenuItem value="BANK_TRANSFER">Bank transfer</MenuItem>
+          </TextField>
+          <TextField
+            select
+            size="small"
+            value={paymentStatus}
+            onChange={(e) => {
+              setPaymentStatus(e.target.value);
+              setPage(0);
+            }}
+            sx={{ width: { xs: "100%", sm: 180 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
+          >
+            <MenuItem value="ALL">All statuses</MenuItem>
+            <MenuItem value="CHECKED_IN">Checked in</MenuItem>
+            <MenuItem value="CHECKED_OUT">Checked out</MenuItem>
+            <MenuItem value="PAID">Paid</MenuItem>
+            <MenuItem value="PARTIALLY_PAID">Partial</MenuItem>
+            <MenuItem value="FAILED">Failed</MenuItem>
+            <MenuItem value="REFUNDED">Refunded</MenuItem>
+          </TextField>
         </Box>
 
         {/* Table Content */}
@@ -888,7 +950,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
               Loading financial records...
             </Typography>
           </Box>
-        ) : transactions.length > 0 ? (
+        ) : pagedTransactions.length > 0 ? (
           <>
             <TableContainer sx={{ borderRadius: "14px", border: `1px solid ${themeConfig.border}`, overflowX: "auto" }}>
               <Table size="medium" sx={{ minWidth: 720 }}>
@@ -900,7 +962,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {transactions.map((t, idx) => {
+                  {pagedTransactions.map((t, idx) => {
                     const methodStyle = getMethodColor(t.paymentMethod);
                     return (
                       <TableRow
@@ -939,7 +1001,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                           />
                         </TableCell>
                         <TableCell sx={{ fontWeight: 900, color: "#0F766E", whiteSpace: "nowrap" }}>
-                          ₹{Number(t.amount || 0).toLocaleString("en-IN")}
+                          ₹{billAmount(t, bookingRows).toLocaleString("en-IN")}
                         </TableCell>
                         <TableCell>
                           <Chip
@@ -963,8 +1025,8 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
 
             <TablePagination
               component="div"
-              count={txnState.total || transactions.length}
-              page={page}
+              count={filteredTransactions.length}
+              page={tablePage}
               onPageChange={(e, np) => setPage(np)}
               rowsPerPage={rowsPerPage}
               onRowsPerPageChange={(e) => {

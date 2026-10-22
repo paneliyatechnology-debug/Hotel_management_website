@@ -27,6 +27,7 @@ import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { toast } from "@/shared/utils/toast";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
+import FolioPdfButton from "@/shared/components/FolioPdfButton";
 import { calculateOverstayFee, formatTime12Hour } from "@/shared/utils/timeUtils";
 import SettingsView from "@/shared/components/SettingsView";
 import dynamic from "next/dynamic";
@@ -931,6 +932,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
             rooms={rooms}
             hotelSettings={hotelSettings}
             onRefresh={fetchFrontDeskData}
+            defaultRowsPerPage={5}
           />
         </Box>
       )}
@@ -1216,6 +1218,8 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
                   >
                     Send WhatsApp
                   </Button>
+
+                  <FolioPdfButton booking={b} label="Generate Folio" />
 
                   <Button
                     variant="contained"

@@ -1,13 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import {
   Box,
   Card,
   Typography,
   Avatar,
   Chip,
-  Button,
   Divider,
 } from "@mui/material";
 import {
@@ -17,37 +15,13 @@ import {
   Business,
   Badge,
   Schedule,
-  Logout,
   CheckCircle,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
-import ConfirmDialog from "@/shared/components/ConfirmDialog";
 
 export default function MoreOperationsPage({ user, hotelSettings, onLogout }) {
   const { themeConfig, isDarkMode } = useAppTheme();
-  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
 
-  const handleConfirmLogout = () => {
-    setLogoutDialogOpen(false);
-    if (onLogout) {
-      onLogout();
-    } else {
-      try {
-        localStorage.removeItem("token");
-        localStorage.removeItem("refreshToken");
-        localStorage.removeItem("user");
-        if (typeof document !== "undefined") {
-          document.cookie = "accessToken=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;";
-          document.cookie = "token=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;";
-          document.cookie = "refreshToken=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;";
-          document.cookie = "user=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;";
-        }
-      } catch (e) {
-        console.error(e);
-      }
-      window.location.href = "/";
-    }
-  };
 
   const userName = user?.fullName || user?.name || "Front Desk Receptionist";
   const userEmail = user?.email || "reception@hotel.com";
@@ -347,77 +321,7 @@ export default function MoreOperationsPage({ user, hotelSettings, onLogout }) {
         </Box>
       </Card>
 
-      {/* Logout Action Section */}
-      <Card
-        className="card-3d"
-        sx={{
-          p: { xs: 2.5, sm: 3 },
-          borderRadius: "24px",
-          border: isDarkMode ? "1px solid rgba(239, 68, 68, 0.35)" : "1px solid rgba(239, 68, 68, 0.2)",
-          background: isDarkMode
-            ? "linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.04) 100%)"
-            : "linear-gradient(135deg, #FFF5F5 0%, #FFFFFF 100%)",
-          bgcolor: themeConfig.bgCard,
-          boxShadow: isDarkMode
-            ? "0 10px 30px rgba(0, 0, 0, 0.45)"
-            : "0 8px 24px rgba(239, 68, 68, 0.05)",
-          display: "flex",
-          flexDirection: { xs: "column", sm: "row" },
-          alignItems: { xs: "flex-start", sm: "center" },
-          justifyContent: "space-between",
-          gap: 2,
-        }}
-      >
-        <Box>
-          <Typography
-            variant="subtitle1"
-            sx={{
-              fontWeight: 800,
-              color: "#DC2626",
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
-            }}
-          >
-            <Logout sx={{ fontSize: 20, color: "#DC2626" }} />
-            Account Session & Sign Out
-          </Typography>
-          <Typography variant="body2" sx={{ color: themeConfig.textMuted, mt: 0.3 }}>
-            End your current receptionist session safely and log out of the system.
-          </Typography>
-        </Box>
 
-        <Button
-          variant="contained"
-          color="error"
-          onClick={() => setLogoutDialogOpen(true)}
-          startIcon={<Logout />}
-          sx={{
-            fontWeight: 800,
-            textTransform: "none",
-            borderRadius: "12px",
-            px: 3,
-            py: 1.2,
-            boxShadow: "0 4px 14px rgba(220, 38, 38, 0.25)",
-            "&:hover": {
-              bgcolor: "#B91C1C",
-              boxShadow: "0 6px 20px rgba(220, 38, 38, 0.35)",
-            },
-          }}
-        >
-          Sign Out / Logout
-        </Button>
-      </Card>
-
-      <ConfirmDialog
-        open={logoutDialogOpen}
-        section="Session"
-        title="Sign out"
-        message={`You will be signed out of ${hotelName}. You can sign in again at any time.`}
-        confirmLabel="Sign out"
-        onConfirm={handleConfirmLogout}
-        onClose={() => setLogoutDialogOpen(false)}
-      />
     </Box>
   );
 }

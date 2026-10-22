@@ -6,12 +6,18 @@ import { Box, Button, Chip } from "@mui/material";
 import { AppThemeProvider, useAppTheme } from "@/shared/context/ThemeContext";
 import { SocketProvider, useSocket } from "@/shared/context/SocketContext";
 import dynamic from "next/dynamic";
-import UnifiedLogin from "@/auth/components/UnifiedLogin";
 import HotelAdminLayout from "@/hotel-admin/layout/HotelAdminLayout";
 import ReceptionistLayout from "@/receptionist/layout/ReceptionistLayout";
 import SuperAdminLayout from "@/super-admin/layout/SuperAdminLayout";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { clearAuthCookies, getCookie, setAuthCookies } from "@/shared/utils/cookieAuth";
+import {
+  getCanonicalPath,
+  getNavPaths,
+  getPathForTab,
+  getTabIndexFromPathname,
+  isKnownRole,
+} from "@/shared/utils/roleRoutes";
 
 const DashboardLoadingFallback = () => (
   <div className="flex items-center justify-center min-h-[400px] text-slate-500 text-xs animate-pulse font-sans">
@@ -202,57 +208,11 @@ function HotelWebAppContent() {
     }
   );
 
-  const getNavListForUser = (currentUser, activeRole) => {
-    if (!currentUser) return [];
-    const effectiveRole = activeRole || currentUser.role;
-    if (effectiveRole === "SUPER_ADMIN") {
-      return ["overview", "hotels", "plans", "settings"];
-    }
-    if (effectiveRole === "HOTEL_ADMIN") {
-      return ["overview", "guests", "staff", "rooms", "gst-report", "subscriptions", "settings"];
-    }
-    if (effectiveRole === "RECEPTIONIST") {
-      return ["dashboard", "rooms", "guests", "more"];
-    }
-    return [];
-  };
-
+  // Pages (and their order) come from the shared role routes - same order as each role's sidebar
   const getActiveTabFromPath = (currentUser, currentPath, activeRole) => {
     if (!currentUser) return 0;
-    const navList = getNavListForUser(currentUser, activeRole);
-    const rawPath = (currentPath || (typeof window !== "undefined" ? window.location.pathname : "")).replace(/^\/+/, "");
-    const parts = rawPath.split("/").filter(Boolean);
-
-    let cleanPath = "overview";
-    if (parts[0] === "admin" || parts[0] === "receptionist" || parts[0] === "app") {
-      cleanPath = parts[1] || "overview";
-    } else if (parts[0]) {
-      cleanPath = parts[0];
-    }
-
-    if (cleanPath) {
-      const idx = navList.indexOf(cleanPath);
-      if (idx !== -1) return idx;
-
-      const effectiveRole = activeRole || currentUser.role;
-      if (effectiveRole === "RECEPTIONIST") {
-        if (cleanPath === "dashboard" || cleanPath === "overview") return 0;
-        if (cleanPath === "rooms" || cleanPath === "checkin" || cleanPath === "check-in" || cleanPath === "booking") return 1;
-        if (cleanPath === "folios" || cleanPath === "in-house" || cleanPath === "inhouse") return 0;
-        if (cleanPath === "guests" || cleanPath === "guest" || cleanPath === "directory") return 2;
-        if (cleanPath === "more" || cleanPath === "settings" || cleanPath === "operations") return 3;
-      }
-      if (effectiveRole === "HOTEL_ADMIN") {
-        if (cleanPath === "guests" || cleanPath === "guest" || cleanPath === "directory") return 1;
-        if (cleanPath === "collections" || cleanPath === "daily-collections" || cleanPath === "payments" || cleanPath === "billing") return 0;
-        if (cleanPath === "team" || cleanPath === "staff") return 2;
-        if (cleanPath === "rooms") return 3;
-        if (cleanPath === "gst" || cleanPath === "gst-report" || cleanPath === "reports") return 4;
-        if (cleanPath === "plans" || cleanPath === "pricing" || cleanPath === "subscriptions") return 5;
-        if (cleanPath === "settings") return 6;
-      }
-    }
-    return 0;
+    const path = currentPath || (typeof window !== "undefined" ? window.location.pathname : "");
+    return getTabIndexFromPathname(activeRole || currentUser.role, path);
   };
 
   const currentEffectiveRole = activePortalRole || user?.role || "HOTEL_ADMIN";
@@ -348,38 +308,43 @@ function HotelWebAppContent() {
     let tabIndex = tabIndexOrPath;
     const effectiveRole = activePortalRole || user?.role;
     if (typeof tabIndexOrPath === "string" && user) {
-      const navList = getNavListForUser(user, effectiveRole);
-      const idx = navList.indexOf(tabIndexOrPath);
-      if (idx !== -1) {
-        tabIndex = idx;
-      } else {
-        tabIndex = getActiveTabFromPath(user, tabIndexOrPath, effectiveRole);
-      }
+      // Accepts a page name ("rooms") or any URL-like string ("/admin/rooms")
+      tabIndex = getActiveTabFromPath(user, tabIndexOrPath, effectiveRole);
     }
     setActiveTab(tabIndex);
-    if (user) {
-      const prefix = effectiveRole === "HOTEL_ADMIN" ? "/admin" : "/receptionist";
-      const navList = getNavListForUser(user, effectiveRole);
-      if (navList[tabIndex] !== undefined) {
-        const targetPath = `${prefix}/${navList[tabIndex]}`;
-        if (typeof window !== "undefined") {
-          window.history.pushState(null, "", targetPath);
-        }
+    if (user && typeof window !== "undefined") {
+      const targetPath = getPathForTab(effectiveRole, tabIndex);
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState(null, "", targetPath);
       }
     }
   };
 
+  // ── Route guard ─────────────────────────────────────────────
+  // 1. Signed out  -> /login (remembering where the user was heading)
+  // 2. Unsupported role -> sign out
+  // 3. Signed in   -> keep the URL on the role's own base path + a real page
+  //    (/app, /rooms, /admin on a receptionist session, bare /admin ... are rewritten in place)
+  useEffect(() => {
+    if (!user) {
+      const next = pathname && pathname !== "/" ? `?redirect=${encodeURIComponent(pathname)}` : "";
+      router.replace(`/login${next}`);
+      return;
+    }
+    if (!isKnownRole(currentEffectiveRole)) {
+      handleLogout();
+      return;
+    }
+    const canonical = getCanonicalPath(currentEffectiveRole, pathname);
+    if (typeof window !== "undefined" && window.location.pathname !== canonical) {
+      window.history.replaceState(null, "", canonical);
+    }
+  }, [user, pathname, currentEffectiveRole]);
   return (
     <>
-      {!user ? (
-        <UnifiedLogin
-          onLoginSuccess={(loggedInUser) => {
-            setUser(loggedInUser);
-            setActivePortalRole(loggedInUser.role);
-            setActiveTab(0);
-            checkUserLockout(loggedInUser);
-          }}
-        />
+      {!user || !isKnownRole(currentEffectiveRole) ? (
+        // Guard effect above is redirecting to /login
+        <DashboardLoadingFallback />
       ) : lockout.locked && user.role !== "SUPER_ADMIN" ? (
         <SubscriptionExpiredScreen
           user={user}

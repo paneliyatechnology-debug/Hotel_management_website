@@ -65,6 +65,7 @@ import {
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
+import { TableCard, TableToolbar, TablePager, tableFieldSx } from "@/shared/components/DataTable";
 import dynamic from "next/dynamic";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
@@ -1177,40 +1178,22 @@ export default function ReceptionistOverviewPage({
       {/* ========================================================================= */}
       {/* SECTION 4: RECENT FRONT DESK CHECK-INS & IN-HOUSE FOLIOS                  */}
       {/* ========================================================================= */}
-      <Card
-        className="card-3d"
-        sx={{
-          borderRadius: "22px",
-          border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 10px 30px -5px rgba(32, 41, 35, 0.08), inset 0 1px 1px #FFFFFF",
-          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
-          background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #F9FBFC 100%)",
-        }}
-      >
-        <CardContent sx={{ p: 0, "&:last-child": { pb: 0 } }}>
-          <Box sx={{ px: { xs: 2, sm: 2.5 }, py: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5, borderBottom: `1px solid ${themeConfig.border}` }}>
-            <TextField
-              select
-              size="small"
-              value={recentFilter}
-              onChange={(e) => { setRecentFilter(e.target.value); setGuestPage(0); }}
-              sx={{ width: { xs: "100%", sm: 220 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
-            >
-              <MenuItem value="ALL">All ({countAll})</MenuItem>
-              <MenuItem value="CHECK_IN">Check-in ({allFormattedBookings.filter((b) => b.status === "IN-HOUSE" || b.rawStatus === "CHECKED_IN" || b.status === "CHECKED_IN").length})</MenuItem>
-              <MenuItem value="CHECK_OUT">Check-out ({allFormattedBookings.filter((b) => b.status === "DEPARTED" || b.rawStatus === "CHECKED_OUT" || b.status === "CHECKED_OUT").length})</MenuItem>
-            </TextField>
-          </Box>
-
-          <TableContainer
-            component={Paper}
-            sx={{
-              borderRadius: "16px",
-              border: `1px solid ${themeConfig.border}`,
-              boxShadow: "none",
-              overflowX: "auto",
-            }}
+      <TableCard>
+        <TableToolbar>
+          <TextField
+            select
+            size="small"
+            value={recentFilter}
+            onChange={(e) => { setRecentFilter(e.target.value); setGuestPage(0); }}
+            sx={tableFieldSx(themeConfig, 220)}
           >
+            <MenuItem value="ALL">All ({countAll})</MenuItem>
+            <MenuItem value="CHECK_IN">Check-in ({allFormattedBookings.filter((b) => b.status === "IN-HOUSE" || b.rawStatus === "CHECKED_IN" || b.status === "CHECKED_IN").length})</MenuItem>
+            <MenuItem value="CHECK_OUT">Check-out ({allFormattedBookings.filter((b) => b.status === "DEPARTED" || b.rawStatus === "CHECKED_OUT" || b.status === "CHECKED_OUT").length})</MenuItem>
+          </TextField>
+        </TableToolbar>
+
+          <TableContainer sx={{ overflowX: "auto" }}>
             <Table size="medium" sx={{ minWidth: 720 }}>
               <TableHead>
                 <TableRow>
@@ -1377,23 +1360,21 @@ export default function ReceptionistOverviewPage({
                 )}
               </TableBody>
             </Table>
-            {activeRecentBookings.length > 0 && (
-              <TablePagination
-                rowsPerPageOptions={[5, 10, 25]}
-                component="div"
-                count={activeRecentBookings.length}
-                rowsPerPage={guestRowsPerPage}
-                page={guestPage}
-                onPageChange={(e, newPage) => setGuestPage(newPage)}
-                onRowsPerPageChange={(e) => {
-                  setGuestRowsPerPage(parseInt(e.target.value, 10));
-                  setGuestPage(0);
-                }}
-              />
-            )}
           </TableContainer>
-        </CardContent>
-      </Card>
+        {activeRecentBookings.length > 0 && (
+          <TablePager
+            rowsPerPageOptions={[5, 10, 25]}
+            count={activeRecentBookings.length}
+            rowsPerPage={guestRowsPerPage}
+            page={guestPage}
+            onPageChange={(e, newPage) => setGuestPage(newPage)}
+            onRowsPerPageChange={(e) => {
+              setGuestRowsPerPage(parseInt(e.target.value, 10));
+              setGuestPage(0);
+            }}
+          />
+        )}
+      </TableCard>
 
       {/* Guest Details Modal */}
       <GuestDetailsModal

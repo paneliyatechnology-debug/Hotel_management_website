@@ -73,6 +73,7 @@ import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import StatCard from "@/shared/components/StatCard";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
+import { TableCard, TableToolbar, TablePager } from "@/shared/components/DataTable";
 import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
 import FolioPdfButton from "@/shared/components/FolioPdfButton";
 import { downloadBookingBill } from "@/shared/utils/bookingPdf";
@@ -1086,49 +1087,22 @@ export default function HotelOverviewPage({
 
       {/* 6. 👥 LIVE IN-HOUSE GUESTS & 1-CLICK WHATSAPP INVOICE DISPATCHER           */}
       {/* ========================================================================= */}
-      <Card
-        className="card-3d"
-        sx={{
-          borderRadius: "22px",
-          border: `1px solid ${themeConfig.border}`,
-          boxShadow: "0 10px 30px -5px rgba(32, 41, 35, 0.08)",
-          background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #F9FBFC 100%)",
-        }}
-      >
-        <CardContent sx={{ p: 0, "&:last-child": { pb: 0 } }}>
-          <Box sx={{ px: { xs: 2, sm: 2.5 }, py: 2, display: "flex", justifyContent: "flex-end", alignItems: "center", borderBottom: `1px solid ${themeConfig.border}` }}>
+      <TableCard>
+        <TableToolbar
+          actions={
             <Button
               variant="outlined"
               size="small"
               endIcon={<ArrowForward />}
               onClick={() => onTabChange && onTabChange("guests")}
-              sx={{
-                borderRadius: "10px",
-                fontWeight: 800,
-                fontSize: "0.82rem",
-                textTransform: "none",
-                borderColor: themeConfig.border,
-                color: themeConfig.textMain,
-                bgcolor: themeConfig.bgCard,
-                whiteSpace: "nowrap",
-                "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
-              }}
+              sx={{ height: 40, borderRadius: "10px", fontWeight: 800, fontSize: "0.82rem", textTransform: "none", whiteSpace: "nowrap" }}
             >
               Full Guest Directory
             </Button>
-          </Box>
+          }
+        />
 
-          <TableContainer
-            component={Paper}
-            sx={{
-              borderRadius: "16px",
-              border: `1px solid ${themeConfig.border}`,
-              boxShadow: "none",
-              overflowX: "auto",
-              overflowY: "auto",
-              maxHeight: { xs: "52vh", md: "420px" },
-            }}
-          >
+          <TableContainer sx={{ overflowX: "auto", overflowY: "auto", maxHeight: { xs: "52vh", md: "420px" } }}>
             <Table size="small" stickyHeader sx={{ minWidth: 700 }}>
               <TableHead>
                 <TableRow>
@@ -1137,7 +1111,7 @@ export default function HotelOverviewPage({
                   <TableCell>Stay Dates</TableCell>
                   <TableCell>Balance Dues</TableCell>
                   <TableCell>Status</TableCell>
-                  <TableCell align="right">WhatsApp</TableCell>
+                  <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -1258,23 +1232,21 @@ export default function HotelOverviewPage({
                 )}
               </TableBody>
             </Table>
-            {activeRecentGuests.length > 0 && (
-              <TablePagination
-                rowsPerPageOptions={[5, 10, 25]}
-                component="div"
-                count={activeRecentGuests.length}
-                rowsPerPage={guestRowsPerPage}
-                page={guestPage}
-                onPageChange={(e, newPage) => setGuestPage(newPage)}
-                onRowsPerPageChange={(e) => {
-                  setGuestRowsPerPage(parseInt(e.target.value, 10));
-                  setGuestPage(0);
-                }}
-              />
-            )}
           </TableContainer>
-        </CardContent>
-      </Card>
+        {activeRecentGuests.length > 0 && (
+          <TablePager
+            rowsPerPageOptions={[5, 10, 25]}
+            count={activeRecentGuests.length}
+            rowsPerPage={guestRowsPerPage}
+            page={guestPage}
+            onPageChange={(e, newPage) => setGuestPage(newPage)}
+            onRowsPerPageChange={(e) => {
+              setGuestRowsPerPage(parseInt(e.target.value, 10));
+              setGuestPage(0);
+            }}
+          />
+        )}
+      </TableCard>
 
       <GuestDetailsModal
         open={selectedGuestModal.open}

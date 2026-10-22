@@ -52,6 +52,7 @@ import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useSocket } from "@/shared/context/SocketContext";
 import { folioMoney } from "@/shared/utils/folioMoney";
 import EmptyState from "@/shared/components/EmptyState";
+import { TableCard, TableToolbar, TablePager, tableFieldSx, tableSearchSx } from "@/shared/components/DataTable";
 
 function billAmount(record, bookings = []) {
   const pick = (obj) => {
@@ -853,28 +854,15 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
       </Paper>
 
       {/* Transaction Records Table & Filtering */}
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2, sm: 3 },
-          borderRadius: "20px",
-          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
-          border: `1.5px solid ${themeConfig.border}`,
-        }}
-      >
-        <Box
-          sx={{
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            gap: 1.5,
-            mb: 2,
-          }}
+      <TableCard>
+        <TableToolbar
+          title={
+            <>
+              <CreditCard sx={{ fontSize: 20, color: themeConfig.primary }} />
+              Transactions ({filteredTransactions.length})
+            </>
+          }
         >
-          <Typography variant="subtitle1" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 1, mr: { sm: 1 } }}>
-            <CreditCard sx={{ fontSize: 20, color: themeConfig.primary }} />
-            Transactions ({filteredTransactions.length})
-          </Typography>
           <TextField
             size="small"
             placeholder="Search guest, booking, or room"
@@ -899,11 +887,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                 ) : null,
               },
             }}
-            sx={{
-              flex: { xs: "1 1 100%", sm: "1 1 240px" },
-              maxWidth: { sm: 320 },
-              "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain },
-            }}
+            sx={tableSearchSx(themeConfig)}
           />
           <TextField
             select
@@ -913,7 +897,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
               setPaymentMethod(e.target.value);
               setPage(0);
             }}
-            sx={{ width: { xs: "100%", sm: 170 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
+            sx={tableFieldSx(themeConfig, 170)}
           >
             <MenuItem value="ALL">All methods</MenuItem>
             <MenuItem value="UPI">UPI</MenuItem>
@@ -930,7 +914,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
               setPaymentStatus(e.target.value);
               setPage(0);
             }}
-            sx={{ width: { xs: "100%", sm: 180 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
+            sx={tableFieldSx(themeConfig, 180)}
           >
             <MenuItem value="ALL">All statuses</MenuItem>
             <MenuItem value="CHECKED_IN">Checked in</MenuItem>
@@ -940,7 +924,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
             <MenuItem value="FAILED">Failed</MenuItem>
             <MenuItem value="REFUNDED">Refunded</MenuItem>
           </TextField>
-        </Box>
+        </TableToolbar>
 
         {/* Table Content */}
         {loading ? (
@@ -952,7 +936,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
           </Box>
         ) : pagedTransactions.length > 0 ? (
           <>
-            <TableContainer sx={{ borderRadius: "14px", border: `1px solid ${themeConfig.border}`, overflowX: "auto" }}>
+            <TableContainer sx={{ overflowX: "auto" }}>
               <Table size="medium" sx={{ minWidth: 720 }}>
                 <TableHead>
                   <TableRow>
@@ -965,11 +949,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
                   {pagedTransactions.map((t, idx) => {
                     const methodStyle = getMethodColor(t.paymentMethod);
                     return (
-                      <TableRow
-                        key={t.id || idx}
-                        hover
-                        sx={{ "& td": { borderBottom: `1px solid ${themeConfig.border}`, py: 1.6 } }}
-                      >
+                      <TableRow key={t.id || idx} hover>
                         <TableCell sx={{ fontWeight: 700, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
                           {t.formattedDate}
                         </TableCell>
@@ -1023,8 +1003,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
               </Table>
             </TableContainer>
 
-            <TablePagination
-              component="div"
+            <TablePager
               count={filteredTransactions.length}
               page={tablePage}
               onPageChange={(e, np) => setPage(np)}
@@ -1032,23 +1011,6 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
               onRowsPerPageChange={(e) => {
                 setRowsPerPage(parseInt(e.target.value, 10));
                 setPage(0);
-              }}
-              rowsPerPageOptions={[5, 10, 20, 50]}
-              sx={{
-                borderTop: `1px solid ${themeConfig.border}`,
-                mt: 1,
-                "& .MuiTablePagination-toolbar": {
-                  flexWrap: "wrap",
-                  px: { xs: 1, sm: 2 },
-                  justifyContent: { xs: "center", sm: "flex-end" },
-                  gap: 1,
-                },
-                "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": {
-                  fontWeight: 700,
-                  color: themeConfig.textMuted,
-                  fontSize: { xs: "0.75rem", sm: "0.875rem" },
-                  m: 0,
-                },
               }}
             />
           </>
@@ -1058,7 +1020,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
             message="There are no payment or booking transactions matching the selected filters."
           />
         )}
-      </Paper>
+      </TableCard>
 
       {/* Transaction Details Dialog */}
       {selectedTxn && (

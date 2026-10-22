@@ -46,6 +46,7 @@ import {
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
+import { TableCard, TableToolbar, TablePager, tableFieldSx, tableSearchSx } from "@/shared/components/DataTable";
 
 export default function GovtIdCompliancePage({
   guests = [],
@@ -306,105 +307,60 @@ export default function GovtIdCompliancePage({
         </Paper>
       </Box>
 
-      {/* Filter Toolbar */}
-      <Card
-        className="card-3d"
-        sx={{
-          p: 2,
-          borderRadius: "18px",
-          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
-          border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 8px 20px rgba(32, 41, 35, 0.04), inset 0 1px 1px #FFFFFF",
-        }}
-      >
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: { xs: "column", md: "row" },
-            gap: 2,
-            alignItems: { xs: "stretch", md: "center" },
-            justifyContent: "space-between",
-          }}
-        >
+      {/* Compliance ledger: filters + table */}
+      <TableCard>
+        <TableToolbar>
           <TextField
             size="small"
-            placeholder="Search by Guest Name, Phone, Email, or Document #..."
+            placeholder="Search by guest name, phone, email, or document #..."
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
               setPage(0);
             }}
-            sx={{
-              flex: { xs: "1 1 auto", md: "1 1 360px" },
-              minWidth: { xs: "100%", sm: "260px" },
-              "& .MuiOutlinedInput-root": {
-                borderRadius: "12px",
-                bgcolor: isDarkMode ? "rgba(255, 255, 255, 0.04)" : themeConfig.champagne,
-              },
-            }}
+            sx={tableSearchSx(themeConfig)}
             slotProps={{
               input: {
                 startAdornment: (
                   <InputAdornment position="start">
-                    <Search sx={{ color: themeConfig.textMuted, fontSize: 20 }} />
+                    <Search sx={{ fontSize: 18, color: themeConfig.textMuted }} />
                   </InputAdornment>
                 ),
               },
             }}
           />
-
-          <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "center" }}>
-            <FormControl size="small" sx={{ minWidth: 140 }}>
-              <InputLabel>ID Document</InputLabel>
-              <Select
-                value={selectedType}
-                label="ID Document"
-                onChange={(e) => {
-                  setSelectedType(e.target.value);
-                  setPage(0);
-                }}
-                sx={{ borderRadius: "12px", bgcolor: themeConfig.bgCard || (themeConfig.bgCard) }}
-              >
-                <MenuItem value="ALL">All ID Types</MenuItem>
-                <MenuItem value="AADHAAR">🪪 Aadhaar</MenuItem>
-                <MenuItem value="PASSPORT">🛂 Passport</MenuItem>
-                <MenuItem value="DRIVING_LICENSE">🚗 Driving License</MenuItem>
-                <MenuItem value="VOTER_ID">🗳️ Voter ID</MenuItem>
-                <MenuItem value="PAN">💳 PAN Card</MenuItem>
-              </Select>
-            </FormControl>
-
-            <FormControl size="small" sx={{ minWidth: 150 }}>
-              <InputLabel>Compliance Status</InputLabel>
-              <Select
-                value={selectedStatus}
-                label="Compliance Status"
-                onChange={(e) => {
-                  setSelectedStatus(e.target.value);
-                  setPage(0);
-                }}
-                sx={{ borderRadius: "12px", bgcolor: themeConfig.bgCard || (themeConfig.bgCard) }}
-              >
-                <MenuItem value="ALL">All Records</MenuItem>
-                <MenuItem value="VERIFIED">🟢 Verified Only</MenuItem>
-                <MenuItem value="PENDING">🟠 Pending Only</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-        </Box>
-      </Card>
-
-      {/* Main Compliance Ledger Table */}
-      <Card
-        className="card-3d"
-        sx={{
-          borderRadius: "20px",
-          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
-          border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 10px 30px rgba(32, 41, 35, 0.06), inset 0 1px 1px #FFFFFF",
-          overflow: "hidden",
-        }}
-      >
+          <TextField
+            select
+            size="small"
+            value={selectedType}
+            onChange={(e) => {
+              setSelectedType(e.target.value);
+              setPage(0);
+            }}
+            sx={tableFieldSx(themeConfig, 180)}
+          >
+            <MenuItem value="ALL">All ID types</MenuItem>
+            <MenuItem value="AADHAAR">Aadhaar</MenuItem>
+            <MenuItem value="PASSPORT">Passport</MenuItem>
+            <MenuItem value="DRIVING_LICENSE">Driving license</MenuItem>
+            <MenuItem value="VOTER_ID">Voter ID</MenuItem>
+            <MenuItem value="PAN">PAN card</MenuItem>
+          </TextField>
+          <TextField
+            select
+            size="small"
+            value={selectedStatus}
+            onChange={(e) => {
+              setSelectedStatus(e.target.value);
+              setPage(0);
+            }}
+            sx={tableFieldSx(themeConfig, 170)}
+          >
+            <MenuItem value="ALL">All records</MenuItem>
+            <MenuItem value="VERIFIED">Verified only</MenuItem>
+            <MenuItem value="PENDING">Pending only</MenuItem>
+          </TextField>
+        </TableToolbar>
         {filteredGuests.length === 0 ? (
           <Box sx={{ py: 8 }}>
             <EmptyState
@@ -413,8 +369,8 @@ export default function GovtIdCompliancePage({
             />
           </Box>
         ) : (
-          <TableContainer>
-            <Table size="medium">
+          <TableContainer sx={{ overflowX: "auto" }}>
+            <Table size="medium" sx={{ minWidth: 800 }}>
               <TableHead>
                 <TableRow>
                   <TableCell>Guest Name</TableCell>
@@ -589,11 +545,8 @@ export default function GovtIdCompliancePage({
           </TableContainer>
         )}
 
-        {/* Table Pagination */}
         {filteredGuests.length > 0 && (
-          <TablePagination
-            rowsPerPageOptions={[5, 10, 25, 50]}
-            component="div"
+          <TablePager
             count={filteredGuests.length}
             rowsPerPage={rowsPerPage}
             page={page}
@@ -602,14 +555,9 @@ export default function GovtIdCompliancePage({
               setRowsPerPage(parseInt(e.target.value, 10));
               setPage(0);
             }}
-            sx={{
-              borderTop: `1px solid ${themeConfig.border}`,
-              bgcolor: themeConfig.bgCard,
-              color: themeConfig.textMain,
-            }}
           />
         )}
-      </Card>
+      </TableCard>
 
       {/* Guest Compliance Dossier Modal */}
       <Dialog

@@ -41,6 +41,7 @@ import { useAppTheme } from "@/shared/context/ThemeContext";
 import { AppDialogHeader, AppDialogFooter, dialogPaperSx, dialogCancelButtonSx, dialogPrimaryButtonSx } from "@/shared/components/AppDialog";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
+import { TableCard, TableToolbar, TablePager, tableFieldSx, tableSearchSx } from "@/shared/components/DataTable";
 
 export const HOTEL_STAFF_ROLES = [
   { value: "RECEPTIONIST", label: "Front Desk Receptionist (RECEPTIONIST)", shortLabel: "Receptionist", color: "#0B8EE0", bg: "rgba(11, 142, 224, 0.12)", border: "rgba(11, 142, 224, 0.3)" },
@@ -121,103 +122,68 @@ export default function StaffTeamPage({
 
   return (
     <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
-      <Paper
-        sx={{
-          borderRadius: "16px",
-          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
-          border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(32, 41, 35, 0.04)",
-          overflow: "hidden",
-          mb: 4,
-        }}
-      >
-        <Box
-          sx={{
-            px: { xs: 2, sm: 2.5 },
-            py: 2,
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            gap: 1.5,
-            borderBottom: `1px solid ${themeConfig.border}`,
-          }}
+      <TableCard>
+        <TableToolbar
+          actions={
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={openAddStaff}
+              sx={{
+                height: 40,
+                borderRadius: "10px",
+                textTransform: "none",
+                fontWeight: 700,
+                px: 2.25,
+                boxShadow: "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Add
+            </Button>
+          }
         >
-        <TextField
-          size="small"
-          placeholder="Search by name, role, email, or phone"
-          value={staffSearch}
-          onChange={(e) => setStaffSearch(e.target.value)}
-          sx={{
-            flex: { xs: "1 1 100%", sm: "1 1 280px" },
-            maxWidth: { sm: 360 },
-            "& .MuiOutlinedInput-root": {
-              height: 40,
-              borderRadius: "10px",
-              bgcolor: themeConfig.bgMain,
-            },
-          }}
-          slotProps={{
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Search fontSize="small" sx={{ color: themeConfig.textMuted }} />
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
+          <TextField
+            size="small"
+            placeholder="Search by name, role, email, or phone"
+            value={staffSearch}
+            onChange={(e) => setStaffSearch(e.target.value)}
+            sx={tableSearchSx(themeConfig)}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search sx={{ fontSize: 18, color: themeConfig.textMuted }} />
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
 
-        <TextField
-          select
-          size="small"
-          value={staffRoleFilter || "ALL"}
-          onChange={(e) => setStaffRoleFilter(e.target.value)}
-          sx={{
-            width: { xs: "100%", sm: 210 },
-            "& .MuiOutlinedInput-root": {
-              height: 40,
-              borderRadius: "10px",
-              bgcolor: themeConfig.bgMain,
-            },
-          }}
-        >
-          <MenuItem value="ALL">All roles ({staffList.length})</MenuItem>
-          <MenuItem value="RECEPTIONIST">Receptionist ({totalReceptionists})</MenuItem>
-          <MenuItem value="MANAGER">Manager ({totalManagers})</MenuItem>
-          <MenuItem value="HOUSEKEEPING">Housekeeping ({totalHousekeeping})</MenuItem>
-          <MenuItem value="ACCOUNTANT">Accountant ({totalAccountants})</MenuItem>
-        </TextField>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={openAddStaff}
-          sx={{
-            height: 40,
-            ml: { sm: "auto" },
-            borderRadius: "10px",
-            textTransform: "none",
-            fontWeight: 700,
-            px: 2.25,
-            boxShadow: "none",
-            bgcolor: themeConfig.primary,
-            whiteSpace: "nowrap",
-            "&:hover": { bgcolor: themeConfig.primaryDark, boxShadow: "none" },
-          }}
-        >
-          Add
-        </Button>
-        </Box>
-
-        <TableContainer sx={{ width: "100%", overflowX: "auto", borderRadius: 0, border: "none", boxShadow: "none", bgcolor: "transparent" }}>
+          <TextField
+            select
+            size="small"
+            value={staffRoleFilter || "ALL"}
+            onChange={(e) => setStaffRoleFilter(e.target.value)}
+            sx={tableFieldSx(themeConfig, 210)}
+          >
+            <MenuItem value="ALL">All roles ({staffList.length})</MenuItem>
+            <MenuItem value="RECEPTIONIST">Receptionist ({totalReceptionists})</MenuItem>
+            <MenuItem value="MANAGER">Manager ({totalManagers})</MenuItem>
+            <MenuItem value="HOUSEKEEPING">Housekeeping ({totalHousekeeping})</MenuItem>
+            <MenuItem value="ACCOUNTANT">Accountant ({totalAccountants})</MenuItem>
+          </TextField>
+        </TableToolbar>
+        <TableContainer sx={{ overflowX: "auto" }}>
         <Table size="medium" sx={{ width: "100%", minWidth: 720 }}>
           <TableHead>
             <TableRow>
-              {["Name", "Role", "Phone", "Status"].map((heading, index) => (
-                <TableCell key={heading} sx={{ fontWeight: 700, fontSize: "0.72rem", letterSpacing: "0.06em", textTransform: "uppercase", color: themeConfig.accent, py: 1.75, px: 2.5, pl: index === 0 ? 3 : 2.5, borderRadius: 0, borderBottom: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne || "#F4F7F6", whiteSpace: "nowrap" }}>
+              {["Name", "Role", "Phone", "Status"].map((heading) => (
+                <TableCell key={heading}>
                   {heading}
                 </TableCell>
               ))}
-              <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.72rem", letterSpacing: "0.06em", textTransform: "uppercase", color: themeConfig.accent, py: 1.75, px: 2.5, pr: 3, borderRadius: 0, borderBottom: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne || "#F4F7F6", whiteSpace: "nowrap" }}>
+              <TableCell align="right">
                 Actions
               </TableCell>
             </TableRow>
@@ -245,14 +211,8 @@ export default function StaffTeamPage({
                   "&:hover": { bgcolor: themeConfig.bgMain, color: themeConfig.textMain },
                 };
                 return (
-                <TableRow
-                  key={staff._id || staff.id || staff.email}
-                  sx={{
-                    "&:hover": { bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC" },
-                    "& td": { borderBottom: `1px solid ${themeConfig.border}` },
-                  }}
-                >
-                  <TableCell sx={{ py: 1.75, pl: 3, pr: 2.5 }}>
+                <TableRow key={staff._id || staff.id || staff.email}>
+                  <TableCell>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                       <Avatar
                         sx={{
@@ -277,7 +237,7 @@ export default function StaffTeamPage({
                     </Box>
                   </TableCell>
 
-                  <TableCell sx={{ py: 1.75, px: 2.5 }}>
+                  <TableCell>
                     <Chip
                       label={meta.shortLabel || staff.role || "Receptionist"}
                       size="small"
@@ -291,13 +251,13 @@ export default function StaffTeamPage({
                     />
                   </TableCell>
 
-                  <TableCell sx={{ py: 1.75, px: 2.5 }}>
+                  <TableCell>
                     <Typography sx={{ fontWeight: 600, color: themeConfig.textMain, fontSize: "0.9rem" }}>
                       {staff.phone || "—"}
                     </Typography>
                   </TableCell>
 
-                  <TableCell sx={{ py: 1.75, px: 2.5 }}>
+                  <TableCell>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       {onToggleStaffStatus && (
                         <Switch
@@ -317,7 +277,7 @@ export default function StaffTeamPage({
                     </Box>
                   </TableCell>
 
-                  <TableCell align="right" sx={{ py: 1.75, pl: 2.5, pr: 2.5 }}>
+                  <TableCell align="right">
                     <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.25 }}>
                       <Tooltip title="View profile">
                         <IconButton size="small" onClick={() => setViewStaffModal({ open: true, staff })} sx={actionSx}>
@@ -342,10 +302,9 @@ export default function StaffTeamPage({
             )}
           </TableBody>
         </Table>
+        </TableContainer>
         {staffCount > 0 && (
-          <TablePagination
-            rowsPerPageOptions={[5, 10, 25, 50]}
-            component="div"
+          <TablePager
             count={staffCount}
             rowsPerPage={rowsPerPage}
             page={page}
@@ -354,28 +313,9 @@ export default function StaffTeamPage({
               setRowsPerPage(parseInt(e.target.value, 10));
               setPage(0);
             }}
-            sx={{
-              borderTop: `1px solid ${themeConfig.border}`,
-              bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
-              borderRadius: 0,
-              "& .MuiTablePagination-toolbar": {
-                flexWrap: "wrap",
-                px: { xs: 1, sm: 2 },
-                justifyContent: { xs: "center", sm: "flex-end" },
-                gap: 1,
-              },
-              "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": {
-                fontWeight: 700,
-                color: themeConfig.textMuted,
-                fontSize: { xs: "0.75rem", sm: "0.875rem" },
-                m: 0,
-              },
-            }}
           />
         )}
-        </TableContainer>
-      </Paper>
-
+      </TableCard>
       {/* ========================================================================= */}
       {/* 3D MODAL: ADD / EDIT STAFF MEMBER                                        */}
       {/* ========================================================================= */}

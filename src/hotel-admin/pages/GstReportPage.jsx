@@ -25,6 +25,7 @@ import {
 } from "@mui/material";
 import { Download } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
+import { TableCard, TablePager } from "@/shared/components/DataTable";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { toast } from "@/shared/utils/toast";
 
@@ -381,13 +382,13 @@ export default function GstReportPage({ hotelSettings }) {
       </Grid>
 
       {/* Invoices */}
-      <Card sx={cardSx}>
-        <TableContainer sx={{ opacity: loading && rows.length ? 0.55 : 1, transition: "opacity 0.2s ease" }}>
+      <TableCard>
+        <TableContainer sx={{ overflowX: "auto", opacity: loading && rows.length ? 0.55 : 1, transition: "opacity 0.2s ease" }}>
           <Table size="small" sx={{ minWidth: 1080 }}>
             <TableHead>
               <TableRow>
                 {columns.map((col) => (
-                  <TableCell key={col} align={numericColumns.includes(col) ? "right" : "left"} sx={headCellSx}>
+                  <TableCell key={col} align={numericColumns.includes(col) ? "right" : "left"}>
                     {col}
                   </TableCell>
                 ))}
@@ -462,8 +463,7 @@ export default function GstReportPage({ hotelSettings }) {
             )}
           </Table>
         </TableContainer>
-        <TablePagination
-          component="div"
+        <TablePager
           count={totalRows}
           page={Math.min(page, Math.max(0, Math.ceil(totalRows / rowsPerPage) - 1))}
           onPageChange={(e, next) => setPage(next)}
@@ -473,9 +473,8 @@ export default function GstReportPage({ hotelSettings }) {
             setPage(0);
           }}
           rowsPerPageOptions={[10, 25, 50, 100]}
-          sx={{ borderTop: `1px solid ${themeConfig.border}`, color: themeConfig.textMuted }}
         />
-      </Card>
+      </TableCard>
     </Box>
   );
 }

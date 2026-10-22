@@ -333,9 +333,13 @@ html.dark-theme .MuiTableHead-root .MuiTableCell-root {
 }
 
 .MuiTableBody-root .MuiTableCell-root {
-  padding-top: 14px !important;
-  padding-bottom: 14px !important;
+  padding: 14px 20px !important;
   border-bottom: 1px solid var(--color-border, #e2e8f0) !important;
+}
+
+/* The pagination bar draws the divider below the last row */
+.MuiTableBody-root .MuiTableRow-root:last-child .MuiTableCell-root {
+  border-bottom: 0 !important;
 }
 
 .MuiTableBody-root .MuiTableRow-root:hover {

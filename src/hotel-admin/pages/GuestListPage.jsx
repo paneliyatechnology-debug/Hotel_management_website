@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
+  Avatar,
   Box,
   Typography,
   Paper,
@@ -34,6 +35,7 @@ import EmptyState from "@/shared/components/EmptyState";
 import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
 import { downloadBookingBill } from "@/shared/utils/bookingPdf";
 import FolioPdfButton from "@/shared/components/FolioPdfButton";
+import { TableCard, TableToolbar, TablePager, tableFieldSx, tableSearchSx } from "@/shared/components/DataTable";
 
 function formatCurrency(val) {
   const n = Number(val);
@@ -508,24 +510,8 @@ export default function GuestListPage({
 
   return (
     <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2, sm: 3 },
-          borderRadius: "20px",
-          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
-          border: `1.5px solid ${themeConfig.border}`,
-        }}
-      >
-        <Box
-          sx={{
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            gap: 1.5,
-            mb: 2,
-          }}
-        >
+      <TableCard>
+        <TableToolbar>
           <TextField
             size="small"
             placeholder="Search guest, booking, or room"
@@ -534,11 +520,7 @@ export default function GuestListPage({
               setSearchQuery(e.target.value);
               setPage(0);
             }}
-            sx={{
-              flex: { xs: "1 1 100%", sm: "1 1 240px" },
-              maxWidth: { sm: 320 },
-              "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain },
-            }}
+            sx={tableSearchSx(themeConfig)}
             slotProps={{
               input: {
                 startAdornment: (
@@ -557,7 +539,7 @@ export default function GuestListPage({
               setStatusFilter(e.target.value);
               setPage(0);
             }}
-            sx={{ width: { xs: "100%", sm: 180 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
+            sx={tableFieldSx(themeConfig, 180)}
           >
             <MenuItem value="ALL">All statuses</MenuItem>
             <MenuItem value="CHECKED_IN">Checked in</MenuItem>
@@ -573,7 +555,7 @@ export default function GuestListPage({
               setPaymentFilter(e.target.value);
               setPage(0);
             }}
-            sx={{ width: { xs: "100%", sm: 170 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
+            sx={tableFieldSx(themeConfig, 170)}
           >
             <MenuItem value="ALL">All payments</MenuItem>
             <MenuItem value="PAID">Paid</MenuItem>
@@ -588,7 +570,7 @@ export default function GuestListPage({
               setSortBy(e.target.value);
               setPage(0);
             }}
-            sx={{ width: { xs: "100%", sm: 170 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
+            sx={tableFieldSx(themeConfig, 170)}
           >
             <MenuItem value="NEWEST">Newest stay</MenuItem>
             <MenuItem value="OLDEST">Oldest stay</MenuItem>
@@ -596,7 +578,7 @@ export default function GuestListPage({
             <MenuItem value="AMOUNT_DESC">Highest tariff</MenuItem>
             <MenuItem value="DUE_DESC">Highest due</MenuItem>
           </TextField>
-        </Box>
+        </TableToolbar>
 
         {filteredGuests.length === 0 ? (
           <EmptyState
@@ -606,7 +588,7 @@ export default function GuestListPage({
           />
         ) : (
           <>
-          <TableContainer sx={{ borderRadius: "14px", border: `1px solid ${themeConfig.border}`, overflowX: "auto" }}>
+          <TableContainer sx={{ overflowX: "auto" }}>
             <Table size="medium" sx={{ minWidth: 720 }}>
               <TableHead>
                 <TableRow>
@@ -630,12 +612,19 @@ export default function GuestListPage({
                     onClick={() => setSelectedGuest(g)}
                   >
                     <TableCell>
-                      <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.9rem", lineHeight: 1.2 }}>
-                        {g.guestName}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 600 }}>
-                        {g.phone || g.bookingNumber || "—"}
-                      </Typography>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                        <Avatar sx={{ width: 32, height: 32, fontSize: "0.8rem", fontWeight: 800, bgcolor: themeConfig.primary, color: themeConfig.onPrimary, flexShrink: 0 }}>
+                          {(g.guestName || "G").charAt(0).toUpperCase()}
+                        </Avatar>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.9rem", lineHeight: 1.2 }}>
+                            {g.guestName}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 600 }}>
+                            {g.phone || g.bookingNumber || "—"}
+                          </Typography>
+                        </Box>
+                      </Box>
                     </TableCell>
                     <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
                       Room {g.roomAssigned}
@@ -705,22 +694,16 @@ export default function GuestListPage({
             </Table>
           </TableContainer>
 
-          <TablePagination
-            component="div"
+          <TablePager
             count={filteredGuests.length}
             page={page}
             onPageChange={handleChangePage}
             rowsPerPage={rowsPerPage}
             onRowsPerPageChange={handleChangeRowsPerPage}
-            rowsPerPageOptions={[5, 10, 25, 50]}
-            sx={{
-              borderTop: `1px solid ${themeConfig.border}`,
-              color: themeConfig.textMuted,
-            }}
           />
           </>
         )}
-      </Paper>
+      </TableCard>
 
       <GuestDetailsModal
         open={Boolean(selectedGuest)}

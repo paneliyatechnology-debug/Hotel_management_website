@@ -53,6 +53,7 @@ import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useSocket } from "@/shared/context/SocketContext";
 import { toast } from "@/shared/utils/toast";
 import EmptyState from "@/shared/components/EmptyState";
+import { TableCard, TableToolbar, TablePager, tableFieldSx, tableSearchSx } from "@/shared/components/DataTable";
 
 import { folioMoney } from "@/shared/utils/folioMoney";
 
@@ -574,116 +575,49 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
       </Box>
 
       {/* TODAY'S GUEST PAYMENTS LIST */}
-      <Card
-        className="card-3d"
-        sx={{
-          borderRadius: "20px",
-          bgcolor: themeConfig.bgCard,
-          border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "0 10px 30px rgba(0,0,0,0.4)" : "0 10px 30px rgba(32, 41, 35, 0.06), inset 0 1px 1px #FFFFFF",
-          overflow: "hidden",
-        }}
-      >
-        <Box
-          sx={{
-            p: { xs: 2, sm: 2.2 },
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: { xs: "stretch", md: "center" },
-            flexDirection: { xs: "column", md: "row" },
-            gap: 2,
-            borderBottom: `1px solid ${themeConfig.border}`,
-            bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
-            background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #FAFBFD 100%)",
-          }}
-        >
-          {/* Search & Payment Mode Filter Toolbar */}
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 1.2,
-              flexWrap: "wrap",
-              flexDirection: { xs: "column", sm: "row" },
-              width: { xs: "100%", md: "auto" },
-              justifyContent: { xs: "stretch", sm: "flex-end" },
+      <TableCard>
+        <TableToolbar component="form" onSubmit={handleSearchSubmit}>
+          <TextField
+            size="small"
+            placeholder="Search receipt #, guest, room #..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            sx={tableSearchSx(themeConfig)}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search sx={{ fontSize: 18, color: themeConfig.textMuted }} />
+                  </InputAdornment>
+                ),
+              },
             }}
+          />
+          <TextField
+            select
+            size="small"
+            value={methodFilter}
+            onChange={(e) => handleMethodChange(e.target.value)}
+            sx={tableFieldSx(themeConfig, 170)}
           >
-            <form onSubmit={handleSearchSubmit} style={{ display: "flex", width: "100%", flexGrow: 1 }}>
-              <TextField
-                size="small"
-                placeholder="Search receipt #, guest, room #..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                sx={{
-                  width: "100%",
-                  minWidth: { xs: "100%", sm: 220, md: 260 },
-                  "& .MuiOutlinedInput-root": {
-                    borderRadius: "12px",
-                    bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#FFFFFF",
-                    boxShadow: "inset 0 1px 2px rgba(0,0,0,0.03)",
-                  },
-                }}
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Search fontSize="small" sx={{ color: themeConfig.textMuted }} />
-                      </InputAdornment>
-                    ),
-                  },
-                }}
-              />
-            </form>
-
-            <Box sx={{ display: "flex", gap: 1, width: { xs: "100%", sm: "auto" } }}>
-              <TextField
-                select
-                size="small"
-                value={methodFilter}
-                onChange={(e) => handleMethodChange(e.target.value)}
-                sx={{
-                  flex: 1,
-                  width: { xs: "50%", sm: 130 },
-                  "& .MuiOutlinedInput-root": {
-                    borderRadius: "12px",
-                    bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#FFFFFF",
-                    fontWeight: 700,
-                    fontSize: "0.82rem",
-                  },
-                }}
-              >
-                <MenuItem value="ALL">All Modes</MenuItem>
-                <MenuItem value="CASH">💵 Cash</MenuItem>
-                <MenuItem value="UPI">📱 UPI QR</MenuItem>
-                <MenuItem value="CARD">💳 Card POS</MenuItem>
-                <MenuItem value="BANK_TRANSFER">🏦 Bank NEFT</MenuItem>
-              </TextField>
-
-              <TextField
-                select
-                size="small"
-                value={settlementFilter}
-                onChange={(e) => setSettlementFilter(e.target.value)}
-                sx={{
-                  flex: 1,
-                  width: { xs: "50%", sm: 160 },
-                  "& .MuiOutlinedInput-root": {
-                    borderRadius: "12px",
-                    bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#FFFFFF",
-                    fontWeight: 700,
-                    fontSize: "0.82rem",
-                  },
-                }}
-              >
-                <MenuItem value="ALL">All Settlements</MenuItem>
-                <MenuItem value="UNSETTLED">🟡 At Counter (Unsettled)</MenuItem>
-                <MenuItem value="SETTLED">🟢 In Vault (Settled)</MenuItem>
-              </TextField>
-            </Box>
-          </Box>
-        </Box>
-
+            <MenuItem value="ALL">All modes</MenuItem>
+            <MenuItem value="CASH">Cash</MenuItem>
+            <MenuItem value="UPI">UPI QR</MenuItem>
+            <MenuItem value="CARD">Card POS</MenuItem>
+            <MenuItem value="BANK_TRANSFER">Bank NEFT</MenuItem>
+          </TextField>
+          <TextField
+            select
+            size="small"
+            value={settlementFilter}
+            onChange={(e) => setSettlementFilter(e.target.value)}
+            sx={tableFieldSx(themeConfig, 220)}
+          >
+            <MenuItem value="ALL">All settlements</MenuItem>
+            <MenuItem value="UNSETTLED">At counter (unsettled)</MenuItem>
+            <MenuItem value="SETTLED">In vault (settled)</MenuItem>
+          </TextField>
+        </TableToolbar>
         {loading ? (
           <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
             <CircularProgress sx={{ color: themeConfig.primary }} />
@@ -697,22 +631,17 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
           </Box>
         ) : (
           <>
-            <TableContainer
-              sx={{
-                width: "100%",
-                overflowX: "hidden",
-              }}
-            >
-              <Table size="small" stickyHeader sx={{ width: "100%", tableLayout: { xs: "auto", md: "fixed" } }}>
+            <TableContainer sx={{ overflowX: "auto" }}>
+              <Table size="medium" sx={{ width: "100%", minWidth: 900 }}>
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "14%" }, whiteSpace: "nowrap" }}>Time &amp; Receipt #</TableCell>
-                    <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "24%" }, whiteSpace: "nowrap" }}>Guest &amp; Room</TableCell>
-                    <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "13%" }, whiteSpace: "nowrap" }}>Payment Method</TableCell>
-                    <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "17%" }, whiteSpace: "nowrap" }}>Stage / Reason</TableCell>
-                    <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "12%" }, whiteSpace: "nowrap" }}>Amount (₹)</TableCell>
-                    <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "10%" }, whiteSpace: "nowrap" }}>Collector</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "10%" }, whiteSpace: "nowrap" }}>Status</TableCell>
+                    <TableCell>Time &amp; Receipt #</TableCell>
+                    <TableCell>Guest &amp; Room</TableCell>
+                    <TableCell>Payment Method</TableCell>
+                    <TableCell>Stage / Reason</TableCell>
+                    <TableCell>Amount (₹)</TableCell>
+                    <TableCell>Collector</TableCell>
+                    <TableCell align="right">Status</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -721,14 +650,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
                     const isSettled = g.drawerSettlementStatus === "SETTLED_TO_ADMIN";
 
                     return (
-                      <TableRow
-                        key={g._id}
-                        hover
-                        sx={{
-                          transition: "all 0.15s ease",
-                          "&:hover": { bgcolor: "rgba(11, 142, 224, 0.04)" },
-                        }}
-                      >
+                      <TableRow key={g._id} hover>
                         {/* Column 1: Receipt Number & Time */}
                         <TableCell sx={{ py: 1.1, whiteSpace: "nowrap" }}>
                           <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.primary, fontSize: "0.85rem" }}>
@@ -864,10 +786,8 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
               </Table>
             </TableContainer>
 
-            {/* Backend Table Pagination Bar */}
-            <TablePagination
+            <TablePager
               rowsPerPageOptions={[5, 10, 20, 50]}
-              component="div"
               count={pagination.totalRecords || 0}
               rowsPerPage={rowsPerPage}
               page={Math.max(0, page - 1)}
@@ -882,60 +802,26 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
                 setPage(1);
                 fetchDailyData(1, newLimit, searchQuery, methodFilter);
               }}
-              sx={{
-                borderTop: `1px solid ${themeConfig.border}`,
-                bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
-                "& .MuiTablePagination-toolbar": {
-                  flexWrap: "wrap",
-                  px: { xs: 1, sm: 2 },
-                  justifyContent: { xs: "center", sm: "flex-end" },
-                  gap: 1,
-                },
-                "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": {
-                  fontWeight: 700,
-                  color: themeConfig.textMuted,
-                  fontSize: { xs: "0.75rem", sm: "0.875rem" },
-                  m: 0,
-                },
-              }}
             />
           </>
         )}
-      </Card>
+      </TableCard>
 
       {/* HANDOVER HISTORY AUDIT LOG */}
       {handoverHistory.length > 0 && (
-        <Card
-          className="card-3d"
-          sx={{
-            borderRadius: "20px",
-            bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
-            border: `1px solid ${themeConfig.border}`,
-            boxShadow: isDarkMode ? "0 6px 20px rgba(0,0,0,0.3)" : "0 6px 20px rgba(32, 41, 35, 0.05), inset 0 1px 1px #FFFFFF",
-            overflow: "hidden",
-          }}
-        >
-          <Box sx={{ p: 2.5, borderBottom: `1px solid ${themeConfig.border}` }}>
-            <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-              Recent Cash Drawer Handover Audit Log
-            </Typography>
-          </Box>
+        <TableCard>
+          <TableToolbar title="Recent cash drawer handover audit log" />
 
-          <TableContainer
-            sx={{
-              width: "100%",
-              overflowX: "hidden",
-            }}
-          >
-            <Table size="small" stickyHeader sx={{ width: "100%", tableLayout: { xs: "auto", md: "fixed" } }}>
+          <TableContainer sx={{ overflowX: "auto" }}>
+            <Table size="medium" sx={{ width: "100%", minWidth: 800 }}>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "24%" }, whiteSpace: "nowrap" }}>Handover Code &amp; Date</TableCell>
-                  <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "15%" }, whiteSpace: "nowrap" }}>Cash Collected</TableCell>
-                  <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "15%" }, whiteSpace: "nowrap" }}>Digital Payments</TableCell>
-                  <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "16%" }, whiteSpace: "nowrap" }}>Total Settled</TableCell>
-                  <TableCell sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "15%" }, whiteSpace: "nowrap" }}>Settled By</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800, py: 1.2, width: { xs: "auto", md: "15%" }, whiteSpace: "nowrap" }}>Action</TableCell>
+                  <TableCell>Handover Code &amp; Date</TableCell>
+                  <TableCell>Cash Collected</TableCell>
+                  <TableCell>Digital Payments</TableCell>
+                  <TableCell>Total Settled</TableCell>
+                  <TableCell>Settled By</TableCell>
+                  <TableCell align="right">Action</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -994,10 +880,8 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
             </Table>
           </TableContainer>
 
-          {/* Handover Table Pagination Bar */}
-          <TablePagination
+          <TablePager
             rowsPerPageOptions={[5, 10, 20]}
-            component="div"
             count={handoverPagination.totalRecords || 0}
             rowsPerPage={handoverRowsPerPage}
             page={Math.max(0, handoverPage - 1)}
@@ -1012,24 +896,8 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
               setHandoverPage(1);
               fetchDailyData(page, rowsPerPage, searchQuery, methodFilter, 1, newLimit);
             }}
-            sx={{
-              borderTop: `1px solid ${themeConfig.border}`,
-              bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
-              "& .MuiTablePagination-toolbar": {
-                flexWrap: "wrap",
-                px: { xs: 1, sm: 2 },
-                justifyContent: { xs: "center", sm: "flex-end" },
-                gap: 1,
-              },
-              "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": {
-                fontWeight: 700,
-                color: themeConfig.textMuted,
-                fontSize: { xs: "0.75rem", sm: "0.875rem" },
-                m: 0,
-              },
-            }}
           />
-        </Card>
+        </TableCard>
       )}
 
       {/* MODAL 1: Confirm Cash Drawer Handover */}

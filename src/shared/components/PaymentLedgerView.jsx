@@ -49,6 +49,7 @@ import {
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { apiRequest, API_ENDPOINTS } from "@/config/api";
 import EmptyState from "@/shared/components/EmptyState";
+import { TableCard, TableToolbar, TablePager, tableFieldSx, tableSearchSx } from "@/shared/components/DataTable";
 import { downloadDailyLedgerPDF, downloadPaymentReceiptPDF } from "@/shared/utils/pdfGenerator";
 
 export default function PaymentLedgerView({
@@ -638,125 +639,75 @@ export default function PaymentLedgerView({
         </Paper>
       </Box>
 
-      {/* Filter Toolbar & Search */}
-      <Card
-        className="card-3d"
-        sx={{
-          p: 2,
-          borderRadius: "18px",
-          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
-          border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 8px 20px rgba(32, 41, 35, 0.05), inset 0 1px 1px #FFFFFF",
-        }}
-      >
-        <Box
-          component="form"
-          onSubmit={handleSearchSubmit}
-          sx={{
-            display: "flex",
-            flexDirection: { xs: "column", md: "row" },
-            gap: 2,
-            alignItems: { xs: "stretch", md: "center" },
-            justifyContent: "space-between",
-          }}
-        >
+      {/* Transactions Ledger: filters + table */}
+      <TableCard>
+        <TableToolbar component="form" onSubmit={handleSearchSubmit}>
           <TextField
             size="small"
             placeholder="Search receipt #, guest, room #, phone, UTR..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            sx={{
-              flex: { xs: "1 1 auto", md: "1 1 360px" },
-              minWidth: { xs: "100%", sm: "240px" },
-              "& .MuiOutlinedInput-root": {
-                borderRadius: "12px",
-                bgcolor: isDarkMode ? "rgba(255, 255, 255, 0.04)" : themeConfig.champagne,
-              },
-            }}
+            sx={tableSearchSx(themeConfig)}
             slotProps={{
               input: {
                 startAdornment: (
                   <InputAdornment position="start">
-                    <Search sx={{ color: themeConfig.textMuted }} />
+                    <Search sx={{ fontSize: 18, color: themeConfig.textMuted }} />
                   </InputAdornment>
                 ),
               },
             }}
           />
-
-          <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "center" }}>
-            <FormControl size="small" sx={{ minWidth: 140 }}>
-              <InputLabel>Payment Mode</InputLabel>
-              <Select
-                value={selectedMethod}
-                label="Payment Mode"
-                onChange={(e) => {
-                  setSelectedMethod(e.target.value);
-                  setPage(0);
-                }}
-                sx={{ borderRadius: "12px", bgcolor: themeConfig.bgCard || (themeConfig.bgCard) }}
-              >
-                <MenuItem value="ALL">All Modes</MenuItem>
-                <MenuItem value="UPI">🟣 UPI QR</MenuItem>
-                <MenuItem value="CASH">🟢 Cash Counter</MenuItem>
-                <MenuItem value="CARD">🔵 Card POS</MenuItem>
-                <MenuItem value="BANK_TRANSFER">🟠 Bank Transfer (NEFT)</MenuItem>
-                <MenuItem value="ONLINE">⚪ Online Gateway</MenuItem>
-              </Select>
-            </FormControl>
-
-            <FormControl size="small" sx={{ minWidth: 150 }}>
-              <InputLabel>Payment Stage</InputLabel>
-              <Select
-                value={selectedType}
-                label="Payment Stage"
-                onChange={(e) => {
-                  setSelectedType(e.target.value);
-                  setPage(0);
-                }}
-                sx={{ borderRadius: "12px", bgcolor: themeConfig.bgCard || (themeConfig.bgCard) }}
-              >
-                <MenuItem value="ALL">All Stages</MenuItem>
-                <MenuItem value="ADVANCE">Advance Check-In</MenuItem>
-                <MenuItem value="FULL_SETTLEMENT">Full Settlement</MenuItem>
-                <MenuItem value="EXTRA_CHARGE">POS Extra Charge</MenuItem>
-                <MenuItem value="PARTIAL">Partial Payment</MenuItem>
-              </Select>
-            </FormControl>
-
-            <FormControl size="small" sx={{ minWidth: 130 }}>
-              <InputLabel>Timeline</InputLabel>
-              <Select
-                value={timeRange}
-                label="Timeline"
-                onChange={(e) => {
-                  setTimeRange(e.target.value);
-                  setPage(0);
-                }}
-                sx={{ borderRadius: "12px", bgcolor: themeConfig.bgCard || (themeConfig.bgCard) }}
-              >
-                <MenuItem value="all">All Time</MenuItem>
-                <MenuItem value="today">Today Only</MenuItem>
-                <MenuItem value="yesterday">Yesterday</MenuItem>
-                <MenuItem value="this_week">Last 7 Days</MenuItem>
-                <MenuItem value="this_month">This Month</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-        </Box>
-      </Card>
-
-      {/* Transactions Ledger Table */}
-      <Card
-        className="card-3d"
-        sx={{
-          borderRadius: "20px",
-          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
-          border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 10px 30px rgba(32, 41, 35, 0.06), inset 0 1px 1px #FFFFFF",
-          overflow: "hidden",
-        }}
-      >
+          <TextField
+            select
+            size="small"
+            value={selectedMethod}
+            onChange={(e) => {
+              setSelectedMethod(e.target.value);
+              setPage(0);
+            }}
+            sx={tableFieldSx(themeConfig, 170)}
+          >
+            <MenuItem value="ALL">All modes</MenuItem>
+            <MenuItem value="UPI">UPI QR</MenuItem>
+            <MenuItem value="CASH">Cash counter</MenuItem>
+            <MenuItem value="CARD">Card POS</MenuItem>
+            <MenuItem value="BANK_TRANSFER">Bank transfer (NEFT)</MenuItem>
+            <MenuItem value="ONLINE">Online gateway</MenuItem>
+          </TextField>
+          <TextField
+            select
+            size="small"
+            value={selectedType}
+            onChange={(e) => {
+              setSelectedType(e.target.value);
+              setPage(0);
+            }}
+            sx={tableFieldSx(themeConfig, 190)}
+          >
+            <MenuItem value="ALL">All stages</MenuItem>
+            <MenuItem value="ADVANCE">Advance check-in</MenuItem>
+            <MenuItem value="FULL_SETTLEMENT">Full settlement</MenuItem>
+            <MenuItem value="EXTRA_CHARGE">POS extra charge</MenuItem>
+            <MenuItem value="PARTIAL">Partial payment</MenuItem>
+          </TextField>
+          <TextField
+            select
+            size="small"
+            value={timeRange}
+            onChange={(e) => {
+              setTimeRange(e.target.value);
+              setPage(0);
+            }}
+            sx={tableFieldSx(themeConfig, 160)}
+          >
+            <MenuItem value="all">All time</MenuItem>
+            <MenuItem value="today">Today only</MenuItem>
+            <MenuItem value="yesterday">Yesterday</MenuItem>
+            <MenuItem value="this_week">Last 7 days</MenuItem>
+            <MenuItem value="this_month">This month</MenuItem>
+          </TextField>
+        </TableToolbar>
         {loading ? (
           <Box sx={{ py: 8, display: "flex", justifyContent: "center", alignItems: "center" }}>
             <CircularProgress sx={{ color: themeConfig.primary }} />
@@ -769,24 +720,17 @@ export default function PaymentLedgerView({
             />
           </Box>
         ) : (
-          <TableContainer
-            sx={{
-              overflowX: "auto",
-              "&::-webkit-scrollbar": { height: "6px", width: "6px" },
-              "&::-webkit-scrollbar-track": { background: "rgba(0,0,0,0.02)" },
-              "&::-webkit-scrollbar-thumb": { background: themeConfig.border, borderRadius: "6px" },
-            }}
-          >
-            <Table size="small" sx={{ minWidth: 900 }}>
+          <TableContainer sx={{ overflowX: "auto" }}>
+            <Table size="medium" sx={{ minWidth: 900 }}>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.2, whiteSpace: "nowrap" }}>Receipt &amp; Time</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.2, whiteSpace: "nowrap" }}>Guest &amp; Room</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.2, whiteSpace: "nowrap" }}>Payment Mode</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.2, whiteSpace: "nowrap" }}>Stage / Reason</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.2, whiteSpace: "nowrap" }}>Amount Paid</TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.2, whiteSpace: "nowrap" }}>Collector Staff</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMain, py: 1.2, whiteSpace: "nowrap" }}>Action</TableCell>
+                  <TableCell>Receipt &amp; Time</TableCell>
+                  <TableCell>Guest &amp; Room</TableCell>
+                  <TableCell>Payment Mode</TableCell>
+                  <TableCell>Stage / Reason</TableCell>
+                  <TableCell>Amount Paid</TableCell>
+                  <TableCell>Collector Staff</TableCell>
+                  <TableCell align="right">Action</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -922,11 +866,8 @@ export default function PaymentLedgerView({
           </TableContainer>
         )}
 
-        {/* Table Pagination */}
         {payments.length > 0 && (
-          <TablePagination
-            rowsPerPageOptions={[5, 10, 25, 50]}
-            component="div"
+          <TablePager
             count={payments.length}
             rowsPerPage={rowsPerPage}
             page={page}
@@ -935,13 +876,9 @@ export default function PaymentLedgerView({
               setRowsPerPage(parseInt(e.target.value, 10));
               setPage(0);
             }}
-            sx={{
-              borderTop: `1px solid ${themeConfig.border}`,
-              bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
-            }}
           />
         )}
-      </Card>
+      </TableCard>
 
       {/* MODAL 1: Collect Folio Payment */}
       <Dialog

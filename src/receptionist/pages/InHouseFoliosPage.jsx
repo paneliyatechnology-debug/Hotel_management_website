@@ -61,6 +61,7 @@ import { useSocket } from "@/shared/context/SocketContext";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import StatCard from "@/shared/components/StatCard";
+import { TableCard, TableToolbar, TablePager, tableFieldSx, tableSearchSx } from "@/shared/components/DataTable";
 import { formatTime12Hour, calculateOverstayFee } from "@/shared/utils/timeUtils";
 import CheckoutDialog from "@/receptionist/components/CheckoutDialog";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
@@ -449,20 +450,9 @@ export default function InHouseFoliosPage({
       {/* ========================================================================= */}
       {/* SECTION 2: FOLIOS SEARCH, FILTER TABS & LIVE LEDGER TABLE                */}
       {/* ========================================================================= */}
-      <Paper
-        className="card-3d"
-        sx={{
-          p: { xs: 1.5, sm: 2 },
-          borderRadius: "22px",
-          bgcolor: themeConfig.bgCard,
-          border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode
-            ? "0 10px 30px -5px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05)"
-            : "0 10px 30px -5px rgba(32, 41, 35, 0.08), inset 0 1px 1px #FFFFFF",
-        }}
-      >
-        {/* Controls Bar: Search, Status Tabs & Balance Filter */}
-        <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 1.5, mb: 2 }}>
+      <TableCard>
+        {/* Controls Bar: Status Tabs, Balance Filter & Search */}
+        <TableToolbar>
           <Tabs
             value={activeStatusTab}
             onChange={(e, v) => {
@@ -493,58 +483,43 @@ export default function InHouseFoliosPage({
             <Tab value="CHECKED_OUT" label={`Checked-Out (${checkedOutBookings.length})`} />
           </Tabs>
 
-          <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "center" }}>
-            <FormControl size="small" sx={{ minWidth: 140 }}>
-              <Select
-                value={balanceFilter}
-                onChange={(e) => {
-                  setBalanceFilter(e.target.value);
-                  setPage(0);
-                }}
-                sx={{ borderRadius: "12px", bgcolor: themeConfig.bgMain, fontSize: "0.85rem", fontWeight: 700 }}
-              >
-                <MenuItem value="ALL">All Balances</MenuItem>
-                <MenuItem value="DUES">⚠️ Dues Pending</MenuItem>
-                <MenuItem value="SETTLED">✅ Fully Settled</MenuItem>
-              </Select>
-            </FormControl>
+          <TextField
+            select
+            size="small"
+            value={balanceFilter}
+            onChange={(e) => {
+              setBalanceFilter(e.target.value);
+              setPage(0);
+            }}
+            sx={tableFieldSx(themeConfig, 170)}
+          >
+            <MenuItem value="ALL">All balances</MenuItem>
+            <MenuItem value="DUES">Dues pending</MenuItem>
+            <MenuItem value="SETTLED">Fully settled</MenuItem>
+          </TextField>
 
-            <TextField
-              size="small"
-              placeholder="Search folio #, guest, room #, phone..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setPage(0);
-              }}
-              sx={{ minWidth: { xs: "100%", sm: 280 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Search fontSize="small" sx={{ color: themeConfig.textMuted }} />
-                    </InputAdornment>
-                  ),
-                },
-              }}
-            />
-          </Box>
-        </Box>
-
+          <TextField
+            size="small"
+            placeholder="Search folio #, guest, room #, phone..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPage(0);
+            }}
+            sx={tableSearchSx(themeConfig)}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search sx={{ fontSize: 18, color: themeConfig.textMuted }} />
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+        </TableToolbar>
         {/* 3D Folios Table */}
-        <TableContainer
-          sx={{
-            borderRadius: "16px",
-            border: `1px solid ${themeConfig.border}`,
-            overflowX: "hidden",
-            overflowY: "auto",
-            maxHeight: "560px",
-            "&::-webkit-scrollbar": { height: "7px", width: "7px" },
-            "&::-webkit-scrollbar-track": { background: "rgba(0,0,0,0.02)", borderRadius: "8px" },
-            "&::-webkit-scrollbar-thumb": { background: themeConfig.border, borderRadius: "8px" },
-            "&::-webkit-scrollbar-thumb:hover": { background: themeConfig.primary },
-          }}
-        >
+        <TableContainer sx={{ overflowX: "hidden", overflowY: "auto", maxHeight: "560px" }}>
           <Table stickyHeader size="small" sx={{ width: "100%", tableLayout: "fixed" }}>
             <TableHead>
               <TableRow>
@@ -866,11 +841,8 @@ export default function InHouseFoliosPage({
           </Table>
         </TableContainer>
 
-        {/* Table Pagination */}
         {filteredBookings.length > 0 && (
-          <TablePagination
-            rowsPerPageOptions={[5, 10, 25, 50]}
-            component="div"
+          <TablePager
             count={filteredBookings.length}
             rowsPerPage={rowsPerPage}
             page={page}
@@ -879,15 +851,9 @@ export default function InHouseFoliosPage({
               setRowsPerPage(parseInt(e.target.value, 10));
               setPage(0);
             }}
-            sx={{
-              borderTop: `1px solid ${themeConfig.border}`,
-              bgcolor: themeConfig.bgCard,
-              color: themeConfig.textMain,
-              mt: 1,
-            }}
           />
         )}
-      </Paper>
+      </TableCard>
 
       {/* Check-out */}
       <CheckoutDialog

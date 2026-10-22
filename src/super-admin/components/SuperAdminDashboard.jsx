@@ -56,6 +56,7 @@ import { useAppTheme } from "@/shared/context/ThemeContext";
 import { AppDialogHeader, AppDialogFooter, dialogPaperSx, dialogPrimaryButtonSx } from "@/shared/components/AppDialog";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
+import { TableCard, TableToolbar, TablePager, tableFieldSx, tableSearchSx } from "@/shared/components/DataTable";
 import StatCard from "@/shared/components/StatCard";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 
@@ -393,18 +394,8 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
       </Box>
 
       {/* 3. HOTELS MANAGEMENT DIRECTORY */}
-      <Paper
-        elevation={0}
-        className="card-3d"
-        sx={{
-          borderRadius: "20px",
-          border: `1px solid ${themeConfig.border}`,
-          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
-          overflow: "hidden",
-        }}
-      >
-        <Box sx={{ px: { xs: 2, sm: 2.5 }, py: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5, borderBottom: `1px solid ${themeConfig.border}` }}>
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, alignItems: "center", width: "100%" }}>
+      <TableCard>
+        <TableToolbar>
             <TextField
               size="small"
               placeholder="Search hotel, owner, city..."
@@ -413,7 +404,7 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
                 setSearchQuery(e.target.value);
                 setPage(0);
               }}
-              sx={{ width: { xs: "100%", sm: 280 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
+              sx={tableSearchSx(themeConfig)}
               slotProps={{
                 input: {
                   startAdornment: (
@@ -433,7 +424,7 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
                 setStatusFilter(e.target.value);
                 setPage(0);
               }}
-              sx={{ width: { xs: "100%", sm: 210 }, "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain } }}
+              sx={tableFieldSx(themeConfig, 210)}
             >
               <MenuItem value="ALL">All Statuses</MenuItem>
               <MenuItem value="ACTIVE">Active</MenuItem>
@@ -442,10 +433,9 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
               <MenuItem value="DISABLED">Disabled</MenuItem>
               <MenuItem value="EXPIRED">Expired</MenuItem>
             </TextField>
-          </Box>
-        </Box>
+        </TableToolbar>
 
-        <TableContainer>
+        <TableContainer sx={{ overflowX: "auto" }}>
           <Table sx={{ minWidth: 800 }}>
             <TableHead>
               <TableRow>
@@ -573,9 +563,7 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
         </TableContainer>
 
         {filteredHotels.length > 0 && (
-          <TablePagination
-            rowsPerPageOptions={[5, 10, 25, 50]}
-            component="div"
+          <TablePager
             count={filteredHotels.length}
             rowsPerPage={rowsPerPage}
             page={page}
@@ -584,10 +572,9 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
               setRowsPerPage(parseInt(e.target.value, 10));
               setPage(0);
             }}
-            sx={{ borderTop: `1px solid ${themeConfig.border}` }}
           />
         )}
-      </Paper>
+      </TableCard>
 
       {/* 4. HOTEL DETAILED INFORMATION MODAL */}
       <Dialog

@@ -87,6 +87,7 @@ function categoryStatusCounts(category, fallbackRooms = []) {
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useSocket } from "@/shared/context/SocketContext";
+import { TablePager } from "@/shared/components/DataTable";
 import EmptyState from "@/shared/components/EmptyState";
 
 // Standard hotel amenities with icons and labels
@@ -637,14 +638,15 @@ export default function RoomTypesPage({
       </Box>
 
       <Card
+        elevation={0}
         sx={{
-          borderRadius: "16px",
-          border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(32, 41, 35, 0.04)",
-          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
+          borderRadius: "20px",
+          border: `1.5px solid ${themeConfig.border}`,
+          boxShadow: "none",
+          bgcolor: themeConfig.bgCard,
         }}
       >
-        <CardContent sx={{ p: { xs: 1.5, sm: 2 }, "&:last-child": { pb: { xs: 1.5, sm: 2 } } }}>
+        <CardContent sx={{ p: { xs: 2, sm: 3 }, "&:last-child": { pb: { xs: 2, sm: 3 } } }}>
           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexWrap: "wrap", gap: 1.5 }}>
             {selectedCategory ? (
               <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
@@ -689,16 +691,17 @@ export default function RoomTypesPage({
               {(serverRooms ? serverRooms.total : selectedRooms.length) === 0 ? (
                 <EmptyState embedded title="No rooms in this category" description={`${selectedCategory.name} does not have any rooms yet.`} />
               ) : (
-                <TableContainer sx={{ mx: { xs: -1.5, sm: -2 }, mb: { xs: -1.5, sm: -2 }, width: "auto", overflowX: "auto", borderRadius: 0, border: "none", boxShadow: "none", bgcolor: "transparent" }}>
+                <>
+                <TableContainer sx={{ overflowX: "auto" }}>
                   <Table size="medium" sx={{ width: "100%", minWidth: 640 }}>
                     <TableHead>
                       <TableRow>
-                        {["Room", "Floor", "Nightly rate", "Status"].map((heading, index) => (
-                          <TableCell key={heading} sx={{ fontWeight: 700, fontSize: "0.72rem", letterSpacing: "0.06em", textTransform: "uppercase", color: themeConfig.accent, py: 1.75, px: 2.5, pl: index === 0 ? 3 : 2.5, borderRadius: 0, borderBottom: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne || "#F4F7F6", whiteSpace: "nowrap" }}>
+                        {["Room", "Floor", "Nightly rate", "Status"].map((heading) => (
+                          <TableCell key={heading}>
                             {heading}
                           </TableCell>
                         ))}
-                        <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.72rem", letterSpacing: "0.06em", textTransform: "uppercase", color: themeConfig.accent, py: 1.75, px: 2.5, pr: 3, borderRadius: 0, borderBottom: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne || "#F4F7F6", whiteSpace: "nowrap" }}>
+                        <TableCell align="right">
                           Actions
                         </TableCell>
                       </TableRow>
@@ -723,36 +726,30 @@ export default function RoomTypesPage({
                           "&:hover": { bgcolor: themeConfig.bgMain, color: themeConfig.textMain },
                         };
                         return (
-                          <TableRow
-                            key={room._id || room.roomNumber}
-                            sx={{
-                              "&:hover": { bgcolor: themeConfig.bgSubtle },
-                              "& td": { borderBottom: `1px solid ${themeConfig.border}` },
-                            }}
-                          >
-                            <TableCell sx={{ py: 1.75, pl: 3, pr: 2.5 }}>
+                          <TableRow key={room._id || room.roomNumber}>
+                            <TableCell>
                               <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.92rem" }}>
                                 Room {room.roomNumber}
                               </Typography>
                             </TableCell>
-                            <TableCell sx={{ py: 1.75, px: 2.5 }}>
+                            <TableCell>
                               <Typography sx={{ fontWeight: 600, color: themeConfig.textMain, fontSize: "0.9rem" }}>
                                 Floor {room.floor || 1}
                               </Typography>
                             </TableCell>
-                            <TableCell sx={{ py: 1.75, px: 2.5 }}>
+                            <TableCell>
                               <Typography sx={{ fontWeight: 700, color: themeConfig.accent, fontSize: "0.9rem", whiteSpace: "nowrap" }}>
                                 ₹{tariff.toLocaleString("en-IN")} / night
                               </Typography>
                             </TableCell>
-                            <TableCell sx={{ py: 1.75, px: 2.5 }}>
+                            <TableCell>
                               <Chip
                                 label={statusMeta.label}
                                 size="small"
                                 sx={{ fontWeight: 600, borderRadius: "999px", bgcolor: statusMeta.bg, color: statusMeta.color }}
                               />
                             </TableCell>
-                            <TableCell align="right" sx={{ py: 1.75, pl: 2.5, pr: 2.5 }}>
+                            <TableCell align="right">
                               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.25 }}>
                                 <Tooltip title="Edit">
                                   <IconButton
@@ -779,29 +776,18 @@ export default function RoomTypesPage({
                       })}
                     </TableBody>
                   </Table>
-                  <TablePagination
-                    component="div"
-                    count={serverRooms ? serverRooms.total : selectedRooms.length}
-                    page={roomPage}
-                    onPageChange={(e, next) => setRoomPage(next)}
-                    rowsPerPage={roomRowsPerPage}
-                    onRowsPerPageChange={(e) => {
-                      setRoomRowsPerPage(parseInt(e.target.value, 10));
-                      setRoomPage(0);
-                    }}
-                    rowsPerPageOptions={[5, 10, 25, 50]}
-                    sx={{
-                      borderTop: `1px solid ${themeConfig.border}`,
-                      bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
-                      "& .MuiTablePagination-toolbar": { px: { xs: 1, sm: 2 }, minHeight: 52 },
-                      "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": {
-                        fontWeight: 600,
-                        color: themeConfig.textMuted,
-                        fontSize: "0.8rem",
-                      },
-                    }}
-                  />
                 </TableContainer>
+                <TablePager
+                  count={serverRooms ? serverRooms.total : selectedRooms.length}
+                  page={roomPage}
+                  onPageChange={(e, next) => setRoomPage(next)}
+                  rowsPerPage={roomRowsPerPage}
+                  onRowsPerPageChange={(e) => {
+                    setRoomRowsPerPage(parseInt(e.target.value, 10));
+                    setRoomPage(0);
+                  }}
+                />
+                </>
               )}
             </Box>
           ) : (

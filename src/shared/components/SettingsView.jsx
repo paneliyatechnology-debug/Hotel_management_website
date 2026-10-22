@@ -24,7 +24,6 @@ import {
   AccessTime,
   AccountBalance,
   Business,
-  Description,
   Lock,
   ReceiptLong,
   Schedule,
@@ -40,18 +39,6 @@ import {
   getTurnaroundWindow,
   validateHotelTimings,
 } from "@/shared/utils/timeUtils";
-
-const TIMEZONE_OPTIONS = [
-  { value: "Asia/Kolkata", label: "Asia/Kolkata (IST, UTC+05:30)" },
-  { value: "Asia/Dubai", label: "Asia/Dubai (GST, UTC+04:00)" },
-  { value: "Asia/Singapore", label: "Asia/Singapore (SGT, UTC+08:00)" },
-  { value: "Asia/Bangkok", label: "Asia/Bangkok (ICT, UTC+07:00)" },
-  { value: "Europe/London", label: "Europe/London (GMT/BST)" },
-  { value: "Europe/Paris", label: "Europe/Paris (CET/CEST)" },
-  { value: "America/New_York", label: "America/New_York (EST/EDT)" },
-  { value: "America/Los_Angeles", label: "America/Los_Angeles (PST/PDT)" },
-  { value: "Australia/Sydney", label: "Australia/Sydney (AEST/AEDT)" },
-];
 
 const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i;
 const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/i;
@@ -82,8 +69,6 @@ const EMPTY_HOTEL_FORM = {
   bank_ifsc_code: "",
   bank_branch: "",
   upi_id: "",
-  amenities: "",
-  policies: "",
 };
 
 // The API answers in snake_case and camelCase. Read whichever is present.
@@ -94,24 +79,6 @@ const pick = (obj, snakeKey) => {
 };
 
 const asText = (value, fallback = "") => (value === undefined || value === null ? fallback : String(value));
-
-const listToLines = (value) => {
-  let list = value;
-  if (typeof value === "string") {
-    try {
-      list = JSON.parse(value);
-    } catch {
-      list = value.split(",");
-    }
-  }
-  return Array.isArray(list) ? list.map((item) => String(item).trim()).filter(Boolean).join("\n") : "";
-};
-
-const linesToList = (value) =>
-  String(value || "")
-    .split(/\r?\n/)
-    .map((item) => item.trim())
-    .filter(Boolean);
 
 const hotelToForm = (hotel) => {
   const settings = hotel?.settings || {};
@@ -138,8 +105,6 @@ const hotelToForm = (hotel) => {
     bank_ifsc_code: asText(pick(hotel, "bank_ifsc_code")),
     bank_branch: asText(pick(hotel, "bank_branch")),
     upi_id: asText(pick(settings, "upi_id")),
-    amenities: listToLines(settings.amenities),
-    policies: listToLines(settings.policies),
   };
 };
 
@@ -273,10 +238,6 @@ export default function SettingsView({ user, onUpdateHotelSettings }) {
     }
     const timings = validateHotelTimings(f.check_in_time, f.check_out_time);
     if (!timings.valid) return timings.error;
-    const currency = f.currency.trim();
-    if (currency.length < 3 || currency.length > 10) return "Currency must be 3 to 10 characters, such as INR.";
-    const grace = Number(f.late_checkout_grace_minutes);
-    if (!Number.isInteger(grace) || grace < 0 || grace > 1440) return "Late checkout grace must be 0 to 1440 minutes.";
     const tax = Number(f.tax_percentage);
     if (Number.isNaN(tax) || tax < 0 || tax > 100) return "GST percentage must be between 0 and 100.";
     if (f.gst_number.trim() && !GSTIN_REGEX.test(f.gst_number.trim())) return "Enter a valid 15-character GST number.";
@@ -308,9 +269,6 @@ export default function SettingsView({ user, onUpdateHotelSettings }) {
       pincode: f.pincode.trim(),
       check_in_time: formatTime24Hour(f.check_in_time),
       check_out_time: formatTime24Hour(f.check_out_time),
-      timezone: f.timezone || "Asia/Kolkata",
-      currency: f.currency.trim().toUpperCase(),
-      late_checkout_grace_minutes: Number(f.late_checkout_grace_minutes),
       gst_enabled: Boolean(f.gst_number.trim()),
       gst_number: f.gst_number.trim().toUpperCase(),
       tax_percentage: Number(f.tax_percentage),
@@ -321,8 +279,6 @@ export default function SettingsView({ user, onUpdateHotelSettings }) {
       bank_ifsc_code: f.bank_ifsc_code.trim().toUpperCase(),
       bank_branch: f.bank_branch.trim(),
       upi_id: f.upi_id.trim(),
-      amenities: linesToList(f.amenities),
-      policies: linesToList(f.policies),
     };
 
     setSavingHotel(true);
@@ -351,9 +307,9 @@ export default function SettingsView({ user, onUpdateHotelSettings }) {
         hotelName: payload.name,
         checkInTime: payload.check_in_time,
         checkOutTime: payload.check_out_time,
-        timezone: payload.timezone,
-        currency: payload.currency,
-        lateCheckoutGraceMinutes: payload.late_checkout_grace_minutes,
+        timezone: f.timezone || "Asia/Kolkata",
+        currency: f.currency.trim().toUpperCase(),
+        lateCheckoutGraceMinutes: Number(f.late_checkout_grace_minutes) || 10,
         gstEnabled: payload.gst_enabled,
         taxPercentage: payload.tax_percentage,
         upiId: payload.upi_id,
@@ -421,7 +377,6 @@ export default function SettingsView({ user, onUpdateHotelSettings }) {
 
   const sectionIcons = {
     "Hotel details": Business,
-    "Amenities & policies": Description,
     "Operating timings": AccessTime,
     "Tax & GST invoicing": ReceiptLong,
     "Bank & payment details": AccountBalance,
@@ -550,7 +505,7 @@ export default function SettingsView({ user, onUpdateHotelSettings }) {
               </Alert>
             )}
 
-            <Grid container spacing={2.5} alignItems="flex-start">
+            <Grid container spacing={2.5} sx={{ alignItems: "flex-start" }}>
               {/* Left column: identity and guest information */}
               <Grid size={{ xs: 12, lg: 6 }}>
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
@@ -611,24 +566,6 @@ export default function SettingsView({ user, onUpdateHotelSettings }) {
                     </>
                   )}
 
-                  {renderCard(
-                    "Amenities & policies",
-                    "Shown to guests. Add one item per line.",
-                    <Grid container spacing={2}>
-                      {hotelField("amenities", "Amenities", {
-                        size: 12,
-                        multiline: true,
-                        minRows: 4,
-                        placeholder: "Free WiFi\nAir conditioning\n24/7 room service",
-                      })}
-                      {hotelField("policies", "Policies", {
-                        size: 12,
-                        multiline: true,
-                        minRows: 4,
-                        placeholder: "Valid government ID required at check-in\nNo smoking in rooms",
-                      })}
-                    </Grid>
-                  )}
                 </Box>
               </Grid>
 
@@ -656,26 +593,6 @@ export default function SettingsView({ user, onUpdateHotelSettings }) {
                           required: true,
                           type: "time",
                           helperText: formatTime12Hour(hotelForm.check_out_time),
-                        })}
-                        <Grid size={{ xs: 12 }}>
-                          {fieldLabel("Timezone")}
-                          <FormControl fullWidth size="small">
-                            <Select value={hotelForm.timezone} onChange={(e) => setHotel("timezone", e.target.value)} sx={{ borderRadius: "10px" }}>
-                              {TIMEZONE_OPTIONS.map((opt) => (
-                                <MenuItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
-                        </Grid>
-                        {hotelField("currency", "Currency", {
-                          placeholder: "INR",
-                          transform: (v) => v.toUpperCase().slice(0, 10),
-                        })}
-                        {hotelField("late_checkout_grace_minutes", "Late checkout grace (minutes)", {
-                          type: "number",
-                          slotProps: { htmlInput: { min: 0, max: 1440 } },
                         })}
                       </Grid>
                     </>

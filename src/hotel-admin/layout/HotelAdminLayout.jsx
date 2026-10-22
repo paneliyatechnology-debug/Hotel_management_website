@@ -8,6 +8,7 @@ import {
   Stars,
   Settings,
   Person,
+  ReceiptLong,
 } from "@/shared/icons";
 
 export const HOTEL_ADMIN_NAV = [
@@ -15,6 +16,7 @@ export const HOTEL_ADMIN_NAV = [
   { label: "Guest Directory", shortLabel: "Guests", path: "guests", icon: <Person fontSize="small" /> },
   { label: "Staff", shortLabel: "Staff", path: "staff", icon: <People fontSize="small" /> },
   { label: "Rooms & Tariffs", shortLabel: "Rooms", path: "rooms", icon: <Layers fontSize="small" /> },
+  { label: "GST Report", shortLabel: "GST", path: "gst-report", icon: <ReceiptLong fontSize="small" /> },
   { label: "Subscription Plan", shortLabel: "Plans", path: "subscriptions", icon: <Stars fontSize="small" /> },
   { label: "Settings", shortLabel: "Settings", path: "settings", icon: <Settings fontSize="small" /> },
 ];

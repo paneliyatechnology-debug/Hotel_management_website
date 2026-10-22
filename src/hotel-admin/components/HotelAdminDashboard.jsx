@@ -131,6 +131,7 @@ const ComponentSpinner = () => (
   </Box>
 );
 
+const GstReportPage = dynamic(() => import("@/hotel-admin/pages/GstReportPage"), { loading: () => <ComponentSpinner /> });
 const SettingsView = dynamic(() => import("@/shared/components/SettingsView"), { loading: () => <ComponentSpinner /> });
 const ConfirmDialog = dynamic(() => import("@/shared/components/ConfirmDialog"));
 
@@ -317,8 +318,8 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
             apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=100`).then((res) => setRoomTypes(normalizeRoomTypes(res)))
           );
         }
-        // Route 4: SUBSCRIPTION
-        else if (tabIndex === 4) {
+        // Route 5: SUBSCRIPTION
+        else if (tabIndex === 5) {
           endpointsToFetch.push(
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(adaptHotelDashboard(res.data))),
             apiRequest(API_ENDPOINTS.SUBSCRIPTION_PLANS.PUBLIC),
@@ -331,8 +332,8 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
             })
           );
         }
-        // Route 5: SETTINGS
-        else if (tabIndex === 5) {
+        // Route 6: SETTINGS
+        else if (tabIndex === 6) {
           endpointsToFetch.push(
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
           );
@@ -900,8 +901,11 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         />
       )}
 
+      {/* ROUTE 4: GST REPORT */}
+      {activeNav === 4 && <GstReportPage hotelSettings={hotelSettings} />}
+
       {/* ROUTE 5: SUBSCRIPTION & 30-DAY TRIAL */}
-      {activeNav === 4 && (
+      {activeNav === 5 && (
         <SubscriptionPage
           user={user}
           subscription={dashboardData?.subscription || user?.hotel?.subscription}
@@ -909,8 +913,8 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
         />
       )}
 
-      {/* ROUTE 6: SETTINGS & THEMES */}
-      {activeNav === 5 && (
+      {/* ROUTE 6: SETTINGS */}
+      {activeNav === 6 && (
         <SettingsView
           user={{ ...user, hotel: { ...user?.hotel, settings: hotelSettings } }}
           onUpdateHotelSettings={(newSettings) => setHotelSettings(newSettings)}

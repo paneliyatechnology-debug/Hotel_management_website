@@ -209,7 +209,7 @@ function HotelWebAppContent() {
       return ["overview", "hotels", "plans", "settings"];
     }
     if (effectiveRole === "HOTEL_ADMIN") {
-      return ["overview", "guests", "staff", "rooms", "subscriptions", "settings"];
+      return ["overview", "guests", "staff", "rooms", "gst-report", "subscriptions", "settings"];
     }
     if (effectiveRole === "RECEPTIONIST") {
       return ["dashboard", "rooms", "guests", "more"];
@@ -247,8 +247,9 @@ function HotelWebAppContent() {
         if (cleanPath === "collections" || cleanPath === "daily-collections" || cleanPath === "payments" || cleanPath === "billing") return 0;
         if (cleanPath === "team" || cleanPath === "staff") return 2;
         if (cleanPath === "rooms") return 3;
-        if (cleanPath === "plans" || cleanPath === "pricing" || cleanPath === "subscriptions") return 4;
-        if (cleanPath === "settings") return 5;
+        if (cleanPath === "gst" || cleanPath === "gst-report" || cleanPath === "reports") return 4;
+        if (cleanPath === "plans" || cleanPath === "pricing" || cleanPath === "subscriptions") return 5;
+        if (cleanPath === "settings") return 6;
       }
     }
     return 0;

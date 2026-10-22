@@ -968,7 +968,7 @@ export default function ReceptionistOverviewPage({
                 <Typography noWrap sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 800, textTransform: "uppercase" }}>{card.label}</Typography>
                 <Typography noWrap sx={{ fontWeight: 900, color: card.color, fontSize: { xs: "1.35rem", sm: "1.7rem" }, mt: 0.4 }}>{card.value}</Typography>
               </Box>
-              <Box sx={{ width: 36, height: 36, borderRadius: "10px", display: "grid", placeItems: "center", bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F0FDFA", color: card.color, flexShrink: 0 }}>
+              <Box sx={{ width: 36, height: 36, borderRadius: "10px", display: "grid", placeItems: "center", bgcolor: themeConfig.bgSoft, color: card.color, flexShrink: 0 }}>
                 {card.icon}
               </Box>
             </Box>
@@ -1049,8 +1049,8 @@ export default function ReceptionistOverviewPage({
         sx={{
           borderRadius: "22px",
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 10px 30px -5px rgba(12, 39, 59, 0.08), inset 0 1px 1px #FFFFFF",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          boxShadow: isDarkMode ? "none" : "0 10px 30px -5px rgba(32, 41, 35, 0.08), inset 0 1px 1px #FFFFFF",
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
           background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #F9FBFC 100%)",
           mb: 4,
         }}
@@ -1072,7 +1072,7 @@ export default function ReceptionistOverviewPage({
                 fontWeight: 800,
                 fontSize: "0.82rem",
                 borderColor: themeConfig.border,
-                bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                 color: themeConfig.textMain,
                 width: { xs: "100%", sm: "auto" },
                 whiteSpace: "nowrap",
@@ -1127,7 +1127,7 @@ export default function ReceptionistOverviewPage({
                       borderRadius: "16px",
                       border: `1px solid ${themeConfig.border}`,
                       bgcolor: themeConfig.bgCard || "#FFFFFF",
-                      boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 24px rgba(15, 23, 42, 0.08)",
+                      boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(32, 41, 35, 0.05), 0 10px 24px rgba(32, 41, 35, 0.08)",
                       cursor: "pointer",
                       display: "flex",
                       flexDirection: "column",
@@ -1182,8 +1182,8 @@ export default function ReceptionistOverviewPage({
         sx={{
           borderRadius: "22px",
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 10px 30px -5px rgba(12, 39, 59, 0.08), inset 0 1px 1px #FFFFFF",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          boxShadow: isDarkMode ? "none" : "0 10px 30px -5px rgba(32, 41, 35, 0.08), inset 0 1px 1px #FFFFFF",
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
           background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #F9FBFC 100%)",
         }}
       >
@@ -1257,7 +1257,7 @@ export default function ReceptionistOverviewPage({
                       >
                         <TableCell sx={{ fontWeight: 700, color: themeConfig.textMain }}>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                            <Avatar sx={{ width: 30, height: 30, fontSize: "0.75rem", fontWeight: 800, bgcolor: themeConfig.primary, color: "#FFFFFF" }}>
+                            <Avatar sx={{ width: 30, height: 30, fontSize: "0.75rem", fontWeight: 800, bgcolor: themeConfig.primary, color: themeConfig.onPrimary }}>
                               {(g.name || "G").charAt(0).toUpperCase()}
                             </Avatar>
                             <Box>
@@ -1417,7 +1417,7 @@ export default function ReceptionistOverviewPage({
             paper: {
               sx: {
                 borderRadius: "22px",
-                bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                 border: `1.5px solid ${themeConfig.border}`,
                 boxShadow: isDarkMode ? "0 20px 60px rgba(0,0,0,0.6)" : "0 20px 60px rgba(12,39,59,0.15)",
                 overflow: "hidden",

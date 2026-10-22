@@ -124,9 +124,9 @@ export default function StaffTeamPage({
       <Paper
         sx={{
           borderRadius: "16px",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.04)",
+          boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(32, 41, 35, 0.04)",
           overflow: "hidden",
           mb: 4,
         }}
@@ -356,7 +356,7 @@ export default function StaffTeamPage({
             }}
             sx={{
               borderTop: `1px solid ${themeConfig.border}`,
-              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+              bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
               borderRadius: 0,
               "& .MuiTablePagination-toolbar": {
                 flexWrap: "wrap",

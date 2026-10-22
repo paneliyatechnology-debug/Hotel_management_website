@@ -231,7 +231,7 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
     >
       <DialogTitle component="div" sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pb: 1.5 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-          <Avatar sx={{ bgcolor: themeConfig.primary, width: 36, height: 36, color: "#FFF", fontWeight: 900 }}>
+          <Avatar sx={{ bgcolor: themeConfig.primary, width: 36, height: 36, color: themeConfig.onPrimary, fontWeight: 900 }}>
             <MeetingRoom sx={{ fontSize: 20 }} />
           </Avatar>
           <div>
@@ -489,7 +489,7 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
           startIcon={<Logout sx={{ fontSize: 16 }} />}
           sx={{
             bgcolor: themeConfig.primary,
-            color: "#FFFFFF",
+            color: themeConfig.onPrimary,
             fontWeight: 600,
             textTransform: "none",
             borderRadius: "10px",

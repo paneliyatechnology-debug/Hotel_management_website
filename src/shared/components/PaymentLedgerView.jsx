@@ -49,6 +49,7 @@ import {
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { apiRequest, API_ENDPOINTS } from "@/config/api";
 import EmptyState from "@/shared/components/EmptyState";
+import { downloadDailyLedgerPDF, downloadPaymentReceiptPDF } from "@/shared/utils/pdfGenerator";
 
 export default function PaymentLedgerView({
   user,
@@ -382,7 +383,7 @@ export default function PaymentLedgerView({
             sx={{
               borderRadius: "10px",
               borderColor: themeConfig.border,
-              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+              bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
               color: themeConfig.textMain,
               fontWeight: 700,
               fontSize: "0.78rem",
@@ -407,7 +408,7 @@ export default function PaymentLedgerView({
             sx={{
               borderRadius: "10px",
               borderColor: themeConfig.primary,
-              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+              bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
               color: themeConfig.primaryLight || themeConfig.primary,
               fontWeight: 800,
               fontSize: "0.78rem",
@@ -462,10 +463,10 @@ export default function PaymentLedgerView({
           sx={{
             p: 2.2,
             borderRadius: "16px",
-            bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+            bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
             border: `1px solid ${themeConfig.border}`,
             background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #FAFBFD 100%)",
-            boxShadow: isDarkMode ? "none" : "0 6px 16px rgba(12, 39, 59, 0.04), inset 0 1px 1px #FFFFFF",
+            boxShadow: isDarkMode ? "none" : "0 6px 16px rgba(32, 41, 35, 0.04), inset 0 1px 1px #FFFFFF",
           }}
         >
           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -490,10 +491,10 @@ export default function PaymentLedgerView({
           sx={{
             p: 2.2,
             borderRadius: "16px",
-            bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+            bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
             border: `1px solid ${themeConfig.border}`,
             background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #F0FDF4 100%)",
-            boxShadow: isDarkMode ? "none" : "0 6px 16px rgba(12, 39, 59, 0.04), inset 0 1px 1px #FFFFFF",
+            boxShadow: isDarkMode ? "none" : "0 6px 16px rgba(32, 41, 35, 0.04), inset 0 1px 1px #FFFFFF",
           }}
         >
           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -518,10 +519,10 @@ export default function PaymentLedgerView({
           sx={{
             p: 2.2,
             borderRadius: "16px",
-            bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+            bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
             border: `1px solid ${themeConfig.border}`,
             background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #FAFBFD 100%)",
-            boxShadow: isDarkMode ? "none" : "0 6px 16px rgba(12, 39, 59, 0.04), inset 0 1px 1px #FFFFFF",
+            boxShadow: isDarkMode ? "none" : "0 6px 16px rgba(32, 41, 35, 0.04), inset 0 1px 1px #FFFFFF",
           }}
         >
           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -546,10 +547,10 @@ export default function PaymentLedgerView({
           sx={{
             p: 2.2,
             borderRadius: "16px",
-            bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+            bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
             border: `1px solid ${themeConfig.border}`,
             background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #F5F3FF 100%)",
-            boxShadow: isDarkMode ? "none" : "0 6px 16px rgba(12, 39, 59, 0.04), inset 0 1px 1px #FFFFFF",
+            boxShadow: isDarkMode ? "none" : "0 6px 16px rgba(32, 41, 35, 0.04), inset 0 1px 1px #FFFFFF",
             overflow: "hidden",
           }}
         >
@@ -586,10 +587,10 @@ export default function PaymentLedgerView({
           sx={{
             p: 2.2,
             borderRadius: "16px",
-            bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+            bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
             border: `1px solid ${themeConfig.border}`,
             background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #FAFBFD 100%)",
-            boxShadow: isDarkMode ? "none" : "0 6px 16px rgba(12, 39, 59, 0.04), inset 0 1px 1px #FFFFFF",
+            boxShadow: isDarkMode ? "none" : "0 6px 16px rgba(32, 41, 35, 0.04), inset 0 1px 1px #FFFFFF",
           }}
         >
           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -614,10 +615,10 @@ export default function PaymentLedgerView({
           sx={{
             p: 2.2,
             borderRadius: "16px",
-            bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+            bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
             border: `1px solid ${themeConfig.border}`,
             background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #FFF5F5 100%)",
-            boxShadow: isDarkMode ? "none" : "0 6px 16px rgba(12, 39, 59, 0.04), inset 0 1px 1px #FFFFFF",
+            boxShadow: isDarkMode ? "none" : "0 6px 16px rgba(32, 41, 35, 0.04), inset 0 1px 1px #FFFFFF",
           }}
         >
           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -643,9 +644,9 @@ export default function PaymentLedgerView({
         sx={{
           p: 2,
           borderRadius: "18px",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 8px 20px rgba(12, 39, 59, 0.05), inset 0 1px 1px #FFFFFF",
+          boxShadow: isDarkMode ? "none" : "0 8px 20px rgba(32, 41, 35, 0.05), inset 0 1px 1px #FFFFFF",
         }}
       >
         <Box
@@ -693,7 +694,7 @@ export default function PaymentLedgerView({
                   setSelectedMethod(e.target.value);
                   setPage(0);
                 }}
-                sx={{ borderRadius: "12px", bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF") }}
+                sx={{ borderRadius: "12px", bgcolor: themeConfig.bgCard || (themeConfig.bgCard) }}
               >
                 <MenuItem value="ALL">All Modes</MenuItem>
                 <MenuItem value="UPI">🟣 UPI QR</MenuItem>
@@ -713,7 +714,7 @@ export default function PaymentLedgerView({
                   setSelectedType(e.target.value);
                   setPage(0);
                 }}
-                sx={{ borderRadius: "12px", bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF") }}
+                sx={{ borderRadius: "12px", bgcolor: themeConfig.bgCard || (themeConfig.bgCard) }}
               >
                 <MenuItem value="ALL">All Stages</MenuItem>
                 <MenuItem value="ADVANCE">Advance Check-In</MenuItem>
@@ -732,7 +733,7 @@ export default function PaymentLedgerView({
                   setTimeRange(e.target.value);
                   setPage(0);
                 }}
-                sx={{ borderRadius: "12px", bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF") }}
+                sx={{ borderRadius: "12px", bgcolor: themeConfig.bgCard || (themeConfig.bgCard) }}
               >
                 <MenuItem value="all">All Time</MenuItem>
                 <MenuItem value="today">Today Only</MenuItem>
@@ -750,9 +751,9 @@ export default function PaymentLedgerView({
         className="card-3d"
         sx={{
           borderRadius: "20px",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 10px 30px rgba(12, 39, 59, 0.06), inset 0 1px 1px #FFFFFF",
+          boxShadow: isDarkMode ? "none" : "0 10px 30px rgba(32, 41, 35, 0.06), inset 0 1px 1px #FFFFFF",
           overflow: "hidden",
         }}
       >
@@ -800,7 +801,7 @@ export default function PaymentLedgerView({
                       key={p._id}
                       hover
                       sx={{
-                        "&:hover": { bgcolor: "rgba(12, 39, 59, 0.02)" },
+                        "&:hover": { bgcolor: "rgba(32, 41, 35, 0.02)" },
                         transition: "background-color 0.2s ease",
                       }}
                     >
@@ -905,7 +906,7 @@ export default function PaymentLedgerView({
                             fontWeight: 700,
                             fontSize: "0.75rem",
                             textTransform: "none",
-                            bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                            bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                             py: 0.3,
                             px: 1.2,
                           }}
@@ -936,7 +937,7 @@ export default function PaymentLedgerView({
             }}
             sx={{
               borderTop: `1px solid ${themeConfig.border}`,
-              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+              bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
             }}
           />
         )}
@@ -1136,7 +1137,7 @@ export default function PaymentLedgerView({
               fontWeight: 800,
             }}
           >
-            {collectLoading ? <CircularProgress size={20} sx={{ color: "#FFFFFF" }} /> : "Record & Print Receipt"}
+            {collectLoading ? <CircularProgress size={20} sx={{ color: themeConfig.onPrimary }} /> : "Record & Print Receipt"}
           </Button>
         </DialogActions>
       </Dialog>

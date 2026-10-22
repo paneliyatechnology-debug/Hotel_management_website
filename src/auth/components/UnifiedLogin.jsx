@@ -27,6 +27,7 @@ import {
 } from "@/shared/icons";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useAppTheme } from "@/shared/context/ThemeContext";
+import ThemeModeToggle from "@/shared/components/ThemeModeToggle";
 import { AppDialogHeader, AppDialogFooter, dialogCancelButtonSx, dialogPrimaryButtonSx } from "@/shared/components/AppDialog";
 import { toast } from "@/shared/utils/toast";
 import { setAuthCookies, clearAuthCookies } from "@/shared/utils/cookieAuth";
@@ -382,8 +383,10 @@ export default function UnifiedLogin({ onLoginSuccess }) {
         justifyContent: "center",
         bgcolor: themeConfig.bgMain,
         p: 3,
+        position: "relative",
       }}
     >
+      <ThemeModeToggle sx={{ position: "absolute", top: 16, right: 16 }} />
       <Card
         sx={{
           maxWidth: 460,
@@ -392,7 +395,7 @@ export default function UnifiedLogin({ onLoginSuccess }) {
           borderRadius: 0,
           bgcolor: themeConfig.bgCard || "#ffffff",
           borderColor: themeConfig.border,
-          boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
+          boxShadow: themeConfig.shadowCard,
         }}
       >
         <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
@@ -453,7 +456,7 @@ export default function UnifiedLogin({ onLoginSuccess }) {
                   },
                   startAdornment: (
                     <InputAdornment position="start">
-                      <EmailIcon sx={{ color: "#94a3b8", fontSize: 20 }} />
+                      <EmailIcon sx={{ color: themeConfig.textLight, fontSize: 20 }} />
                     </InputAdornment>
                   ),
                 },
@@ -478,7 +481,7 @@ export default function UnifiedLogin({ onLoginSuccess }) {
                   },
                   startAdornment: (
                     <InputAdornment position="start">
-                      <LockIcon sx={{ color: "#94a3b8", fontSize: 20 }} />
+                      <LockIcon sx={{ color: themeConfig.textLight, fontSize: 20 }} />
                     </InputAdornment>
                   ),
                   endAdornment: (
@@ -579,7 +582,7 @@ export default function UnifiedLogin({ onLoginSuccess }) {
                       },
                       startAdornment: (
                         <InputAdornment position="start">
-                          <EmailIcon sx={{ color: "#94a3b8", fontSize: 20 }} />
+                          <EmailIcon sx={{ color: themeConfig.textLight, fontSize: 20 }} />
                         </InputAdornment>
                       ),
                     },
@@ -650,7 +653,7 @@ export default function UnifiedLogin({ onLoginSuccess }) {
                 },
                 startAdornment: (
                   <InputAdornment position="start">
-                    <LockIcon sx={{ color: "#94a3b8", fontSize: 20 }} />
+                    <LockIcon sx={{ color: themeConfig.textLight, fontSize: 20 }} />
                   </InputAdornment>
                 ),
                 endAdornment: (
@@ -679,7 +682,7 @@ export default function UnifiedLogin({ onLoginSuccess }) {
                 },
                 startAdornment: (
                   <InputAdornment position="start">
-                    <LockIcon sx={{ color: "#94a3b8", fontSize: 20 }} />
+                    <LockIcon sx={{ color: themeConfig.textLight, fontSize: 20 }} />
                   </InputAdornment>
                 ),
                 endAdornment: (

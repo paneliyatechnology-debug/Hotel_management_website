@@ -9,7 +9,7 @@ export function dialogPaperSx(themeConfig, isDarkMode) {
     borderRadius: "16px",
     border: `1px solid ${themeConfig.border}`,
     bgcolor: themeConfig.bgElevated || themeConfig.bgCard || "#FFFFFF",
-    boxShadow: isDarkMode ? themeConfig.shadowModal : "0 12px 32px rgba(15, 23, 42, 0.12)",
+    boxShadow: isDarkMode ? themeConfig.shadowModal : "0 12px 32px rgba(32, 41, 35, 0.12)",
     overflowX: "hidden",
     overflowY: "auto",
     maxHeight: "90vh",
@@ -40,7 +40,7 @@ export function dialogCancelButtonSx(themeConfig, isDarkMode) {
     bgcolor: isDarkMode ? "transparent" : "#FFFFFF",
     "&:hover": {
       borderColor: isDarkMode ? themeConfig.borderHover : themeConfig.primary,
-      bgcolor: isDarkMode ? themeConfig.champagne : "#F0FDFA",
+      bgcolor: themeConfig.champagne,
     },
   };
 }
@@ -55,7 +55,7 @@ export function dialogPrimaryButtonSx(themeConfig, accent, hover) {
     boxShadow: "none",
     px: 2.5,
     bgcolor: accent || themeConfig.primary,
-    color: "#FFFFFF",
+    color: themeConfig.onPrimary,
     "&:hover": { bgcolor: hover || themeConfig.primaryDark, boxShadow: "none" },
   };
 }
@@ -86,7 +86,7 @@ export function AppDialogHeader({ eyebrow, title, icon, onClose, closeDisabled =
           alignItems: "center",
           justifyContent: "space-between",
           gap: 1.5,
-          bgcolor: isDarkMode ? themeConfig.bgSubtle : "#F0FDFA",
+          bgcolor: themeConfig.bgSoft,
           borderBottom: `1px solid ${themeConfig.border}`,
         }}
       >
@@ -101,7 +101,7 @@ export function AppDialogHeader({ eyebrow, title, icon, onClose, closeDisabled =
                 placeItems: "center",
                 flexShrink: 0,
                 color: themeConfig.primary,
-                bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#FFFFFF",
+                bgcolor: themeConfig.bgCard,
                 border: `1px solid ${themeConfig.border}`,
               }}
             >

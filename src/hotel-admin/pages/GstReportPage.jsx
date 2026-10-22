@@ -219,8 +219,8 @@ export default function GstReportPage({ hotelSettings }) {
   const cardSx = {
     borderRadius: "14px",
     border: `1px solid ${themeConfig.border}`,
-    bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-    boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.04)",
+    bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
+    boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(32, 41, 35, 0.04)",
   };
   const inputSx = {
     "& .MuiOutlinedInput-root": {

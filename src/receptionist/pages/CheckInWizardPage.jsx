@@ -1475,9 +1475,9 @@ export default function CheckInWizardPage({
         sx={{
           p: { xs: 2.5, sm: 4 },
           borderRadius: "16px",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 24px rgba(15, 23, 42, 0.08)",
+          boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(32, 41, 35, 0.05), 0 10px 24px rgba(32, 41, 35, 0.08)",
           maxWidth: 1020,
           mx: "auto",
         }}
@@ -1550,7 +1550,7 @@ export default function CheckInWizardPage({
                   fontSize: "0.82rem",
                   borderColor: themeConfig.border,
                   color: themeConfig.textMain,
-                  bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                  bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                   whiteSpace: "nowrap",
                   textTransform: "none",
                   boxShadow: "none",
@@ -1628,10 +1628,10 @@ export default function CheckInWizardPage({
                       alignItems: "center",
                       justifyContent: "center",
                       mb: 1,
-                      bgcolor: isCompleted ? themeConfig.primary : (isDarkMode ? "#0E312C" : "#FFFFFF"),
-                      color: isCompleted ? "#FFFFFF" : isCurrent ? themeConfig.primary : themeConfig.textMuted,
-                      border: `2px solid ${isCompleted || isCurrent ? themeConfig.primary : (isDarkMode ? "rgba(255,255,255,0.15)" : "#E2E8F0")}`,
-                      boxShadow: isCurrent ? `0 0 0 4px ${isDarkMode ? "rgba(15,118,110,0.25)" : "#CCFBF1"}` : "none",
+                      bgcolor: isCompleted ? themeConfig.primary : (themeConfig.bgCard),
+                      color: isCompleted ? themeConfig.onPrimary : isCurrent ? themeConfig.primary : themeConfig.textMuted,
+                      border: `2px solid ${isCompleted || isCurrent ? themeConfig.primary : (themeConfig.border)}`,
+                      boxShadow: isCurrent ? `0 0 0 4px ${themeConfig.primaryGlow}` : "none",
                       transition: "all 0.25s ease",
                     }}
                   >
@@ -1772,7 +1772,7 @@ export default function CheckInWizardPage({
                     gap: 0.75,
                     cursor: "pointer",
                     transition: "border-color 0.15s ease, background-color 0.15s ease",
-                    "&:hover": { borderColor: themeConfig.primary, bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F0FDFA" },
+                    "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.bgSoft },
                   }}
                 >
                   <input type="file" hidden multiple accept="image/*" onChange={handleMainGuestMultiUpload} />
@@ -1850,7 +1850,7 @@ export default function CheckInWizardPage({
                           fontSize: "0.66rem",
                           fontWeight: 700,
                           color: "#FFFFFF",
-                          bgcolor: idx === 0 ? themeConfig.primary : "rgba(15, 23, 42, 0.8)",
+                          bgcolor: idx === 0 ? themeConfig.primary : "rgba(32, 41, 35, 0.8)",
                         }}
                       >
                         {idx === 0 ? "Primary ID" : `Document ${idx + 1}`}
@@ -1871,7 +1871,7 @@ export default function CheckInWizardPage({
                       cursor: "pointer",
                       color: themeConfig.primary,
                       transition: "border-color 0.15s ease, background-color 0.15s ease",
-                      "&:hover": { borderColor: themeConfig.primary, bgcolor: "#F0FDFA" },
+                      "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne },
                     }}
                   >
                     <input type="file" hidden multiple accept="image/*" onChange={handleMainGuestMultiUpload} />
@@ -2309,7 +2309,7 @@ export default function CheckInWizardPage({
             )}
 
             {/* Payment summary */}
-            <Box sx={{ p: 2, borderRadius: "12px", bgcolor: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "#F0FDFA", border: `1px solid ${themeConfig.border}` }}>
+            <Box sx={{ p: 2, borderRadius: "12px", bgcolor: themeConfig.bgSoft, border: `1px solid ${themeConfig.border}` }}>
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 2 }}>
                 <Box>
                   <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 600 }}>Total amount</Typography>
@@ -2394,7 +2394,7 @@ export default function CheckInWizardPage({
                 boxShadow: "none",
                 px: 3,
                 bgcolor: themeConfig.primary,
-                color: "#FFFFFF",
+                color: themeConfig.onPrimary,
                 width: { xs: "100%", sm: "auto" },
                 "&:hover": { bgcolor: themeConfig.primaryDark, boxShadow: "none" },
               }}
@@ -2416,7 +2416,7 @@ export default function CheckInWizardPage({
                 boxShadow: "none",
                 px: 3,
                 bgcolor: themeConfig.primary,
-                color: "#FFFFFF",
+                color: themeConfig.onPrimary,
                 width: { xs: "100%", sm: "auto" },
                 "&:hover": { bgcolor: themeConfig.primaryDark, boxShadow: "none" },
               }}

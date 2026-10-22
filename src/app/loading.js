@@ -3,9 +3,9 @@ export default function Loading() {
     <div className="min-h-screen bg-[var(--color-bg-main)] flex flex-col items-center justify-center p-6 text-center font-sans">
       <div className="relative flex items-center justify-center">
         {/* Outer glowing pulsing ring */}
-        <div className="w-20 h-20 rounded-full border-4 border-teal-200/50 border-t-[#00D0B4] animate-spin"></div>
+        <div className="w-20 h-20 rounded-full border-4 border-[var(--color-border)] border-t-[var(--color-primary)] animate-spin"></div>
         {/* Inner brand emblem */}
-        <div className="absolute w-10 h-10 rounded-full bg-[#072F2A] flex items-center justify-center text-[#00D0B4] font-bold text-xs shadow-md">
+        <div className="absolute w-10 h-10 rounded-full bg-[var(--color-bg-card)] flex items-center justify-center text-[var(--color-accent)] font-bold text-xs shadow-md">
           PMS
         </div>
       </div>

@@ -564,8 +564,8 @@ export default function RoomTypesPage({
                 pr: 2.5,
                 borderRadius: "12px",
                 border: `1px solid ${themeConfig.border}`,
-                bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-                boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.04)",
+                bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
+                boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(32, 41, 35, 0.04)",
               }}
             >
               <Box
@@ -640,8 +640,8 @@ export default function RoomTypesPage({
         sx={{
           borderRadius: "16px",
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.04)",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(32, 41, 35, 0.04)",
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
         }}
       >
         <CardContent sx={{ p: { xs: 1.5, sm: 2 }, "&:last-child": { pb: { xs: 1.5, sm: 2 } } }}>
@@ -792,7 +792,7 @@ export default function RoomTypesPage({
                     rowsPerPageOptions={[5, 10, 25, 50]}
                     sx={{
                       borderTop: `1px solid ${themeConfig.border}`,
-                      bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                      bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                       "& .MuiTablePagination-toolbar": { px: { xs: 1, sm: 2 }, minHeight: 52 },
                       "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": {
                         fontWeight: 600,
@@ -842,8 +842,8 @@ export default function RoomTypesPage({
                       width: "100%",
                       overflow: "hidden",
                       border: `1px solid ${themeConfig.border}`,
-                      bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-                      boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 24px rgba(15, 23, 42, 0.08)",
+                      bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
+                      boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(32, 41, 35, 0.05), 0 10px 24px rgba(32, 41, 35, 0.08)",
                       display: "flex",
                       flexDirection: "column",
                       gap: 2,
@@ -851,7 +851,7 @@ export default function RoomTypesPage({
                       "&:hover": {
                         borderColor: "#99D5C9",
                         transform: "translateY(-2px)",
-                        boxShadow: isDarkMode ? "none" : "0 2px 6px rgba(15, 23, 42, 0.06), 0 16px 32px rgba(15, 23, 42, 0.1)",
+                        boxShadow: isDarkMode ? "none" : "0 2px 6px rgba(32, 41, 35, 0.06), 0 16px 32px rgba(32, 41, 35, 0.1)",
                       },
                     }}
                   >
@@ -933,7 +933,7 @@ export default function RoomTypesPage({
                             borderRadius: "12px",
                             bgcolor: tone.bg,
                             border: `1px solid ${tone.border}`,
-                            boxShadow: isDarkMode ? "none" : "0 2px 8px rgba(15, 23, 42, 0.05)",
+                            boxShadow: isDarkMode ? "none" : "0 2px 8px rgba(32, 41, 35, 0.05)",
                             py: 1.1,
                             px: 0.5,
                             textAlign: "center",
@@ -1151,7 +1151,7 @@ export default function RoomTypesPage({
                         "& .MuiOutlinedInput-root": {
                           height: 40,
                           borderRadius: "10px",
-                          bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#FFFFFF",
+                          bgcolor: themeConfig.bgCard,
                         },
                       }}
                     >
@@ -1174,7 +1174,7 @@ export default function RoomTypesPage({
                         borderRadius: "10px",
                         height: 40,
                         px: 0.5,
-                        bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#FFFFFF",
+                        bgcolor: themeConfig.bgCard,
                       }}
                     >
                       <IconButton
@@ -1217,7 +1217,7 @@ export default function RoomTypesPage({
                         borderRadius: "10px",
                         fontWeight: 700,
                         bgcolor: themeConfig.primary,
-                        color: "#FFFFFF",
+                        color: themeConfig.onPrimary,
                         px: 2,
                         textTransform: "none",
                         boxShadow: "none",
@@ -1385,7 +1385,7 @@ export default function RoomTypesPage({
                       return (
                         <Chip
                           key={i}
-                          icon={isSelected ? <Check sx={{ fontSize: "16px !important", color: "#FFFFFF !important" }} /> : React.cloneElement(am.icon, { sx: { fontSize: "16px !important", color: isDarkMode ? "#14B8A6 !important" : "inherit" } })}
+                          icon={isSelected ? <Check sx={{ fontSize: "16px !important", color: `${themeConfig.onPrimary} !important` }} /> : React.cloneElement(am.icon, { sx: { fontSize: "16px !important", color: isDarkMode ? `${themeConfig.accent} !important` : "inherit" } })}
                           label={am.label}
                           clickable
                           onClick={() => toggleRoomAmenity(am.label)}
@@ -1394,8 +1394,8 @@ export default function RoomTypesPage({
                             borderRadius: "8px",
                             fontWeight: 600,
                             fontSize: "0.75rem",
-                            bgcolor: isSelected ? (themeConfig.primaryDark || "#115E59") : (isDarkMode ? "rgba(255,255,255,0.06)" : "#FFFFFF"),
-                            color: isSelected ? "#FFFFFF" : themeConfig.textMain,
+                            bgcolor: isSelected ? (themeConfig.primaryDark || "#115E59") : (themeConfig.bgCard),
+                            color: isSelected ? themeConfig.onPrimary : themeConfig.textMain,
                             border: `1px solid ${isSelected ? themeConfig.primaryLight || themeConfig.primary : themeConfig.border}`,
                             transition: "all 0.15s ease",
                             "&:hover": {
@@ -1431,7 +1431,7 @@ export default function RoomTypesPage({
                         borderRadius: "10px",
                         fontWeight: 700,
                         bgcolor: themeConfig.primary,
-                        color: "#FFFFFF",
+                        color: themeConfig.onPrimary,
                         px: 2,
                         boxShadow: "none",
                         textTransform: "none",

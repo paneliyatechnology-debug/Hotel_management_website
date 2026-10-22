@@ -3,20 +3,20 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react";
 import { ThemeProvider, createTheme, CssBaseline } from "@mui/material";
 import { ToastContainer } from "react-toastify";
-import { themePalettes, darkThemePalettes, getThemeConfig } from "@/config/theme";
+import { themePalettes, darkThemePalettes, getThemeConfig, getThemeCssVars } from "@/config/theme";
 
 const ThemeContext = createContext(null);
 
 export function buildMuiTheme(themeConfig, mode = "light") {
   const isDark = mode === "dark";
-  const surface = themeConfig.bgCard || (isDark ? "#111E1C" : "#FFFFFF");
+  const surface = themeConfig.bgCard || (isDark ? "#191F1B" : "#FFFFFF");
   const elevated = themeConfig.bgElevated || surface;
   const accent = themeConfig.accent || themeConfig.primaryDark;
   const tones = themeConfig.tones || {};
   // Dark surfaces separate with a hairline border + soft drop shadow (no glow / inset highlights)
-  const shadowSm = isDark ? "0 1px 2px rgba(0, 0, 0, 0.35)" : "0 4px 20px -2px rgba(12, 39, 59, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.9)";
-  const shadowMd = isDark ? themeConfig.shadowCard : "0 10px 25px -5px rgba(12, 39, 59, 0.06), 0 4px 10px -4px rgba(12, 39, 59, 0.03), inset 0 1px 1px rgba(255, 255, 255, 0.95)";
-  const shadowLg = isDark ? "0 16px 36px -8px rgba(0, 0, 0, 0.6)" : "0 18px 36px -6px rgba(12, 39, 59, 0.12), inset 0 1px 2px rgba(255, 255, 255, 1)";
+  const shadowSm = isDark ? "0 1px 2px rgba(0, 0, 0, 0.35)" : "0 4px 20px -2px rgba(32, 41, 35, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.9)";
+  const shadowMd = isDark ? themeConfig.shadowCard : "0 10px 25px -5px rgba(32, 41, 35, 0.06), 0 4px 10px -4px rgba(32, 41, 35, 0.03), inset 0 1px 1px rgba(255, 255, 255, 0.95)";
+  const shadowLg = isDark ? "0 16px 36px -8px rgba(0, 0, 0, 0.6)" : "0 18px 36px -6px rgba(32, 41, 35, 0.12), inset 0 1px 2px rgba(255, 255, 255, 1)";
   const alertTone = (tone) => (isDark && tones[tone]
     ? {
         backgroundColor: tones[tone].bg,
@@ -34,7 +34,7 @@ export function buildMuiTheme(themeConfig, mode = "light") {
         main: themeConfig.primary,
         dark: themeConfig.primaryDark,
         light: themeConfig.primaryLight,
-        contrastText: "#FFFFFF",
+        contrastText: themeConfig.onPrimary || "#FFFFFF",
       },
       secondary: {
         main: themeConfig.champagne || themeConfig.border,
@@ -49,10 +49,10 @@ export function buildMuiTheme(themeConfig, mode = "light") {
             action: {
               active: themeConfig.textMuted,
               hover: "rgba(255, 255, 255, 0.05)",
-              selected: "rgba(45, 212, 191, 0.14)",
+              selected: "rgba(52, 211, 153, 0.14)",
               disabled: "rgba(255, 255, 255, 0.3)",
               disabledBackground: "rgba(255, 255, 255, 0.08)",
-              focus: "rgba(45, 212, 191, 0.18)",
+              focus: "rgba(52, 211, 153, 0.18)",
             },
           }
         : {}),
@@ -63,19 +63,19 @@ export function buildMuiTheme(themeConfig, mode = "light") {
       divider: themeConfig.border,
       success: {
         main: themeConfig.success,
-        contrastText: "#FFFFFF",
+        contrastText: isDark ? "#101412" : "#FFFFFF",
       },
       warning: {
         main: themeConfig.warning,
-        contrastText: "#FFFFFF",
+        contrastText: isDark ? "#101412" : "#FFFFFF",
       },
       error: {
         main: themeConfig.danger,
-        contrastText: "#FFFFFF",
+        contrastText: isDark ? "#101412" : "#FFFFFF",
       },
       info: {
         main: themeConfig.info,
-        contrastText: "#FFFFFF",
+        contrastText: isDark ? "#101412" : "#FFFFFF",
       },
     },
     typography: {
@@ -125,14 +125,14 @@ export function buildMuiTheme(themeConfig, mode = "light") {
             colorScheme: isDark ? "dark" : "light",
           },
           "::selection": {
-            backgroundColor: isDark ? "rgba(45, 212, 191, 0.32)" : "rgba(15, 118, 110, 0.18)",
+            backgroundColor: isDark ? "rgba(52, 211, 153, 0.32)" : "rgba(4, 120, 87, 0.18)",
           },
           // Browsers autofill with a bright yellow/white fill - keep it on-theme in both modes
           "input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus, textarea:-webkit-autofill, select:-webkit-autofill": {
             WebkitTextFillColor: themeConfig.textMain,
             caretColor: themeConfig.textMain,
             transition: "background-color 9999s ease-in-out 0s",
-            WebkitBoxShadow: `0 0 0 100px ${isDark ? "#16262A" : "#FFFFFF"} inset`,
+            WebkitBoxShadow: `0 0 0 100px ${themeConfig.bgInput || (isDark ? "#141A16" : "#FFFFFF")} inset`,
           },
         },
       },
@@ -155,7 +155,7 @@ export function buildMuiTheme(themeConfig, mode = "light") {
           elevation2: {
             boxShadow: isDark
               ? "0 8px 24px -8px rgba(0, 0, 0, 0.55)"
-              : "0 10px 25px -5px rgba(12, 39, 59, 0.08), 0 8px 10px -6px rgba(12, 39, 59, 0.04), inset 0 1px 1px rgba(255, 255, 255, 0.95)",
+              : "0 10px 25px -5px rgba(32, 41, 35, 0.08), 0 8px 10px -6px rgba(32, 41, 35, 0.04), inset 0 1px 1px rgba(255, 255, 255, 0.95)",
           },
           elevation3: {
             boxShadow: shadowLg,
@@ -174,7 +174,7 @@ export function buildMuiTheme(themeConfig, mode = "light") {
             "&:hover": {
               boxShadow: isDark
                 ? themeConfig.shadowHover
-                : "0 16px 32px -6px rgba(12, 39, 59, 0.1), 0 8px 16px -4px rgba(12, 39, 59, 0.04), inset 0 1px 2px #FFFFFF",
+                : "0 16px 32px -6px rgba(32, 41, 35, 0.1), 0 8px 16px -4px rgba(32, 41, 35, 0.04), inset 0 1px 2px #FFFFFF",
             },
           },
         },
@@ -212,11 +212,11 @@ export function buildMuiTheme(themeConfig, mode = "light") {
             color: themeConfig.textMuted,
             transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
             "&.Mui-selected": {
-              color: isDark ? "#FFFFFF" : themeConfig.primaryDark,
+              color: isDark ? (themeConfig.onPrimary || "#FFFFFF") : themeConfig.primaryDark,
               backgroundColor: isDark ? themeConfig.primary : "#FFFFFF",
               boxShadow: isDark
                 ? "0 2px 8px rgba(0, 0, 0, 0.35)"
-                : "0 4px 12px rgba(12, 39, 59, 0.08), inset 0 1px 0 #FFFFFF",
+                : "0 4px 12px rgba(32, 41, 35, 0.08), inset 0 1px 0 #FFFFFF",
             },
             "&:hover": {
               color: themeConfig.textMain,
@@ -247,7 +247,7 @@ export function buildMuiTheme(themeConfig, mode = "light") {
             background: isDark
               ? themeConfig.primary
               : `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-            color: "#FFFFFF",
+            color: themeConfig.onPrimary || "#FFFFFF",
             boxShadow: isDark ? "0 1px 2px rgba(0, 0, 0, 0.4)" : `0 4px 14px -2px ${themeConfig.primaryGlow}, inset 0 1px 0 rgba(255, 255, 255, 0.35)`,
             "&:hover": {
               background: isDark
@@ -256,19 +256,19 @@ export function buildMuiTheme(themeConfig, mode = "light") {
               boxShadow: isDark ? "0 4px 12px -2px rgba(0, 0, 0, 0.5)" : `0 8px 20px -2px ${themeConfig.primaryGlow}, inset 0 1px 0 rgba(255, 255, 255, 0.45)`,
             },
             "&.Mui-disabled": {
-              background: isDark ? "rgba(255, 255, 255, 0.08)" : "#E2ECEA",
-              color: isDark ? "rgba(255, 255, 255, 0.32)" : "#94A8A4",
+              background: isDark ? "rgba(255, 255, 255, 0.08)" : "#E6ECE8",
+              color: isDark ? "rgba(255, 255, 255, 0.32)" : "#9AA69E",
               boxShadow: "none",
             },
           },
           containedSuccess: {
-            background: isDark ? themeConfig.success : `linear-gradient(135deg, ${themeConfig.success} 0%, #15803D 100%)`,
-            color: "#FFFFFF",
+            background: isDark ? themeConfig.success : `linear-gradient(135deg, ${themeConfig.success} 0%, #065F46 100%)`,
+            color: isDark ? "#101412" : "#FFFFFF",
             boxShadow: isDark ? "0 1px 2px rgba(0, 0, 0, 0.4)" : "0 4px 14px -2px rgba(22, 163, 74, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.35)",
           },
           containedError: {
-            background: isDark ? themeConfig.danger : `linear-gradient(135deg, ${themeConfig.danger} 0%, #B91C1C 100%)`,
-            color: "#FFFFFF",
+            background: isDark ? themeConfig.danger : `linear-gradient(135deg, ${themeConfig.danger} 0%, #912018 100%)`,
+            color: isDark ? "#101412" : "#FFFFFF",
             boxShadow: isDark ? "0 1px 2px rgba(0, 0, 0, 0.4)" : "0 4px 14px -2px rgba(220, 38, 38, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.35)",
           },
           outlined: {
@@ -290,7 +290,7 @@ export function buildMuiTheme(themeConfig, mode = "light") {
             ? {
                 // MUI's default dark "primary" text/outlined colour is too dim on dark surfaces - use the mint accent
                 textPrimary: { color: accent, "&:hover": { backgroundColor: themeConfig.champagne } },
-                outlinedPrimary: { color: accent, borderColor: "rgba(45, 212, 191, 0.4)" },
+                outlinedPrimary: { color: accent, borderColor: "rgba(52, 211, 153, 0.4)" },
               }
             : {}),
         },
@@ -311,7 +311,7 @@ export function buildMuiTheme(themeConfig, mode = "light") {
             borderRadius: 18,
             border: `1px solid ${themeConfig.border}`,
             backgroundColor: surface,
-            boxShadow: isDark ? themeConfig.shadowCard : "0 10px 25px -5px rgba(12, 39, 59, 0.06), inset 0 1px 1px #FFFFFF",
+            boxShadow: isDark ? themeConfig.shadowCard : "0 10px 25px -5px rgba(32, 41, 35, 0.06), inset 0 1px 1px #FFFFFF",
             overflow: "hidden",
           },
         },
@@ -329,8 +329,8 @@ export function buildMuiTheme(themeConfig, mode = "light") {
             fontSize: "0.72rem !important",
             letterSpacing: "0.06em !important",
             textTransform: "uppercase !important",
-            color: `${accent || "#0F766E"} !important`,
-            backgroundColor: `${isDark ? themeConfig.bgSubtle : (themeConfig.champagne || "#E7F6F3")} !important`,
+            color: `${accent || "#047857"} !important`,
+            backgroundColor: `${isDark ? themeConfig.bgSubtle : (themeConfig.champagne || "#EDF5EF")} !important`,
             borderBottom: `1px solid ${themeConfig.border} !important`,
             whiteSpace: "nowrap",
             paddingTop: "14px !important",
@@ -343,7 +343,7 @@ export function buildMuiTheme(themeConfig, mode = "light") {
           root: {
             transition: "background-color 0.15s ease",
             "&:hover": {
-              backgroundColor: `${themeConfig.primaryGlow} !important`,
+              backgroundColor: `${themeConfig.champagne} !important`,
             },
           },
         },
@@ -454,7 +454,7 @@ export function buildMuiTheme(themeConfig, mode = "light") {
             transition: "all 0.2s ease",
             "& fieldset": {
               top: 0,
-              borderColor: isDark ? "rgba(148, 210, 198, 0.22)" : themeConfig.border,
+              borderColor: themeConfig.border,
             },
             "&:hover fieldset": {
               borderColor: isDark ? themeConfig.borderHover : themeConfig.primary,
@@ -463,7 +463,7 @@ export function buildMuiTheme(themeConfig, mode = "light") {
               borderColor: themeConfig.danger,
             },
             "&.Mui-disabled": {
-              backgroundColor: isDark ? "rgba(255,255,255,0.025)" : "#F3F7F6",
+              backgroundColor: themeConfig.bgSubtle,
               "& fieldset": { borderColor: themeConfig.borderLight || themeConfig.border },
             },
             "& .MuiInputBase-input.Mui-disabled": {
@@ -502,7 +502,7 @@ export function buildMuiTheme(themeConfig, mode = "light") {
             fontWeight: 600,
             fontSize: "0.85rem",
             "&:hover": {
-              backgroundColor: themeConfig.champagne || (isDark ? "rgba(20, 184, 166, 0.15)" : "rgba(15, 118, 110, 0.08)"),
+              backgroundColor: themeConfig.champagne || (isDark ? "rgba(52, 211, 153, 0.12)" : "rgba(4, 120, 87, 0.08)"),
             },
             "&.Mui-selected": {
               backgroundColor: `${themeConfig.primaryGlow} !important`,
@@ -522,7 +522,7 @@ export function buildMuiTheme(themeConfig, mode = "light") {
             maxHeight: "90vh",
             backgroundImage: "none",
             backgroundColor: elevated,
-            boxShadow: isDark ? themeConfig.shadowModal : "0 12px 32px rgba(15, 23, 42, 0.12)",
+            boxShadow: isDark ? themeConfig.shadowModal : "0 12px 32px rgba(32, 41, 35, 0.14)",
             border: `1px solid ${themeConfig.border}`,
           },
         },
@@ -535,7 +535,7 @@ export function buildMuiTheme(themeConfig, mode = "light") {
             fontSize: "1.05rem",
             lineHeight: 1.3,
             color: themeConfig.textMain,
-            backgroundColor: isDark ? themeConfig.bgSubtle : "#F0FDFA",
+            backgroundColor: themeConfig.bgSoft,
             borderBottom: `1px solid ${themeConfig.border}`,
           },
         },
@@ -561,7 +561,7 @@ export function buildMuiTheme(themeConfig, mode = "light") {
           root: {
             padding: "14px 20px",
             gap: 8,
-            backgroundColor: isDark ? themeConfig.bgSubtle : "#F8FAFC",
+            backgroundColor: themeConfig.bgSubtle,
             borderTop: `1px solid ${themeConfig.border}`,
             "& .MuiButton-root": {
               minHeight: 40,
@@ -580,7 +580,7 @@ export function buildMuiTheme(themeConfig, mode = "light") {
             backgroundColor: elevated,
             boxShadow: isDark
               ? "0 12px 28px -6px rgba(0, 0, 0, 0.65)"
-              : "0 12px 28px -6px rgba(12, 39, 59, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.9)",
+              : "0 12px 28px -6px rgba(32, 41, 35, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.9)",
             border: `1px solid ${themeConfig.border}`,
           },
         },
@@ -591,7 +591,7 @@ export function buildMuiTheme(themeConfig, mode = "light") {
           paper: {
             backgroundColor: elevated,
             border: `1px solid ${themeConfig.border}`,
-            boxShadow: isDark ? "0 12px 28px -6px rgba(0, 0, 0, 0.65)" : "0 12px 28px -6px rgba(12, 39, 59, 0.18)",
+            boxShadow: isDark ? "0 12px 28px -6px rgba(0, 0, 0, 0.65)" : "0 12px 28px -6px rgba(32, 41, 35, 0.18)",
           },
         },
       },
@@ -600,7 +600,7 @@ export function buildMuiTheme(themeConfig, mode = "light") {
           paper: {
             backgroundColor: elevated,
             border: `1px solid ${themeConfig.border}`,
-            boxShadow: isDark ? "0 12px 28px -6px rgba(0, 0, 0, 0.65)" : "0 12px 28px -6px rgba(12, 39, 59, 0.18)",
+            boxShadow: isDark ? "0 12px 28px -6px rgba(0, 0, 0, 0.65)" : "0 12px 28px -6px rgba(32, 41, 35, 0.18)",
           },
           listbox: { padding: 4 },
           option: {
@@ -616,14 +616,14 @@ export function buildMuiTheme(themeConfig, mode = "light") {
         styleOverrides: {
           tooltip: isDark
             ? {
-                backgroundColor: "#1F3231",
+                backgroundColor: "#262F29",
                 color: themeConfig.textMain,
                 border: `1px solid ${themeConfig.border}`,
                 boxShadow: "0 8px 20px rgba(0, 0, 0, 0.5)",
                 fontWeight: 600,
               }
             : {},
-          arrow: isDark ? { color: "#1F3231", "&:before": { border: `1px solid ${themeConfig.border}` } } : {},
+          arrow: isDark ? { color: "#262F29", "&:before": { border: `1px solid ${themeConfig.border}` } } : {},
         },
       },
       MuiToggleButton: {
@@ -650,14 +650,14 @@ export function buildMuiTheme(themeConfig, mode = "light") {
         styleOverrides: {
           paper: {
             borderRadius: 0,
-            backgroundColor: isDark ? (themeConfig.bgHeader || surface) : surface,
+            backgroundColor: themeConfig.bgHeader || surface,
             borderRight: `1px solid ${themeConfig.border}`,
             borderTop: "none",
             borderBottom: "none",
             borderLeft: "none",
             boxShadow: isDark
               ? "4px 0 24px rgba(0, 0, 0, 0.4)"
-              : "4px 0 24px rgba(12, 39, 59, 0.04)",
+              : "4px 0 24px rgba(32, 41, 35, 0.04)",
           },
         },
       },
@@ -665,7 +665,7 @@ export function buildMuiTheme(themeConfig, mode = "light") {
         styleOverrides: {
           root: {
             borderRadius: 0,
-            backgroundColor: themeConfig.bgHeader || (isDark ? "#0E1A18" : "#FFFFFF"),
+            backgroundColor: themeConfig.bgHeader || (isDark ? "#141A16" : "#FFFFFF"),
             borderBottom: `1px solid ${themeConfig.border}`,
             borderTop: "none",
             borderLeft: "none",
@@ -673,7 +673,7 @@ export function buildMuiTheme(themeConfig, mode = "light") {
             backdropFilter: "blur(14px)",
             boxShadow: isDark
               ? "0 4px 20px -4px rgba(0, 0, 0, 0.5)"
-              : "0 4px 20px -4px rgba(12, 39, 59, 0.04)",
+              : "0 4px 20px -4px rgba(32, 41, 35, 0.04)",
           },
         },
       },
@@ -685,7 +685,7 @@ export function buildMuiTheme(themeConfig, mode = "light") {
             backgroundColor: surface,
             boxShadow: isDark
               ? shadowSm
-              : "0 4px 14px rgba(12, 39, 59, 0.04), inset 0 1px 0 #FFFFFF",
+              : "0 4px 14px rgba(32, 41, 35, 0.04), inset 0 1px 0 #FFFFFF",
             "&:before": {
               display: "none",
             },
@@ -716,9 +716,19 @@ export function buildMuiTheme(themeConfig, mode = "light") {
   });
 }
 
+function readSavedMode() {
+  if (typeof window === "undefined") return "light";
+  try {
+    return localStorage.getItem("admin_theme_mode") === "dark" ? "dark" : "light";
+  } catch {
+    return "light";
+  }
+}
+
 export function AppThemeProvider({ children }) {
   const [paletteKey, setPaletteKeyInternal] = useState("palette1");
-  const [mode, setModeInternal] = useState("light");
+  // Provider only mounts client-side, so the saved mode can seed the first render (no light flash on reload)
+  const [mode, setModeInternal] = useState(readSavedMode);
   const [settings, setSettingsInternal] = useState({
     autoRefresh: true,
     compactMode: false,
@@ -728,22 +738,7 @@ export function AppThemeProvider({ children }) {
 
   const applyDomStyles = useCallback((pal, currentMode) => {
     if (typeof window !== "undefined" && pal) {
-      document.documentElement.style.setProperty("--color-primary", pal.primary);
-      document.documentElement.style.setProperty("--color-primary-dark", pal.primaryDark);
-      document.documentElement.style.setProperty("--color-primary-light", pal.primaryLight);
-      document.documentElement.style.setProperty("--color-bg-main", pal.bgMain);
-      document.documentElement.style.setProperty("--color-bg-card", pal.bgCard);
-      document.documentElement.style.setProperty("--color-bg-header", pal.bgHeader);
-      document.documentElement.style.setProperty("--color-text-main", pal.textMain);
-      document.documentElement.style.setProperty("--color-text-muted", pal.textMuted);
-      document.documentElement.style.setProperty("--color-border", pal.border);
-      document.documentElement.style.setProperty("--color-champagne", pal.champagne);
-      document.documentElement.style.setProperty("--color-primary-glow", pal.primaryGlow);
-      document.documentElement.style.setProperty("--color-bg-footer", pal.bgFooter);
-      document.documentElement.style.setProperty("--color-border-hover", pal.borderHover);
-      document.documentElement.style.setProperty("--color-accent", pal.accent || pal.primaryDark);
-      document.documentElement.style.setProperty("--color-bg-elevated", pal.bgElevated || pal.bgCard);
-      document.documentElement.style.setProperty("--color-bg-subtle", pal.bgSubtle || pal.bgCard);
+      Object.entries(getThemeCssVars(pal)).forEach(([name, value]) => document.documentElement.style.setProperty(name, value));
       document.documentElement.setAttribute("data-theme-mode", currentMode);
       document.documentElement.classList.remove("light-theme", "dark-theme");
       document.documentElement.classList.add(`${currentMode}-theme`);
@@ -767,22 +762,8 @@ export function AppThemeProvider({ children }) {
       root.removeAttribute("data-theme-mode");
       root.style.colorScheme = "";
       // Restore the light defaults the root layout renders for public pages
-      const lightVars = {
-        "--color-primary": light.primary,
-        "--color-primary-dark": light.primaryDark,
-        "--color-primary-light": light.primaryLight,
-        "--color-primary-glow": light.primaryGlow,
-        "--color-bg-main": light.bgMain,
-        "--color-bg-card": light.bgCard,
-        "--color-bg-header": light.bgHeader,
-        "--color-bg-footer": light.bgFooter,
-        "--color-text-main": light.textMain,
-        "--color-text-muted": light.textMuted,
-        "--color-border": light.border,
-        "--color-border-hover": light.borderHover,
-      };
-      Object.entries(lightVars).forEach(([name, value]) => root.style.setProperty(name, value));
-      ["--color-champagne", "--color-accent", "--color-bg-elevated", "--color-bg-subtle"].forEach((name) => root.style.removeProperty(name));      if (document.body) {
+      Object.entries(getThemeCssVars(light)).forEach(([name, value]) => root.style.setProperty(name, value));
+      if (document.body) {
         document.body.style.backgroundColor = light.bgMain;
         document.body.style.color = light.textMain;
         document.body.style.colorScheme = "";
@@ -882,7 +863,7 @@ export function AppThemeProvider({ children }) {
           pauseOnFocusLoss
           draggable
           pauseOnHover
-          theme={isDarkMode ? "dark" : "colored"}
+          theme={isDarkMode ? "dark" : "light"}
           style={{ zIndex: 99999 }}
         />
         {children}

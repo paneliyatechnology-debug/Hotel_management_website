@@ -22,30 +22,14 @@ body {
 }
 
 /* ====================================================================
- * DARK MODE FOUNDATION
- * The inline boot script in layout.js adds `dark-theme` before first paint;
- * these fallbacks match config/theme.js and are overridden live by ThemeContext.
+ * THEME FOUNDATION
+ * Every colour variable is generated from config/theme.js (getThemeCssVars): the root layout sets the
+ * light defaults, the boot script restores a saved dark theme before first paint and ThemeContext
+ * updates them live. Nothing is duplicated here.
  * ==================================================================== */
 html.dark-theme {
   color-scheme: dark;
-  --color-primary: #0d9488;
-  --color-primary-dark: #0f766e;
-  --color-primary-light: #5eead4;
-  --color-primary-glow: rgba(45, 212, 191, 0.16);
-  --color-bg-main: #0a1312;
-  --color-bg-card: #111e1c;
-  --color-bg-header: #0e1a18;
-  --color-bg-footer: #0e1a18;
-  --color-text-main: #e7f2f0;
-  --color-text-muted: #9db5b0;
-  --color-border: rgba(148, 210, 198, 0.14);
-  --color-border-hover: #2dd4bf;
-  --color-champagne: rgba(45, 212, 191, 0.1);
-  --color-accent: #5eead4;
-  --color-bg-elevated: #16262a;
-  --color-bg-subtle: rgba(255, 255, 255, 0.035);
 }
-
 html.dark-theme body {
   background-color: var(--color-bg-main) !important;
   color: var(--color-text-main) !important;
@@ -77,6 +61,15 @@ html.dark-theme input::-webkit-calendar-picker-indicator {
 }
 html.dark-theme input::-webkit-calendar-picker-indicator:hover { opacity: 1; }
 html.dark-theme ::placeholder { color: var(--color-text-muted); }
+
+/* Keyboard focus ring (accessibility) in both themes */
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
 
 .font-serif {
   font-family: 'Playfair Display', Georgia, serif !important;
@@ -113,7 +106,7 @@ html.dark-theme ::placeholder { color: var(--color-text-muted); }
 
 .bg-theme-btn {
   background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%) !important;
-  color: #ffffff !important;
+  color: var(--color-on-primary, #ffffff) !important;
 }
 
 .bg-theme-btn:hover {
@@ -252,23 +245,26 @@ html.dark-theme ::placeholder { color: var(--color-text-muted); }
 }
 
 /* ====================================================================
- * TOASTIFY MODERN LUXURY STYLING
+ * TOASTS - elevated surface + coloured status accent (same in light & dark)
  * ==================================================================== */
 .Toastify__toast-container {
   z-index: 999999 !important;
 }
 
 .Toastify__toast {
-  border-radius: 16px !important;
+  background: var(--color-bg-elevated, #ffffff) !important;
+  color: var(--color-text-main) !important;
+  border: 1px solid var(--color-border) !important;
+  border-left-width: 4px !important;
+  border-radius: 14px !important;
   font-family: var(--font-sans) !important;
   font-weight: 600 !important;
   font-size: 0.88rem !important;
-  box-shadow: 0 16px 40px -8px rgba(12, 39, 59, 0.25), 0 4px 12px rgba(0, 0, 0, 0.08) !important;
-  backdrop-filter: blur(12px) !important;
+  box-shadow: 0 12px 32px -10px rgba(20, 28, 23, 0.25), 0 2px 6px rgba(20, 28, 23, 0.06) !important;
   padding: 14px 18px !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
   margin-bottom: 10px !important;
 }
+html.dark-theme .Toastify__toast { box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.6) !important; }
 
 .Toastify__toast-icon {
   width: 22px !important;
@@ -280,49 +276,38 @@ html.dark-theme ::placeholder { color: var(--color-text-muted); }
   align-items: center !important;
   justify-content: center !important;
 }
-
-.Toastify__toast-icon svg {
-  fill: #FFFFFF !important;
-  color: #FFFFFF !important;
-  width: 20px !important;
-  height: 20px !important;
-}
+.Toastify__toast-icon svg { width: 20px !important; height: 20px !important; }
 
 .Toastify__toast-body {
-  color: #FFFFFF !important;
-  font-weight: 700 !important;
+  color: var(--color-text-main) !important;
+  font-weight: 600 !important;
   font-size: 0.88rem !important;
   margin: 0 !important;
   padding: 0 !important;
   display: flex !important;
   align-items: center !important;
 }
+.Toastify__close-button { color: var(--color-text-muted) !important; opacity: 0.8; }
+.Toastify__close-button:hover { opacity: 1; }
 
-.Toastify__toast--success {
-  background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
-  color: #FFFFFF !important;
-}
-
-.Toastify__toast--error {
-  background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%) !important;
-  color: #FFFFFF !important;
-}
-
-.Toastify__toast--warning {
-  background: linear-gradient(135deg, #D97706 0%, #B45309 100%) !important;
-  color: #FFFFFF !important;
-}
-
-.Toastify__toast--info {
-  background: linear-gradient(135deg, #0284C7 0%, #0369A1 100%) !important;
-  color: #FFFFFF !important;
-}
+.Toastify__toast--success { border-left-color: var(--color-success) !important; }
+.Toastify__toast--error { border-left-color: var(--color-danger) !important; }
+.Toastify__toast--warning { border-left-color: var(--color-warning) !important; }
+.Toastify__toast--info { border-left-color: var(--color-info) !important; }
+.Toastify__toast--success .Toastify__toast-icon svg { fill: var(--color-success) !important; color: var(--color-success) !important; }
+.Toastify__toast--error .Toastify__toast-icon svg { fill: var(--color-danger) !important; color: var(--color-danger) !important; }
+.Toastify__toast--warning .Toastify__toast-icon svg { fill: var(--color-warning) !important; color: var(--color-warning) !important; }
+.Toastify__toast--info .Toastify__toast-icon svg { fill: var(--color-info) !important; color: var(--color-info) !important; }
 
 .Toastify__progress-bar {
-  height: 4px !important;
-  border-radius: 0 0 16px 16px !important;
+  height: 3px !important;
+  border-radius: 0 0 14px 14px !important;
+  opacity: 0.85;
 }
-
+.Toastify__progress-bar--success { background: var(--color-success) !important; }
+.Toastify__progress-bar--error { background: var(--color-danger) !important; }
+.Toastify__progress-bar--warning { background: var(--color-warning) !important; }
+.Toastify__progress-bar--info { background: var(--color-info) !important; }
 /* Staff-table format on every data table */
 .MuiTableContainer-root {
   border-radius: 0 !important;
@@ -336,8 +321,8 @@ html.dark-theme ::placeholder { color: var(--color-text-muted); }
   font-size: 0.72rem !important;
   letter-spacing: 0.06em !important;
   text-transform: uppercase !important;
-  color: var(--color-accent, var(--color-primary-dark, #0f766e)) !important;
-  background-color: var(--color-champagne, #e7f6f3) !important;
+  color: var(--color-accent) !important;
+  background-color: var(--color-champagne) !important;
   border-bottom: 1px solid var(--color-border, #e2e8f0) !important;
   padding: 14px 20px !important;
   white-space: nowrap !important;
@@ -354,11 +339,7 @@ html.dark-theme .MuiTableHead-root .MuiTableCell-root {
 }
 
 .MuiTableBody-root .MuiTableRow-root:hover {
-  background-color: #f8fafc !important;
-}
-
-html.dark-theme .MuiTableBody-root .MuiTableRow-root:hover {
-  background-color: rgba(255, 255, 255, 0.04) !important;
+  background-color: var(--color-champagne) !important;
 }
 
 .MuiTablePagination-root {
@@ -384,29 +365,3 @@ html.dark-theme .MuiTableBody-root .MuiTableRow-root:hover {
   color: var(--color-text-muted, #64748b) !important;
   margin: 0 !important;
 }
-
-/* ====================================================================
- * DARK MODE: TOASTS (flat elevated surface + coloured status accent)
- * ==================================================================== */
-html.dark-theme .Toastify__toast {
-  background: var(--color-bg-elevated, #16262a) !important;
-  color: var(--color-text-main) !important;
-  border: 1px solid var(--color-border) !important;
-  border-left-width: 4px !important;
-  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.6) !important;
-}
-html.dark-theme .Toastify__toast-body { color: var(--color-text-main) !important; }
-html.dark-theme .Toastify__close-button { color: var(--color-text-muted) !important; opacity: 0.8; }
-html.dark-theme .Toastify__toast--success { background: var(--color-bg-elevated, #16262a) !important; border-left-color: #34d399 !important; }
-html.dark-theme .Toastify__toast--error { background: var(--color-bg-elevated, #16262a) !important; border-left-color: #f87171 !important; }
-html.dark-theme .Toastify__toast--warning { background: var(--color-bg-elevated, #16262a) !important; border-left-color: #fbbf24 !important; }
-html.dark-theme .Toastify__toast--info { background: var(--color-bg-elevated, #16262a) !important; border-left-color: #5eead4 !important; }
-html.dark-theme .Toastify__toast--success .Toastify__toast-icon svg { fill: #34d399 !important; color: #34d399 !important; }
-html.dark-theme .Toastify__toast--error .Toastify__toast-icon svg { fill: #f87171 !important; color: #f87171 !important; }
-html.dark-theme .Toastify__toast--warning .Toastify__toast-icon svg { fill: #fbbf24 !important; color: #fbbf24 !important; }
-html.dark-theme .Toastify__toast--info .Toastify__toast-icon svg { fill: #5eead4 !important; color: #5eead4 !important; }
-html.dark-theme .Toastify__progress-bar { opacity: 0.85; }
-html.dark-theme .Toastify__progress-bar--success { background: #34d399 !important; }
-html.dark-theme .Toastify__progress-bar--error { background: #f87171 !important; }
-html.dark-theme .Toastify__progress-bar--warning { background: #fbbf24 !important; }
-html.dark-theme .Toastify__progress-bar--info { background: #5eead4 !important; }

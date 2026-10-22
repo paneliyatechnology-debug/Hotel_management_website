@@ -24,6 +24,7 @@ import {
 } from "@mui/material";
 import { Download, Print, WhatsApp, CheckCircle, FileDownload } from "@/shared/icons";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
+import { getActiveHotelId } from "@/shared/utils/cookieAuth";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { toast } from "@/shared/utils/toast";
 import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/whatsappUtils";
@@ -1025,7 +1026,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
                 background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
                 borderRadius: "10px",
                 fontWeight: 800,
-                color: "#FFFFFF",
+                color: themeConfig.onPrimary,
               }}
             >
               Post to Folio

@@ -147,12 +147,12 @@ export default function DashboardLayout({
             width: DRAWER_WIDTH,
             borderRadius: 0,
             boxSizing: "border-box",
-            bgcolor: isDarkMode ? (themeConfig.bgHeader || themeConfig.bgCard) : (themeConfig.bgCard || "#FFFFFF"),
+            bgcolor: themeConfig.bgHeader || themeConfig.bgCard,
             borderRight: `1px solid ${themeConfig.border}`,
             borderTop: "none",
             borderBottom: "none",
             borderLeft: "none",
-            boxShadow: isDarkMode ? "4px 0 24px rgba(0, 0, 0, 0.4)" : "4px 0 24px rgba(12, 39, 59, 0.04)",
+            boxShadow: isDarkMode ? "4px 0 24px rgba(0, 0, 0, 0.4)" : "4px 0 24px rgba(32, 41, 35, 0.04)",
             display: "flex",
             flexDirection: "column",
             top: 0,
@@ -287,7 +287,7 @@ export default function DashboardLayout({
               mb: 1.5,
               borderRadius: "12px",
               border: `1px solid ${themeConfig.border}`,
-              bgcolor: isDarkMode ? "rgba(255, 255, 255, 0.04)" : "rgba(15, 23, 42, 0.04)",
+              bgcolor: isDarkMode ? "rgba(255, 255, 255, 0.04)" : "rgba(32, 41, 35, 0.04)",
             }}
           >
             {[
@@ -308,8 +308,8 @@ export default function DashboardLayout({
                     fontSize: "0.8rem",
                     fontWeight: active ? 800 : 600,
                     color: active ? themeConfig.accent : themeConfig.textMuted,
-                    bgcolor: active ? (isDarkMode ? themeConfig.champagne : "#FFFFFF") : "transparent",
-                    boxShadow: active && !isDarkMode ? "0 1px 3px rgba(15, 23, 42, 0.1)" : "none",
+                    bgcolor: active ? (isDarkMode ? themeConfig.champagne : themeConfig.bgCard) : "transparent",
+                    boxShadow: active && !isDarkMode ? "0 1px 3px rgba(32, 41, 35, 0.1)" : "none",
                     transition: "all 0.2s ease",
                     "&:hover": { color: themeConfig.accent },
                   }}
@@ -333,10 +333,10 @@ export default function DashboardLayout({
               border: `1px solid ${themeConfig.border}`,
               background: isDarkMode
                 ? themeConfig.bgSubtle
-                : "linear-gradient(135deg, #FFFFFF 0%, #F9FBFC 100%)",
+                : themeConfig.bgSubtle,
               boxShadow: isDarkMode
                 ? "none"
-                : "0 4px 14px rgba(12, 39, 59, 0.04), inset 0 1px 0 #FFFFFF",
+                : "0 4px 14px rgba(32, 41, 35, 0.04), inset 0 1px 0 #FFFFFF",
               cursor: "pointer",
               transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
               "&:hover": {
@@ -344,7 +344,7 @@ export default function DashboardLayout({
                 transform: "translateY(-2px)",
                 boxShadow: isDarkMode
                   ? "0 6px 18px rgba(0, 0, 0, 0.4)"
-                  : "0 6px 18px rgba(12, 39, 59, 0.08), inset 0 1px 0 #FFFFFF",
+                  : "0 6px 18px rgba(32, 41, 35, 0.08), inset 0 1px 0 #FFFFFF",
               },
             }}
           >
@@ -410,7 +410,7 @@ export default function DashboardLayout({
             borderLeft: "none",
             borderRight: "none",
             borderRadius: 0,
-            boxShadow: isDarkMode ? "0 2px 14px rgba(0, 0, 0, 0.3)" : "0 2px 14px rgba(12, 39, 59, 0.04)",
+            boxShadow: isDarkMode ? "0 2px 14px rgba(0, 0, 0, 0.3)" : "0 2px 14px rgba(32, 41, 35, 0.04)",
             color: themeConfig.textMain,
             boxSizing: "border-box",
             justifyContent: "center",
@@ -483,7 +483,7 @@ export default function DashboardLayout({
                   onClick={navigateToSettings}
                   sx={{
                     bgcolor: themeConfig.primary,
-                    color: "#FFFFFF",
+                    color: themeConfig.onPrimary,
                     fontWeight: 700,
                     px: 3,
                     py: 1.2,
@@ -518,7 +518,7 @@ export default function DashboardLayout({
               border: `1.5px solid ${themeConfig.border}`,
               boxShadow: isDarkMode
                 ? "0 14px 35px -6px rgba(0, 0, 0, 0.7)"
-                : "0 14px 35px -6px rgba(12, 39, 59, 0.22), 0 4px 12px rgba(0,0,0,0.06), inset 0 1px 1px #FFFFFF",
+                : "0 14px 35px -6px rgba(32, 41, 35, 0.22), 0 4px 12px rgba(0,0,0,0.06), inset 0 1px 1px #FFFFFF",
               px: 0.3,
               py: 0.3,
               display: "flex",
@@ -570,14 +570,14 @@ export default function DashboardLayout({
                     background: isSelected
                       ? `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`
                       : "transparent",
-                    color: isSelected ? "#FFFFFF" : themeConfig.textMuted,
+                    color: isSelected ? themeConfig.onPrimary : themeConfig.textMuted,
                     boxShadow: isSelected
                       ? `0 3px 10px ${themeConfig.primaryGlow}, inset 0 1px 0 rgba(255,255,255,0.4)`
                       : "none",
                     transform: isSelected ? "translateY(-1px)" : "none",
                     "&:hover": {
                       bgcolor: isSelected ? undefined : themeConfig.champagne,
-                      color: isSelected ? "#FFFFFF" : themeConfig.accent,
+                      color: isSelected ? themeConfig.onPrimary : themeConfig.accent,
                     },
                     "&:active": {
                       transform: "scale(0.96)",
@@ -589,7 +589,7 @@ export default function DashboardLayout({
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      color: isSelected ? "#FFFFFF" : themeConfig.textMuted,
+                      color: isSelected ? themeConfig.onPrimary : themeConfig.textMuted,
                       "& svg": {
                         fontSize: { xs: 16, sm: 18 },
                       },
@@ -603,7 +603,7 @@ export default function DashboardLayout({
                     sx={{
                       fontSize: { xs: "0.52rem", sm: "0.6rem" },
                       fontWeight: isSelected ? 800 : 700,
-                      color: isSelected ? "#FFFFFF" : "inherit",
+                      color: isSelected ? themeConfig.onPrimary : "inherit",
                       mt: 0.1,
                       lineHeight: 1.1,
                       whiteSpace: "nowrap",

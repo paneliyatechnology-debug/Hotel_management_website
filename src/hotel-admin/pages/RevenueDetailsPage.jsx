@@ -402,7 +402,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
         sx={{
           p: { xs: 2, sm: 3 },
           borderRadius: "20px",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
           border: `1.5px solid ${themeConfig.border}`,
           boxShadow: isDarkMode ? "0 4px 20px rgba(0,0,0,0.4)" : "0 4px 20px rgba(0,0,0,0.04)",
         }}
@@ -532,7 +532,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
             sx={{
               p: 2.8,
               borderRadius: "20px",
-              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+              bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
               border: `1.5px solid ${themeConfig.border}`,
               position: "relative",
               overflow: "hidden",
@@ -573,7 +573,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
             sx={{
               p: 2.8,
               borderRadius: "20px",
-              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+              bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
               border: `1.5px solid ${themeConfig.border}`,
               position: "relative",
               overflow: "hidden",
@@ -614,7 +614,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
             sx={{
               p: 2.8,
               borderRadius: "20px",
-              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+              bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
               border: `1.5px solid ${themeConfig.border}`,
               position: "relative",
               overflow: "hidden",
@@ -656,7 +656,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
         sx={{
           p: { xs: 1.5, sm: 1.75 },
           borderRadius: "16px",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
           border: `1.5px solid ${themeConfig.border}`,
         }}
       >
@@ -858,7 +858,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
         sx={{
           p: { xs: 2, sm: 3 },
           borderRadius: "20px",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
           border: `1.5px solid ${themeConfig.border}`,
         }}
       >
@@ -1071,7 +1071,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
             paper: {
               sx: {
                 borderRadius: "20px",
-                bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                 border: `1.5px solid ${themeConfig.border}`,
                 backgroundImage: "none",
               },

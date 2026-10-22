@@ -819,7 +819,7 @@ export default function AvailableRoomsPage({
                         borderRadius: "16px",
                         border: `1px solid ${themeConfig.border}`,
                         bgcolor: themeConfig.bgCard || "#FFFFFF",
-                        boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 24px rgba(15, 23, 42, 0.08)",
+                        boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(32, 41, 35, 0.05), 0 10px 24px rgba(32, 41, 35, 0.08)",
                         cursor: "pointer",
                         display: "flex",
                         flexDirection: "column",
@@ -828,7 +828,7 @@ export default function AvailableRoomsPage({
                         "&:hover": {
                           borderColor: "#99D5C9",
                           transform: "translateY(-2px)",
-                          boxShadow: isDarkMode ? "none" : "0 2px 6px rgba(15, 23, 42, 0.06), 0 16px 32px rgba(15, 23, 42, 0.1)",
+                          boxShadow: isDarkMode ? "none" : "0 2px 6px rgba(32, 41, 35, 0.06), 0 16px 32px rgba(32, 41, 35, 0.1)",
                         },
                       }}
                     >
@@ -892,7 +892,7 @@ export default function AvailableRoomsPage({
                               borderRadius: "12px",
                               bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : item.bg,
                               border: `1px solid ${item.border}`,
-                              boxShadow: isDarkMode || isEmptyCategory ? "none" : "0 2px 8px rgba(15, 23, 42, 0.05)",
+                              boxShadow: isDarkMode || isEmptyCategory ? "none" : "0 2px 8px rgba(32, 41, 35, 0.05)",
                               py: 1.1,
                               px: 0.5,
                               textAlign: "center",
@@ -1089,9 +1089,9 @@ export default function AvailableRoomsPage({
                         borderRadius: "16px",
                         border: `1px solid ${isSelected ? themeConfig.primary : themeConfig.border}`,
                         bgcolor: isSelected
-                          ? (isDarkMode ? "rgba(15, 118, 110, 0.18)" : "#F0FDFA")
+                          ? (themeConfig.bgSoft)
                           : (themeConfig.bgCard || "#FFFFFF"),
-                        boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 24px rgba(15, 23, 42, 0.08)",
+                        boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(32, 41, 35, 0.05), 0 10px 24px rgba(32, 41, 35, 0.08)",
                         display: "flex",
                         flexDirection: "column",
                         gap: 2,
@@ -1100,7 +1100,7 @@ export default function AvailableRoomsPage({
                         "&:hover": {
                           borderColor: isSelected ? themeConfig.primary : "#99D5C9",
                           transform: "translateY(-2px)",
-                          boxShadow: isDarkMode ? "none" : "0 2px 6px rgba(15, 23, 42, 0.06), 0 16px 32px rgba(15, 23, 42, 0.1)",
+                          boxShadow: isDarkMode ? "none" : "0 2px 6px rgba(32, 41, 35, 0.06), 0 16px 32px rgba(32, 41, 35, 0.1)",
                         },
                       }}
                     >
@@ -1176,7 +1176,7 @@ export default function AvailableRoomsPage({
                               sx={{
                                 ...actionButtonSx,
                                 bgcolor: themeConfig.primary,
-                                color: "#FFFFFF",
+                                color: themeConfig.onPrimary,
                                 "&:hover": { bgcolor: themeConfig.primaryDark || themeConfig.primary, boxShadow: "none" },
                               }}
                             >
@@ -1286,11 +1286,11 @@ export default function AvailableRoomsPage({
             zIndex: 1300,
             p: { xs: 1.75, sm: 2 },
             borderRadius: "16px",
-            bgcolor: isDarkMode ? "rgba(15, 23, 42, 0.96)" : "#FFFFFF",
+            bgcolor: isDarkMode ? "rgba(32, 41, 35, 0.96)" : "#FFFFFF",
             border: `1px solid ${isDarkMode ? themeConfig.border : "#99D5C9"}`,
             boxShadow: isDarkMode
               ? "0 16px 40px rgba(0, 0, 0, 0.6)"
-              : "0 2px 6px rgba(15, 23, 42, 0.06), 0 18px 40px rgba(15, 23, 42, 0.14)",
+              : "0 2px 6px rgba(32, 41, 35, 0.06), 0 18px 40px rgba(32, 41, 35, 0.14)",
             animation: "slideUpDock 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
             "@keyframes slideUpDock": {
               "0%": { transform: "translate(-50%, 30px)", opacity: 0 },
@@ -1319,7 +1319,7 @@ export default function AvailableRoomsPage({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F0FDFA",
+                    bgcolor: themeConfig.bgSoft,
                     border: `1px solid ${themeConfig.border}`,
                     color: themeConfig.primary,
                     fontWeight: 700,
@@ -1396,7 +1396,7 @@ export default function AvailableRoomsPage({
                   flexGrow: { xs: 1, md: 0 },
                   textTransform: "none",
                   bgcolor: themeConfig.primary,
-                  color: "#FFFFFF",
+                  color: themeConfig.onPrimary,
                   px: 2.5,
                   boxShadow: "none",
                   "&:hover": { bgcolor: themeConfig.primaryDark || themeConfig.primary, boxShadow: "none" },

@@ -541,7 +541,7 @@ export default function GuestDetailPage({
                   fontSize: { xs: "1.5rem", sm: "1.8rem" },
                   fontWeight: 900,
                   bgcolor: themeConfig.primary,
-                  color: "#FFFFFF",
+                  color: themeConfig.onPrimary,
                   boxShadow: `0 8px 24px -4px ${themeConfig.primaryGlow || "rgba(0,0,0,0.2)"}`,
                 }}
               >

@@ -36,7 +36,7 @@ export default function StatCard({
         border: `1px solid ${themeConfig.border}`,
         boxShadow: isDarkMode
           ? themeConfig.shadowCard
-          : "0 10px 25px -5px rgba(12, 39, 59, 0.06), 0 4px 12px -2px rgba(12, 39, 59, 0.03), inset 0 1px 1px #FFFFFF",
+          : "0 10px 25px -5px rgba(32, 41, 35, 0.06), 0 4px 12px -2px rgba(32, 41, 35, 0.03), inset 0 1px 1px #FFFFFF",
         position: "relative",
         overflow: "hidden",
         boxSizing: "border-box",
@@ -56,7 +56,7 @@ export default function StatCard({
         },
         "&:hover": {
           transform: onClick ? "translateY(-5px) scale(1.01)" : "translateY(-4px)",
-          boxShadow: `0 18px 32px -8px rgba(12, 39, 59, 0.14), 0 0 0 1px ${cardColor}40`,
+          boxShadow: `0 18px 32px -8px rgba(32, 41, 35, 0.14), 0 0 0 1px ${cardColor}40`,
         },
       }}
     >

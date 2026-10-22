@@ -580,7 +580,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
           borderRadius: "20px",
           bgcolor: themeConfig.bgCard,
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "0 10px 30px rgba(0,0,0,0.4)" : "0 10px 30px rgba(12, 39, 59, 0.06), inset 0 1px 1px #FFFFFF",
+          boxShadow: isDarkMode ? "0 10px 30px rgba(0,0,0,0.4)" : "0 10px 30px rgba(32, 41, 35, 0.06), inset 0 1px 1px #FFFFFF",
           overflow: "hidden",
         }}
       >
@@ -593,7 +593,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
             flexDirection: { xs: "column", md: "row" },
             gap: 2,
             borderBottom: `1px solid ${themeConfig.border}`,
-            bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+            bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
             background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #FAFBFD 100%)",
           }}
         >
@@ -884,7 +884,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
               }}
               sx={{
                 borderTop: `1px solid ${themeConfig.border}`,
-                bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                 "& .MuiTablePagination-toolbar": {
                   flexWrap: "wrap",
                   px: { xs: 1, sm: 2 },
@@ -909,9 +909,9 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
           className="card-3d"
           sx={{
             borderRadius: "20px",
-            bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+            bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
             border: `1px solid ${themeConfig.border}`,
-            boxShadow: isDarkMode ? "0 6px 20px rgba(0,0,0,0.3)" : "0 6px 20px rgba(12, 39, 59, 0.05), inset 0 1px 1px #FFFFFF",
+            boxShadow: isDarkMode ? "0 6px 20px rgba(0,0,0,0.3)" : "0 6px 20px rgba(32, 41, 35, 0.05), inset 0 1px 1px #FFFFFF",
             overflow: "hidden",
           }}
         >
@@ -1014,7 +1014,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
             }}
             sx={{
               borderTop: `1px solid ${themeConfig.border}`,
-              bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+              bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
               "& .MuiTablePagination-toolbar": {
                 flexWrap: "wrap",
                 px: { xs: 1, sm: 2 },
@@ -1089,7 +1089,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
               fontWeight: 800,
             }}
           >
-            {settling ? <CircularProgress size={20} sx={{ color: "#FFFFFF" }} /> : "Confirm Settlement (Reset to 0)"}
+            {settling ? <CircularProgress size={20} sx={{ color: themeConfig.onPrimary }} /> : "Confirm Settlement (Reset to 0)"}
           </Button>
         </DialogActions>
       </Dialog>

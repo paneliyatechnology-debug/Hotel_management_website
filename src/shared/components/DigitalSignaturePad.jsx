@@ -147,7 +147,7 @@ export default function DigitalSignaturePad({
                   boxShadow: "none",
                   color: active ? themeConfig.accent || themeConfig.primary : themeConfig.textMuted,
                   bgcolor: active ? (isDarkMode ? themeConfig.primary : "#FFFFFF") : "transparent",
-                  "&:hover": { bgcolor: active ? undefined : "rgba(15, 23, 42, 0.04)", boxShadow: "none" },
+                  "&:hover": { bgcolor: active ? undefined : "rgba(32, 41, 35, 0.04)", boxShadow: "none" },
                 }}
               >
                 {item.label}

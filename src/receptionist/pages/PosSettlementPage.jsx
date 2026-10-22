@@ -38,9 +38,9 @@ export default function PosSettlementPage({
         sx={{
           p: 1.2,
           borderRadius: "18px",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
           border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 6px 18px rgba(12, 39, 59, 0.04), inset 0 1px 1px #FFFFFF",
+          boxShadow: isDarkMode ? "none" : "0 6px 18px rgba(32, 41, 35, 0.04), inset 0 1px 1px #FFFFFF",
           mb: 0.5,
         }}
       >
@@ -93,9 +93,9 @@ export default function PosSettlementPage({
           sx={{
             p: 3,
             borderRadius: "20px",
-            bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+            bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
             border: `1px solid ${themeConfig.border}`,
-            boxShadow: isDarkMode ? "none" : "0 10px 25px -5px rgba(12, 39, 59, 0.08), inset 0 1px 1px #FFFFFF",
+            boxShadow: isDarkMode ? "none" : "0 10px 25px -5px rgba(32, 41, 35, 0.08), inset 0 1px 1px #FFFFFF",
           }}
         >
           <Typography variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.5 }}>
@@ -131,9 +131,9 @@ export default function PosSettlementPage({
                       p: 3,
                       borderRadius: "16px",
                       border: `1px solid ${themeConfig.border}`,
-                      bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                      bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                       background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #F9FBFC 100%)",
-                      boxShadow: isDarkMode ? "none" : "0 6px 18px rgba(12, 39, 59, 0.05), inset 0 1px 1px #FFFFFF",
+                      boxShadow: isDarkMode ? "none" : "0 6px 18px rgba(32, 41, 35, 0.05), inset 0 1px 1px #FFFFFF",
                     }}
                   >
                     <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
@@ -187,7 +187,7 @@ export default function PosSettlementPage({
                         sx={{
                           borderRadius: "10px",
                           borderColor: themeConfig.border,
-                          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                           color: themeConfig.textMain,
                           fontWeight: 700,
                           boxShadow: isDarkMode ? "none" : "0 2px 4px rgba(0,0,0,0.03)",
@@ -203,7 +203,7 @@ export default function PosSettlementPage({
                         className="btn-3d"
                         sx={{
                           background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                          color: "#FFFFFF",
+                          color: themeConfig.onPrimary,
                           borderRadius: "10px",
                           fontWeight: 800,
                           boxShadow: `0 4px 12px ${themeConfig.primaryGlow}`,

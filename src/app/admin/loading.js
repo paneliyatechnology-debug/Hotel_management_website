@@ -3,8 +3,8 @@ export default function AdminLoading() {
     <div className="min-h-screen bg-[var(--color-bg-main)] flex flex-col items-center justify-center p-6 text-center font-sans">
       <div className="relative flex items-center justify-center">
         {/* Glowing Admin Spinner */}
-        <div className="w-16 h-16 rounded-full border-4 border-amber-200/60 border-t-[#0F766E] animate-spin"></div>
-        <div className="absolute w-8 h-8 rounded-full bg-[#072F2A] flex items-center justify-center text-[#00D0B4] font-bold text-[10px]">
+        <div className="w-16 h-16 rounded-full border-4 border-[var(--color-border)] border-t-[var(--color-primary)] animate-spin"></div>
+        <div className="absolute w-8 h-8 rounded-full bg-[var(--color-bg-card)] flex items-center justify-center text-[var(--color-accent)] font-bold text-[10px]">
           ADMIN
         </div>
       </div>

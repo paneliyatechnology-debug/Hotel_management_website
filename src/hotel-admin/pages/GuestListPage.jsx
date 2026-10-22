@@ -513,7 +513,7 @@ export default function GuestListPage({
         sx={{
           p: { xs: 2, sm: 3 },
           borderRadius: "20px",
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
           border: `1.5px solid ${themeConfig.border}`,
         }}
       >

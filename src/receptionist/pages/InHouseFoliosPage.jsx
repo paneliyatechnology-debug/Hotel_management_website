@@ -365,7 +365,7 @@ export default function InHouseFoliosPage({
         <div>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 0.5 }}>
             <Avatar sx={{ bgcolor: themeConfig.primary, width: 38, height: 38, borderRadius: "12px", boxShadow: `0 4px 12px ${themeConfig.primaryGlow}` }}>
-              <Receipt sx={{ color: "#FFFFFF", fontSize: 22 }} />
+              <Receipt sx={{ color: themeConfig.onPrimary, fontSize: 22 }} />
             </Avatar>
             <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5 }}>
               In-House Guest Folios & Account Ledgers
@@ -458,7 +458,7 @@ export default function InHouseFoliosPage({
           border: `1px solid ${themeConfig.border}`,
           boxShadow: isDarkMode
             ? "0 10px 30px -5px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05)"
-            : "0 10px 30px -5px rgba(12, 39, 59, 0.08), inset 0 1px 1px #FFFFFF",
+            : "0 10px 30px -5px rgba(32, 41, 35, 0.08), inset 0 1px 1px #FFFFFF",
         }}
       >
         {/* Controls Bar: Search, Status Tabs & Balance Filter */}
@@ -482,7 +482,7 @@ export default function InHouseFoliosPage({
                 color: themeConfig.textMuted,
                 "&.Mui-selected": {
                   bgcolor: themeConfig.primary,
-                  color: "#FFFFFF",
+                  color: themeConfig.onPrimary,
                   boxShadow: `0 4px 12px ${themeConfig.primaryGlow}`,
                 },
               },
@@ -1191,7 +1191,7 @@ export default function InHouseFoliosPage({
               className="btn-3d"
               sx={{
                 background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                color: "#FFFFFF",
+                color: themeConfig.onPrimary,
                 fontWeight: 800,
                 borderRadius: "10px",
               }}

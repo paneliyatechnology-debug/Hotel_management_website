@@ -270,7 +270,7 @@ export default function SubscriptionExpiredScreen({
           width: "100%",
           borderRadius: "28px",
           border: `1.5px solid ${themeConfig.border || "#E2E8F0"}`,
-          boxShadow: "0 24px 60px -12px rgba(12, 39, 59, 0.15), inset 0 1px 1px #FFFFFF",
+          boxShadow: "0 24px 60px -12px rgba(32, 41, 35, 0.15), inset 0 1px 1px #FFFFFF",
           background: themeConfig.bgCard || "#FFFFFF",
           overflow: "hidden",
           position: "relative",
@@ -470,7 +470,7 @@ export default function SubscriptionExpiredScreen({
                       fontSize: "0.75rem",
                       color: themeConfig.textMuted,
                       "&.Mui-selected": {
-                        bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                        bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                         color: themeConfig.accent,
                         boxShadow: isDarkMode ? "none" : "0 2px 6px rgba(0,0,0,0.08)",
                       },
@@ -502,7 +502,7 @@ export default function SubscriptionExpiredScreen({
                             p: 2.5,
                             borderRadius: "18px",
                             border: isPopular ? `2px solid ${themeConfig.primary}` : `1px solid ${themeConfig.border}`,
-                            bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                            bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                             position: "relative",
                             boxShadow: isPopular ? `0 12px 28px -4px ${themeConfig.primaryGlow}` : (isDarkMode ? "none" : "0 4px 16px rgba(0,0,0,0.04)"),
                             display: "flex",
@@ -521,7 +521,7 @@ export default function SubscriptionExpiredScreen({
                                 top: -10,
                                 right: 16,
                                 bgcolor: themeConfig.primary,
-                                color: "#FFFFFF",
+                                color: themeConfig.onPrimary,
                                 fontWeight: 900,
                                 fontSize: "0.62rem",
                                 boxShadow: `0 4px 10px ${themeConfig.primaryGlow}`,
@@ -586,7 +586,7 @@ export default function SubscriptionExpiredScreen({
                               ...(isPopular
                                 ? {
                                     background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                                    color: "#FFFFFF",
+                                    color: themeConfig.onPrimary,
                                   }
                                 : {
                                     borderColor: themeConfig.border,
@@ -626,7 +626,7 @@ export default function SubscriptionExpiredScreen({
                     p: 2.2,
                     borderRadius: "16px",
                     border: `1px solid ${themeConfig.border}`,
-                    bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                    bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                     textAlign: "center",
                     transition: "all 0.2s ease",
                     "&:hover": { transform: "translateY(-3px)", borderColor: themeConfig.primary },
@@ -661,7 +661,7 @@ export default function SubscriptionExpiredScreen({
                     p: 2.2,
                     borderRadius: "16px",
                     border: `1px solid ${themeConfig.border}`,
-                    bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                    bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                     textAlign: "center",
                     transition: "all 0.2s ease",
                     "&:hover": { transform: "translateY(-3px)", borderColor: "#25D366" },
@@ -706,7 +706,7 @@ export default function SubscriptionExpiredScreen({
                     p: 2.2,
                     borderRadius: "16px",
                     border: `1px solid ${themeConfig.border}`,
-                    bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+                    bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
                     textAlign: "center",
                     transition: "all 0.2s ease",
                     "&:hover": { transform: "translateY(-3px)", borderColor: themeConfig.info },
@@ -765,7 +765,7 @@ export default function SubscriptionExpiredScreen({
               onClick={() => handleOpenUpgrade("Priority Commercial Plan")}
               sx={{
                 background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                color: "#FFFFFF",
+                color: themeConfig.onPrimary,
                 fontWeight: 800,
                 fontSize: "0.88rem",
                 px: 3.5,

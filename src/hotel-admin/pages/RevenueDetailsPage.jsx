@@ -52,6 +52,7 @@ import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useSocket } from "@/shared/context/SocketContext";
 import { folioMoney } from "@/shared/utils/folioMoney";
 import EmptyState from "@/shared/components/EmptyState";
+import PeriodRangeFilter from "@/shared/components/PeriodRangeFilter";
 import { TableCard, TableToolbar, TablePager, tableFieldSx, tableSearchSx } from "@/shared/components/DataTable";
 
 function billAmount(record, bookings = []) {
@@ -397,133 +398,44 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: { xs: 10, sm: 4 } }}>
-      {/* Top Header Card */}
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2, sm: 3 },
-          borderRadius: "20px",
-          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
-          border: `1.5px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "0 4px 20px rgba(0,0,0,0.4)" : "0 4px 20px rgba(0,0,0,0.04)",
+      {/* Period selector (shared with the front desk dashboard) */}
+      <PeriodRangeFilter
+        eyebrow="Revenue"
+        value={filterType}
+        onChange={(id) => {
+          setFilterType(id);
+          setPage(0);
         }}
-      >
-        <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, justifyContent: "space-between", alignItems: { xs: "stretch", sm: "center" }, gap: 2, mb: 2.5 }}>
-          <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, alignItems: { xs: "stretch", sm: "center" }, gap: 1.5 }}>
-            {onBackToDashboard && (
-              <IconButton
-                aria-label="Back to dashboard"
-                title="Back to dashboard"
-                onClick={onBackToDashboard}
-                sx={{
-                  alignSelf: { xs: "flex-start", sm: "center" },
-                  width: 40,
-                  height: 40,
-                  borderRadius: "12px",
-                  border: `1px solid ${themeConfig.border}`,
-                  color: themeConfig.textMain,
-                  bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
-                  "&:hover": {
-                    bgcolor: themeConfig.champagne,
-                    borderColor: themeConfig.primary,
-                    transform: "translateX(-2px)",
-                  },
-                  transition: "all 0.2s ease-in-out",
-                }}
-              >
-                <ArrowBack fontSize="small" />
-              </IconButton>
-            )}
-            <Box>
-              <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: "-0.5px", fontSize: { xs: "1.2rem", sm: "1.5rem" } }}>
-                Revenue
-              </Typography>
-            </Box>
-          </Box>
-        </Box>
-
-        {/* Date Filter Preset Buttons */}
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1,
-            flexWrap: "nowrap",
-            overflowX: "auto",
-            WebkitOverflowScrolling: "touch",
-            py: 1,
-            borderTop: `1px solid ${themeConfig.border}`,
-            width: "100%",
-            maxWidth: "100%",
-            "&::-webkit-scrollbar": { display: "none" },
-            msOverflowStyle: "none",
-            scrollbarWidth: "none",
-          }}
-        >
-          {[
-            { id: "TODAY", label: "Today" },
-            { id: "THIS_WEEK", label: "This Week" },
-            { id: "LAST_WEEK", label: "Last Week" },
-            { id: "THIS_MONTH", label: "This Month" },
-            { id: "LAST_MONTH", label: "Last Month" },
-            { id: "CUSTOM", label: "Custom Range" },
-          ].map((preset) => {
-            const isActive = filterType === preset.id;
-            return (
-              <Chip
-                key={preset.id}
-                label={preset.label}
-                clickable
-                onClick={() => {
-                  setFilterType(preset.id);
-                  setPage(0);
-                }}
-                sx={{
-                  fontWeight: 800,
-                  fontSize: "0.8rem",
-                  px: 1.4,
-                  height: 36,
-                  borderRadius: "10px",
-                  flexShrink: 0,
-                  whiteSpace: "nowrap",
-                  bgcolor: isActive ? themeConfig.primary : (isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9"),
-                  color: isActive ? "#FFFFFF" : themeConfig.textMain,
-                  border: `1.5px solid ${isActive ? themeConfig.primary : themeConfig.border}`,
-                  boxShadow: isActive ? `0 4px 12px ${themeConfig.primaryGlow}` : "none",
-                  transition: "all 0.2s ease-in-out",
-                  "&:hover": {
-                    bgcolor: isActive ? themeConfig.primaryDark : (isDarkMode ? "rgba(255,255,255,0.12)" : "#E2E8F0"),
-                  },
-                }}
-              />
-            );
-          })}
-
-          {/* Custom Date Inputs if CUSTOM is chosen */}
-          {filterType === "CUSTOM" && (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, ml: { xs: 0, sm: 1 }, mt: { xs: 1, sm: 0 }, flexWrap: "wrap" }}>
-              <TextField
-                size="small"
-                type="date"
-                label="Start Date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
-                sx={{ width: 160 }}
-              />
-              <TextField
-                size="small"
-                type="date"
-                label="End Date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
-                sx={{ width: 160 }}
-              />
-            </Box>
-          )}
-        </Box>
-      </Paper>
+        start={startDate}
+        end={endDate}
+        onApplyCustom={(from, to) => {
+          setStartDate(from);
+          setEndDate(to);
+          setFilterType("CUSTOM");
+          setPage(0);
+        }}
+        leading={
+          onBackToDashboard ? (
+            <IconButton
+              aria-label="Back to dashboard"
+              title="Back to dashboard"
+              onClick={onBackToDashboard}
+              sx={{
+                width: 40,
+                height: 40,
+                flexShrink: 0,
+                borderRadius: "12px",
+                border: `1px solid ${themeConfig.border}`,
+                color: themeConfig.textMain,
+                bgcolor: themeConfig.bgCard,
+                "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
+              }}
+            >
+              <ArrowBack fontSize="small" />
+            </IconButton>
+          ) : null
+        }
+      />
 
       {/* KPI Highlight Summary Cards */}
       <Grid container spacing={2.5}>

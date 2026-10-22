@@ -70,7 +70,6 @@ import {
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
-import StatCard from "@/shared/components/StatCard";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import { TableCard, TableToolbar, TablePager } from "@/shared/components/DataTable";
@@ -705,62 +704,38 @@ export default function HotelOverviewPage({
       {/* ========================================================================= */}
       {/* 4. FINANCIAL & REVENUE TELEMETRY (4 STAT CARDS - PHOTO 2 DESIGN)          */}
       {/* ========================================================================= */}
-      <Box sx={{ mb: 3.5 }}>
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" },
-            gap: 2.5,
-          }}
-        >
-          {/* Card 1: Today's Revenue */}
-          <StatCard
-            hideFooter
-            title="TODAY'S REVENUE"
-            value={todayRevenue}
-            icon={<CurrencyRupee />}
-            color="#10B981"
-            onClick={() => {
-              setRevenueFilterMode("TODAY");
-              setShowRevenueDetailsView(true);
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(4, minmax(0, 1fr))" }, gap: 2, mb: 3.5 }}>
+        {[
+          { label: "Today's revenue", value: todayRevenue, color: "#10B981", note: "Collected today", icon: <CurrencyRupee sx={{ fontSize: 22 }} />, onClick: () => { setRevenueFilterMode("TODAY"); setShowRevenueDetailsView(true); } },
+          { label: "Weekly earnings", value: weeklyEarnings, color: themeConfig.primary, note: "This week", icon: <TrendingUp sx={{ fontSize: 22 }} />, onClick: () => { setRevenueFilterMode("THIS_WEEK"); setShowRevenueDetailsView(true); } },
+          { label: "Total guests", value: String(liveTotalGuests), color: themeConfig.textMain, note: `${liveInHouseGuests} in house`, icon: <Person sx={{ fontSize: 22 }} /> },
+          { label: "Monthly revenue", value: monthlyRevenue, color: "#F59E0B", note: "This month", icon: <AccountBalanceWallet sx={{ fontSize: 22 }} />, onClick: () => { setRevenueFilterMode("THIS_MONTH"); setShowRevenueDetailsView(true); } },
+        ].map((card) => (
+          <Paper
+            key={card.label}
+            elevation={0}
+            onClick={card.onClick}
+            sx={{
+              p: 2,
+              borderRadius: "16px",
+              border: `1px solid ${themeConfig.border}`,
+              bgcolor: themeConfig.bgCard || "#FFFFFF",
+              minWidth: 0,
+              cursor: card.onClick ? "pointer" : "default",
             }}
-          />
-
-          {/* Card 2: Weekly Total Earnings */}
-          <StatCard
-            hideFooter
-            title="WEEKLY TOTAL EARNINGS"
-            value={weeklyEarnings}
-            icon={<TrendingUp />}
-            color="#0B8EE0"
-            onClick={() => {
-              setRevenueFilterMode("THIS_WEEK");
-              setShowRevenueDetailsView(true);
-            }}
-          />
-
-          {/* Card 3: Total Guests */}
-          <StatCard
-            hideFooter
-            title="TOTAL GUESTS"
-            value={`${liveTotalGuests} Guests`}
-            icon={<Person />}
-            color="#8B5CF6"
-          />
-
-          {/* Card 4: Monthly Revenue */}
-          <StatCard
-            hideFooter
-            title="MONTHLY REVENUE"
-            value={monthlyRevenue}
-            icon={<AccountBalanceWallet />}
-            color="#F59E0B"
-            onClick={() => {
-              setRevenueFilterMode("THIS_MONTH");
-              setShowRevenueDetailsView(true);
-            }}
-          />
-        </Box>
+          >
+            <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography noWrap sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 800, textTransform: "uppercase" }}>{card.label}</Typography>
+                <Typography sx={{ color: card.color, fontWeight: 900, fontSize: "1.35rem", lineHeight: 1.2, mt: 0.6 }}>{card.value}</Typography>
+                <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.75rem", fontWeight: 700, mt: 0.4 }}>{card.note}</Typography>
+              </Box>
+              <Box sx={{ width: 36, height: 36, borderRadius: "10px", display: "grid", placeItems: "center", bgcolor: themeConfig.bgSoft, color: card.color, flexShrink: 0 }}>
+                {card.icon}
+              </Box>
+            </Box>
+          </Paper>
+        ))}
       </Box>
 
       {/* ========================================================================= */}
@@ -769,7 +744,7 @@ export default function HotelOverviewPage({
       <Box sx={{ mb: 3.5 }}>
         <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, alignItems: { xs: "flex-start", sm: "center" }, justifyContent: "space-between", gap: 1.5, mb: 2, flexWrap: "wrap" }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-            <Avatar sx={{ bgcolor: "rgba(67, 97, 238, 0.12)", color: themeConfig.primary, width: 32, height: 32, borderRadius: "8px" }}>
+            <Avatar sx={{ bgcolor: themeConfig.bgSoft, color: themeConfig.primary, width: 32, height: 32, borderRadius: "8px" }}>
               <TrendingUp sx={{ fontSize: 18 }} />
             </Avatar>
             <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: { xs: "0.95rem", sm: "1.05rem" } }}>

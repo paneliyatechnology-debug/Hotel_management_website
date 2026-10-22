@@ -34,11 +34,6 @@ export const LIVE_ADMIN_URL = (envValue("NEXT_PUBLIC_ADMIN_URL") || "https://hot
 export const getApiBaseUrl = () => {
   const mode = envValue("NEXT_PUBLIC_API_MODE").toUpperCase() || "LIVE";
   if (mode === "LOCAL") return LOCAL_API_URL;
-  // On localhost the browser call to Railway fails (Failed to fetch).
-  // Use the Next rewrite, which forwards /api to the live Railway server.
-  if (typeof window !== "undefined" && /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname)) {
-    return "";
-  }
   return LIVE_API_URL;
 };
 
@@ -887,43 +882,26 @@ function prepareRequestBody(body, endpoint) {
   }
 
   // 0. Special endpoint handlers matching Postman contract
-  // A. Subscription plans (Postman: Plan JSON uses camelCase)
+  // A. Subscription plans: live API expects snake_case and rejects unknown keys such as badge.
   if (typeof endpoint === "string" && endpoint.includes("/subscription-plans") && !endpoint.includes("/purchase")) {
-    const planPayload = { ...parsedBody };
-    if (planPayload.billing_cycle !== undefined && planPayload.billingCycle === undefined) {
-      planPayload.billingCycle = planPayload.billing_cycle;
-    }
-    if (planPayload.discount_percent !== undefined && planPayload.discountPercent === undefined) {
-      planPayload.discountPercent = planPayload.discount_percent;
-    }
-    if (planPayload.max_rooms !== undefined && planPayload.maxRooms === undefined) {
-      planPayload.maxRooms = planPayload.max_rooms;
-    }
-    if (planPayload.is_popular !== undefined && planPayload.isPopular === undefined) {
-      planPayload.isPopular = planPayload.is_popular;
-    }
-    if (planPayload.is_active !== undefined && planPayload.isActive === undefined) {
-      planPayload.isActive = planPayload.is_active;
-    }
-    if (planPayload.display_order !== undefined && planPayload.displayOrder === undefined) {
-      planPayload.displayOrder = planPayload.display_order;
-    }
-    if (planPayload.billingCycle) {
-      planPayload.billingCycle = String(planPayload.billingCycle).toUpperCase();
-    }
-    if (planPayload.price !== undefined) planPayload.price = Number(planPayload.price);
-    if (planPayload.discountPercent !== undefined) planPayload.discountPercent = Number(planPayload.discountPercent);
-    if (planPayload.maxRooms !== undefined) planPayload.maxRooms = Number(planPayload.maxRooms);
-    if (planPayload.displayOrder !== undefined) planPayload.displayOrder = Number(planPayload.displayOrder);
-    if (planPayload.isPopular !== undefined) planPayload.isPopular = Boolean(planPayload.isPopular);
-    if (planPayload.isActive !== undefined) planPayload.isActive = Boolean(planPayload.isActive);
-    delete planPayload.billing_cycle;
-    delete planPayload.discount_percent;
-    delete planPayload.max_rooms;
-    delete planPayload.is_popular;
-    delete planPayload.is_active;
-    delete planPayload.display_order;
-    return planPayload;
+    const features = Array.isArray(parsedBody.features)
+      ? parsedBody.features.map((item) => String(item).trim()).filter(Boolean)
+      : String(parsedBody.featuresText || parsedBody.features || "")
+          .split("\n")
+          .map((item) => item.trim())
+          .filter(Boolean);
+    return {
+      name: String(parsedBody.name || "").trim(),
+      billing_cycle: String(parsedBody.billing_cycle || parsedBody.billingCycle || "MONTHLY").toUpperCase(),
+      price: Number(parsedBody.price) || 0,
+      discount_percent: Number(parsedBody.discount_percent ?? parsedBody.discountPercent) || 0,
+      max_rooms: Number(parsedBody.max_rooms ?? parsedBody.maxRooms) || 0,
+      description: String(parsedBody.description || ""),
+      features,
+      is_popular: Boolean(parsedBody.is_popular ?? parsedBody.isPopular),
+      is_active: (parsedBody.is_active ?? parsedBody.isActive) !== false,
+      display_order: Number(parsedBody.display_order ?? parsedBody.displayOrder) || 1,
+    };
   }
 
   // B. Physical Room status: PATCH /api/v1/rooms/:id/status

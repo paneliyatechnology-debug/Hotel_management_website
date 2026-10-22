@@ -229,11 +229,12 @@ export default function GstReportPage({ hotelSettings }) {
       bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#FFFFFF",
     },
   };
+  const filterCellSx = { flex: "1 1 150px", minWidth: 0 };
   const fieldLabel = (text) => (
     <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.8rem", mb: 0.6 }}>{text}</Typography>
   );
-  const selectField = (label, value, onChange, options, size) => (
-    <Grid size={{ xs: 12, sm: 6, lg: size }}>
+  const selectField = (label, value, onChange, options) => (
+    <Box sx={filterCellSx}>
       {fieldLabel(label)}
       <TextField select fullWidth size="small" value={value} onChange={onChange} sx={inputSx}>
         {options.map((opt) => (
@@ -242,7 +243,7 @@ export default function GstReportPage({ hotelSettings }) {
           </MenuItem>
         ))}
       </TextField>
-    </Grid>
+    </Box>
   );
 
   const statusStyle = (status) => {
@@ -287,67 +288,55 @@ export default function GstReportPage({ hotelSettings }) {
 
   return (
     <Box sx={{ width: "100%", minWidth: 0, px: { xs: 1.5, sm: 2.5, md: 3 }, py: { xs: 1, sm: 1.5 }, pb: { xs: 10, sm: 4 } }}>
-      {/* Header */}
-      <Box sx={{ display: "flex", alignItems: { xs: "flex-start", sm: "center" }, justifyContent: "space-between", flexWrap: "wrap", gap: 1.5, mb: 2.5 }}>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "1.25rem", lineHeight: 1.3 }}>GST report</Typography>
-          <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.84rem", mt: 0.25 }}>
-            Invoice-wise GST for your hotel
-            {report ? ` · GSTIN ${gstin || "not added"}` : ""}
-            {report ? ` · ${formatDisplayDate(report?.filters?.start_date)} to ${formatDisplayDate(report?.filters?.end_date)}` : ""}
-          </Typography>
-        </Box>
-
-        <Button
-          variant="contained"
-          startIcon={exporting ? <CircularProgress size={16} color="inherit" /> : <Download fontSize="small" />}
-          onClick={(e) => setExportAnchor(e.currentTarget)}
-          disabled={Boolean(exporting) || Boolean(rangeError)}
-          sx={{
-            height: 40,
-            px: 2.5,
-            borderRadius: "10px",
-            textTransform: "none",
-            fontWeight: 700,
-            boxShadow: "none",
-            bgcolor: themeConfig.primary,
-            "&:hover": { bgcolor: themeConfig.primaryDark, boxShadow: "none" },
-          }}
-        >
-          {exporting ? "Preparing..." : "Export"}
-        </Button>
-        <Menu
-          anchorEl={exportAnchor}
-          open={Boolean(exportAnchor)}
-          onClose={() => setExportAnchor(null)}
-          slotProps={{ paper: { sx: { borderRadius: "10px", mt: 0.5, minWidth: 180, border: `1px solid ${themeConfig.border}` } } }}
-        >
-          <MenuItem onClick={() => handleExport("pdf")} sx={{ fontSize: "0.88rem", fontWeight: 600 }}>
-            PDF document
-          </MenuItem>
-          <MenuItem onClick={() => handleExport("xlsx")} sx={{ fontSize: "0.88rem", fontWeight: 600 }}>
-            Excel workbook
-          </MenuItem>
-        </Menu>
-      </Box>
-
       {/* Filters */}
       <Card sx={{ ...cardSx, mb: 2.5 }}>
         <CardContent sx={{ p: { xs: 2, sm: 2.5 }, "&:last-child": { pb: { xs: 2, sm: 2.5 } } }}>
-          <Grid container spacing={2}>
+          <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 2 }}>
             {selectField("Period", preset, (e) => changePreset(e.target.value), PRESETS, 2)}
-            <Grid size={{ xs: 12, sm: 6, lg: 2 }}>
+            <Box sx={filterCellSx}>
               {fieldLabel("From")}
               <TextField fullWidth size="small" type="date" value={startDate} onChange={changeDate(setStartDate)} error={Boolean(rangeError)} sx={inputSx} />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, lg: 2 }}>
+            </Box>
+            <Box sx={filterCellSx}>
               {fieldLabel("To")}
               <TextField fullWidth size="small" type="date" value={endDate} onChange={changeDate(setEndDate)} error={Boolean(rangeError)} sx={inputSx} />
-            </Grid>
+            </Box>
             {selectField("Service", serviceType, changeFilter(setServiceType), SERVICE_OPTIONS, 2)}
             {selectField("Status", invoiceStatus, changeFilter(setInvoiceStatus), STATUS_OPTIONS, 2)}
             {selectField("GST rate", gstRate, changeFilter(setGstRate), RATE_OPTIONS, 2)}
-          </Grid>
+            <Button
+              variant="contained"
+              startIcon={exporting ? <CircularProgress size={16} color="inherit" /> : <Download fontSize="small" />}
+              onClick={(e) => setExportAnchor(e.currentTarget)}
+              disabled={Boolean(exporting) || Boolean(rangeError)}
+              sx={{
+                height: 40,
+                px: 2.5,
+                flexShrink: 0,
+                borderRadius: "10px",
+                textTransform: "none",
+                fontWeight: 700,
+                boxShadow: "none",
+                bgcolor: themeConfig.primary,
+                "&:hover": { bgcolor: themeConfig.primaryDark, boxShadow: "none" },
+              }}
+            >
+              {exporting ? "Preparing..." : "Export"}
+            </Button>
+            <Menu
+              anchorEl={exportAnchor}
+              open={Boolean(exportAnchor)}
+              onClose={() => setExportAnchor(null)}
+              slotProps={{ paper: { sx: { borderRadius: "10px", mt: 0.5, minWidth: 180, border: `1px solid ${themeConfig.border}` } } }}
+            >
+              <MenuItem onClick={() => handleExport("pdf")} sx={{ fontSize: "0.88rem", fontWeight: 600 }}>
+                PDF document
+              </MenuItem>
+              <MenuItem onClick={() => handleExport("xlsx")} sx={{ fontSize: "0.88rem", fontWeight: 600 }}>
+                Excel workbook
+              </MenuItem>
+            </Menu>
+          </Box>
           {rangeError && (
             <Alert severity="warning" icon={false} sx={{ mt: 2, borderRadius: "10px" }}>
               {rangeError}

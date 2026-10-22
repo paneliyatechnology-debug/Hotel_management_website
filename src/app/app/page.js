@@ -229,6 +229,9 @@ function HotelWebAppContent() {
     }
   });
 
+  // Last explicit sidebar click: { tab, id } - id changes on every click, even on the already active tab
+  const [navClick, setNavClick] = useState(null);
+
   const checkUserLockout = (userData) => {
     const res = computeLockout(userData);
     setLockout(res);
@@ -304,7 +307,7 @@ function HotelWebAppContent() {
     }
   }, [pathname, user, currentEffectiveRole]);
 
-  const handleTabChange = (tabIndexOrPath) => {
+  const handleTabChange = (tabIndexOrPath, meta) => {
     let tabIndex = tabIndexOrPath;
     const effectiveRole = activePortalRole || user?.role;
     if (typeof tabIndexOrPath === "string" && user) {
@@ -312,6 +315,8 @@ function HotelWebAppContent() {
       tabIndex = getActiveTabFromPath(user, tabIndexOrPath, effectiveRole);
     }
     setActiveTab(tabIndex);
+    // Explicit sidebar clicks tell the dashboards to reset any drill-down (e.g. open category -> category list)
+    if (meta?.source === "sidebar") setNavClick({ tab: tabIndex, id: Date.now() });
     if (user && typeof window !== "undefined") {
       const targetPath = getPathForTab(effectiveRole, tabIndex);
       if (window.location.pathname !== targetPath) {
@@ -380,6 +385,7 @@ function HotelWebAppContent() {
               <HotelAdminDashboard
                 user={user}
                 activeNav={activeTab}
+                navClick={navClick}
                 onTabChange={handleTabChange}
               />
             </HotelAdminLayout>
@@ -395,6 +401,7 @@ function HotelWebAppContent() {
               <ReceptionistDashboard
                 user={user}
                 activeNav={activeTab}
+                navClick={navClick}
                 onTabChange={handleTabChange}
                 onLogout={handleLogout}
               />

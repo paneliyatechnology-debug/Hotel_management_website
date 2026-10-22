@@ -212,6 +212,7 @@ export default function RoomTypesPage({
   onDeleteRoomType,
   subscription,
   onTabChange,
+  resetToken = 0,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
 
@@ -226,6 +227,13 @@ export default function RoomTypesPage({
   const [categoryRowsPerPage, setCategoryRowsPerPage] = useState(10);
   const [roomPage, setRoomPage] = useState(0);
   const [roomRowsPerPage, setRoomRowsPerPage] = useState(5);
+
+  // Clicking "Rooms & Tariffs" in the sidebar always lands on the category list, not an opened category
+  useEffect(() => {
+    if (!resetToken) return;
+    setSelectedCategoryId(null);
+    setRoomPage(0);
+  }, [resetToken]);
   const [serverRooms, setServerRooms] = useState(null);
   const [liveTick, setLiveTick] = useState(0);
 

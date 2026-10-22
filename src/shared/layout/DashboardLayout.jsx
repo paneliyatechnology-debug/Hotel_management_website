@@ -219,7 +219,8 @@ export default function DashboardLayout({
                 <ListItem key={item.label} disablePadding sx={{ mb: 0.6 }}>
                   <ListItemButton
                     onClick={() => {
-                      if (onTabChange) onTabChange(index);
+                      // source: "sidebar" lets a page know the user explicitly asked for this section (e.g. reset a drill-down)
+                    if (onTabChange) onTabChange(index, { source: "sidebar" });
                       if (isMobile) setSidebarOpen(false);
                     }}
                     sx={{
@@ -548,7 +549,8 @@ export default function DashboardLayout({
                 <Box
                   key={item.label}
                   onClick={() => {
-                    if (onTabChange) onTabChange(index);
+                    // source: "sidebar" lets a page know the user explicitly asked for this section (e.g. reset a drill-down)
+                    if (onTabChange) onTabChange(index, { source: "sidebar" });
                     if (isMobile) setSidebarOpen(false);
                   }}
                   sx={{

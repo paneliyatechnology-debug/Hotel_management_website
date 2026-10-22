@@ -220,7 +220,7 @@ function adaptHotelDashboard(data) {
   };
 }
 
-export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }) {
+export default function HotelAdminDashboard({ user, activeNav = 0, navClick = null, onTabChange }) {
   const { themeConfig } = useAppTheme();
 
   const [hotelSettings, setHotelSettings] = useState(
@@ -909,6 +909,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, onTabChange }
       {/* ROUTE 4: ROOMS & CATEGORIES MASTER */}
       {activeNav === 3 && (
         <RoomTypesPage
+          resetToken={navClick?.tab === 3 ? navClick.id : 0}
           rooms={rooms}
           roomTypes={roomTypes}
           roomModal={roomModal}

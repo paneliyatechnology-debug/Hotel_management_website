@@ -99,6 +99,7 @@ export default function AvailableRoomsPage({
   initialSelectedCategory = null,
   onClearInitialCategory,
   onNavigateTab,
+  resetToken = 0,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
 
@@ -168,6 +169,16 @@ export default function AvailableRoomsPage({
     if (typeof window === "undefined") return;
     if (selectedCategory) sessionStorage.setItem("receptionist.rooms.category", String(selectedCategory));
   }, [selectedCategory]);
+
+  // Clicking "Rooms" in the sidebar always lands on the category list, never on a previously opened category.
+  // ("none" also stops the single-category auto-select below from re-opening it.)
+  useEffect(() => {
+    if (!resetToken) return;
+    if (typeof window !== "undefined") sessionStorage.setItem("receptionist.rooms.category", "none");
+    setSelectedCategory(null);
+    setCameFromExternalRoute(false);
+    setPage(0);
+  }, [resetToken]);
 
   // Filters for Table View & Category Drilldown
   const [roomSearch, setRoomSearch] = useState("");

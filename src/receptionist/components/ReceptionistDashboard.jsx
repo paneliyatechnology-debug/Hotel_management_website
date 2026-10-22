@@ -48,7 +48,7 @@ const CheckInWizardPage = dynamic(() => import("../pages/CheckInWizardPage"), { 
 const MoreOperationsPage = dynamic(() => import("../pages/MoreOperationsPage"), { loading: () => <ComponentSpinner /> });
 const GuestListPage = dynamic(() => import("@/hotel-admin/pages/GuestListPage"), { loading: () => <ComponentSpinner /> });
 
-export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange, onLogout }) {
+export default function ReceptionistDashboard({ user, activeNav = 0, navClick = null, onTabChange, onLogout }) {
   const { themeConfig } = useAppTheme();
 
   const [hotelSettings, setHotelSettings] = useState(
@@ -856,6 +856,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
       <Box sx={{ display: activeNav === 1 && !isCheckInOpen ? "block" : "none" }}>
         <AvailableRoomsPage
           user={user}
+          resetToken={navClick?.tab === 1 ? navClick.id : 0}
           initialSelectedCategory={initialSelectedCategory}
           onClearInitialCategory={() => setInitialSelectedCategory(null)}
           rooms={rooms}

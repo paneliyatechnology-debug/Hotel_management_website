@@ -768,6 +768,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
       {/* Transaction Records Table & Filtering */}
       <TableCard>
         <TableToolbar
+          filtersRight
           title={
             <>
               <CreditCard sx={{ fontSize: 20, color: themeConfig.primary }} />

@@ -24,6 +24,7 @@ import {
   Button,
   Paper,
   Tooltip,
+  ButtonBase,
 } from "@mui/material";
 import {
   Hotel as HotelIcon,
@@ -56,7 +57,7 @@ export default function DashboardLayout({
   onLogout,
   children,
 }) {
-  const { themeConfig, paletteKey, setPaletteKey, themePalettes, isDarkMode, toggleThemeMode } = useAppTheme();
+  const { themeConfig, paletteKey, setPaletteKey, themePalettes, isDarkMode, setThemeMode } = useAppTheme();
   const { isConnected } = usePresence();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -274,6 +275,51 @@ export default function DashboardLayout({
 
         {/* User Mini Profile Card at Bottom (Clean - 3D Inset Surface) */}
         <Box sx={{ p: 2, bgcolor: themeConfig.bgMain }}>
+          {/* Theme switch */}
+          <Box
+            role="group"
+            aria-label="Theme"
+            sx={{
+              display: "flex",
+              gap: 0.5,
+              p: 0.5,
+              mb: 1.5,
+              borderRadius: "12px",
+              border: `1px solid ${themeConfig.border}`,
+              bgcolor: isDarkMode ? "rgba(255, 255, 255, 0.04)" : "rgba(15, 23, 42, 0.04)",
+            }}
+          >
+            {[
+              { mode: "light", label: "Light", icon: <LightMode sx={{ fontSize: 18 }} /> },
+              { mode: "dark", label: "Dark", icon: <DarkMode sx={{ fontSize: 18 }} /> },
+            ].map((option) => {
+              const active = (option.mode === "dark") === isDarkMode;
+              return (
+                <ButtonBase
+                  key={option.mode}
+                  onClick={() => setThemeMode(option.mode)}
+                  aria-pressed={active}
+                  sx={{
+                    flex: 1,
+                    gap: 0.75,
+                    py: 0.8,
+                    borderRadius: "9px",
+                    fontSize: "0.8rem",
+                    fontWeight: active ? 800 : 600,
+                    color: active ? themeConfig.primaryDark : themeConfig.textMuted,
+                    bgcolor: active ? (isDarkMode ? themeConfig.champagne : "#FFFFFF") : "transparent",
+                    boxShadow: active && !isDarkMode ? "0 1px 3px rgba(15, 23, 42, 0.1)" : "none",
+                    transition: "all 0.2s ease",
+                    "&:hover": { color: themeConfig.primaryDark },
+                  }}
+                >
+                  {option.icon}
+                  {option.label}
+                </ButtonBase>
+              );
+            })}
+          </Box>
+
           <Box
             onClick={navigateToSettings}
             sx={{

@@ -11,174 +11,223 @@ import {
   Grid,
   Card,
   CardContent,
-  Chip,
   Avatar,
-  Divider,
-  Switch,
   Alert,
-  Tooltip,
-  Paper,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   MenuItem,
   FormControl,
-  InputLabel,
   Select,
   CircularProgress,
   InputAdornment,
   IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
 } from "@mui/material";
 import {
-  Palette,
-  Person,
-  Settings,
-  Help,
-  CheckCircle,
-  VpnKey,
-  SupportAgent,
-  Refresh,
-  VolumeUp,
-  NotificationsActive,
-  TableRows,
-  ExpandMore,
-  ColorLens,
-  Shield,
-  Email,
-  Phone,
-  Business,
   AccessTime,
+  AccountBalance,
+  Business,
+  Description,
+  Lock,
+  ReceiptLong,
   Schedule,
-  Hotel as HotelIcon,
-  InfoOutlined,
-  WarningAmber,
-  Public,
-  DarkMode,
-  LightMode,
-  WbSunny,
-  NightlightRound,
-  CreditCard,
   Visibility,
   VisibilityOff,
-  Lock,
-  Close,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
-import { AppDialogHeader, AppDialogFooter, dialogPaperSx, dialogCancelButtonSx, dialogPrimaryButtonSx } from "@/shared/components/AppDialog";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { toast } from "@/shared/utils/toast";
 import {
   formatTime12Hour,
   formatTime24Hour,
-  formatTimeWithZone,
   getTurnaroundWindow,
   validateHotelTimings,
 } from "@/shared/utils/timeUtils";
 
 const TIMEZONE_OPTIONS = [
-  { value: "Asia/Kolkata", label: "Asia/Kolkata (IST - UTC+05:30) [Default]" },
-  { value: "Asia/Dubai", label: "Asia/Dubai (GST - UTC+04:00)" },
-  { value: "Asia/Singapore", label: "Asia/Singapore (SGT - UTC+08:00)" },
-  { value: "Asia/Bangkok", label: "Asia/Bangkok (ICT - UTC+07:00)" },
-  { value: "Europe/London", label: "Europe/London (GMT/BST - UTC+00:00/+01:00)" },
-  { value: "Europe/Paris", label: "Europe/Paris (CET/CEST - UTC+01:00/+02:00)" },
-  { value: "America/New_York", label: "America/New_York (EST/EDT - UTC-05:00/-04:00)" },
-  { value: "America/Los_Angeles", label: "America/Los_Angeles (PST/PDT - UTC-08:00/-07:00)" },
-  { value: "Australia/Sydney", label: "Australia/Sydney (AEST/AEDT - UTC+10:00/+11:00)" },
+  { value: "Asia/Kolkata", label: "Asia/Kolkata (IST, UTC+05:30)" },
+  { value: "Asia/Dubai", label: "Asia/Dubai (GST, UTC+04:00)" },
+  { value: "Asia/Singapore", label: "Asia/Singapore (SGT, UTC+08:00)" },
+  { value: "Asia/Bangkok", label: "Asia/Bangkok (ICT, UTC+07:00)" },
+  { value: "Europe/London", label: "Europe/London (GMT/BST)" },
+  { value: "Europe/Paris", label: "Europe/Paris (CET/CEST)" },
+  { value: "America/New_York", label: "America/New_York (EST/EDT)" },
+  { value: "America/Los_Angeles", label: "America/Los_Angeles (PST/PDT)" },
+  { value: "Australia/Sydney", label: "Australia/Sydney (AEST/AEDT)" },
 ];
 
-export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSettings }) {
-  const {
-    paletteKey,
-    setPaletteKey,
-    themeConfig,
-    themePalettes,
-    settings,
-    updateSettings,
-    isDarkMode,
-    mode,
-    setThemeMode,
-    toggleThemeMode,
-  } = useAppTheme();
+const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i;
+const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/i;
+const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/i;
+const UPI_REGEX = /^[\w.\-]{2,}@[\w.\-]{2,}$/;
+const MAX_LOGO_BYTES = 10 * 1024 * 1024;
+
+const EMPTY_HOTEL_FORM = {
+  name: "",
+  hotel_type: "",
+  website: "",
+  address: "",
+  city: "",
+  state: "",
+  country: "",
+  pincode: "",
+  check_in_time: "14:00",
+  check_out_time: "12:00",
+  timezone: "Asia/Kolkata",
+  currency: "INR",
+  late_checkout_grace_minutes: "10",
+  gst_number: "",
+  tax_percentage: "18",
+  pan_number: "",
+  bank_name: "",
+  bank_account_holder: "",
+  bank_account_number: "",
+  bank_ifsc_code: "",
+  bank_branch: "",
+  upi_id: "",
+  amenities: "",
+  policies: "",
+};
+
+// The API answers in snake_case and camelCase. Read whichever is present.
+const pick = (obj, snakeKey) => {
+  if (!obj) return undefined;
+  const camelKey = snakeKey.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+  return obj[snakeKey] ?? obj[camelKey];
+};
+
+const asText = (value, fallback = "") => (value === undefined || value === null ? fallback : String(value));
+
+const listToLines = (value) => {
+  let list = value;
+  if (typeof value === "string") {
+    try {
+      list = JSON.parse(value);
+    } catch {
+      list = value.split(",");
+    }
+  }
+  return Array.isArray(list) ? list.map((item) => String(item).trim()).filter(Boolean).join("\n") : "";
+};
+
+const linesToList = (value) =>
+  String(value || "")
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const hotelToForm = (hotel) => {
+  const settings = hotel?.settings || {};
+  return {
+    name: asText(pick(hotel, "name")),
+    hotel_type: asText(pick(hotel, "hotel_type")),
+    website: asText(pick(hotel, "website")),
+    address: asText(pick(hotel, "address")),
+    city: asText(pick(hotel, "city")),
+    state: asText(pick(hotel, "state")),
+    country: asText(pick(hotel, "country")),
+    pincode: asText(pick(hotel, "pincode")),
+    check_in_time: formatTime24Hour(asText(pick(settings, "check_in_time"), "14:00")),
+    check_out_time: formatTime24Hour(asText(pick(settings, "check_out_time"), "12:00")),
+    timezone: asText(pick(settings, "timezone"), "Asia/Kolkata"),
+    currency: asText(pick(settings, "currency"), "INR"),
+    late_checkout_grace_minutes: asText(pick(settings, "late_checkout_grace_minutes"), "10"),
+    gst_number: asText(pick(hotel, "gst_number")),
+    tax_percentage: asText(pick(settings, "tax_percentage"), "18"),
+    pan_number: asText(pick(hotel, "pan_number")),
+    bank_name: asText(pick(hotel, "bank_name")),
+    bank_account_holder: asText(pick(hotel, "bank_account_holder")),
+    bank_account_number: asText(pick(hotel, "bank_account_number")),
+    bank_ifsc_code: asText(pick(hotel, "bank_ifsc_code")),
+    bank_branch: asText(pick(hotel, "bank_branch")),
+    upi_id: asText(pick(settings, "upi_id")),
+    amenities: listToLines(settings.amenities),
+    policies: listToLines(settings.policies),
+  };
+};
+
+export default function SettingsView({ user, onUpdateHotelSettings }) {
+  const { themeConfig, isDarkMode } = useAppTheme();
   const [activeSubTab, setActiveSubTab] = useState(0);
 
-  // Profile Form State
-  const [name, setName] = useState(user?.name || "");
-  const [phone, setPhone] = useState(user?.phone || user?.hotel?.ownerPhone || "");
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [savingProfile, setSavingProfile] = useState(false);
-  const [profileMsg, setProfileMsg] = useState({ show: false, message: "", severity: "success" });
-  const [supportModalOpen, setSupportModalOpen] = useState(false);
-  const [supportForm, setSupportForm] = useState({
-    subject: "",
-    category: "Technical Issue",
-    message: "",
-  });
-  const [submittingTicket, setSubmittingTicket] = useState(false);
+  const isHotelAdmin = user?.role === "HOTEL_ADMIN";
+  const isSuperAdmin = user?.role === "SUPER_ADMIN";
 
-  useEffect(() => {
-    if (user) {
-      if (user.name) setName(user.name);
-      if (user.phone || user.hotel?.ownerPhone) setPhone(user.phone || user.hotel?.ownerPhone || "");
-      const saved = user.hotel?.settings || {};
-      const savedBank = saved.bankDetails || saved.bank_details || {};
-      if (saved.upiId || saved.upi_id) setUpiId(saved.upiId || saved.upi_id);
-      if (savedBank.bank_name || savedBank.bankName) setBankName(savedBank.bank_name || savedBank.bankName);
-      if (savedBank.bank_account_holder || savedBank.beneficiaryName) setBeneficiaryName(savedBank.bank_account_holder || savedBank.beneficiaryName);
-      if (savedBank.bank_account_number || savedBank.accountNumber) setAccountNumber(savedBank.bank_account_number || savedBank.accountNumber);
-      if (savedBank.bank_ifsc_code || savedBank.ifscCode) setIfscCode(savedBank.bank_ifsc_code || savedBank.ifscCode);
-      if (savedBank.bank_branch || savedBank.branch) setBankBranch(savedBank.bank_branch || savedBank.branch);
-    }
-  }, [user]);
-
-  // Hotel Check-In / Check-Out Timings State
-  const [checkInTime, setCheckInTime] = useState(
-    formatTime24Hour(user?.hotel?.settings?.checkInTime || "14:00")
-  );
-  const [checkOutTime, setCheckOutTime] = useState(
-    formatTime24Hour(user?.hotel?.settings?.checkOutTime || "12:00")
-  );
-  const [timezone, setTimezone] = useState(
-    user?.hotel?.settings?.timezone || "Asia/Kolkata"
-  );
-  const bank = user?.hotel?.settings?.bankDetails || user?.hotel?.settings?.bank_details || {};
-  const [upiId, setUpiId] = useState(user?.hotel?.settings?.upiId || user?.hotel?.settings?.upi_id || "");
-  const [beneficiaryName, setBeneficiaryName] = useState(bank.beneficiaryName || bank.bank_account_holder || "");
-  const [bankName, setBankName] = useState(bank.bankName || bank.bank_name || "");
-  const [accountNumber, setAccountNumber] = useState(bank.accountNumber || bank.bank_account_number || "");
-  const [ifscCode, setIfscCode] = useState(bank.ifscCode || bank.bank_ifsc_code || "");
-  const [bankBranch, setBankBranch] = useState(bank.branch || bank.bank_branch || "");
+  // Hotel settings (hotel admin)
+  const [hotelForm, setHotelForm] = useState(EMPTY_HOTEL_FORM);
+  const [owner, setOwner] = useState({ name: "", email: "", phone: "" });
+  const [logoUrl, setLogoUrl] = useState("");
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState("");
+  const [loadingHotel, setLoadingHotel] = useState(isHotelAdmin);
+  const [savingHotel, setSavingHotel] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
-  const [timingsMsg, setTimingsMsg] = useState({ show: false, message: "", severity: "success" });
-  const [savingTimings, setSavingTimings] = useState(false);
+  const [hotelMsg, setHotelMsg] = useState({ show: false, message: "", severity: "success" });
 
-  // System Settings / Free Trial State
+  // Free trial (super admin)
   const [freeTrialValue, setFreeTrialValue] = useState(30);
   const [freeTrialUnit, setFreeTrialUnit] = useState("days");
   const [savingTrial, setSavingTrial] = useState(false);
   const [trialMsg, setTrialMsg] = useState({ show: false, message: "", severity: "success" });
 
+  const applyHotelProfile = (profile) => {
+    const hotel = profile?.hotel;
+    if (!hotel) return;
+    const ownerInfo = hotel.owner || {};
+    setHotelForm(hotelToForm(hotel));
+    setOwner({
+      name: asText(pick(ownerInfo, "name"), profile?.name || ""),
+      email: asText(pick(ownerInfo, "email"), profile?.email || ""),
+      phone: asText(pick(ownerInfo, "phone"), profile?.phone || ""),
+    });
+    setLogoUrl(asText(hotel.logo || hotel.logoUrl || hotel.logo_url));
+  };
+
   useEffect(() => {
-    if (user?.role === "SUPER_ADMIN") {
-      apiRequest(API_ENDPOINTS.SETTINGS?.PUBLIC || "/api/v1/settings")
-        .then((res) => {
-          if (res?.settings) {
-            setFreeTrialValue(res.settings.freeTrialValue);
-            setFreeTrialUnit(res.settings.freeTrialUnit);
-          }
-        })
-        .catch((err) => console.log(err));
+    if (!isHotelAdmin) return undefined;
+    let cancelled = false;
+    apiRequest(API_ENDPOINTS.AUTH.ME)
+      .then((res) => {
+        if (!cancelled) applyHotelProfile(res?.data || res);
+      })
+      .catch(() => {
+        if (!cancelled) setHotelMsg({ show: true, message: "Could not load hotel details.", severity: "error" });
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingHotel(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isHotelAdmin]);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    apiRequest(API_ENDPOINTS.SETTINGS?.PUBLIC || "/api/v1/settings")
+      .then((res) => {
+        if (res?.settings) {
+          setFreeTrialValue(res.settings.freeTrialValue);
+          setFreeTrialUnit(res.settings.freeTrialUnit);
+        }
+      })
+      .catch(() => {});
+  }, [isSuperAdmin]);
+
+  const setHotel = (key, value) => setHotelForm((prev) => ({ ...prev, [key]: value }));
+
+  const handleLogoChange = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose an image file.");
+      return;
     }
-  }, [user]);
+    if (file.size > MAX_LOGO_BYTES) {
+      toast.error("Logo must be 10 MB or smaller.");
+      return;
+    }
+    if (logoPreview) URL.revokeObjectURL(logoPreview);
+    setLogoPreview(URL.createObjectURL(file));
+    setLogoFile(file);
+  };
 
   const handleSaveTrial = async (e) => {
     e.preventDefault();
@@ -188,1317 +237,586 @@ export default function SettingsView({ user, onUpdateProfile, onUpdateHotelSetti
     try {
       const res = await apiRequest(API_ENDPOINTS.SETTINGS?.UPDATE || "/api/v1/settings", {
         method: "PUT",
-        body: JSON.stringify({
-          freeTrialValue: Number(freeTrialValue),
-          freeTrialUnit,
-        }),
+        body: JSON.stringify({ freeTrialValue: Number(freeTrialValue), freeTrialUnit }),
       });
 
       if (res?.success) {
         toast.success("Free trial settings updated successfully!");
-        setTrialMsg({
-          show: true,
-          message: "Free trial settings updated successfully!",
-          severity: "success",
-        });
+        setTrialMsg({ show: true, message: "Free trial settings updated successfully!", severity: "success" });
       } else {
-        toast.error(res?.message || "Failed to update free trial settings.");
-        setTrialMsg({
-          show: true,
-          message: res?.message || "Failed to update free trial settings.",
-          severity: "error",
-        });
+        const message = res?.message || "Failed to update free trial settings.";
+        toast.error(message);
+        setTrialMsg({ show: true, message, severity: "error" });
       }
     } catch (err) {
-      toast.error(err.message || "An error occurred while updating settings.");
-      setTrialMsg({
-        show: true,
-        message: err.message || "An error occurred while updating settings.",
-        severity: "error",
-      });
+      const message = err.message || "An error occurred while updating settings.";
+      toast.error(message);
+      setTrialMsg({ show: true, message, severity: "error" });
     } finally {
       setSavingTrial(false);
     }
   };
 
-  const handleSaveProfile = async (e) => {
-    e.preventDefault();
-    setSavingProfile(true);
-
-    try {
-      if (newPassword) {
-        if (!currentPassword) {
-          toast.error("Please enter your current password to change password.");
-          setProfileMsg({ show: true, message: "Please enter your current password to change password.", severity: "error" });
-          setSavingProfile(false);
-          return;
-        }
-        if (newPassword.length < 6) {
-          toast.error("New password must be at least 6 characters long.");
-          setProfileMsg({ show: true, message: "New password must be at least 6 characters long.", severity: "error" });
-          setSavingProfile(false);
-          return;
-        }
-        if (newPassword !== confirmPassword) {
-          toast.error("New passwords do not match!");
-          setProfileMsg({ show: true, message: "New passwords do not match!", severity: "error" });
-          setSavingProfile(false);
-          return;
-        }
-
-        await apiRequest(API_ENDPOINTS.AUTH.CHANGE_PASSWORD, {
-          method: "PUT",
-          body: {
-            currentPassword,
-            newPassword,
-          },
-        });
-
-        setCurrentPassword("");
-        setNewPassword("");
-        setConfirmPassword("");
+  const validateHotelForm = () => {
+    const f = hotelForm;
+    if (!f.name.trim()) return "Hotel name is required.";
+    if (!f.address.trim()) return "Address is required.";
+    if (!f.city.trim()) return "City is required.";
+    if (!f.state.trim()) return "State is required.";
+    if (!/^\d{6}$/.test(f.pincode.trim())) return "Enter a valid 6-digit pincode.";
+    if (f.website.trim()) {
+      try {
+        new URL(/^https?:\/\//i.test(f.website.trim()) ? f.website.trim() : `https://${f.website.trim()}`);
+      } catch {
+        return "Enter a valid website URL.";
       }
-
-      if (onUpdateProfile) {
-        onUpdateProfile({ name, phone });
-      }
-
-      const successMsg = newPassword
-        ? "Profile and password updated successfully!"
-        : "Profile settings saved successfully!";
-      toast.success(successMsg);
-      setProfileMsg({
-        show: true,
-        message: successMsg,
-        severity: "success",
-      });
-    } catch (err) {
-      toast.error(err.message || "Failed to update profile settings.");
-      setProfileMsg({
-        show: true,
-        message: err.message || "Failed to update profile settings.",
-        severity: "error",
-      });
-    } finally {
-      setSavingProfile(false);
-      setTimeout(() => {
-        setProfileMsg({ show: false, message: "", severity: "success" });
-      }, 4000);
     }
+    const timings = validateHotelTimings(f.check_in_time, f.check_out_time);
+    if (!timings.valid) return timings.error;
+    const currency = f.currency.trim();
+    if (currency.length < 3 || currency.length > 10) return "Currency must be 3 to 10 characters, such as INR.";
+    const grace = Number(f.late_checkout_grace_minutes);
+    if (!Number.isInteger(grace) || grace < 0 || grace > 1440) return "Late checkout grace must be 0 to 1440 minutes.";
+    const tax = Number(f.tax_percentage);
+    if (Number.isNaN(tax) || tax < 0 || tax > 100) return "GST percentage must be between 0 and 100.";
+    if (f.gst_number.trim() && !GSTIN_REGEX.test(f.gst_number.trim())) return "Enter a valid 15-character GST number.";
+    if (f.pan_number.trim() && !PAN_REGEX.test(f.pan_number.trim())) return "Enter a valid 10-character PAN number.";
+    if (f.bank_account_number.trim() && !/^\d{9,18}$/.test(f.bank_account_number.trim())) return "Account number must be 9 to 18 digits.";
+    if (f.bank_ifsc_code.trim() && !IFSC_REGEX.test(f.bank_ifsc_code.trim())) return "Enter a valid 11-character IFSC code.";
+    if (f.upi_id.trim() && !UPI_REGEX.test(f.upi_id.trim())) return "Enter a valid UPI ID, such as name@bank.";
+    return "";
   };
 
-  const handleSaveHotelTimings = async (e) => {
+  const handleSaveHotel = async (e) => {
     e.preventDefault();
 
-    // Validate Check-in and Check-out timings according to hotel booking rules
-    const validation = validateHotelTimings(checkInTime, checkOutTime);
-    if (!validation.valid) {
-      setTimingsMsg({ show: true, message: validation.error, severity: "error" });
-      return;
-    }
-    const upi = upiId.trim();
-    const ifsc = ifscCode.trim().toUpperCase();
-    if (upi && !/^[\w.\-]{2,}@[\w.\-]{2,}$/.test(upi)) {
-      setTimingsMsg({ show: true, message: "Enter a valid UPI ID, such as name@bank.", severity: "error" });
-      return;
-    }
-    if (ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
-      setTimingsMsg({ show: true, message: "Enter a valid 11-character IFSC code.", severity: "error" });
+    const problem = validateHotelForm();
+    if (problem) {
+      setHotelMsg({ show: true, message: problem, severity: "error" });
       return;
     }
 
-    setSavingTimings(true);
+    const f = hotelForm;
+    const payload = {
+      name: f.name.trim(),
+      hotel_type: f.hotel_type.trim(),
+      website: f.website.trim(),
+      address: f.address.trim(),
+      city: f.city.trim(),
+      state: f.state.trim(),
+      country: f.country.trim(),
+      pincode: f.pincode.trim(),
+      check_in_time: formatTime24Hour(f.check_in_time),
+      check_out_time: formatTime24Hour(f.check_out_time),
+      timezone: f.timezone || "Asia/Kolkata",
+      currency: f.currency.trim().toUpperCase(),
+      late_checkout_grace_minutes: Number(f.late_checkout_grace_minutes),
+      gst_enabled: Boolean(f.gst_number.trim()),
+      gst_number: f.gst_number.trim().toUpperCase(),
+      tax_percentage: Number(f.tax_percentage),
+      pan_number: f.pan_number.trim().toUpperCase(),
+      bank_name: f.bank_name.trim(),
+      bank_account_holder: f.bank_account_holder.trim(),
+      bank_account_number: f.bank_account_number.trim(),
+      bank_ifsc_code: f.bank_ifsc_code.trim().toUpperCase(),
+      bank_branch: f.bank_branch.trim(),
+      upi_id: f.upi_id.trim(),
+      amenities: linesToList(f.amenities),
+      policies: linesToList(f.policies),
+    };
+
+    setSavingHotel(true);
     try {
-      const bankDetails = {
-        bank_name: bankName.trim(),
-        bank_account_holder: beneficiaryName.trim(),
-        bank_account_number: accountNumber.trim(),
-        bank_ifsc_code: ifsc,
-        bank_branch: bankBranch.trim(),
-        beneficiaryName: beneficiaryName.trim(),
-        bankName: bankName.trim(),
-        accountNumber: accountNumber.trim(),
-        ifscCode: ifsc,
-        branch: bankBranch.trim(),
-      };
-      const updatedPayload = {
-        settings: {
-          checkInTime: formatTime24Hour(checkInTime),
-          checkOutTime: formatTime24Hour(checkOutTime),
-          timezone: timezone || "Asia/Kolkata",
-          upiId: upi,
-          upi_id: upi,
-          bankDetails,
-          bank_details: bankDetails,
+      let body = payload;
+      if (logoFile) {
+        body = new FormData();
+        Object.entries(payload).forEach(([key, value]) => {
+          body.append(key, Array.isArray(value) ? JSON.stringify(value) : String(value));
+        });
+        body.append("logo", logoFile);
+      }
+
+      await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.UPDATE_HOTEL, { method: "PUT", body });
+
+      // Refresh from the server so the logo URL and saved values are exact
+      if (logoPreview) URL.revokeObjectURL(logoPreview);
+      setLogoFile(null);
+      setLogoPreview("");
+      try {
+        const res = await apiRequest(API_ENDPOINTS.AUTH.ME);
+        applyHotelProfile(res?.data || res);
+      } catch {}
+
+      const settings = {
+        hotelName: payload.name,
+        checkInTime: payload.check_in_time,
+        checkOutTime: payload.check_out_time,
+        timezone: payload.timezone,
+        currency: payload.currency,
+        lateCheckoutGraceMinutes: payload.late_checkout_grace_minutes,
+        gstEnabled: payload.gst_enabled,
+        taxPercentage: payload.tax_percentage,
+        upiId: payload.upi_id,
+        bankDetails: {
+          bank_name: payload.bank_name,
+          bank_account_holder: payload.bank_account_holder,
+          bank_account_number: payload.bank_account_number,
+          bank_ifsc_code: payload.bank_ifsc_code,
+          bank_branch: payload.bank_branch,
         },
       };
+      if (onUpdateHotelSettings) onUpdateHotelSettings(settings);
 
-      // Call Backend API to persist in database
-      const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE, {
-        method: "PUT",
-        body: updatedPayload,
-      });
-
-      // Update local storage session
-      if (typeof window !== "undefined") {
-        const stored = localStorage.getItem("user");
-        if (stored) {
-          try {
-            const u = JSON.parse(stored);
-            if (!u.hotel) u.hotel = {};
-            if (!u.hotel.settings) u.hotel.settings = {};
-            u.hotel.settings.checkInTime = formatTime24Hour(checkInTime);
-            u.hotel.settings.checkOutTime = formatTime24Hour(checkOutTime);
-            u.hotel.settings.timezone = timezone || "Asia/Kolkata";
-            u.hotel.settings.upiId = upi;
-            u.hotel.settings.upi_id = upi;
-            u.hotel.settings.bankDetails = bankDetails;
-            localStorage.setItem("user", JSON.stringify(u));
-          } catch {}
-        }
-      }
-
-      if (onUpdateHotelSettings) {
-        onUpdateHotelSettings({
-          checkInTime: formatTime24Hour(checkInTime),
-          checkOutTime: formatTime24Hour(checkOutTime),
-          timezone: timezone || "Asia/Kolkata",
-          upiId: upi,
-          bankDetails,
-        });
-      }
-
-      setTimingsMsg({
-        show: true,
-        message: `Hotel timings saved successfully! Check-In: ${formatTime12Hour(checkInTime)} | Check-Out: ${formatTime12Hour(checkOutTime)} (${timezone})`,
-        severity: "success",
-      });
+      toast.success("Hotel settings saved successfully!");
+      setHotelMsg({ show: true, message: "Hotel settings saved successfully.", severity: "success" });
     } catch (err) {
-      setTimingsMsg({ show: true, message: err.message || "Failed to save timings.", severity: "error" });
+      setHotelMsg({ show: true, message: err.message || "Failed to save hotel settings.", severity: "error" });
     } finally {
-      setSavingTimings(false);
-      setTimeout(() => {
-        setTimingsMsg((prev) => ({ ...prev, show: false }));
-      }, 5000);
+      setSavingHotel(false);
+      setTimeout(() => setHotelMsg((prev) => ({ ...prev, show: false })), 5000);
     }
   };
 
-  const getRoleBadge = (role) => {
-    switch (role) {
-      case "SUPER_ADMIN":
-        return (
-          <Chip
-            label="SUPER ADMIN"
-            size="small"
-            sx={{
-              bgcolor: "#7e22ce",
-              color: "#FFFFFF",
-              fontWeight: 800,
-              fontSize: "0.7rem",
-              borderRadius: "10px",
-              boxShadow: "0 4px 12px rgba(126, 34, 206, 0.3), inset 0 1px 0 rgba(255,255,255,0.4)",
-            }}
-          />
-        );
-      case "HOTEL_ADMIN":
-        return (
-          <Chip
-            label="HOTEL ADMIN"
-            size="small"
-            sx={{
-              bgcolor: themeConfig.primary,
-              color: "#FFFFFF",
-              fontWeight: 800,
-              fontSize: "0.7rem",
-              borderRadius: "10px",
-              boxShadow: `0 4px 12px ${themeConfig.primaryGlow}, inset 0 1px 0 rgba(255,255,255,0.4)`,
-            }}
-          />
-        );
-      case "RECEPTIONIST":
-        return (
-          <Chip
-            label="RECEPTIONIST"
-            size="small"
-            sx={{
-              bgcolor: "#2563eb",
-              color: "#FFFFFF",
-              fontWeight: 800,
-              fontSize: "0.7rem",
-              borderRadius: "10px",
-              boxShadow: "0 4px 12px rgba(37, 99, 235, 0.3), inset 0 1px 0 rgba(255,255,255,0.4)",
-            }}
-          />
-        );
-      default:
-        return <Chip label={role || "USER"} size="small" sx={{ borderRadius: "10px", fontWeight: 700 }} />;
-    }
-  };
-
-  const isHotelAdmin = user?.role === "HOTEL_ADMIN";
-  const isSuperAdmin = user?.role === "SUPER_ADMIN";
-
+  // One settings area per role (the theme switch lives in the sidebar)
   const availableTabs = [
-    { id: "themes", label: "Theme & Appearance", icon: <Palette fontSize="small" /> },
-    ...(isSuperAdmin ? [{ id: "freetrial", label: "Free Trial Settings", icon: <AccessTime fontSize="small" /> }] : []),
-    ...(isHotelAdmin ? [{ id: "timings", label: "Hotel Timings & Operations", icon: <AccessTime fontSize="small" /> }] : []),
-    { id: "profile", label: "My Profile & Security", icon: <Person fontSize="small" /> },
+    ...(isHotelAdmin ? [{ id: "hotel", label: "Hotel settings" }] : []),
+    ...(isSuperAdmin ? [{ id: "platform", label: "Platform settings" }] : []),
   ];
+  const currentTab = availableTabs[activeSubTab]?.id || "";
 
-  const currentTab = availableTabs[activeSubTab]?.id || "themes";
+  const turnaroundWindow = getTurnaroundWindow(hotelForm.check_in_time, hotelForm.check_out_time);
+  const timingValidation = validateHotelTimings(hotelForm.check_in_time, hotelForm.check_out_time);
 
-  const paletteEntries = Object.entries(themePalettes);
-  const turnaroundWindow = getTurnaroundWindow(checkInTime, checkOutTime);
-  const timingValidation = validateHotelTimings(checkInTime, checkOutTime);
+  // Shared styles, matching the other pages
+  const cardSx = {
+    borderRadius: "14px",
+    border: `1px solid ${themeConfig.border}`,
+    bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+    boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.04)",
+  };
+  const cardContentSx = { p: { xs: 2, sm: 2.5 }, "&:last-child": { pb: { xs: 2, sm: 2.5 } } };
+  const inputSx = {
+    "& .MuiOutlinedInput-root": {
+      borderRadius: "10px",
+      bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#FFFFFF",
+    },
+  };
+  const primaryButtonSx = {
+    height: 40,
+    px: 3,
+    borderRadius: "10px",
+    textTransform: "none",
+    fontWeight: 700,
+    boxShadow: "none",
+    bgcolor: themeConfig.primary,
+    "&:hover": { bgcolor: themeConfig.primaryDark, boxShadow: "none" },
+  };
 
-  return (
-    <Box sx={{ p: { xs: 2, sm: 3, md: 4 }, pb: { xs: 10, sm: 4 }, bgcolor: themeConfig.bgMain, minHeight: "100%" }}>
-      {/* 3D Page Header */}
-      <Box sx={{ mb: 3.5 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 0.8, flexWrap: "wrap" }}>
-          <Avatar
+  const fieldLabel = (text, required = false) => (
+    <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.8rem", mb: 0.6 }}>
+      {text}
+      {required && <span style={{ color: themeConfig.danger }}> *</span>}
+    </Typography>
+  );
+
+  const sectionIcons = {
+    "Hotel details": Business,
+    "Amenities & policies": Description,
+    "Operating timings": AccessTime,
+    "Tax & GST invoicing": ReceiptLong,
+    "Bank & payment details": AccountBalance,
+    "Free trial period": Schedule,
+  };
+
+  const sectionHeading = (title, description) => {
+    const Icon = sectionIcons[title];
+    return (
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, pb: 1.75, mb: 2.5, borderBottom: `1px solid ${themeConfig.border}` }}>
+        {Icon && (
+          <Box
             sx={{
-              background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-              width: 48,
-              height: 48,
-              borderRadius: "16px",
-              boxShadow: `0 6px 18px ${themeConfig.primaryGlow}, inset 0 1px 0 rgba(255,255,255,0.4)`,
-              border: "2px solid #FFFFFF",
+              width: 36,
+              height: 36,
+              flexShrink: 0,
+              borderRadius: "10px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: themeConfig.primary,
+              bgcolor: themeConfig.champagne || "#EAF6F3",
             }}
           >
-            <Settings sx={{ color: "#FFFFFF", fontSize: 26 }} />
-          </Avatar>
-          <Box>
-            <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: "-0.02em", fontSize: { xs: "1.3rem", sm: "1.5rem" } }}>
-              Settings &amp; Preferences
-            </Typography>
-            <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontWeight: 500, fontSize: { xs: "0.8rem", sm: "0.875rem" } }}>
-              {isSuperAdmin
-                ? "Manage SaaS governance themes, master profile, security credentials, system behavior & support desk"
-                : "Manage themes, hotel check-in/out timings, personal profile, system behavior & support desk"}
-            </Typography>
+            <Icon sx={{ fontSize: 20 }} />
           </Box>
+        )}
+        <Box sx={{ minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "1rem", lineHeight: 1.3 }}>{title}</Typography>
+          {description && (
+            <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.8rem", mt: 0.25 }}>{description}</Typography>
+          )}
         </Box>
       </Box>
-
-      {/* 3D Main Container Card */}
-      <Card
-        sx={{
-          maxWidth: 1280,
-          mx: "auto",
-          borderRadius: "24px",
-          border: `1.5px solid ${themeConfig.border}`,
-          bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-          boxShadow: isDarkMode
-            ? "0 20px 45px -12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255,255,255,0.05)"
-            : "0 20px 45px -12px rgba(12, 39, 59, 0.08), 0 4px 16px rgba(0,0,0,0.02), inset 0 1px 0 #FFFFFF",
-          overflow: "hidden",
-        }}
-      >
-        {/* 3D Navigation Tabs Header */}
-        <Box
-          sx={{
-            borderBottom: `1.5px solid ${themeConfig.border}`,
-            px: { xs: 1.5, sm: 3 },
-            py: 1.2,
-            bgcolor: isDarkMode ? "rgba(20, 184, 166, 0.08)" : (themeConfig.champagne || "rgba(240, 253, 250, 0.8)"),
-            backdropFilter: "blur(10px)",
-            display: "flex",
-            justifyContent: "center",
-          }}
-        >
-          <Tabs
-            value={activeSubTab >= availableTabs.length ? 0 : activeSubTab}
-            onChange={(e, v) => setActiveSubTab(v)}
-            variant="scrollable"
-            scrollButtons="auto"
-            allowScrollButtonsMobile
-            sx={{
-              minHeight: 48,
-              width: "100%",
-              maxWidth: 1200,
-              "& .MuiTabs-flexContainer": {
-                gap: 1.2,
-                justifyContent: { xs: "flex-start", md: "center" },
-              },
-              "& .MuiTab-root": {
-                textTransform: "none",
-                fontWeight: 800,
-                fontSize: "0.88rem",
-                py: 1.2,
-                px: { xs: 1.5, sm: 2.2 },
-                minHeight: 44,
-                whiteSpace: "nowrap",
-                borderRadius: "14px",
-                color: themeConfig.textMuted,
-                transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
-                "&.Mui-selected": {
-                  color: "#FFFFFF",
-                  background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                  boxShadow: `0 4px 14px ${themeConfig.primaryGlow}, inset 0 1px 0 rgba(255,255,255,0.4)`,
-                  transform: "translateY(-1px)",
-                },
-                "&:hover:not(.Mui-selected)": {
-                  bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : themeConfig.champagne,
-                  color: themeConfig.primaryLight || themeConfig.primaryDark,
-                },
-              },
-              "& .MuiTabs-indicator": {
-                display: "none",
-              },
-            }}
-          >
-            {availableTabs.map((tab) => (
-              <Tab key={tab.id} icon={tab.icon} iconPosition="start" label={tab.label} />
-            ))}
-          </Tabs>
-        </Box>
-
-        <Box sx={{ p: { xs: 2, sm: 3.5, md: 4 }, maxWidth: 1000, mx: "auto", width: "100%" }}>
-          {/* ========================================================================= */}
-          {/* TAB: THEME & APPEARANCE */}
-          {/* ========================================================================= */}
-          {currentTab === "themes" && (
-            <Box>
-              {/* Appearance Mode (Light / Dark) */}
-              <Box sx={{ mb: 4 }}>
-                <Typography variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.5 }}>
-                  Appearance Mode
-                </Typography>
-                <Typography variant="body2" sx={{ color: themeConfig.textMuted, mb: 2 }}>
-                  Switch between Daylight Light Mode and OLED Dark Mode.
-                </Typography>
-
-                <Grid container spacing={2.5}>
-                  {/* Light Mode Card */}
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <Card
-                      onClick={() => {
-                        setThemeMode("light");
-                        toast.success("Switched to Light Daylight Theme");
-                      }}
-                      sx={{
-                        cursor: "pointer",
-                        borderRadius: "18px",
-                        p: 2.5,
-                        border: !isDarkMode ? `2.5px solid ${themeConfig.primary}` : `1.5px solid ${themeConfig.border}`,
-                        bgcolor: !isDarkMode ? "rgba(255, 255, 255, 0.9)" : "rgba(255, 255, 255, 0.02)",
-                        boxShadow: !isDarkMode ? `0 8px 24px ${themeConfig.primaryGlow}` : "none",
-                        transition: "all 0.25s ease",
-                        "&:hover": {
-                          borderColor: themeConfig.primary,
-                          transform: "translateY(-2px)",
-                        },
-                      }}
-                    >
-                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5, flexWrap: "wrap", gap: 1 }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                          <Avatar
-                            sx={{
-                              bgcolor: "#FEF3C7",
-                              color: "#D97706",
-                              width: 44,
-                              height: 44,
-                              borderRadius: "12px",
-                              boxShadow: "0 2px 8px rgba(217, 119, 6, 0.2)",
-                            }}
-                          >
-                            <WbSunny sx={{ fontSize: 24 }} />
-                          </Avatar>
-                          <Box>
-                            <Typography variant="subtitle1" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                              Light Mode
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                              Clean daylight theme &amp; sharp contrast
-                            </Typography>
-                          </Box>
-                        </Box>
-
-                        {!isDarkMode && (
-                          <Chip
-                            icon={<CheckCircle fontSize="small" sx={{ color: "#FFFFFF !important" }} />}
-                            label="ACTIVE"
-                            size="small"
-                            sx={{
-                              bgcolor: themeConfig.primary,
-                              color: "#FFFFFF",
-                              fontWeight: 800,
-                              fontSize: "0.7rem",
-                              borderRadius: "8px",
-                            }}
-                          />
-                        )}
-                      </Box>
-                      <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontSize: "0.82rem" }}>
-                        Crisp white cards, subtle borders, and optimal contrast for bright work environments.
-                      </Typography>
-                    </Card>
-                  </Grid>
-
-                  {/* Dark Mode Card */}
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <Card
-                      onClick={() => {
-                        setThemeMode("dark");
-                        toast.success("Switched to OLED Dark Theme");
-                      }}
-                      sx={{
-                        cursor: "pointer",
-                        borderRadius: "18px",
-                        p: 2.5,
-                        border: isDarkMode ? `2.5px solid ${themeConfig.primary}` : `1.5px solid ${themeConfig.border}`,
-                        bgcolor: isDarkMode ? "rgba(22, 32, 50, 0.9)" : "rgba(15, 23, 42, 0.04)",
-                        boxShadow: isDarkMode ? `0 8px 24px ${themeConfig.primaryGlow}` : "none",
-                        transition: "all 0.25s ease",
-                        "&:hover": {
-                          borderColor: themeConfig.primary,
-                          transform: "translateY(-2px)",
-                        },
-                      }}
-                    >
-                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5, flexWrap: "wrap", gap: 1 }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                          <Avatar
-                            sx={{
-                              bgcolor: "#312E81",
-                              color: "#A5B4FC",
-                              width: 44,
-                              height: 44,
-                              borderRadius: "12px",
-                              boxShadow: "0 2px 8px rgba(165, 180, 252, 0.2)",
-                            }}
-                          >
-                            <DarkMode sx={{ fontSize: 24 }} />
-                          </Avatar>
-                          <Box>
-                            <Typography variant="subtitle1" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                              Dark Mode
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
-                              Sleek slate OLED theme &amp; reduced eye strain
-                            </Typography>
-                          </Box>
-                        </Box>
-
-                        {isDarkMode && (
-                          <Chip
-                            icon={<CheckCircle fontSize="small" sx={{ color: "#FFFFFF !important" }} />}
-                            label="ACTIVE"
-                            size="small"
-                            sx={{
-                              bgcolor: themeConfig.primary,
-                              color: "#FFFFFF",
-                              fontWeight: 800,
-                              fontSize: "0.7rem",
-                              borderRadius: "8px",
-                            }}
-                          />
-                        )}
-                      </Box>
-                      <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontSize: "0.82rem" }}>
-                        Deep obsidian &amp; slate surfaces with glowing accent highlights for night shifts.
-                      </Typography>
-                    </Card>
-                  </Grid>
-                </Grid>
-              </Box>
-
-            </Box>
-          )}
-
-          {/* ========================================================================= */}
-          {/* TAB: FREE TRIAL SETTINGS (SUPER ADMIN) */}
-          {/* ========================================================================= */}
-          {currentTab === "freetrial" && isSuperAdmin && (
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.5 }}>
-                Global Free Trial Configuration
-              </Typography>
-              <Typography variant="body2" sx={{ color: themeConfig.textMuted, mb: 3 }}>
-                Configure the default free trial duration applied to all newly registered hotels. This will instantly reflect on the landing page.
-              </Typography>
-
-              {trialMsg.show && (
-                <Alert severity={trialMsg.severity} sx={{ mb: 3, borderRadius: "12px" }}>
-                  {trialMsg.message}
-                </Alert>
-              )}
-
-              <Box component="form" onSubmit={handleSaveTrial}>
-                <Grid container spacing={3}>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      fullWidth
-                      label="Trial Duration Value"
-                      type="number"
-                      value={freeTrialValue}
-                      onChange={(e) => setFreeTrialValue(e.target.value)}
-                      required
-                      sx={{
-                        "& .MuiOutlinedInput-root": { borderRadius: "12px", bgcolor: themeConfig.bgCard },
-                      }}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <FormControl fullWidth>
-                      <InputLabel>Unit</InputLabel>
-                      <Select
-                        value={freeTrialUnit}
-                        label="Unit"
-                        onChange={(e) => setFreeTrialUnit(e.target.value)}
-                        sx={{ borderRadius: "12px", bgcolor: themeConfig.bgCard }}
-                      >
-                        <MenuItem value="hours">Hours</MenuItem>
-                        <MenuItem value="days">Days</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid size={{ xs: 12 }}>
-                    <Button
-                      type="submit"
-                      variant="contained"
-                      disabled={savingTrial}
-                      sx={{
-                        mt: 2,
-                        borderRadius: "12px",
-                        px: 4,
-                        py: 1.5,
-                        bgcolor: themeConfig.primary,
-                        fontWeight: 800,
-                        "&:hover": { bgcolor: themeConfig.primaryDark },
-                      }}
-                    >
-                      {savingTrial ? <CircularProgress size={24} color="inherit" /> : "Save Trial Configuration"}
-                    </Button>
-                  </Grid>
-                </Grid>
-              </Box>
-            </Box>
-          )}
-
-          {/* ========================================================================= */}
-          {/* TAB: HOTEL TIMINGS & OPERATIONS (HOTEL ADMIN ONLY) */}
-          {/* ========================================================================= */}
-          {currentTab === "timings" && (
-            <Box component="form" onSubmit={handleSaveHotelTimings} sx={{ width: "100%", mx: "auto" }}>
-              {timingsMsg.show && (
-                <Alert severity={timingsMsg.severity} sx={{ mb: 3, borderRadius: "14px", boxShadow: "0 4px 14px rgba(0,0,0,0.05)" }}>
-                  {timingsMsg.message}
-                </Alert>
-              )}
-
-              {/* Header Description */}
-              <Box sx={{ mb: 3.5 }}>
-                <Typography variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.5 }}>
-                  Hotel Check-In &amp; Check-Out Timings
-                </Typography>
-                <Typography variant="body2" sx={{ color: themeConfig.textMuted }}>
-                  Configure standard hotel check-in time, check-out deadline, and operational timezone used across all reservation folios, desk wizards, and guest documents.
-                </Typography>
-              </Box>
-
-              {/* 3D Summary Timing Metrics Banner */}
-              <Grid container spacing={2.5} sx={{ mb: 3.5, alignItems: "stretch" }}>
-                {/* 1. Check-In Time */}
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                  <Paper
-                    className="card-3d"
-                    sx={{
-                      p: 2.2,
-                      height: "100%",
-                      borderRadius: "18px",
-                      border: `1.5px solid ${themeConfig.border}`,
-                      bgcolor: themeConfig.champagne,
-                      boxShadow: "0 8px 20px -4px rgba(12, 39, 59, 0.04), inset 0 1px 0 #FFFFFF",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "space-between",
-                      minHeight: 145,
-                      transition: "all 0.2s ease",
-                      "&:hover": { transform: "translateY(-2px)" },
-                    }}
-                  >
-                    <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", minHeight: 34 }}>
-                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", fontSize: "0.68rem", lineHeight: 1.2, minHeight: 28, display: "flex", alignItems: "center" }}>
-                        Check-In Time
-                      </Typography>
-                      <Avatar sx={{ bgcolor: themeConfig.primary, width: 32, height: 32, borderRadius: "10px", boxShadow: `0 2px 6px ${themeConfig.primaryGlow}`, flexShrink: 0 }}>
-                        <AccessTime sx={{ color: "#FFFFFF", fontSize: 17 }} />
-                      </Avatar>
-                    </Box>
-                    <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "1.3rem", my: 0.5, lineHeight: 1 }}>
-                      {formatTime12Hour(checkInTime)}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: themeConfig.primaryDark, fontWeight: 700, fontSize: "0.72rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      Standard Guest Arrival
-                    </Typography>
-                  </Paper>
-                </Grid>
-
-                {/* 2. Check-Out Time */}
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                  <Paper
-                    className="card-3d"
-                    sx={{
-                      p: 2.2,
-                      height: "100%",
-                      borderRadius: "18px",
-                      border: `1.5px solid ${themeConfig.border}`,
-                      bgcolor: themeConfig.bgCard,
-                      boxShadow: isDarkMode
-                        ? "0 8px 20px -4px rgba(0, 0, 0, 0.4)"
-                        : "0 8px 20px -4px rgba(12, 39, 59, 0.04), inset 0 1px 0 #FFFFFF",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "space-between",
-                      minHeight: 145,
-                      transition: "all 0.2s ease",
-                      "&:hover": { transform: "translateY(-2px)" },
-                    }}
-                  >
-                    <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", minHeight: 34 }}>
-                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", fontSize: "0.68rem", lineHeight: 1.2, minHeight: 28, display: "flex", alignItems: "center" }}>
-                        Check-Out Time
-                      </Typography>
-                      <Avatar sx={{ bgcolor: themeConfig.champagne, width: 32, height: 32, borderRadius: "10px", flexShrink: 0 }}>
-                        <Schedule sx={{ color: themeConfig.primaryDark, fontSize: 17 }} />
-                      </Avatar>
-                    </Box>
-                    <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "1.3rem", my: 0.5, lineHeight: 1 }}>
-                      {formatTime12Hour(checkOutTime)}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, fontSize: "0.72rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      Standard Guest Departure
-                    </Typography>
-                  </Paper>
-                </Grid>
-
-                {/* 3. Housekeeping Buffer */}
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                  <Paper
-                    className="card-3d"
-                    sx={{
-                      p: 2.2,
-                      height: "100%",
-                      borderRadius: "18px",
-                      border: `1.5px solid ${themeConfig.border}`,
-                      bgcolor: themeConfig.champagne,
-                      boxShadow: "0 8px 20px -4px rgba(12, 39, 59, 0.04), inset 0 1px 0 #FFFFFF",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "space-between",
-                      minHeight: 145,
-                      transition: "all 0.2s ease",
-                      "&:hover": { transform: "translateY(-2px)" },
-                    }}
-                  >
-                    <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", minHeight: 34 }}>
-                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", fontSize: "0.68rem", lineHeight: 1.2, minHeight: 28, display: "flex", alignItems: "center" }}>
-                        Housekeeping Buffer
-                      </Typography>
-                      <Avatar sx={{ bgcolor: "rgba(16, 185, 129, 0.15)", width: 32, height: 32, borderRadius: "10px", flexShrink: 0 }}>
-                        <HotelIcon sx={{ color: themeConfig.success, fontSize: 17 }} />
-                      </Avatar>
-                    </Box>
-                    <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "1.3rem", my: 0.5, lineHeight: 1 }}>
-                      {turnaroundWindow || "2 hours"}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: themeConfig.success, fontWeight: 700, fontSize: "0.72rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      Room Cleaning Turnover
-                    </Typography>
-                  </Paper>
-                </Grid>
-
-                {/* 4. Timezone */}
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                  <Paper
-                    className="card-3d"
-                    sx={{
-                      p: 2.2,
-                      height: "100%",
-                      borderRadius: "18px",
-                      border: `1.5px solid ${themeConfig.border}`,
-                      bgcolor: themeConfig.bgCard,
-                      boxShadow: isDarkMode
-                        ? "0 8px 20px -4px rgba(0, 0, 0, 0.4)"
-                        : "0 8px 20px -4px rgba(12, 39, 59, 0.04), inset 0 1px 0 #FFFFFF",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "space-between",
-                      minHeight: 145,
-                      transition: "all 0.2s ease",
-                      "&:hover": { transform: "translateY(-2px)" },
-                    }}
-                  >
-                    <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", minHeight: 34 }}>
-                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMuted, textTransform: "uppercase", fontSize: "0.68rem", lineHeight: 1.2, minHeight: 28, display: "flex", alignItems: "center" }}>
-                        Timezone
-                      </Typography>
-                      <Avatar sx={{ bgcolor: themeConfig.champagne, width: 32, height: 32, borderRadius: "10px", flexShrink: 0 }}>
-                        <Public sx={{ color: themeConfig.primary, fontSize: 17 }} />
-                      </Avatar>
-                    </Box>
-                    <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "1.3rem", my: 0.5, lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {timezone}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, fontSize: "0.72rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      Default Operating Zone
-                    </Typography>
-                  </Paper>
-                </Grid>
-              </Grid>
-
-              {/* Validation Alert */}
-              {!timingValidation.valid && (
-                <Alert severity="warning" icon={<WarningAmber />} sx={{ mb: 3, borderRadius: "14px" }}>
-                  <strong>Booking Rule Violation:</strong> {timingValidation.error}
-                </Alert>
-              )}
-
-              {/* 3D Configurable Timing Inputs Card */}
-              <Card sx={{ mb: 3.5, borderRadius: "20px", bgcolor: themeConfig.bgCard, border: `1.5px solid ${themeConfig.border}`, boxShadow: isDarkMode ? "0 8px 24px -6px rgba(0,0,0,0.4)" : "0 8px 24px -6px rgba(12, 39, 59, 0.04), inset 0 1px 0 #FFFFFF" }}>
-                <CardContent sx={{ p: 3.5 }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 2.5, display: "flex", alignItems: "center", gap: 1 }}>
-                    <AccessTime fontSize="small" sx={{ color: themeConfig.primary }} /> Configurable Policy &amp; Schedule
-                  </Typography>
-
-                  <Grid container spacing={3}>
-                    {/* Check-In Time */}
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                        Check-In Time * (Standard Arrival)
-                      </Typography>
-                      <TextField
-                        fullWidth
-                        type="time"
-                        size="small"
-                        value={checkInTime}
-                        onChange={(e) => setCheckInTime(e.target.value)}
-                        helperText={`Formally: ${formatTime12Hour(checkInTime)} (Default: 02:00 PM)`}
-                        sx={{
-                          bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#FFFFFF",
-                          "& .MuiOutlinedInput-root": {
-                            borderRadius: "12px",
-                            boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
-                          },
-                          "& .MuiFormHelperText-root": { fontWeight: 700, color: themeConfig.primaryDark },
-                        }}
-                      />
-                    </Grid>
-
-                    {/* Check-Out Time */}
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                        Check-Out Time * (Standard Departure)
-                      </Typography>
-                      <TextField
-                        fullWidth
-                        type="time"
-                        size="small"
-                        value={checkOutTime}
-                        onChange={(e) => setCheckOutTime(e.target.value)}
-                        helperText={`Formally: ${formatTime12Hour(checkOutTime)} (Default: 12:00 PM)`}
-                        sx={{
-                          bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#FFFFFF",
-                          "& .MuiOutlinedInput-root": {
-                            borderRadius: "12px",
-                            boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
-                          },
-                          "& .MuiFormHelperText-root": { fontWeight: 700, color: themeConfig.primaryDark },
-                        }}
-                      />
-                    </Grid>
-
-                    {/* Timezone Selector */}
-                    <Grid size={{ xs: 12 }}>
-                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                        Hotel Operating Timezone
-                      </Typography>
-                      <FormControl fullWidth size="small">
-                        <Select
-                          value={timezone}
-                          onChange={(e) => setTimezone(e.target.value)}
-                          sx={{
-                            bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#FFFFFF",
-                            borderRadius: "12px",
-                            boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
-                          }}
-                        >
-                          {TIMEZONE_OPTIONS.map((opt) => (
-                            <MenuItem key={opt.value} value={opt.value} sx={{ borderRadius: "8px" }}>
-                              {opt.label}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    </Grid>
-                  </Grid>
-
-                  {/* Operational Rule Explanation Note */}
-                  <Paper sx={{ mt: 3, p: 2.5, borderRadius: "16px", bgcolor: themeConfig.bgCard, border: `1px solid ${themeConfig.border}`, boxShadow: isDarkMode ? "0 4px 12px rgba(0,0,0,0.3)" : "0 4px 12px rgba(0,0,0,0.02)" }}>
-                    <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5 }}>
-                      <InfoOutlined sx={{ color: themeConfig.primary, fontSize: 22, mt: 0.2 }} />
-                      <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-                          Hotel Turnaround &amp; Booking Integrity Rule:
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, lineHeight: 1.5, display: "block", mt: 0.3 }}>
-                          Check-Out Time ({formatTime12Hour(checkOutTime)}) must be earlier than Check-In Time ({formatTime12Hour(checkInTime)}) on the changeover cycle. This gives housekeeping staff <strong>{turnaroundWindow || "turnaround"}</strong> to clean, sanitize, and verify room inventory before incoming guests receive their keycards.
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Paper>
-                </CardContent>
-              </Card>
-
-              {/* 3D HOTEL DIGITAL PAYMENT & DYNAMIC UPI QR CONFIGURATION */}
-              <Card
-                sx={{
-                  borderRadius: "20px",
-                  border: `1.5px solid ${themeConfig.border}`,
-                  bgcolor: themeConfig.bgCard,
-                  boxShadow: isDarkMode ? "0 8px 25px -5px rgba(0,0,0,0.4)" : "0 8px 25px -5px rgba(12, 39, 59, 0.05), inset 0 1px 0 #FFFFFF",
-                  mb: 3.5,
-                }}
-              >
-                <CardContent sx={{ p: { xs: 2.5, sm: 3.5 } }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 1 }}>
-                    <Avatar sx={{ bgcolor: themeConfig.primary, width: 34, height: 34, borderRadius: "10px", boxShadow: `0 2px 6px ${themeConfig.primaryGlow}` }}>
-                      <CreditCard sx={{ color: "#FFFFFF", fontSize: 18 }} />
-                    </Avatar>
-                    <Typography variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "1.05rem" }}>
-                      Hotel UPI QR Code &amp; Bank Settlement Configuration
-                    </Typography>
-                  </Box>
-                  <Typography variant="body2" sx={{ color: themeConfig.textMuted, mb: 3 }}>
-                    Enter your Hotel UPI ID and official bank settlement account. The Check-In Wizard will automatically encode this UPI ID into dynamic live QR codes for guests.
-                  </Typography>
-
-                  <Grid container spacing={2.5}>
-                    {/* Hotel UPI ID */}
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                        UPI ID
-                      </Typography>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        placeholder="name@bank"
-                        value={upiId}
-                        onChange={(e) => setUpiId(e.target.value.trim())}
-                        helperText="Example: hotel@okicici"
-                        sx={{
-                          bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#FFFFFF",
-                          borderRadius: "12px",
-                          "& .MuiOutlinedInput-root": { borderRadius: "12px" },
-                          "& .MuiFormHelperText-root": { fontWeight: 700, color: themeConfig.primaryDark },
-                        }}
-                      />
-                    </Grid>
-
-                    {/* Beneficiary Name */}
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                        Account Holder Name
-                      </Typography>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        placeholder="e.g. Hotel Grand Luxury Pvt Ltd"
-                        value={beneficiaryName}
-                        onChange={(e) => setBeneficiaryName(e.target.value)}
-                        sx={{
-                          bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#FFFFFF",
-                          borderRadius: "12px",
-                          "& .MuiOutlinedInput-root": { borderRadius: "12px" },
-                        }}
-                      />
-                    </Grid>
-
-                    {/* Bank Name */}
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                        Bank Name
-                      </Typography>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        placeholder="e.g. HDFC Bank"
-                        value={bankName}
-                        onChange={(e) => setBankName(e.target.value)}
-                        sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#FFFFFF", borderRadius: "12px", "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
-                      />
-                    </Grid>
-
-                    {/* Account Number */}
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                        Bank Account Number
-                      </Typography>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        placeholder="Account number"
-                        value={accountNumber}
-                        type={showAccount ? "text" : "password"}
-                        onChange={(e) => setAccountNumber(e.target.value.replace(/\s/g, ""))}
-                        slotProps={{
-                          input: {
-                            endAdornment: (
-                              <InputAdornment position="end">
-                                <IconButton size="small" onClick={() => setShowAccount((v) => !v)} edge="end">
-                                  {showAccount ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                                </IconButton>
-                              </InputAdornment>
-                            ),
-                          },
-                        }}
-                        sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#FFFFFF", borderRadius: "12px", "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
-                      />
-                    </Grid>
-
-                    {/* IFSC Code */}
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                        Bank IFSC Code
-                      </Typography>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        placeholder="e.g. HDFC0001234"
-                        value={ifscCode}
-                        onChange={(e) => setIfscCode(e.target.value.toUpperCase())}
-                        slotProps={{ htmlInput: { maxLength: 11 } }}
-                        sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#FFFFFF", borderRadius: "12px", "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
-                      />
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                        Bank Branch
-                      </Typography>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        placeholder="Branch name"
-                        value={bankBranch}
-                        onChange={(e) => setBankBranch(e.target.value)}
-                        sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#FFFFFF", borderRadius: "12px", "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
-                      />
-                    </Grid>
-                  </Grid>
-                </CardContent>
-              </Card>
-
-              {/* 3D Live Preview on Booking Documents */}
-              <Paper sx={{ p: 3, borderRadius: "18px", bgcolor: themeConfig.bgCard, border: `1.5px dashed ${themeConfig.primary}`, boxShadow: isDarkMode ? "0 4px 16px rgba(0,0,0,0.3)" : "0 4px 16px rgba(0,0,0,0.02)", mb: 3.5 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: themeConfig.primaryDark, mb: 1.5 }}>
-                  📋 Live Preview on Guest Reservation Folios &amp; Desk Screens:
-                </Typography>
-                <Grid container spacing={2} sx={{ fontSize: "0.88rem", color: themeConfig.textMain }}>
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <strong>Arrival Schedule:</strong> Check-In from {formatTime12Hour(checkInTime)}
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <strong>Departure Schedule:</strong> Check-Out by {formatTime12Hour(checkOutTime)}
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <strong>Active Hotel UPI ID:</strong> {upiId || "Not set"}
-                  </Grid>
-                </Grid>
-              </Paper>
-
-              {/* Action Save Button */}
-              <Box sx={{ display: "flex", justifyContent: { xs: "stretch", sm: "flex-end" }, width: "100%" }}>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  disabled={savingTimings || !timingValidation.valid}
-                  startIcon={savingTimings ? <CircularProgress size={16} color="inherit" /> : <AccessTime />}
-                  sx={{
-                    background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                    color: "#FFFFFF",
-                    px: 4,
-                    py: 1.3,
-                    width: { xs: "100%", sm: "auto" },
-                    fontWeight: 800,
-                    borderRadius: "14px",
-                    boxShadow: `0 4px 14px ${themeConfig.primaryGlow}, inset 0 1px 0 rgba(255,255,255,0.4)`,
-                    "&:hover": { transform: "translateY(-1px)", boxShadow: `0 6px 18px ${themeConfig.primaryGlow}` },
-                  }}
-                >
-                  {savingTimings ? "Saving Timings..." : "Save Hotel Timings"}
-                </Button>
-              </Box>
-            </Box>
-          )}
-
-          {/* ========================================================================= */}
-          {/* TAB: MY PROFILE & SECURITY */}
-          {/* ========================================================================= */}
-          {currentTab === "profile" && (
-            <Box component="form" onSubmit={handleSaveProfile} sx={{ width: "100%", mx: "auto" }}>
-              {profileMsg.show && (
-                <Alert severity={profileMsg.severity} sx={{ mb: 3, borderRadius: "14px", boxShadow: "0 4px 14px rgba(0,0,0,0.05)" }}>
-                  {profileMsg.message}
-                </Alert>
-              )}
-
-              {/* 3D Profile Card */}
-              <Card
-                sx={{
-                  mb: 4,
-                  borderRadius: "22px",
-                  bgcolor: themeConfig.bgMain,
-                  border: `1.5px solid ${themeConfig.border}`,
-                  boxShadow: "0 10px 28px -6px rgba(12, 39, 59, 0.05), inset 0 1px 0 #FFFFFF",
-                  overflow: "hidden",
-                }}
-              >
-                <CardContent sx={{ p: 3.5, display: "flex", alignItems: "center", gap: 3, flexWrap: { xs: "wrap", sm: "nowrap" } }}>
-                  <Avatar
-                    sx={{
-                      width: 72,
-                      height: 72,
-                      borderRadius: "20px",
-                      background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                      fontSize: "1.8rem",
-                      fontWeight: 900,
-                      border: "3px solid #FFFFFF",
-                      boxShadow: `0 8px 22px ${themeConfig.primaryGlow}, inset 0 1px 0 rgba(255,255,255,0.4)`,
-                    }}
-                  >
-                    {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
-                  </Avatar>
-                  <Box sx={{ flex: 1 }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 0.5, flexWrap: "wrap" }}>
-                      <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.textMain, fontSize: "1.3rem" }}>
-                        {user?.name || "Administrator"}
-                      </Typography>
-                      {getRoleBadge(user?.role)}
-                    </Box>
-                    <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontWeight: 500 }}>
-                      {user?.email}
-                    </Typography>
-                    {user?.hotel?.name && (
-                      <Typography variant="caption" sx={{ color: themeConfig.primaryDark, fontWeight: 800, mt: 0.5, display: "block" }}>
-                        Assigned Property: {user?.hotel?.name} ({user?.hotel?.code || "PMS"})
-                      </Typography>
-                    )}
-                  </Box>
-                </CardContent>
-              </Card>
-
-              {/* 3D Editable Personal Fields */}
-              <Box sx={{ mb: 4 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: themeConfig.textMain, mb: 2.5, display: "flex", alignItems: "center", gap: 1 }}>
-                  <Person fontSize="small" sx={{ color: themeConfig.primary }} /> Personal Information
-                </Typography>
-
-                <Grid container spacing={2.5}>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                      Full Name
-                    </Typography>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Your Full Name"
-                      sx={{
-                        bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#FFFFFF",
-                        "& .MuiOutlinedInput-root": {
-                          borderRadius: "12px",
-                          boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
-                        },
-                      }}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                      Phone Number
-                    </Typography>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="+91 98765 43210"
-                      sx={{
-                        bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#FFFFFF",
-                        "& .MuiOutlinedInput-root": {
-                          borderRadius: "12px",
-                          boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
-                        },
-                      }}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                      Email Address (Account Identifier)
-                    </Typography>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      value={user?.email || ""}
-                      disabled
-                      sx={{
-                        bgcolor: "rgba(0,0,0,0.02)",
-                        "& .MuiOutlinedInput-root": { borderRadius: "12px" },
-                      }}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain, mb: 0.8, display: "block" }}>
-                      Assigned Role
-                    </Typography>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      value={user?.role || "SUPER_ADMIN"}
-                      disabled
-                      sx={{
-                        bgcolor: "rgba(0,0,0,0.02)",
-                        "& .MuiOutlinedInput-root": { borderRadius: "12px" },
-                      }}
-                    />
-                  </Grid>
-                </Grid>
-              </Box>
-
-
-              <Box sx={{ mt: 4, display: "flex", justifyContent: { xs: "stretch", sm: "flex-end" }, width: "100%" }}>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  sx={{
-                    background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                    color: "#FFFFFF",
-                    px: 4.5,
-                    py: 1.3,
-                    width: { xs: "100%", sm: "auto" },
-                    fontWeight: 800,
-                    borderRadius: "14px",
-                    boxShadow: `0 4px 14px ${themeConfig.primaryGlow}, inset 0 1px 0 rgba(255,255,255,0.4)`,
-                    "&:hover": { transform: "translateY(-1px)", boxShadow: `0 6px 18px ${themeConfig.primaryGlow}` },
-                  }}
-                >
-                  Save Profile Settings
-                </Button>
-              </Box>
-            </Box>
-          )}
-
-        </Box>
-      </Card>
-
-      {/* 24x7 CUSTOMER SUPPORT TICKET MODAL */}
-      <Dialog
-        open={supportModalOpen}
-        onClose={() => setSupportModalOpen(false)}
-        maxWidth="sm"
+    );
+  };
+  // Text input bound to the hotel form
+  const hotelField = (key, label, { required = false, size = 6, transform, ...inputProps } = {}) => (
+    <Grid size={{ xs: 12, sm: size }}>
+      {fieldLabel(label, required)}
+      <TextField
         fullWidth
-        slotProps={{ paper: { sx: dialogPaperSx(themeConfig, isDarkMode) } }}
-      >
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            setSubmittingTicket(true);
-            setTimeout(() => {
-              setSubmittingTicket(false);
-              setSupportModalOpen(false);
-              const ticketId = "TKT-" + Math.floor(100000 + Math.random() * 900000);
-              toast.success(`Support Ticket #${ticketId} submitted successfully! Our 24/7 engineering team will respond within 15 minutes.`);
-              setSupportForm({ subject: "", category: "Technical Issue", message: "" });
-            }, 800);
+        size="small"
+        value={hotelForm[key]}
+        onChange={(e) => setHotel(key, transform ? transform(e.target.value) : e.target.value)}
+        sx={inputSx}
+        {...inputProps}
+      />
+    </Grid>
+  );
+
+  // Read-only value (owner details cannot be changed here)
+  const lockedField = (label, value, size = 6) => (
+    <Grid size={{ xs: 12, sm: size }}>
+      {fieldLabel(label)}
+      <TextField
+        fullWidth
+        size="small"
+        value={value || ""}
+        disabled
+        slotProps={{
+          input: {
+            endAdornment: (
+              <InputAdornment position="end">
+                <Lock sx={{ fontSize: 16, color: themeConfig.textMuted }} />
+              </InputAdornment>
+            ),
+          },
+        }}
+        sx={inputSx}
+      />
+    </Grid>
+  );
+
+  const renderCard = (title, description, children) => (
+    <Card sx={cardSx}>
+      <CardContent sx={cardContentSx}>
+        {sectionHeading(title, description)}
+        {children}
+      </CardContent>
+    </Card>
+  );
+
+  return (
+    <Box sx={{ width: "100%", minWidth: 0, px: { xs: 1.5, sm: 2.5, md: 3 }, py: { xs: 1, sm: 1.5 }, pb: { xs: 10, sm: 4 } }}>
+      {availableTabs.length > 1 && (
+        <Tabs
+          value={activeSubTab >= availableTabs.length ? 0 : activeSubTab}
+          onChange={(e, v) => setActiveSubTab(v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          sx={{
+            minHeight: 44,
+            mb: 2.5,
+            borderBottom: `1px solid ${themeConfig.border}`,
+            "& .MuiTab-root": {
+              textTransform: "none",
+              fontWeight: 700,
+              fontSize: "0.9rem",
+              minHeight: 44,
+              px: 2,
+              color: themeConfig.textMuted,
+              "&.Mui-selected": { color: themeConfig.primaryDark },
+            },
+            "& .MuiTabs-indicator": { height: 2, borderRadius: "2px", bgcolor: themeConfig.primary },
           }}
         >
-          <AppDialogHeader
-            eyebrow="Support"
-            title="Customer support"
-            icon={<SupportAgent sx={{ fontSize: 20 }} />}
-            onClose={() => setSupportModalOpen(false)}
-          />
+          {availableTabs.map((tab) => (
+            <Tab key={tab.id} label={tab.label} />
+          ))}
+        </Tabs>
+      )}
 
-          <DialogContent dividers sx={{ borderColor: themeConfig.border }}>
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12 }}>
-                <Box sx={{ p: 2, borderRadius: "14px", bgcolor: themeConfig.champagne || "rgba(20, 184, 166, 0.1)", border: `1px solid ${themeConfig.border}`, mb: 1 }}>
-                  <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.primaryDark, display: "block", mb: 0.5 }}>
-                    DIRECT INSTANT CHANNELS
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: themeConfig.textMain, fontWeight: 700 }}>
-                    📞 Hotline: <a href="tel:+918004256789" style={{ color: themeConfig.primary, textDecoration: "none" }}>+91 (800) 425-6789</a> (Toll-Free 24x7)
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: themeConfig.textMain, fontWeight: 700 }}>
-                    📧 Email: <a href="mailto:support@grandroyale-saas.com" style={{ color: themeConfig.primary, textDecoration: "none" }}>support@grandroyale-saas.com</a>
-                  </Typography>
+      {/* Hotel settings (hotel admin) */}
+      {currentTab === "hotel" && isHotelAdmin && (
+        loadingHotel ? (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
+            <CircularProgress size={28} sx={{ color: themeConfig.primary }} />
+          </Box>
+        ) : (
+          <Box component="form" onSubmit={handleSaveHotel} noValidate>
+            {hotelMsg.show && (
+              <Alert severity={hotelMsg.severity} sx={{ mb: 2.5, borderRadius: "10px" }}>
+                {hotelMsg.message}
+              </Alert>
+            )}
+
+            <Grid container spacing={2.5} alignItems="flex-start">
+              {/* Left column: identity and guest information */}
+              <Grid size={{ xs: 12, lg: 6 }}>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+                  {renderCard(
+                    "Hotel details",
+                    "Basic information about your property. Owner details are locked.",
+                    <>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2.5 }}>
+                        <Avatar
+                          variant="rounded"
+                          src={logoPreview || logoUrl || undefined}
+                          sx={{ width: 64, height: 64, borderRadius: "14px", color: themeConfig.primary, bgcolor: themeConfig.champagne || "#EAF6F3" }}
+                        >
+                          <Business sx={{ fontSize: 30 }} />
+                        </Avatar>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.9rem" }}>Hotel logo</Typography>
+                          <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.78rem", mb: 0.75 }}>
+                            {logoFile ? logoFile.name : "PNG, JPG or WebP, up to 10 MB"}
+                          </Typography>
+                          <Button
+                            component="label"
+                            variant="outlined"
+                            size="small"
+                            sx={{
+                              height: 32,
+                              borderRadius: "8px",
+                              textTransform: "none",
+                              fontWeight: 700,
+                              color: themeConfig.primaryDark,
+                              borderColor: themeConfig.border,
+                              "&:hover": { borderColor: themeConfig.primary, bgcolor: "transparent" },
+                            }}
+                          >
+                            Change logo
+                            <input type="file" hidden accept="image/*" onChange={handleLogoChange} />
+                          </Button>
+                        </Box>
+                      </Box>
+
+                      <Grid container spacing={2}>
+                        {hotelField("name", "Hotel name", { required: true, size: 12, placeholder: "Hotel name" })}
+                        {lockedField("Owner name", owner.name)}
+                        {lockedField("Mobile number", owner.phone)}
+                        {lockedField("Hotel email", owner.email, 12)}
+                        {hotelField("hotel_type", "Hotel type", { placeholder: "Boutique hotel, resort, lodge" })}
+                        {hotelField("website", "Website", { placeholder: "https://yourhotel.com" })}
+                        {hotelField("address", "Address", { required: true, size: 12, placeholder: "Street address" })}
+                        {hotelField("city", "City", { required: true, placeholder: "City" })}
+                        {hotelField("state", "State", { required: true, placeholder: "State" })}
+                        {hotelField("country", "Country", { placeholder: "Country" })}
+                        {hotelField("pincode", "Pincode", {
+                          required: true,
+                          placeholder: "6-digit pincode",
+                          transform: (v) => v.replace(/\D/g, "").slice(0, 6),
+                        })}
+                      </Grid>
+                    </>
+                  )}
+
+                  {renderCard(
+                    "Amenities & policies",
+                    "Shown to guests. Add one item per line.",
+                    <Grid container spacing={2}>
+                      {hotelField("amenities", "Amenities", {
+                        size: 12,
+                        multiline: true,
+                        minRows: 4,
+                        placeholder: "Free WiFi\nAir conditioning\n24/7 room service",
+                      })}
+                      {hotelField("policies", "Policies", {
+                        size: 12,
+                        multiline: true,
+                        minRows: 4,
+                        placeholder: "Valid government ID required at check-in\nNo smoking in rooms",
+                      })}
+                    </Grid>
+                  )}
                 </Box>
               </Grid>
 
-              <Grid size={{ xs: 12 }}>
-                <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain, mb: 0.6, display: "block" }}>
-                  Issue Category *
-                </Typography>
-                <FormControl fullWidth size="small">
-                  <Select
-                    value={supportForm.category}
-                    onChange={(e) => setSupportForm({ ...supportForm, category: e.target.value })}
-                    sx={{ borderRadius: "12px", bgcolor: themeConfig.bgCard }}
-                  >
-                    <MenuItem value="Technical Issue">Technical / System Issue</MenuItem>
-                    <MenuItem value="Billing & Subscription">Billing &amp; Subscription Renewal</MenuItem>
-                    <MenuItem value="Room & Inventory">Room &amp; Inventory Management</MenuItem>
-                    <MenuItem value="Staff Access & Login">Staff Access &amp; Login</MenuItem>
-                    <MenuItem value="Feature Request">Feature Request &amp; Customization</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
+              {/* Right column: operations and billing */}
+              <Grid size={{ xs: 12, lg: 6 }}>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+                  {renderCard(
+                    "Operating timings",
+                    turnaroundWindow
+                      ? `Rooms get ${turnaroundWindow} for housekeeping between a check-out and the next check-in.`
+                      : "Standard timings applied to every booking.",
+                    <>
+                      {!timingValidation.valid && (
+                        <Alert severity="warning" icon={false} sx={{ mb: 2, borderRadius: "10px" }}>
+                          {timingValidation.error}
+                        </Alert>
+                      )}
+                      <Grid container spacing={2}>
+                        {hotelField("check_in_time", "Check-in time", {
+                          required: true,
+                          type: "time",
+                          helperText: formatTime12Hour(hotelForm.check_in_time),
+                        })}
+                        {hotelField("check_out_time", "Check-out time", {
+                          required: true,
+                          type: "time",
+                          helperText: formatTime12Hour(hotelForm.check_out_time),
+                        })}
+                        <Grid size={{ xs: 12 }}>
+                          {fieldLabel("Timezone")}
+                          <FormControl fullWidth size="small">
+                            <Select value={hotelForm.timezone} onChange={(e) => setHotel("timezone", e.target.value)} sx={{ borderRadius: "10px" }}>
+                              {TIMEZONE_OPTIONS.map((opt) => (
+                                <MenuItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+                        </Grid>
+                        {hotelField("currency", "Currency", {
+                          placeholder: "INR",
+                          transform: (v) => v.toUpperCase().slice(0, 10),
+                        })}
+                        {hotelField("late_checkout_grace_minutes", "Late checkout grace (minutes)", {
+                          type: "number",
+                          slotProps: { htmlInput: { min: 0, max: 1440 } },
+                        })}
+                      </Grid>
+                    </>
+                  )}
 
-              <Grid size={{ xs: 12 }}>
-                <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain, mb: 0.6, display: "block" }}>
-                  Subject *
-                </Typography>
-                <TextField
-                  fullWidth
-                  size="small"
-                  required
-                  placeholder="Brief description of your issue"
-                  value={supportForm.subject}
-                  onChange={(e) => setSupportForm({ ...supportForm, subject: e.target.value })}
-                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
-                />
-              </Grid>
+                  {renderCard(
+                    "Tax & GST invoicing",
+                    "Shown on bills and invoices. GST is added to guest bills once a GST number is saved.",
+                    <>
+                      <Grid container spacing={2}>
+                        {hotelField("gst_number", "GST number", {
+                          size: 12,
+                          placeholder: "15-character GSTIN",
+                          transform: (v) => v.toUpperCase().replace(/\s/g, "").slice(0, 15),
+                        })}
+                        {hotelField("tax_percentage", "GST percentage", {
+                          type: "number",
+                          slotProps: { htmlInput: { min: 0, max: 100, step: "any" } },
+                        })}
+                        {hotelField("pan_number", "PAN number", {
+                          placeholder: "10-character PAN",
+                          transform: (v) => v.toUpperCase().replace(/\s/g, "").slice(0, 10),
+                        })}
+                      </Grid>
+                    </>
+                  )}
 
-              <Grid size={{ xs: 12 }}>
-                <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain, mb: 0.6, display: "block" }}>
-                  Detailed Description *
-                </Typography>
-                <TextField
-                  fullWidth
-                  required
-                  multiline
-                  rows={4}
-                  placeholder="Please describe what you are experiencing or what assistance you require..."
-                  value={supportForm.message}
-                  onChange={(e) => setSupportForm({ ...supportForm, message: e.target.value })}
-                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
-                />
+                  {renderCard(
+                    "Bank & payment details",
+                    "Printed on bills and used for the UPI QR code at check-in.",
+                    <Grid container spacing={2}>
+                      {hotelField("bank_name", "Bank name", { placeholder: "Bank name" })}
+                      {hotelField("bank_account_holder", "Account holder name", { placeholder: "Name on the bank account" })}
+                      <Grid size={{ xs: 12, sm: 6 }}>
+                        {fieldLabel("Account number")}
+                        <TextField
+                          fullWidth
+                          size="small"
+                          placeholder="9 to 18 digits"
+                          value={hotelForm.bank_account_number}
+                          type={showAccount ? "text" : "password"}
+                          onChange={(e) => setHotel("bank_account_number", e.target.value.replace(/\D/g, "").slice(0, 18))}
+                          slotProps={{
+                            input: {
+                              endAdornment: (
+                                <InputAdornment position="end">
+                                  <IconButton size="small" onClick={() => setShowAccount((v) => !v)} edge="end" aria-label="Show or hide account number">
+                                    {showAccount ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                                  </IconButton>
+                                </InputAdornment>
+                              ),
+                            },
+                          }}
+                          sx={inputSx}
+                        />
+                      </Grid>
+                      {hotelField("bank_ifsc_code", "IFSC code", {
+                        placeholder: "11-character IFSC",
+                        transform: (v) => v.toUpperCase().replace(/\s/g, "").slice(0, 11),
+                      })}
+                      {hotelField("bank_branch", "Branch", { placeholder: "Branch name" })}
+                      {hotelField("upi_id", "UPI ID", {
+                        placeholder: "name@bank",
+                        transform: (v) => v.trim(),
+                      })}
+                    </Grid>
+                  )}
+                </Box>
               </Grid>
             </Grid>
-          </DialogContent>
 
-          <AppDialogFooter>
-            <Button onClick={() => setSupportModalOpen(false)} variant="outlined" sx={dialogCancelButtonSx(themeConfig, isDarkMode)}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="contained" disabled={submittingTicket} sx={dialogPrimaryButtonSx(themeConfig)}>
-              {submittingTicket ? <CircularProgress size={22} color="inherit" /> : "Submit ticket"}
-            </Button>
-          </AppDialogFooter>
-        </form>
-      </Dialog>
+            <Box
+              sx={{
+                position: "sticky",
+                bottom: 0,
+                zIndex: 5,
+                display: "flex",
+                justifyContent: { xs: "stretch", sm: "flex-end" },
+                mt: 2.5,
+                py: 1.5,
+                bgcolor: themeConfig.bgMain || "background.default",
+                borderTop: `1px solid ${themeConfig.border}`,
+              }}
+            >
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={savingHotel || !timingValidation.valid}
+                sx={{ ...primaryButtonSx, width: { xs: "100%", sm: "auto" } }}
+              >
+                {savingHotel ? <CircularProgress size={20} color="inherit" /> : "Save hotel settings"}
+              </Button>
+            </Box>
+          </Box>
+        )
+      )}
+
+      {/* Platform settings (super admin) */}
+      {currentTab === "platform" && isSuperAdmin && (
+        renderCard(
+          "Free trial period",
+          "Default trial length given to every newly registered hotel.",
+          <>
+            {trialMsg.show && (
+              <Alert severity={trialMsg.severity} sx={{ mb: 2.5, borderRadius: "10px" }}>
+                {trialMsg.message}
+              </Alert>
+            )}
+            <Box component="form" onSubmit={handleSaveTrial}>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  {fieldLabel("Duration", true)}
+                  <TextField
+                    fullWidth
+                    size="small"
+                    type="number"
+                    value={freeTrialValue}
+                    onChange={(e) => setFreeTrialValue(e.target.value)}
+                    required
+                    sx={inputSx}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  {fieldLabel("Unit", true)}
+                  <FormControl fullWidth size="small">
+                    <Select value={freeTrialUnit} onChange={(e) => setFreeTrialUnit(e.target.value)} sx={{ borderRadius: "10px" }}>
+                      <MenuItem value="hours">Hours</MenuItem>
+                      <MenuItem value="days">Days</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+              <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2.5 }}>
+                <Button type="submit" variant="contained" disabled={savingTrial} sx={primaryButtonSx}>
+                  {savingTrial ? <CircularProgress size={20} color="inherit" /> : "Save changes"}
+                </Button>
+              </Box>
+            </Box>
+          </>
+        )
+      )}
     </Box>
   );
 }

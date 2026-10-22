@@ -68,8 +68,8 @@ export function OccupancyDonutChart({ rooms = [], statuses = null, occupancyRate
   const occRate = occupancyRate != null ? Math.round(Number(occupancyRate)) : Math.round((occupied / total) * 100);
 
   const segments = [
-    { label: "Occupied", count: occupied, color: "#3B82F6", grad: "url(#donutOccupied)", desc: "Currently in room" },
-    { label: "Reserved", count: reserved, color: "#0B8EE0", grad: "url(#donutOccupied)", desc: "Reserved" },
+    { label: "Occupied", count: occupied, color: "#047857", grad: "url(#donutOccupied)", desc: "Currently in room" },
+    { label: "Reserved", count: reserved, color: "#0F766E", grad: "url(#donutOccupied)", desc: "Reserved" },
     { label: "Available", count: available, color: "#10B981", grad: "url(#donutAvailable)", desc: "Ready for check-in" },
     { label: "Cleaning", count: cleaning, color: "#F59E0B", grad: "url(#donutCleaning)", desc: "In turnaround" },
     { label: "Maintenance", count: maintenance, color: "#EF4444", grad: "url(#donutMaint)", desc: "Blocked / Repair" },
@@ -114,7 +114,7 @@ export function OccupancyDonutChart({ rooms = [], statuses = null, occupancyRate
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: { xs: "flex-start", sm: "center" }, mb: 1.5, gap: 1, flexWrap: "wrap" }}>
           <Box sx={{ minWidth: 0, flex: "1 1 auto" }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-              <HotelIcon sx={{ color: "#3B82F6", fontSize: 20, flexShrink: 0 }} />
+              <HotelIcon sx={{ color: themeConfig.primary, fontSize: 20, flexShrink: 0 }} />
               <Typography variant="subtitle1" sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: { xs: "0.92rem", sm: "0.98rem" }, lineHeight: 1.2 }}>
                 Live Room Occupancy
               </Typography>
@@ -145,8 +145,8 @@ export function OccupancyDonutChart({ rooms = [], statuses = null, occupancyRate
           <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(-90deg)" }}>
             <defs>
               <linearGradient id="donutOccupied" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#60A5FA" />
-                <stop offset="100%" stopColor="#2563EB" />
+                <stop offset="0%" stopColor="#6EE7B7" />
+                <stop offset="100%" stopColor="#047857" />
               </linearGradient>
               <linearGradient id="donutAvailable" x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" stopColor="#34D399" />
@@ -426,13 +426,13 @@ export function RevenueWaveChart({ dashboardData, isDarkMode }) {
           >
             <defs>
               <linearGradient id="revAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#4361EE" stopOpacity="0.45" />
-                <stop offset="70%" stopColor="#4361EE" stopOpacity="0.08" />
-                <stop offset="100%" stopColor="#4361EE" stopOpacity="0.0" />
+                <stop offset="0%" stopColor="#047857" stopOpacity="0.45" />
+                <stop offset="70%" stopColor="#047857" stopOpacity="0.08" />
+                <stop offset="100%" stopColor="#047857" stopOpacity="0.0" />
               </linearGradient>
               <linearGradient id="revLineGrad" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#3B82F6" />
-                <stop offset="50%" stopColor="#6366F1" />
+                <stop offset="0%" stopColor="#047857" />
+                <stop offset="50%" stopColor="#0F766E" />
                 <stop offset="100%" stopColor="#10B981" />
               </linearGradient>
             </defs>
@@ -683,9 +683,9 @@ export function DailyTargetGauge({ currentRevenue = 0, targetRevenue = 0, onUpda
                   height: 20,
                   fontSize: "0.65rem",
                   fontWeight: 800,
-                  bgcolor: "rgba(59, 130, 246, 0.12)",
-                  color: "#3B82F6",
-                  border: "1px solid rgba(59, 130, 246, 0.25)",
+                  bgcolor: "rgba(4, 120, 87, 0.12)",
+                  color: "#047857",
+                  border: "1px solid rgba(4, 120, 87, 0.25)",
                 }}
               />
             ) : (
@@ -733,7 +733,7 @@ export function DailyTargetGauge({ currentRevenue = 0, targetRevenue = 0, onUpda
             <defs>
               <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" stopColor="#F59E0B" />
-                <stop offset="50%" stopColor="#3B82F6" />
+                <stop offset="50%" stopColor="#047857" />
                 <stop offset="100%" stopColor="#10B981" />
               </linearGradient>
             </defs>
@@ -1242,7 +1242,7 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
             {/* In / Out Legend */}
             <Box sx={{ display: "flex", gap: 1, ml: 0.5 }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
-                <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#3B82F6" }} />
+                <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#047857" }} />
                 <Typography variant="caption" sx={{ fontSize: "0.68rem", fontWeight: 700, color: themeConfig.textMuted }}>In</Typography>
               </Box>
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
@@ -1300,8 +1300,8 @@ export function HourlyActivityBarChart({ bookings = [], guests = [] }) {
                         width: viewType === "WEEKLY" ? 12 : 8,
                         height: `${inHeight}px`,
                         borderRadius: hasIn ? "4px 4px 0 0" : "2px",
-                        bgcolor: hasIn ? "#3B82F6" : (isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)"),
-                        background: hasIn ? "linear-gradient(180deg, #60A5FA 0%, #2563EB 100%)" : "none",
+                        bgcolor: hasIn ? "#047857" : (isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)"),
+                        background: hasIn ? "linear-gradient(180deg, #6EE7B7 0%, #047857 100%)" : "none",
                         transition: "transform 0.2s ease",
                         transformOrigin: "bottom",
                         position: "relative",

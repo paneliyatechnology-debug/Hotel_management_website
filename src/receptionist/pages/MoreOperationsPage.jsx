@@ -17,7 +17,6 @@ import {
   Business,
   Badge,
   Schedule,
-  Security,
   Logout,
   CheckCircle,
 } from "@/shared/icons";
@@ -63,14 +62,7 @@ export default function MoreOperationsPage({ user, hotelSettings, onLogout }) {
 
   return (
     <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2.5, sm: 3.5 }, maxWidth: 980, mx: "auto", display: "flex", flexDirection: "column", gap: 3 }}>
-      <Box>
-        <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.4 }}>
-          More
-        </Typography>
-        <Typography variant="body2" sx={{ color: themeConfig.textMuted, mt: 0.4 }}>
-          Your front desk profile, hotel timings, and sign out.
-        </Typography>
-      </Box>
+
       {/* Profile Overview Hero Card */}
       <Card
         className="card-3d"
@@ -193,18 +185,7 @@ export default function MoreOperationsPage({ user, hotelSettings, onLogout }) {
                   border: `1px solid ${themeConfig.border}`,
                 }}
               />
-              <Chip
-                icon={<Security sx={{ fontSize: "14px !important", color: isDarkMode ? "#60A5FA !important" : "#2563EB !important" }} />}
-                label="Front Desk Verified"
-                size="small"
-                sx={{
-                  bgcolor: isDarkMode ? "rgba(59, 130, 246, 0.16)" : "#EFF6FF",
-                  color: isDarkMode ? "#60A5FA" : "#1E40AF",
-                  fontWeight: 700,
-                  fontSize: "0.75rem",
-                  border: isDarkMode ? "1px solid rgba(96, 165, 250, 0.3)" : "1px solid #BFDBFE",
-                }}
-              />
+
             </Box>
           </Box>
         </Box>

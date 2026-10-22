@@ -1947,19 +1947,31 @@ async function executeApiRequest(endpoint, options = {}) {
   let response;
   let lastError;
 
-  for (const targetUrl of candidateUrls) {
-    try {
-      response = await fetch(targetUrl, config);
-      if (response && response.status < 500) break;
-      if (response && response.ok) break;
-    } catch (netErr) {
-      lastError = netErr;
-      console.warn(`[API Network Warning] Attempt to reach ${targetUrl} failed, trying next candidate...`);
+  // Safe (read-only) requests are retried a couple of times so a brief server restart or
+  // dropped connection does not surface as an error.
+  const isReadRequest = String(method || "GET").toUpperCase() === "GET";
+  const maxAttempts = isReadRequest ? 3 : 1;
+  for (let attempt = 1; attempt <= maxAttempts && !response; attempt++) {
+    for (const targetUrl of candidateUrls) {
+      try {
+        response = await fetch(targetUrl, config);
+        if (response && response.status < 500) break;
+        if (response && response.ok) break;
+      } catch (netErr) {
+        lastError = netErr;
+        if (attempt === maxAttempts) {
+          console.warn(`[API Network Warning] Attempt to reach ${targetUrl} failed, trying next candidate...`);
+        }
+      }
+    }
+    if (!response && attempt < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, 600 * attempt));
     }
   }
 
   if (!response) {
-    console.error(`[API Network Error] All candidates failed for ${fullUrl}:`, lastError);
+    // Logged as a warning (not an error) so a temporarily unreachable server does not trigger the dev error overlay
+    console.warn(`[API Network Error] All candidates failed for ${fullUrl}:`, lastError);
     throw new Error(
       `Network request failed to reach the server. Please check your internet connection.`
     );

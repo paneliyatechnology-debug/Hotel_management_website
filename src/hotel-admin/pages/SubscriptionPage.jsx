@@ -12,31 +12,20 @@ import {
   LinearProgress,
   Grid,
   Dialog,
-  DialogTitle,
   DialogContent,
-  DialogActions,
   TextField,
-  IconButton,
   ToggleButton,
   ToggleButtonGroup,
   CircularProgress,
-  Divider,
 } from "@mui/material";
 import {
-  WorkspacePremium,
-  AutoAwesome,
   Check,
   Phone,
   WhatsApp,
   Email,
   SupportAgent,
   CheckCircle,
-  Close,
   Send,
-  Star,
-  Hotel,
-  Apartment,
-  CorporateFare,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { AppDialogHeader, AppDialogFooter, dialogPaperSx, dialogCancelButtonSx, dialogPrimaryButtonSx } from "@/shared/components/AppDialog";
@@ -44,6 +33,11 @@ import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useSocket } from "@/shared/context/SocketContext";
 import { useLiveCountdown } from "@/shared/utils/countdown";
 import { toast } from "@/shared/utils/toast";
+
+// The plans API sends snake_case flags; the client also adds camelCase copies
+const flagOf = (plan, snake, camel) => Boolean(plan?.[snake] ?? plan?.[camel]);
+const isCurrentPlan = (plan) => flagOf(plan, "is_current_plan", "isCurrentPlan");
+const isTrialPlan = (plan) => String(plan?.code || "").toUpperCase() === "TRIAL" || Number(plan?.price) === 0;
 
 export default function SubscriptionPage({ user, subscription: initialSub, onRefresh }) {
   const { themeConfig, isDarkMode } = useAppTheme();
@@ -54,6 +48,7 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [ticketSent, setTicketSent] = useState(false);
   const [purchasingId, setPurchasingId] = useState(null);
+  const [trialUsed, setTrialUsed] = useState(false);
   const [helpForm, setHelpForm] = useState({
     name: user?.name || "",
     phone: user?.phone || user?.hotel?.ownerPhone || "",
@@ -91,7 +86,10 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
       setLoadingPlans(true);
       const res = await apiRequest(API_ENDPOINTS.SUBSCRIPTION_PLANS.PUBLIC);
       const list = res?.data?.all || res?.data?.plans || (Array.isArray(res?.data) ? res.data : []);
-      if (Array.isArray(list)) setPlans(list);
+      if (Array.isArray(list)) {
+        setPlans(list);
+        setTrialUsed(Boolean(res?.data?.is_trial_used) || list.some((p) => flagOf(p, "is_trial_used", "isTrialUsed")));
+      }
     } catch (err) {
       console.warn("Could not load real plans from API:", err);
       toast.error(err?.message || "Could not load subscription plans.");
@@ -144,18 +142,18 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
       toast.error("This plan cannot be purchased yet.");
       return;
     }
+    if (isCurrentPlan(plan)) return;
+    if (isTrialPlan(plan) && trialUsed) {
+      toast.error("The free trial has already been used.");
+      return;
+    }
     try {
       setPurchasingId(planId);
-      const res = await apiRequest(API_ENDPOINTS.SUBSCRIPTION_PLANS.PURCHASE(planId), {
-        method: "POST",
-        body: {
-          plan_id: planId,
-          billing_cycle: plan.billingCycle || plan.billing_cycle || billingCycle,
-        },
-      });
+      // POST /api/v1/subscription-plans/:id/purchase (no body; the plan id is in the URL)
+      const res = await apiRequest(API_ENDPOINTS.SUBSCRIPTION_PLANS.PURCHASE(planId), { method: "POST" });
       const redirectUrl = res?.data?.paymentUrl || res?.data?.payment_url || res?.data?.checkoutUrl || res?.data?.checkout_url || res?.data?.url;
       if (redirectUrl) {
-        window.location.href = redirectUrl;
+        window.location.assign(redirectUrl);
         return;
       }
       toast.success(res?.message || `${plan.name} purchased successfully.`);
@@ -191,392 +189,316 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
   // Filter real plans by selected billing cycle
   const displayedPlans = plans.filter((p) => (p.billingCycle || "MONTHLY").toUpperCase() === billingCycle.toUpperCase());
 
-  const getPlanIcon = (idx) => {
-    if (idx === 0) return <Hotel sx={{ fontSize: 26, color: "#0D9488" }} />;
-    if (idx === 1) return <Apartment sx={{ fontSize: 26, color: "#059669" }} />;
-    return <CorporateFare sx={{ fontSize: 26, color: "#4F46E5" }} />;
+  // Plan this hotel is on now (any billing cycle), and the plan the Upgrade button should offer
+  const currentPlan = plans.find(isCurrentPlan) || null;
+  const showTrialStatus = !currentPlan || isTrialPlan(currentPlan);
+  // Details of a paid plan: price, room limit and the current billing period
+  const readDate = (value) => (value ? new Date(value) : null);
+  const periodStart = readDate(sub.startDate || sub.start_date);
+  const periodEnd = readDate(sub.endDate || sub.end_date);
+  const daysLeft = periodEnd ? Math.ceil((periodEnd.getTime() - now.getTime()) / 86400000) : null;
+  const planExpired = daysLeft !== null && daysLeft < 0;
+  const formatDate = (date) => date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const autoRenew = sub.autoRenew ?? sub.auto_renew;
+  const planDetails = currentPlan && !showTrialStatus
+    ? [
+        {
+          label: "Price",
+          value: `₹${Number(currentPlan.price || 0).toLocaleString("en-IN")} / ${String(currentPlan.billingCycle || currentPlan.billing_cycle || "MONTHLY").toUpperCase() === "ANNUAL" ? "year" : "month"}`,
+        },
+        {
+          label: "Room limit",
+          value: !currentPlan.maxRooms || currentPlan.maxRooms >= 999 ? "Unlimited" : `${currentPlan.maxRooms} rooms`,
+        },
+        periodStart && { label: "Started on", value: formatDate(periodStart) },
+        periodEnd && {
+          label: planExpired ? "Expired on" : "Valid until",
+          value: formatDate(periodEnd),
+          note: planExpired ? "Renew to keep access" : `${daysLeft} ${daysLeft === 1 ? "day" : "days"} left`,
+          noteColor: planExpired ? themeConfig.danger : daysLeft <= 7 ? "#B45309" : themeConfig.textMuted,
+        },
+        autoRenew !== undefined && autoRenew !== null && { label: "Auto-renew", value: autoRenew ? "On" : "Off" },
+      ].filter(Boolean)
+    : [];
+  const isPlanLocked = (plan) => isCurrentPlan(plan) || (isTrialPlan(plan) && trialUsed);
+  const upgradeTarget =
+    displayedPlans.find((p) => !isPlanLocked(p) && (p.isPopular || p.badge === "MOST POPULAR")) ||
+    displayedPlans.find((p) => !isPlanLocked(p));
+
+  const cardSx = {
+    borderRadius: "14px",
+    border: `1px solid ${themeConfig.border}`,
+    bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
+    boxShadow: isDarkMode ? "none" : "0 1px 2px rgba(15, 23, 42, 0.04)",
+  };
+
+  const sectionTitleSx = { fontWeight: 800, color: themeConfig.textMain, fontSize: "1.05rem" };
+
+  const supportButtonSx = {
+    borderRadius: "10px",
+    textTransform: "none",
+    fontWeight: 700,
+    color: themeConfig.primaryDark,
+    borderColor: themeConfig.border,
+    "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne || "#F4F7F6" },
   };
 
   return (
-    <Box sx={{ maxWidth: 1080, mx: "auto", px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 } }}>
-      {/* Header */}
-      <Box sx={{ mb: 3.5 }}>
-        <Typography variant="h4" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5 }}>
-          Enterprise Subscription &amp; {totalDays}-Day Trial
-        </Typography>
-        <Typography variant="body2" sx={{ color: themeConfig.textMuted, mt: 0.5 }}>
-          Monitor your {totalDays}-day evaluation trial, active cloud modules, and commercial tier licensing.
-        </Typography>
-      </Box>
-
-      {/* Hero 3D Card: Real-time Trial Status */}
-      <Card
-        className="card-3d"
-        sx={{
-          borderRadius: "24px",
-          border: `1.5px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode
-            ? "0 16px 36px -8px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05)"
-            : "0 16px 36px -8px rgba(12, 39, 59, 0.08), inset 0 1px 1px #FFFFFF",
-          background: isDarkMode
-            ? `linear-gradient(135deg, ${themeConfig.bgCard} 0%, rgba(255, 255, 255, 0.02) 100%)`
-            : "linear-gradient(135deg, #FFFFFF 0%, #F9FBFC 100%)",
-          bgcolor: themeConfig.bgCard,
-          p: { xs: 2.5, sm: 3.5 },
-          mb: 4,
-        }}
-      >
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2.5, flexWrap: "wrap", gap: 2 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            <Avatar
-              sx={{
-                background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                width: 54,
-                height: 54,
-                borderRadius: "16px",
-                boxShadow: `0 6px 16px -2px ${themeConfig.primaryGlow}`,
-              }}
-            >
-              <WorkspacePremium sx={{ color: "#FFFFFF", fontSize: 30 }} />
-            </Avatar>
+    <Box sx={{ width: "100%", minWidth: 0, px: { xs: 1.5, sm: 2.5, md: 3 }, py: { xs: 1, sm: 1.5 } }}>
+      {/* Current plan */}
+      <Card sx={{ ...cardSx, mb: 2.5 }}>
+        <CardContent sx={{ p: { xs: 2, sm: 2.5 }, "&:last-child": { pb: { xs: 2, sm: 2.5 } } }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}>
             <Box>
-              <Typography variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain, letterSpacing: -0.3 }}>
-                {isExpired ? `${totalDays}-Day Free Trial Concluded` : `${totalDays}-Day Evaluation License Active`}
+              <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" }}>
+                Current plan
               </Typography>
-              <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.82rem" }}>
-                Full unmetered access to PMS Front Desk, Cash Ledger, Room Matrix &amp; ID Compliance
+              <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "1.15rem", mt: 0.4 }}>
+                {currentPlan ? currentPlan.name : isExpired ? "Free trial ended" : "Free trial"}
               </Typography>
+              {showTrialStatus && (
+                <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.84rem", mt: 0.5 }}>
+                  {isExpired ? "Ended on" : "Ends on"} {trialEndFormatted}
+                </Typography>
+              )}
+            </Box>
+
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, ml: "auto" }}>
+              <Chip
+                size="small"
+                label={showTrialStatus ? (isExpired ? "Expired" : `${countdown.formatted} left`) : planExpired ? "Expired" : "Active"}
+                sx={{
+                  height: 26,
+                  fontWeight: 700,
+                  fontSize: "0.76rem",
+                  bgcolor: (showTrialStatus ? isExpired : planExpired) ? themeConfig.dangerBg : themeConfig.successBg,
+                  color: (showTrialStatus ? isExpired : planExpired) ? themeConfig.danger : themeConfig.success,
+                }}
+              />
+              {showTrialStatus && upgradeTarget && (
+                <Button
+                  variant="contained"
+                  onClick={() => handlePurchasePlan(upgradeTarget)}
+                  sx={{
+                    height: 40,
+                    px: 2.5,
+                    borderRadius: "10px",
+                    textTransform: "none",
+                    fontWeight: 700,
+                    boxShadow: "none",
+                    bgcolor: themeConfig.primary,
+                    "&:hover": { bgcolor: themeConfig.primaryDark, boxShadow: "none" },
+                  }}
+                >
+                  Upgrade plan
+                </Button>
+              )}
             </Box>
           </Box>
 
-          <Chip
-            label={isExpired ? "TRIAL EXPIRED" : `⏳ ${countdown.formatted}`}
-            sx={{
-              bgcolor: isExpired ? themeConfig.dangerBg : themeConfig.successBg,
-              color: isExpired ? themeConfig.danger : themeConfig.success,
-              fontWeight: 900,
-              borderRadius: "12px",
-              border: `1px solid ${isExpired ? themeConfig.danger + "40" : themeConfig.success + "40"}`,
-              boxShadow: "0 2px 6px rgba(0,0,0,0.06)",
-              px: 1.5,
-              py: 0.5,
-              height: 32,
-              fontSize: "0.82rem",
-            }}
-          />
-        </Box>
+          {!showTrialStatus && planDetails.length > 0 && (
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: `repeat(${Math.min(planDetails.length, 5)}, minmax(0, 1fr))` },
+                gap: 2,
+                mt: 2,
+                pt: 2,
+                borderTop: `1px solid ${themeConfig.border}`,
+              }}
+            >
+              {planDetails.map((item) => (
+                <Box key={item.label} sx={{ minWidth: 0 }}>
+                  <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase" }}>
+                    {item.label}
+                  </Typography>
+                  <Typography sx={{ color: themeConfig.textMain, fontSize: "0.95rem", fontWeight: 700, mt: 0.3 }}>{item.value}</Typography>
+                  {item.note && (
+                    <Typography sx={{ color: item.noteColor || themeConfig.textMuted, fontSize: "0.76rem", mt: 0.1 }}>{item.note}</Typography>
+                  )}
+                </Box>
+              ))}
+            </Box>
+          )}
 
-        {/* Real-time Progress Bar */}
-        <Box sx={{ my: 3 }}>
-          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-            <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMuted }}>
-              Trial Timeline (Day {elapsedDays} of {totalDays})
-            </Typography>
-            <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.primaryDark }}>
-              {elapsedPercentage}% Elapsed
-            </Typography>
-          </Box>
-          <LinearProgress
-            variant="determinate"
-            value={elapsedPercentage}
-            sx={{
-              height: 12,
-              borderRadius: "10px",
-              bgcolor: themeConfig.champagne || "#F1F5F9",
-              "& .MuiLinearProgress-bar": {
-                background: isExpired
-                  ? "linear-gradient(90deg, #DC2626 0%, #EF4444 100%)"
-                  : `linear-gradient(90deg, ${themeConfig.primary} 0%, ${themeConfig.primaryLight || themeConfig.primary} 100%)`,
-                borderRadius: "10px",
-              },
-            }}
-          />
-        </Box>
-
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 3, pt: 2.5, borderTop: `1px dashed ${themeConfig.border}`, flexWrap: "wrap", gap: 2 }}>
-          <Typography variant="body2" sx={{ color: themeConfig.textMuted }}>
-            Trial evaluation {isExpired ? "ended on" : "expires on"}{" "}
-            <strong style={{ color: themeConfig.textMain }}>{trialEndFormatted}</strong>.
-          </Typography>
-          <Button
-            variant="contained"
-            className="btn-3d"
-            startIcon={<WorkspacePremium />}
-            onClick={() => {
-              const target = displayedPlans.find((p) => p.isPopular || p.badge === "MOST POPULAR") || displayedPlans[0];
-              if (target) handlePurchasePlan(target);
-              else toast.error("No subscription plan is available to purchase.");
-            }}
-            sx={{
-              background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-              color: "#FFFFFF",
-              fontWeight: 800,
-              px: 3,
-              py: 1.1,
-              borderRadius: "12px",
-              boxShadow: `0 6px 18px ${themeConfig.primaryGlow}`,
-              "&:hover": { transform: "translateY(-2px)" },
-            }}
-          >
-            Upgrade to Commercial Tier
-          </Button>
-        </Box>
+          {showTrialStatus && (
+            <Box sx={{ mt: 2.5 }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.75 }}>
+                <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.78rem", fontWeight: 600 }}>
+                  Day {elapsedDays} of {totalDays}
+                </Typography>
+                <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.78rem", fontWeight: 600 }}>
+                  {elapsedPercentage}% used
+                </Typography>
+              </Box>
+              <LinearProgress
+                variant="determinate"
+                value={elapsedPercentage}
+                sx={{
+                  height: 6,
+                  borderRadius: "6px",
+                  bgcolor: themeConfig.champagne || "#F1F5F9",
+                  "& .MuiLinearProgress-bar": {
+                    borderRadius: "6px",
+                    bgcolor: isExpired ? themeConfig.danger : themeConfig.primary,
+                  },
+                }}
+              />
+            </Box>
+          )}
+        </CardContent>
       </Card>
 
-      {/* REAL SUBSCRIPTION PLANS LIST (From Database) */}
-      <Box sx={{ mb: 4 }}>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3.5, flexWrap: "wrap", gap: 2 }}>
-          <Box>
-            <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-              Available Subscription Plans
-            </Typography>
-            <Typography variant="body2" sx={{ color: themeConfig.textMuted }}>
-              Select the optimal commercial plan tailored for your hotel size and operational requirements:
-            </Typography>
-          </Box>
+      {/* Plans */}
+      <Box sx={{ mb: 2.5 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 1.5,
+            pb: 1.25,
+            mb: 2,
+            borderBottom: `1px solid ${themeConfig.border}`,
+          }}
+        >
+          <Typography sx={sectionTitleSx}>Available plans</Typography>
 
-          {/* Billing Cycle Toggle */}
           <ToggleButtonGroup
             value={billingCycle}
             exclusive
+            size="small"
             onChange={(e, val) => val && setBillingCycle(val)}
             sx={{
-              bgcolor: themeConfig.bgMain,
-              p: 0.5,
-              borderRadius: "14px",
+              p: "3px",
+              gap: "2px",
+              borderRadius: "10px",
               border: `1px solid ${themeConfig.border}`,
+              bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
+              "& .MuiToggleButtonGroup-grouped": {
+                border: 0,
+                borderRadius: "7px !important",
+                m: 0,
+              },
               "& .MuiToggleButton-root": {
-                border: "none",
-                borderRadius: "10px !important",
+                textTransform: "none",
+                minWidth: 84,
                 px: 2,
-                py: 0.6,
-                fontWeight: 800,
-                fontSize: "0.78rem",
+                py: 0.45,
+                fontWeight: 700,
+                fontSize: "0.8rem",
+                lineHeight: 1.4,
                 color: themeConfig.textMuted,
+                "&:hover": { bgcolor: "transparent", color: themeConfig.textMain },
                 "&.Mui-selected": {
-                  bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-                  color: isDarkMode ? "#5EEAD4" : themeConfig.primaryDark,
-                  boxShadow: isDarkMode ? "0 2px 8px rgba(0,0,0,0.4)" : "0 2px 8px rgba(0,0,0,0.08)",
+                  color: "#FFFFFF",
+                  bgcolor: themeConfig.primary,
+                  "&:hover": { bgcolor: themeConfig.primaryDark },
                 },
               },
             }}
           >
-            <ToggleButton value="MONTHLY">Monthly Billing</ToggleButton>
-            <ToggleButton value="ANNUAL">
-              Annual Billing &nbsp;
-              <Chip label="SAVE 20%" size="small" sx={{ bgcolor: themeConfig.successBg, color: themeConfig.success, fontWeight: 900, height: 18, fontSize: "0.62rem" }} />
-            </ToggleButton>
+            <ToggleButton value="MONTHLY">Monthly</ToggleButton>
+            <ToggleButton value="ANNUAL">Annual</ToggleButton>
           </ToggleButtonGroup>
         </Box>
 
         {loadingPlans ? (
           <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-            <CircularProgress sx={{ color: themeConfig.primary }} />
+            <CircularProgress size={28} sx={{ color: themeConfig.primary }} />
           </Box>
+        ) : displayedPlans.length === 0 ? (
+          <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.9rem", py: 4, textAlign: "center" }}>
+            No {billingCycle === "ANNUAL" ? "annual" : "monthly"} plans are available right now.
+          </Typography>
         ) : (
-          <Grid container spacing={3} sx={{ pt: 1.5, alignItems: "stretch" }}>
+          <Grid container spacing={2} sx={{ alignItems: "stretch" }}>
             {displayedPlans.map((plan, idx) => {
-              const isPopular = Boolean(plan.isPopular || plan.badge === "MOST POPULAR" || idx === 1);
-              const iconColors = [
-                { bg: isDarkMode ? "rgba(13, 148, 136, 0.18)" : "#CCFBF1", color: "#0D9488" },
-                { bg: isDarkMode ? "rgba(16, 185, 129, 0.2)" : "#D1FAE5", color: "#059669" },
-                { bg: isDarkMode ? "rgba(99, 102, 241, 0.18)" : "#E0E7FF", color: "#4F46E5" },
-              ][idx % 3];
+              const isPopular = Boolean(plan.isPopular || plan.badge === "MOST POPULAR");
+              const planId = plan._id || plan.id;
+              const isBusy = purchasingId === planId;
+              const isCurrent = isCurrentPlan(plan);
+              const trialLocked = isTrialPlan(plan) && trialUsed && !isCurrent;
+              const isLocked = isCurrent || trialLocked;
+              const roomsLabel = plan.maxRooms === 0 || plan.maxRooms >= 999 ? "Unlimited rooms" : `Up to ${plan.maxRooms} rooms`;
 
               return (
-                <Grid size={{ xs: 12, md: 4 }} key={plan._id || idx} sx={{ display: "flex" }}>
+                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={planId || idx} sx={{ display: "flex" }}>
                   <Card
-                    className="card-3d"
                     sx={{
-                      p: { xs: 2.5, sm: 3.5 },
-                      borderRadius: "24px",
-                      border: isPopular
-                        ? `2px solid ${themeConfig.primary}`
-                        : `1px solid ${themeConfig.border}`,
-                      bgcolor: themeConfig.bgCard,
-                      background: isPopular
-                        ? (isDarkMode
-                            ? "linear-gradient(180deg, rgba(13, 148, 136, 0.12) 0%, rgba(14, 49, 44, 0.95) 100%)"
-                            : "linear-gradient(180deg, #F0FDFA 0%, #FFFFFF 100%)")
-                        : (isDarkMode ? themeConfig.bgCard : "#FFFFFF"),
-                      position: "relative",
-                      overflow: "visible !important",
-                      boxShadow: isPopular
-                        ? (isDarkMode
-                            ? `0 20px 40px -8px rgba(0,0,0,0.6), 0 0 0 1px ${themeConfig.primary}`
-                            : `0 20px 40px -8px ${themeConfig.primaryGlow}, 0 0 0 1px ${themeConfig.primary}`)
-                        : (isDarkMode
-                            ? "0 10px 30px rgba(0,0,0,0.35)"
-                            : "0 10px 30px -5px rgba(12, 39, 59, 0.06), inset 0 1px 1px #FFFFFF"),
+                      ...cardSx,
+                      width: "100%",
                       display: "flex",
                       flexDirection: "column",
-                      justifyContent: "space-between",
-                      width: "100%",
-                      height: "100%",
-                      transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
-                      "&:hover": {
-                        transform: "translateY(-4px)",
-                        borderColor: themeConfig.primary,
-                        boxShadow: `0 20px 40px -6px ${themeConfig.primaryGlow}`,
-                      },
+                      border: `1px solid ${isCurrent ? themeConfig.primary : themeConfig.border}`,
+                      ...(isCurrent ? { boxShadow: `0 0 0 1px ${themeConfig.primary}` } : {}),
                     }}
                   >
-                    {/* Floating Most Popular Badge with Guaranteed Visibility */}
-                    {isPopular && (
-                      <Box
-                        sx={{
-                          position: "absolute",
-                          top: -14,
-                          left: "50%",
-                          transform: "translateX(-50%)",
-                          zIndex: 10,
-                          background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                          color: "#FFFFFF",
-                          fontWeight: 900,
-                          fontSize: "0.72rem",
-                          letterSpacing: "0.8px",
-                          textTransform: "uppercase",
-                          px: 2,
-                          py: 0.55,
-                          borderRadius: "999px",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 0.6,
-                          boxShadow: `0 6px 18px ${themeConfig.primaryGlow}`,
-                          border: `2px solid ${isDarkMode ? "#0E312C" : "#FFFFFF"}`,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        <Star sx={{ fontSize: 13, color: "#FDE047 !important" }} />
-                        Most Popular
+                    <CardContent sx={{ p: 2, display: "flex", flexDirection: "column", flexGrow: 1, "&:last-child": { pb: 2 } }}>
+                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+                        <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "1.1rem" }}>{plan.name}</Typography>
+                        {(isCurrent || trialLocked || isPopular) && (
+                          <Chip
+                            size="small"
+                            label={isCurrent ? "Current plan" : trialLocked ? "Used" : "Popular"}
+                            sx={{
+                              height: 22,
+                              fontWeight: 700,
+                              fontSize: "0.7rem",
+                              ...(isCurrent
+                                ? { color: themeConfig.success, bgcolor: themeConfig.successBg }
+                                : trialLocked
+                                  ? { color: themeConfig.textMuted, bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9" }
+                                  : { color: themeConfig.primaryDark, bgcolor: themeConfig.champagne || "#EAF6F3" }),
+                            }}
+                          />
+                        )}
                       </Box>
-                    )}
+                      <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.82rem", mt: 0.4 }}>{roomsLabel}</Typography>
 
-                    <Box sx={{ display: "flex", flexDirection: "column", flexGrow: 1 }}>
-                      {/* Top Row: Icon & Capacity */}
-                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-                        <Avatar
-                          sx={{
-                            bgcolor: iconColors.bg,
-                            width: 48,
-                            height: 48,
-                            borderRadius: "14px",
-                            border: `1px solid ${iconColors.color}30`,
-                          }}
-                        >
-                          {getPlanIcon(idx)}
-                        </Avatar>
-                        <Chip
-                          label={plan.maxRooms === 0 || plan.maxRooms >= 999 ? "Unlimited Rooms" : `Up to ${plan.maxRooms} Rooms`}
-                          size="small"
-                          sx={{
-                            fontWeight: 800,
-                            borderRadius: "10px",
-                            bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9",
-                            color: themeConfig.textMain,
-                            border: `1px solid ${themeConfig.border}`,
-                            fontSize: "0.74rem",
-                            px: 0.5,
-                            py: 0.3,
-                          }}
-                        />
-                      </Box>
-
-                      {/* Plan Title & Tagline */}
-                      <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.3, mb: 0.5 }}>
-                        {plan.name}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.8rem", lineHeight: 1.4, minHeight: 20 }}>
-                        {plan.tagline || "Complete property management & guest automation"}
-                      </Typography>
-
-                      {/* Price Display */}
-                      <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.8, my: 2.5 }}>
-                        <Typography
-                          variant="h3"
-                          sx={{
-                            fontWeight: 900,
-                            fontSize: { xs: "2.1rem", sm: "2.5rem" },
-                            color: isPopular ? (isDarkMode ? "#5EEAD4" : themeConfig.primaryDark) : themeConfig.textMain,
-                            letterSpacing: -0.8,
-                            lineHeight: 1,
-                          }}
-                        >
+                      <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.75, mt: 1.5, pb: 1.5, borderBottom: `1px solid ${themeConfig.border}` }}>
+                        <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "1.9rem", lineHeight: 1.1 }}>
                           ₹{plan.price?.toLocaleString("en-IN")}
                         </Typography>
-                        <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontWeight: 700, fontSize: "0.85rem" }}>
+                        <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.85rem" }}>
                           / {billingCycle === "ANNUAL" ? "year" : "month"}
                         </Typography>
                       </Box>
 
-                      <Divider sx={{ mb: 2.5, borderColor: themeConfig.border }} />
-
-                      {/* Features List with consistent height alignment */}
-                      <Box sx={{ flexGrow: 1, display: "flex", flexDirection: "column", gap: 1.4, mb: 3.5, minHeight: 180 }}>
+                      <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, mt: 1.5, mb: 2, display: "flex", flexDirection: "column", gap: 0.9, flexGrow: 1 }}>
                         {(plan.features || []).map((feat, fIdx) => (
-                          <Box key={fIdx} sx={{ display: "flex", alignItems: "flex-start", gap: 1.2 }}>
-                            <Box
-                              sx={{
-                                width: 20,
-                                height: 20,
-                                borderRadius: "50%",
-                                bgcolor: "rgba(16, 185, 129, 0.15)",
-                                color: "#10B981",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                flexShrink: 0,
-                                mt: 0.2,
-                              }}
-                            >
-                              <Check sx={{ fontSize: 13, strokeWidth: 2.5 }} />
-                            </Box>
-                            <Typography variant="body2" sx={{ color: themeConfig.textMain, fontWeight: 600, fontSize: "0.83rem", lineHeight: 1.4 }}>
-                              {feat}
-                            </Typography>
+                          <Box component="li" key={fIdx} sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
+                            <Check sx={{ fontSize: 16, mt: 0.2, color: themeConfig.primary, flexShrink: 0 }} />
+                            <Typography sx={{ color: themeConfig.textMain, fontSize: "0.84rem", lineHeight: 1.45 }}>{feat}</Typography>
                           </Box>
                         ))}
                       </Box>
-                    </Box>
 
-                    {/* Action Button */}
-                    <Button
-                      variant={isPopular ? "contained" : "outlined"}
-                      fullWidth
-                      className={isPopular ? "btn-3d" : ""}
-                      onClick={() => handlePurchasePlan(plan)}
-                      disabled={purchasingId === (plan._id || plan.id)}
-                      sx={{
-                        borderRadius: "14px",
-                        fontWeight: 900,
-                        py: 1.3,
-                        fontSize: "0.86rem",
-                        transition: "all 0.2s ease",
-                        ...(isPopular
-                          ? {
-                              background: `linear-gradient(135deg, ${themeConfig.primary} 0%, ${themeConfig.primaryDark} 100%)`,
-                              color: "#FFFFFF",
-                              boxShadow: `0 8px 24px ${themeConfig.primaryGlow}`,
-                              "&:hover": {
-                                transform: "translateY(-2px)",
-                                boxShadow: `0 12px 28px ${themeConfig.primaryGlow}`,
-                              },
-                            }
-                          : {
-                              bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F8FAFC",
-                              borderColor: themeConfig.border,
-                              color: themeConfig.textMain,
-                              "&:hover": {
-                                bgcolor: themeConfig.champagne,
-                                borderColor: themeConfig.primary,
+                      <Button
+                        fullWidth
+                        variant={isLocked ? "outlined" : "contained"}
+                        onClick={() => handlePurchasePlan(plan)}
+                        disabled={isBusy || isLocked}
+                        startIcon={isCurrent ? <Check /> : undefined}
+                        sx={{
+                          height: 40,
+                          borderRadius: "10px",
+                          textTransform: "none",
+                          fontWeight: 700,
+                          boxShadow: "none",
+                          ...(!isLocked
+                            ? { bgcolor: themeConfig.primary, "&:hover": { bgcolor: themeConfig.primaryDark, boxShadow: "none" } }
+                            : {
                                 color: themeConfig.primaryDark,
-                                transform: "translateY(-2px)",
-                              },
-                            }),
-                      }}
-                    >
-                      {purchasingId === (plan._id || plan.id) ? "Purchasing..." : `Choose ${plan.name}`}
-                    </Button>
+                                borderColor: themeConfig.border,
+                                "&:hover": { borderColor: themeConfig.primary, bgcolor: themeConfig.champagne || "#F4F7F6" },
+                              }),
+                        }}
+                      >
+                        {isBusy ? "Processing..." : isCurrent ? "Current plan" : trialLocked ? "Trial already used" : "Choose plan"}
+                      </Button>
+                    </CardContent>
                   </Card>
                 </Grid>
               );
@@ -585,72 +507,50 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
         )}
       </Box>
 
-      {/* SUPER ADMIN 24/7 SUPPORT CONTACT */}
-      <Card
-        className="card-3d"
-        sx={{
-          borderRadius: "22px",
-          border: `1px solid ${themeConfig.border}`,
-          bgcolor: themeConfig.bgCard,
-          p: 3,
-          boxShadow: isDarkMode ? "0 8px 24px rgba(0,0,0,0.4)" : "0 8px 24px rgba(0,0,0,0.04)",
-        }}
-      >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 1 }}>
-          <SupportAgent sx={{ color: themeConfig.primary, fontSize: 26 }} />
-          <Typography variant="h6" sx={{ fontWeight: 800, color: themeConfig.textMain }}>
-            Super Admin Support Desk
-          </Typography>
-        </Box>
-        <Typography variant="body2" sx={{ color: themeConfig.textMuted, mb: 2.5 }}>
-          Need custom pricing, invoice assistance, or instant trial extension? Contact our dedicated Super Admin team:
-        </Typography>
-
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <Button
-              fullWidth
-              variant="outlined"
-              startIcon={<Phone />}
-              href={`tel:${supportContact.phone}`}
-              sx={{ borderRadius: "12px", fontWeight: 700, py: 1.1 }}
-            >
-              Call {supportContact.phone}
+      {/* Support */}
+      <Card sx={cardSx}>
+        <CardContent
+          sx={{
+            p: { xs: 2, sm: 2.5 },
+            "&:last-child": { pb: { xs: 2, sm: 2.5 } },
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 2,
+          }}
+        >
+          <Box>
+            <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.98rem" }}>Need help choosing a plan?</Typography>
+            <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.84rem", mt: 0.3 }}>
+              Contact our support team for pricing, invoices or a trial extension.
+            </Typography>
+          </Box>
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.25 }}>
+            <Button variant="outlined" startIcon={<Phone />} href={`tel:${supportContact.phone}`} sx={supportButtonSx}>
+              Call
             </Button>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 4 }}>
             <Button
-              fullWidth
-              variant="contained"
+              variant="outlined"
               startIcon={<WhatsApp />}
               href={`https://wa.me/${supportContact.whatsapp?.replace(/[^0-9]/g, "") || "919876543210"}?text=${encodeURIComponent(
                 `Hello Super Admin, I want to upgrade subscription for hotel: ${hotel.name || "Our Hotel"}`
               )}`}
               target="_blank"
-              sx={{
-                borderRadius: "12px",
-                fontWeight: 800,
-                py: 1.1,
-                bgcolor: "#25D366",
-                color: "#FFFFFF",
-                "&:hover": { bgcolor: "#1EBE5D" },
-              }}
+              sx={supportButtonSx}
             >
-              WhatsApp Support
+              WhatsApp
             </Button>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 4 }}>
             <Button
-              fullWidth
               variant="outlined"
               startIcon={<Email />}
               href={`mailto:${supportContact.email}?subject=${encodeURIComponent(`Plan Upgrade Request - ${hotel.name || "Hotel"}`)}`}
-              sx={{ borderRadius: "12px", fontWeight: 700, py: 1.1 }}
+              sx={supportButtonSx}
             >
-              Email Support
+              Email
             </Button>
-          </Grid>
-        </Grid>
+          </Box>
+        </CardContent>
       </Card>
 
       {/* QUICK PLAN ACTIVATION MODAL */}

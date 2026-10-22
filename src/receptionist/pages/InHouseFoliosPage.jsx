@@ -377,11 +377,11 @@ export default function InHouseFoliosPage({
         </div>
 
         <Chip
-          icon={<Schedule sx={{ fontSize: 16, color: `${themeConfig.primaryDark} !important` }} />}
+          icon={<Schedule sx={{ fontSize: 16, color: `${themeConfig.accent} !important` }} />}
           label={`Standard Check-Out: ${checkOutTimeFormatted} (${timezoneStr})`}
           sx={{
             bgcolor: themeConfig.champagne,
-            color: themeConfig.primaryDark,
+            color: themeConfig.accent,
             fontWeight: 800,
             borderRadius: "12px",
             border: `1px solid ${themeConfig.border}`,
@@ -665,13 +665,13 @@ export default function InHouseFoliosPage({
                           {roomsList.length > 1 ? (
                             <Box sx={{ mb: 0.3 }}>
                               <Chip
-                                icon={<MeetingRoom sx={{ fontSize: 14, color: `${themeConfig.primaryDark} !important` }} />}
+                                icon={<MeetingRoom sx={{ fontSize: 14, color: `${themeConfig.accent} !important` }} />}
                                 label={`Rooms ${roomsList.join(", ")}`}
                                 size="small"
                                 sx={{
                                   fontWeight: 800,
                                   bgcolor: themeConfig.champagne,
-                                  color: themeConfig.primaryDark,
+                                  color: themeConfig.accent,
                                   border: `1px solid ${themeConfig.border}`,
                                   height: 24,
                                 }}
@@ -683,13 +683,13 @@ export default function InHouseFoliosPage({
                           ) : (
                             <Box sx={{ mb: 0.3 }}>
                               <Chip
-                                icon={<MeetingRoom sx={{ fontSize: 14, color: `${themeConfig.primaryDark} !important` }} />}
+                                icon={<MeetingRoom sx={{ fontSize: 14, color: `${themeConfig.accent} !important` }} />}
                                 label={`Room ${roomsList[0] || "N/A"}`}
                                 size="small"
                                 sx={{
                                   fontWeight: 800,
                                   bgcolor: themeConfig.champagne,
-                                  color: themeConfig.primaryDark,
+                                  color: themeConfig.accent,
                                   border: `1px solid ${themeConfig.border}`,
                                   height: 24,
                                 }}
@@ -823,7 +823,7 @@ export default function InHouseFoliosPage({
                               booking={b}
                               iconOnly
                               sx={{
-                                color: themeConfig.primaryDark,
+                                color: themeConfig.accent,
                                 bgcolor: themeConfig.champagne,
                                 border: `1px solid ${themeConfig.border}`,
                                 borderRadius: "10px",
@@ -952,7 +952,7 @@ export default function InHouseFoliosPage({
 
                   {b.accompanyingGuests && b.accompanyingGuests.length > 0 && (
                     <Box sx={{ mt: 1.5, pt: 1, borderTop: `1px dashed ${themeConfig.border}` }}>
-                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.primaryDark, display: "block", mb: 0.5 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 800, color: themeConfig.accent, display: "block", mb: 0.5 }}>
                         👥 Accompanying Members ({b.accompanyingGuests.length}):
                       </Typography>
                       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
@@ -971,7 +971,7 @@ export default function InHouseFoliosPage({
                   {/* Guest ID & Documents Showcase */}
                   {(b.guest?.idProof?.frontImage || b.guest?.frontImage || b.guest?.idProof?.backImage || b.guest?.backImage || (b.accompanyingGuests && b.accompanyingGuests.some(m => m.frontImage || m.backImage))) && (
                     <Box sx={{ mt: 2, pt: 1.5, borderTop: `1px dashed ${themeConfig.border}` }}>
-                      <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.primaryDark, display: "block", mb: 1 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 900, color: themeConfig.accent, display: "block", mb: 1 }}>
                         📄 Guest ID Documents & Photo Verification:
                       </Typography>
                       <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>

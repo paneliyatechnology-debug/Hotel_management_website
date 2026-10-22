@@ -147,7 +147,7 @@ export default function DashboardLayout({
             width: DRAWER_WIDTH,
             borderRadius: 0,
             boxSizing: "border-box",
-            bgcolor: themeConfig.bgCard || (isDarkMode ? "#0F172A" : "#FFFFFF"),
+            bgcolor: isDarkMode ? (themeConfig.bgHeader || themeConfig.bgCard) : (themeConfig.bgCard || "#FFFFFF"),
             borderRight: `1px solid ${themeConfig.border}`,
             borderTop: "none",
             borderBottom: "none",
@@ -170,7 +170,7 @@ export default function DashboardLayout({
             alignItems: "center",
             justifyContent: "space-between",
             borderBottom: `1px solid ${themeConfig.border}`,
-            bgcolor: themeConfig.bgHeader || (isDarkMode ? "#0F172A" : "#FFFFFF"),
+            bgcolor: themeConfig.bgHeader || "#FFFFFF",
             boxSizing: "border-box",
             borderRadius: 0,
           }}
@@ -190,7 +190,7 @@ export default function DashboardLayout({
               <Typography variant="subtitle1" sx={{ fontWeight: 900, lineHeight: 1.1, color: themeConfig.textMain, fontSize: "0.95rem", letterSpacing: "0.02em" }}>
                 MYOWNPMS
               </Typography>
-              <Typography variant="caption" sx={{ color: themeConfig.primaryDark, fontWeight: 700, letterSpacing: "0.05em", fontSize: "0.68rem" }}>
+              <Typography variant="caption" sx={{ color: themeConfig.accent, fontWeight: 700, letterSpacing: "0.05em", fontSize: "0.68rem" }}>
                 {user?.role === "SUPER_ADMIN"
                   ? "SaaS Master Panel"
                   : user?.role === "HOTEL_ADMIN"
@@ -225,7 +225,7 @@ export default function DashboardLayout({
                     sx={{
                       borderRadius: "12px",
                       bgcolor: isSelected ? themeConfig.champagne : "transparent",
-                      color: isSelected ? themeConfig.primaryDark : themeConfig.textMain,
+                      color: isSelected ? themeConfig.accent : themeConfig.textMain,
                       border: `1px solid ${isSelected ? themeConfig.border : "transparent"}`,
                       boxShadow: isSelected
                         ? (isDarkMode ? `0 4px 12px ${themeConfig.primaryGlow}` : `0 4px 12px ${themeConfig.primaryGlow}, inset 0 1px 0 #FFFFFF`)
@@ -244,7 +244,7 @@ export default function DashboardLayout({
                     </ListItemIcon>
                     <ListItemText
                       primary={
-                        <Typography sx={{ fontSize: "0.85rem", fontWeight: isSelected ? 800 : 600, color: isSelected ? themeConfig.primaryDark : themeConfig.textMain }}>
+                        <Typography sx={{ fontSize: "0.85rem", fontWeight: isSelected ? 800 : 600, color: isSelected ? themeConfig.accent : themeConfig.textMain }}>
                           {item.label}
                         </Typography>
                       }
@@ -259,7 +259,7 @@ export default function DashboardLayout({
                           fontWeight: 800,
                           borderRadius: "6px",
                           bgcolor: isSelected ? themeConfig.primary : themeConfig.champagne,
-                          color: isSelected ? "#ffffff" : themeConfig.primaryDark,
+                          color: isSelected ? "#ffffff" : themeConfig.accent,
                           boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
                         }}
                       />
@@ -306,11 +306,11 @@ export default function DashboardLayout({
                     borderRadius: "9px",
                     fontSize: "0.8rem",
                     fontWeight: active ? 800 : 600,
-                    color: active ? themeConfig.primaryDark : themeConfig.textMuted,
+                    color: active ? themeConfig.accent : themeConfig.textMuted,
                     bgcolor: active ? (isDarkMode ? themeConfig.champagne : "#FFFFFF") : "transparent",
                     boxShadow: active && !isDarkMode ? "0 1px 3px rgba(15, 23, 42, 0.1)" : "none",
                     transition: "all 0.2s ease",
-                    "&:hover": { color: themeConfig.primaryDark },
+                    "&:hover": { color: themeConfig.accent },
                   }}
                 >
                   {option.icon}
@@ -331,10 +331,10 @@ export default function DashboardLayout({
               borderRadius: "14px",
               border: `1px solid ${themeConfig.border}`,
               background: isDarkMode
-                ? "linear-gradient(135deg, #162032 0%, #1E293B 100%)"
+                ? themeConfig.bgSubtle
                 : "linear-gradient(135deg, #FFFFFF 0%, #F9FBFC 100%)",
               boxShadow: isDarkMode
-                ? "0 4px 14px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255,255,255,0.05)"
+                ? "none"
                 : "0 4px 14px rgba(12, 39, 59, 0.04), inset 0 1px 0 #FFFFFF",
               cursor: "pointer",
               transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
@@ -342,7 +342,7 @@ export default function DashboardLayout({
                 bgcolor: themeConfig.champagne,
                 transform: "translateY(-2px)",
                 boxShadow: isDarkMode
-                  ? "0 6px 18px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255,255,255,0.1)"
+                  ? "0 6px 18px rgba(0, 0, 0, 0.4)"
                   : "0 6px 18px rgba(12, 39, 59, 0.08), inset 0 1px 0 #FFFFFF",
               },
             }}
@@ -402,7 +402,7 @@ export default function DashboardLayout({
             height: HEADER_HEIGHT,
             minHeight: HEADER_HEIGHT,
             maxHeight: HEADER_HEIGHT,
-            bgcolor: isDarkMode ? "rgba(15, 23, 42, 0.92)" : "rgba(255, 255, 255, 0.96)",
+            bgcolor: isDarkMode ? "rgba(14, 26, 24, 0.92)" : "rgba(255, 255, 255, 0.96)",
             backdropFilter: "blur(14px)",
             borderBottom: `1px solid ${themeConfig.border}`,
             borderTop: "none",
@@ -511,11 +511,13 @@ export default function DashboardLayout({
               right: { xs: 4, sm: 12 },
               zIndex: 1200,
               borderRadius: "18px",
-              bgcolor: "rgba(255, 255, 255, 0.96)",
+              bgcolor: isDarkMode ? "rgba(17, 30, 28, 0.96)" : "rgba(255, 255, 255, 0.96)",
               backdropFilter: "blur(20px)",
               WebkitBackdropFilter: "blur(20px)",
               border: `1.5px solid ${themeConfig.border}`,
-              boxShadow: "0 14px 35px -6px rgba(12, 39, 59, 0.22), 0 4px 12px rgba(0,0,0,0.06), inset 0 1px 1px #FFFFFF",
+              boxShadow: isDarkMode
+                ? "0 14px 35px -6px rgba(0, 0, 0, 0.7)"
+                : "0 14px 35px -6px rgba(12, 39, 59, 0.22), 0 4px 12px rgba(0,0,0,0.06), inset 0 1px 1px #FFFFFF",
               px: 0.3,
               py: 0.3,
               display: "flex",
@@ -573,7 +575,7 @@ export default function DashboardLayout({
                     transform: isSelected ? "translateY(-1px)" : "none",
                     "&:hover": {
                       bgcolor: isSelected ? undefined : themeConfig.champagne,
-                      color: isSelected ? "#FFFFFF" : themeConfig.primaryDark,
+                      color: isSelected ? "#FFFFFF" : themeConfig.accent,
                     },
                     "&:active": {
                       transform: "scale(0.96)",
@@ -623,7 +625,7 @@ export default function DashboardLayout({
                         height: 5,
                         borderRadius: "50%",
                         bgcolor: themeConfig.danger,
-                        border: "1px solid #FFFFFF",
+                        border: `1px solid ${themeConfig.bgCard}`,
                       }}
                     />
                   )}

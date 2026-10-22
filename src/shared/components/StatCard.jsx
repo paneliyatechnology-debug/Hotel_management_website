@@ -31,11 +31,11 @@ export default function StatCard({
         flexDirection: "column",
         cursor: onClick ? "pointer" : "default",
         background: isDarkMode
-          ? `linear-gradient(135deg, ${themeConfig.bgCard || "#162032"} 0%, #1A2638 100%)`
+          ? themeConfig.bgCard
           : `linear-gradient(145deg, #FFFFFF 0%, #F8FAFC 100%)`,
-        border: `1px solid ${isDarkMode ? "rgba(255, 255, 255, 0.08)" : themeConfig.border}`,
+        border: `1px solid ${themeConfig.border}`,
         boxShadow: isDarkMode
-          ? "0 10px 30px -5px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.07)"
+          ? themeConfig.shadowCard
           : "0 10px 25px -5px rgba(12, 39, 59, 0.06), 0 4px 12px -2px rgba(12, 39, 59, 0.03), inset 0 1px 1px #FFFFFF",
         position: "relative",
         overflow: "hidden",
@@ -227,7 +227,7 @@ export default function StatCard({
                   background: isDarkMode
                     ? `linear-gradient(135deg, ${themeConfig.champagne} 0%, rgba(255,255,255,0.08) 100%)`
                     : `linear-gradient(135deg, ${themeConfig.champagne} 0%, #FFFFFF 100%)`,
-                  color: isDarkMode ? "#FFFFFF" : themeConfig.primaryDark,
+                  color: isDarkMode ? "#FFFFFF" : themeConfig.accent,
                   border: `1px solid ${themeConfig.border}`,
                   boxShadow: "0 2px 4px rgba(0,0,0,0.04)",
                   whiteSpace: "nowrap",

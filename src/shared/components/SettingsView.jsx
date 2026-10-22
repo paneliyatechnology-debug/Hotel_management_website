@@ -480,7 +480,7 @@ export default function SettingsView({ user, onUpdateHotelSettings }) {
               minHeight: 44,
               px: 2,
               color: themeConfig.textMuted,
-              "&.Mui-selected": { color: themeConfig.primaryDark },
+              "&.Mui-selected": { color: themeConfig.accent },
             },
             "& .MuiTabs-indicator": { height: 2, borderRadius: "2px", bgcolor: themeConfig.primary },
           }}
@@ -535,7 +535,7 @@ export default function SettingsView({ user, onUpdateHotelSettings }) {
                               borderRadius: "8px",
                               textTransform: "none",
                               fontWeight: 700,
-                              color: themeConfig.primaryDark,
+                              color: themeConfig.accent,
                               borderColor: themeConfig.border,
                               "&:hover": { borderColor: themeConfig.primary, bgcolor: "transparent" },
                             }}

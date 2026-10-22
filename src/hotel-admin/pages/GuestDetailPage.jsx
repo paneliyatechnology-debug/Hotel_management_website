@@ -925,7 +925,7 @@ export default function GuestDetailPage({
                                 overflow: "hidden",
                                 border: `1px solid ${themeConfig.border}`,
                                 cursor: "pointer",
-                                bgcolor: section.key === "sig" ? "#FFFFFF" : "#F8FAFC",
+                                bgcolor: section.key === "sig" ? "#FFFFFF" : themeConfig.bgSubtle,
                                 "&:hover": { borderColor: themeConfig.primary },
                               }}
                             >
@@ -979,7 +979,7 @@ export default function GuestDetailPage({
                     <>
                       {[
                         { label: "Room charges", hint: `${nights} night${nights > 1 ? "s" : ""} · before tax`, value: formatCurrency(bill.base), show: true },
-                        { label: "Discount", value: bill.discount > 0 ? `-${formatCurrency(bill.discount)}` : formatCurrency(0), color: bill.discount > 0 ? "#047857" : undefined, show: true },
+                        { label: "Discount", value: bill.discount > 0 ? `-${formatCurrency(bill.discount)}` : formatCurrency(0), color: bill.discount > 0 ? themeConfig.tones.success.color : undefined, show: true },
                         { label: "Extra charges", value: bill.extra > 0 ? `+${formatCurrency(bill.extra)}` : formatCurrency(0), show: true },
                         {
                           label: "Late check-out charges",

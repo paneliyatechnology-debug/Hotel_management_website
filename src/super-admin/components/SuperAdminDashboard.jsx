@@ -633,7 +633,7 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
                       }}
                     >
                       <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Total Rooms</Typography>
-                      <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.primaryDark }}>
+                      <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.accent }}>
                         {selectedHotelModal.details?.stats?.totalRooms ?? "—"}
                       </Typography>
                     </Paper>
@@ -648,7 +648,7 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
                       }}
                     >
                       <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Total Bookings</Typography>
-                      <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.primaryDark }}>
+                      <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.accent }}>
                         {selectedHotelModal.details?.stats?.totalBookings ?? "—"}
                       </Typography>
                     </Paper>
@@ -663,7 +663,7 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
                       }}
                     >
                       <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Total Guests</Typography>
-                      <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.primaryDark }}>
+                      <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.accent }}>
                         {selectedHotelModal.details?.stats?.totalGuests ?? "—"}
                       </Typography>
                     </Paper>

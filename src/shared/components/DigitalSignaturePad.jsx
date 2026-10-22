@@ -145,7 +145,7 @@ export default function DigitalSignaturePad({
                   fontWeight: 700,
                   textTransform: "none",
                   boxShadow: "none",
-                  color: active ? themeConfig.primaryDark || themeConfig.primary : themeConfig.textMuted,
+                  color: active ? themeConfig.accent || themeConfig.primary : themeConfig.textMuted,
                   bgcolor: active ? (isDarkMode ? themeConfig.primary : "#FFFFFF") : "transparent",
                   "&:hover": { bgcolor: active ? undefined : "rgba(15, 23, 42, 0.04)", boxShadow: "none" },
                 }}
@@ -158,7 +158,7 @@ export default function DigitalSignaturePad({
 
         {hasSignature && (
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, color: "#047857", fontSize: "0.8rem", fontWeight: 700 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, color: themeConfig.tones.success.color, fontSize: "0.8rem", fontWeight: 700 }}>
               <CheckCircle sx={{ fontSize: 16 }} />
               Signed
             </Box>
@@ -173,8 +173,8 @@ export default function DigitalSignaturePad({
                 fontSize: "0.8rem",
                 fontWeight: 700,
                 textTransform: "none",
-                color: "#B42318",
-                "&:hover": { bgcolor: "#FEF2F2" },
+                color: themeConfig.tones.danger.color,
+                "&:hover": { bgcolor: themeConfig.tones.danger.bg },
               }}
             >
               Clear

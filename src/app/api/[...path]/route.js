@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
 
+const IS_LOCAL_MODE = (process.env.NEXT_PUBLIC_API_MODE || "").trim().toUpperCase() === "LOCAL";
+
 const TARGET_BASE_URL = (
-  process.env.NEXT_PUBLIC_LIVE_API_URL ||
-  "https://hotelmanagementbackendnew-production.up.railway.app"
+  IS_LOCAL_MODE
+    ? process.env.NEXT_PUBLIC_LOCAL_API_URL || "http://localhost:5001"
+    : process.env.NEXT_PUBLIC_LIVE_API_URL || "https://hotelmanagementbackendnew-production.up.railway.app"
 ).replace(/\/+$/, "");
+
+// Origin the backend expects: the local app when talking to the local backend
+const FORWARDED_ORIGIN = IS_LOCAL_MODE ? "http://localhost:3000" : "https://myownpms.com";
 
 async function proxyRequest(request, context) {
   try {
@@ -30,8 +36,8 @@ async function proxyRequest(request, context) {
     });
 
     // Emulate allowed origin so Railway server allows the request
-    headers.set("Origin", "https://myownpms.com");
-    headers.set("Referer", "https://myownpms.com");
+    headers.set("Origin", FORWARDED_ORIGIN);
+    headers.set("Referer", FORWARDED_ORIGIN);
 
     const method = request.method;
     const fetchOptions = {

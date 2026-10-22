@@ -776,7 +776,7 @@ export default function HotelOverviewPage({
             icon={<TrendingUp sx={{ fontSize: "14px !important", color: themeConfig.primary }} />}
             label="Live Realtime Telemetry"
             size="small"
-            sx={{ fontWeight: 800, fontSize: "0.7rem", borderRadius: "8px", bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, maxWidth: "100%" }}
+            sx={{ fontWeight: 800, fontSize: "0.7rem", borderRadius: "8px", bgcolor: themeConfig.champagne, color: themeConfig.accent, maxWidth: "100%" }}
           />
         </Box>
 
@@ -939,7 +939,7 @@ export default function HotelOverviewPage({
                         </Box>
 
                         <Box sx={{ textAlign: "right", flexShrink: 0, whiteSpace: "nowrap" }}>
-                          <Typography variant="h6" sx={{ fontWeight: 900, color: "#0F766E", lineHeight: 1, fontSize: { xs: "1.15rem", sm: "1.25rem" } }}>
+                          <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.accent, lineHeight: 1, fontSize: { xs: "1.15rem", sm: "1.25rem" } }}>
                             ₹{Number(cat.basePrice || 0).toLocaleString("en-IN")}
                           </Typography>
                           <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block", mt: 0.3, fontSize: "0.72rem" }}>
@@ -976,7 +976,7 @@ export default function HotelOverviewPage({
                         </Typography>
 
                         <Chip
-                          icon={<Bed sx={{ fontSize: 13, color: "#0F766E !important" }} />}
+                          icon={<Bed sx={{ fontSize: 13, color: `${themeConfig.accent} !important` }} />}
                           label={
                             cat.bedType
                               ? String(cat.bedType).toLowerCase().includes("bed")
@@ -987,7 +987,7 @@ export default function HotelOverviewPage({
                           size="small"
                           sx={{
                             bgcolor: "rgba(20, 184, 166, 0.12)",
-                            color: "#0F766E",
+                            color: themeConfig.accent,
                             fontWeight: 800,
                             fontSize: "0.7rem",
                             height: 23,
@@ -1065,7 +1065,7 @@ export default function HotelOverviewPage({
                         variant="caption"
                         sx={{
                           fontWeight: 800,
-                          color: "#0F766E",
+                          color: themeConfig.accent,
                           fontSize: "0.8rem",
                           cursor: "default",
                           userSelect: "none",
@@ -1186,7 +1186,7 @@ export default function HotelOverviewPage({
                           <Chip
                             label={`Room #${g.roomAssigned}`}
                             size="small"
-                            sx={{ fontWeight: 800, borderRadius: "6px", bgcolor: themeConfig.champagne, color: themeConfig.primaryDark }}
+                            sx={{ fontWeight: 800, borderRadius: "6px", bgcolor: themeConfig.champagne, color: themeConfig.accent }}
                           />
                         </TableCell>
                         <TableCell sx={{ color: themeConfig.textMuted, fontSize: "0.82rem" }}>

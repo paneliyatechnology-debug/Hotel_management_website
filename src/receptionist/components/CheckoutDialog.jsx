@@ -252,7 +252,7 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
         {loading || !detail ? (
           <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 6 }}>
             {error ? (
-              <Typography sx={{ color: "#B42318", fontWeight: 600, fontSize: "0.9rem" }}>{error}</Typography>
+              <Typography sx={{ color: themeConfig.tones.danger.color, fontWeight: 600, fontSize: "0.9rem" }}>{error}</Typography>
             ) : (
               <CircularProgress size={28} />
             )}
@@ -268,7 +268,7 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
                 p: 1.75,
                 borderRadius: "12px",
                 border: `1px solid ${themeConfig.border}`,
-                bgcolor: "#F8FAFC",
+                bgcolor: themeConfig.bgSubtle,
               }}
             >
               <Avatar sx={{ bgcolor: themeConfig.primary, width: 40, height: 40, fontWeight: 700, fontSize: "1rem" }}>
@@ -334,10 +334,10 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
             {/* Bill calculation */}
             <Box>
               {sectionTitle("Bill calculation")}
-              <Box sx={{ p: 2, borderRadius: "12px", border: `1px solid ${themeConfig.border}`, bgcolor: "#FFFFFF" }}>
+              <Box sx={{ p: 2, borderRadius: "12px", border: `1px solid ${themeConfig.border}`, bgcolor: themeConfig.bgCard || "#FFFFFF" }}>
                 {billRow("Room charges", inr(bill.base), { hint: "Before tax" })}
                 {billRow("Discount", bill.discount > 0 ? `-${inr(bill.discount)}` : inr(0), {
-                  color: bill.discount > 0 ? "#047857" : undefined,
+                  color: bill.discount > 0 ? themeConfig.tones.success.color : undefined,
                 })}
                 {billRow("Extra charges", bill.extra > 0 ? `+${inr(bill.extra)}` : inr(0))}
                 {billRow("Late check-out charges", bill.late > 0 ? `+${inr(bill.late)}` : inr(0), {
@@ -347,13 +347,13 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
                 {billRow(`CGST (${bill.gstRate / 2}%)`, `+${inr(bill.cgst)}`)}
                 {billRow(`SGST (${bill.gstRate / 2}%)`, `+${inr(bill.sgst)}`)}
                 {billRow("Total bill", inr(bill.billTotal), { strong: true, hint: "Taxable amount + GST" })}
-                {billRow("Advance paid", `-${inr(bill.paid)}`, { color: "#047857" })}
+                {billRow("Advance paid", `-${inr(bill.paid)}`, { color: themeConfig.tones.success.color })}
                 {billRow("Balance due", inr(bill.due), {
                   strong: true,
                   hint: `${inr(bill.billTotal)} - ${inr(bill.paid)}`,
-                  color: bill.due > 0 ? "#B42318" : "#047857",
+                  color: bill.due > 0 ? themeConfig.tones.danger.color : themeConfig.tones.success.color,
                 })}
-                {collectNow > 0 && billRow("Collecting now", `-${inr(collectNow)}`, { color: "#047857" })}
+                {collectNow > 0 && billRow("Collecting now", `-${inr(collectNow)}`, { color: themeConfig.tones.success.color })}
                 <Box
                   sx={{
                     display: "flex",
@@ -363,13 +363,13 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
                     px: 1.5,
                     py: 1,
                     borderRadius: "10px",
-                    bgcolor: remainingAfter > 0 ? "#FEF2F2" : "#ECFDF5",
+                    bgcolor: remainingAfter > 0 ? themeConfig.tones.danger.bg : themeConfig.tones.success.bg,
                   }}
                 >
-                  <Typography sx={{ fontWeight: 700, fontSize: "0.88rem", color: remainingAfter > 0 ? "#B42318" : "#047857" }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: "0.88rem", color: remainingAfter > 0 ? themeConfig.tones.danger.color : themeConfig.tones.success.color }}>
                     {remainingAfter > 0 ? "Remaining after check-out" : "Fully settled"}
                   </Typography>
-                  <Typography sx={{ fontWeight: 700, fontSize: "1rem", color: remainingAfter > 0 ? "#B42318" : "#047857" }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: "1rem", color: remainingAfter > 0 ? themeConfig.tones.danger.color : themeConfig.tones.success.color }}>
                     {inr(remainingAfter)}
                   </Typography>
                 </Box>
@@ -440,7 +440,7 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
                     p: 1.5,
                     borderRadius: "12px",
                     border: `1px solid ${themeConfig.border}`,
-                    bgcolor: "#F8FAFC",
+                    bgcolor: themeConfig.bgSubtle,
                     display: "flex",
                     alignItems: "center",
                     gap: 2,
@@ -471,7 +471,7 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
             </Box>
 
             {error ? (
-              <Typography sx={{ color: "#B42318", fontWeight: 600, fontSize: "0.85rem" }}>{error}</Typography>
+              <Typography sx={{ color: themeConfig.tones.danger.color, fontWeight: 600, fontSize: "0.85rem" }}>{error}</Typography>
             ) : null}
           </>
         )}

@@ -247,7 +247,7 @@ export default function GstReportPage({ hotelSettings }) {
   const statusStyle = (status) => {
     if (status === "FINAL") return { color: themeConfig.success, bgcolor: themeConfig.successBg };
     if (status === "CANCELLED") return { color: themeConfig.danger, bgcolor: themeConfig.dangerBg };
-    return { color: "#B45309", bgcolor: "#FEF3C7" };
+    return { color: themeConfig.tones.warning.color, bgcolor: themeConfig.tones.warning.bg };
   };
 
   const summary = [

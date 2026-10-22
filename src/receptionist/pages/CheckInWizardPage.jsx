@@ -1506,11 +1506,11 @@ export default function CheckInWizardPage({
                   label="Returning guest · 10% discount"
                   size="small"
                   sx={{
-                    bgcolor: "#FFFBEB",
-                    color: "#B45309",
+                    bgcolor: themeConfig.tones.warning.bg,
+                    color: themeConfig.tones.warning.color,
                     fontWeight: 700,
                     fontSize: "0.72rem",
-                    border: "1px solid #FDE68A",
+                    border: `1px solid ${themeConfig.tones.warning.border}`,
                   }}
                 />
               )}
@@ -1533,7 +1533,7 @@ export default function CheckInWizardPage({
                 color: themeConfig.textMuted,
                 textTransform: "none",
                 whiteSpace: "nowrap",
-                "&:hover": { color: "#B42318", bgcolor: "#FEF2F2" },
+                "&:hover": { color: themeConfig.tones.danger.color, bgcolor: themeConfig.tones.danger.bg },
               }}
             >
               Reset form
@@ -1828,7 +1828,7 @@ export default function CheckInWizardPage({
                           e.stopPropagation();
                           handleRemoveMainGuestDoc(idx);
                         }}
-                        sx={{ position: "absolute", top: 6, right: 6, bgcolor: "rgba(255,255,255,0.92)", color: "#B42318", width: 26, height: 26, "&:hover": { bgcolor: "#FEE2E2" } }}
+                        sx={{ position: "absolute", top: 6, right: 6, bgcolor: "rgba(255,255,255,0.92)", color: themeConfig.tones.danger.color, width: 26, height: 26, "&:hover": { bgcolor: "#FEE2E2" } }}
                       >
                         <Close sx={{ fontSize: 15 }} />
                       </IconButton>
@@ -1919,10 +1919,10 @@ export default function CheckInWizardPage({
             {renderSectionHeader("Stay schedule")}
 
             {allExistingBookingsForSelectedRooms.length > 0 && (
-              <Box sx={{ p: 1.5, mb: 2.5, borderRadius: "12px", bgcolor: "#FFFBEB", border: "1px solid #FDE68A" }}>
+              <Box sx={{ p: 1.5, mb: 2.5, borderRadius: "12px", bgcolor: themeConfig.tones.warning.bg, border: `1px solid ${themeConfig.tones.warning.border}` }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-                  <EventBusy sx={{ color: "#B45309", fontSize: 18 }} />
-                  <Typography sx={{ fontWeight: 700, color: "#B45309", fontSize: "0.8rem" }}>
+                  <EventBusy sx={{ color: themeConfig.tones.warning.color, fontSize: 18 }} />
+                  <Typography sx={{ fontWeight: 700, color: themeConfig.tones.warning.color, fontSize: "0.8rem" }}>
                     Already booked for the selected room(s)
                   </Typography>
                 </Box>
@@ -1942,9 +1942,9 @@ export default function CheckInWizardPage({
                         sx={{
                           fontWeight: 600,
                           fontSize: "0.72rem",
-                          bgcolor: isConflict ? "#FEF2F2" : "#FFFFFF",
-                          color: isConflict ? "#B42318" : "#B45309",
-                          border: `1px solid ${isConflict ? "#FECACA" : "#FDE68A"}`,
+                          bgcolor: isConflict ? themeConfig.tones.danger.bg : themeConfig.bgCard,
+                          color: isConflict ? themeConfig.tones.danger.color : themeConfig.tones.warning.color,
+                          border: `1px solid ${isConflict ? themeConfig.tones.danger.border : themeConfig.tones.warning.border}`,
                         }}
                       />
                     );
@@ -2114,7 +2114,7 @@ export default function CheckInWizardPage({
                   {
                     label: "Discount",
                     value: `-₹${discountApplied.toLocaleString("en-IN")}`,
-                    color: "#047857",
+                    color: themeConfig.tones.success.color,
                     show: discountApplied > 0,
                   },
                   {
@@ -2164,7 +2164,7 @@ export default function CheckInWizardPage({
                       {paymentMethodLabel}
                     </Typography>
                   </Typography>
-                  <Typography sx={{ color: isDarkMode ? "#6EE7B7" : "#047857", fontSize: "0.88rem", fontWeight: 600 }}>
+                  <Typography sx={{ color: isDarkMode ? "#6EE7B7" : themeConfig.tones.success.color, fontSize: "0.88rem", fontWeight: 600 }}>
                     -₹{advancePaid.toLocaleString("en-IN")}
                   </Typography>
                 </Box>
@@ -2182,10 +2182,10 @@ export default function CheckInWizardPage({
                       : (isDarkMode ? "rgba(16, 185, 129, 0.16)" : "#ECFDF5"),
                   }}
                 >
-                  <Typography sx={{ fontWeight: 700, fontSize: "0.9rem", color: balanceDue > 0 ? "#FCA5A5" : (isDarkMode ? "#6EE7B7" : "#047857") }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: "0.9rem", color: balanceDue > 0 ? "#FCA5A5" : (isDarkMode ? "#6EE7B7" : themeConfig.tones.success.color) }}>
                     Balance due
                   </Typography>
-                  <Typography sx={{ fontWeight: 700, fontSize: "1.05rem", color: balanceDue > 0 ? "#FCA5A5" : (isDarkMode ? "#6EE7B7" : "#047857") }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: "1.05rem", color: balanceDue > 0 ? "#FCA5A5" : (isDarkMode ? "#6EE7B7" : themeConfig.tones.success.color) }}>
                     ₹{balanceDue.toLocaleString("en-IN")}
                   </Typography>
                 </Box>
@@ -2222,7 +2222,7 @@ export default function CheckInWizardPage({
                             icon={<CheckCircle sx={{ fontSize: "14px !important", color: "#047857 !important" }} />}
                             label="Signed"
                             size="small"
-                            sx={{ bgcolor: isDarkMode ? "rgba(16, 185, 129, 0.16)" : "#ECFDF5", color: isDarkMode ? "#6EE7B7" : "#047857", fontWeight: 700, fontSize: "0.72rem", border: "1px solid #A7F3D0" }}
+                            sx={{ bgcolor: isDarkMode ? "rgba(16, 185, 129, 0.16)" : "#ECFDF5", color: isDarkMode ? "#6EE7B7" : themeConfig.tones.success.color, fontWeight: 700, fontSize: "0.72rem", border: `1px solid ${themeConfig.tones.success.border}` }}
                           />
                           <Chip
                             label="View signature"
@@ -2241,7 +2241,7 @@ export default function CheckInWizardPage({
                             setActiveStep(0);
                             setTimeout(() => scrollToElement("guest-signature-section"), 150);
                           }}
-                          sx={{ bgcolor: "#FEF2F2", color: "#B42318", fontWeight: 700, fontSize: "0.72rem", border: "1px solid #FECACA" }}
+                          sx={{ bgcolor: themeConfig.tones.danger.bg, color: themeConfig.tones.danger.color, fontWeight: 700, fontSize: "0.72rem", border: `1px solid ${themeConfig.tones.danger.border}` }}
                         />
                       )}
                     </Box>
@@ -2321,7 +2321,7 @@ export default function CheckInWizardPage({
                   <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 600 }}>
                     Advance paid ({paymentMethodLabel})
                   </Typography>
-                  <Typography sx={{ fontWeight: 700, color: isDarkMode ? "#6EE7B7" : "#047857", fontSize: "1.2rem" }}>
+                  <Typography sx={{ fontWeight: 700, color: isDarkMode ? "#6EE7B7" : themeConfig.tones.success.color, fontSize: "1.2rem" }}>
                     ₹{advancePaid.toLocaleString("en-IN")}
                   </Typography>
                 </Box>
@@ -2331,7 +2331,7 @@ export default function CheckInWizardPage({
                     sx={{
                       fontWeight: 700,
                       fontSize: "1.2rem",
-                      color: balanceDue > 0 ? (isDarkMode ? "#FCA5A5" : "#B42318") : (isDarkMode ? "#6EE7B7" : "#047857"),
+                      color: balanceDue > 0 ? (isDarkMode ? "#FCA5A5" : themeConfig.tones.danger.color) : (isDarkMode ? "#6EE7B7" : themeConfig.tones.success.color),
                     }}
                   >
                     ₹{balanceDue.toLocaleString("en-IN")}

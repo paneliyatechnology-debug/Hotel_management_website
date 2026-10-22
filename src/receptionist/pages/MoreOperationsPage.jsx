@@ -153,7 +153,7 @@ export default function MoreOperationsPage({ user, hotelSettings, onLogout }) {
                 size="small"
                 sx={{
                   bgcolor: themeConfig.champagne,
-                  color: isDarkMode ? "#FFFFFF" : themeConfig.primaryDark,
+                  color: isDarkMode ? "#FFFFFF" : themeConfig.accent,
                   fontWeight: 800,
                   fontSize: "0.75rem",
                   border: `1px solid ${themeConfig.border}`,

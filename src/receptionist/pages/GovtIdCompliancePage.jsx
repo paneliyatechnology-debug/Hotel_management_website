@@ -138,7 +138,7 @@ export default function GovtIdCompliancePage({
     if (t === "VOTER_ID") {
       return { label: "VOTER ID", bgcolor: "rgba(16, 185, 129, 0.1)", color: "#059669", border: "rgba(16, 185, 129, 0.3)" };
     }
-    return { label: "AADHAAR", bgcolor: themeConfig.champagne, color: themeConfig.primaryDark, border: themeConfig.border };
+    return { label: "AADHAAR", bgcolor: themeConfig.champagne, color: themeConfig.accent, border: themeConfig.border };
   };
 
   return (
@@ -565,7 +565,7 @@ export default function GovtIdCompliancePage({
                                 size="small"
                                 onClick={() => setDossierModal({ open: true, guest: g })}
                                 sx={{
-                                  color: themeConfig.primaryDark,
+                                  color: themeConfig.accent,
                                   bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : themeConfig.champagne,
                                   borderRadius: "10px",
                                   border: `1px solid ${themeConfig.border}`,
@@ -575,7 +575,7 @@ export default function GovtIdCompliancePage({
                                   },
                                 }}
                               >
-                                <Visibility sx={{ fontSize: 16, color: themeConfig.primaryDark }} />
+                                <Visibility sx={{ fontSize: 16, color: themeConfig.accent }} />
                               </IconButton>
                             </Tooltip>
                           )}
@@ -689,7 +689,7 @@ export default function GovtIdCompliancePage({
                   <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
                     Document # / Verified Hash
                   </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 900, fontFamily: "monospace", color: themeConfig.primaryDark, mt: 0.5 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 900, fontFamily: "monospace", color: themeConfig.accent, mt: 0.5 }}>
                     {dossierModal.guest.govtIdNumber || "N/A"}
                   </Typography>
                 </Paper>
@@ -724,14 +724,14 @@ export default function GovtIdCompliancePage({
                 </Paper>
               )}
 
-              <Box sx={{ p: 2, borderRadius: "12px", bgcolor: "#F0FDF4", border: "1px solid #A7F3D0" }}>
+              <Box sx={{ p: 2, borderRadius: "12px", bgcolor: themeConfig.tones.success.bg, border: `1px solid ${themeConfig.tones.success.border}` }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <CheckCircle sx={{ color: "#059669", fontSize: 18 }} />
                   <Typography variant="caption" sx={{ fontWeight: 800, color: "#059669" }}>
                     Official Tourism / Police Compliance Seal Stamped
                   </Typography>
                 </Box>
-                <Typography variant="caption" sx={{ color: "#047857", display: "block", mt: 0.5 }}>
+                <Typography variant="caption" sx={{ color: themeConfig.tones.success.color, display: "block", mt: 0.5 }}>
                   This guest record has been verified against government-issued credentials and stamped for local hotel compliance audits.
                 </Typography>
               </Box>

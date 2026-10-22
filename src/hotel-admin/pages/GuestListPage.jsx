@@ -646,7 +646,7 @@ export default function GuestListPage({
                     <TableCell sx={{ fontWeight: 700, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
                       {formatDateTime(g.checkOut)}
                     </TableCell>
-                    <TableCell sx={{ fontWeight: 900, color: "#0F766E", whiteSpace: "nowrap" }}>
+                    <TableCell sx={{ fontWeight: 900, color: themeConfig.accent, whiteSpace: "nowrap" }}>
                       {formatCurrency(g.totalAmount)}
                       {g.dueAmount > 0 ? (
                         <Typography variant="caption" sx={{ color: "#DC2626", fontWeight: 800, display: "block" }}>

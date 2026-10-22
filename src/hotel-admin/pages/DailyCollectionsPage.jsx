@@ -264,15 +264,15 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
     const m = (method || "").toUpperCase();
     switch (m) {
       case "UPI":
-        return { label: "UPI QR", icon: <QrCode2 sx={{ fontSize: 16 }} />, bg: "#F5F3FF", color: "#7C3AED", border: "#DDD6FE" };
+        return { label: "UPI QR", icon: <QrCode2 sx={{ fontSize: 16 }} />, ...themeConfig.tones.violet };
       case "CASH":
-        return { label: "Cash", icon: <Payments sx={{ fontSize: 16 }} />, bg: "#ECFDF5", color: "#059669", border: "#A7F3D0" };
+        return { label: "Cash", icon: <Payments sx={{ fontSize: 16 }} />, ...themeConfig.tones.success };
       case "CARD":
-        return { label: "Card POS", icon: <CreditCard sx={{ fontSize: 16 }} />, bg: "#EFF6FF", color: "#2563EB", border: "#BFDBFE" };
+        return { label: "Card POS", icon: <CreditCard sx={{ fontSize: 16 }} />, ...themeConfig.tones.blue };
       case "BANK_TRANSFER":
-        return { label: "Bank NEFT", icon: <AccountBalance sx={{ fontSize: 16 }} />, bg: "#FFFBEB", color: "#D97706", border: "#FDE68A" };
+        return { label: "Bank NEFT", icon: <AccountBalance sx={{ fontSize: 16 }} />, ...themeConfig.tones.warning };
       default:
-        return { label: "Online", icon: <AccountBalanceWallet sx={{ fontSize: 16 }} />, bg: "#F3F4F6", color: "#4B5563", border: "#E5E7EB" };
+        return { label: "Online", icon: <AccountBalanceWallet sx={{ fontSize: 16 }} />, ...themeConfig.tones.neutral };
     }
   };
 
@@ -748,7 +748,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
                                 py: 0.3,
                                 borderRadius: "8px",
                                 bgcolor: themeConfig.champagne,
-                                color: themeConfig.primaryDark,
+                                color: themeConfig.accent,
                                 fontWeight: 800,
                                 fontSize: "0.75rem",
                                 border: `1px solid ${themeConfig.border}`,
@@ -850,10 +850,10 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
                               fontWeight: 800,
                               fontSize: "0.7rem",
                               height: 22,
-                              bgcolor: isSettled ? "#ECFDF5" : "#FEF3C7",
-                              color: isSettled ? "#059669" : "#D97706",
+                              bgcolor: isSettled ? themeConfig.tones.success.bg : themeConfig.tones.warning.bg,
+                              color: isSettled ? themeConfig.tones.success.color : themeConfig.tones.warning.color,
                               borderRadius: "6px",
-                              border: isSettled ? "1px solid rgba(5, 150, 105, 0.2)" : "1px solid rgba(217, 119, 6, 0.2)",
+                              border: `1px solid ${isSettled ? themeConfig.tones.success.border : themeConfig.tones.warning.border}`,
                             }}
                           />
                         </TableCell>

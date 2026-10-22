@@ -677,7 +677,7 @@ export default function AvailableRoomsPage({
               <Avatar
                 sx={{
                   bgcolor: themeConfig.champagne,
-                  color: themeConfig.primaryDark,
+                  color: themeConfig.accent,
                   width: 38,
                   height: 38,
                   borderRadius: "10px",
@@ -728,7 +728,7 @@ export default function AvailableRoomsPage({
             <Box sx={{ display: "flex", gap: 0.8, flexWrap: "wrap", alignItems: "center" }}>
               <Chip label={`${categoryStats.length} ${categoryStats.length === 1 ? "category" : "categories"}`} size="small" sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9", color: themeConfig.textMuted, fontWeight: 700, fontSize: "0.72rem" }} />
               <Chip label={`${overviewTotals.total} rooms`} size="small" sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9", color: themeConfig.textMuted, fontWeight: 700, fontSize: "0.72rem" }} />
-              <Chip label={`${overviewTotals.available} available`} size="small" sx={{ bgcolor: "#ECFDF5", color: "#047857", fontWeight: 700, fontSize: "0.72rem", border: "1px solid #A7F3D0" }} />
+              <Chip label={`${overviewTotals.available} available`} size="small" sx={{ bgcolor: themeConfig.tones.success.bg, color: themeConfig.tones.success.color, fontWeight: 700, fontSize: "0.72rem", border: `1px solid ${themeConfig.tones.success.border}` }} />
             </Box>
           </Box>
         )}
@@ -737,9 +737,9 @@ export default function AvailableRoomsPage({
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", justifyContent: { xs: "space-between", sm: "flex-end" } }}>
           {selectedCategory !== null && activeCategory && (
             <Box sx={{ display: "flex", gap: 0.8, flexWrap: "wrap", alignItems: "center" }}>
-              <Chip label={`${activeCategory?.available || 0} available`} size="small" sx={{ bgcolor: "#ECFDF5", color: "#047857", fontWeight: 700, fontSize: "0.75rem", border: "1px solid #A7F3D0" }} />
-              <Chip label={`${(activeCategory?.occupied || 0) + (activeCategory?.reserved || 0)} booked`} size="small" sx={{ bgcolor: "#FFFBEB", color: "#B45309", fontWeight: 700, fontSize: "0.75rem", border: "1px solid #FDE68A" }} />
-              <Chip label={`${activeCategory?.cleaning || 0} cleaning`} size="small" sx={{ bgcolor: "#FEF2F2", color: "#B42318", fontWeight: 700, fontSize: "0.75rem", border: "1px solid #FECACA" }} />
+              <Chip label={`${activeCategory?.available || 0} available`} size="small" sx={{ bgcolor: themeConfig.tones.success.bg, color: themeConfig.tones.success.color, fontWeight: 700, fontSize: "0.75rem", border: `1px solid ${themeConfig.tones.success.border}` }} />
+              <Chip label={`${(activeCategory?.occupied || 0) + (activeCategory?.reserved || 0)} booked`} size="small" sx={{ bgcolor: themeConfig.tones.warning.bg, color: themeConfig.tones.warning.color, fontWeight: 700, fontSize: "0.75rem", border: `1px solid ${themeConfig.tones.warning.border}` }} />
+              <Chip label={`${activeCategory?.cleaning || 0} cleaning`} size="small" sx={{ bgcolor: themeConfig.tones.danger.bg, color: themeConfig.tones.danger.color, fontWeight: 700, fontSize: "0.75rem", border: `1px solid ${themeConfig.tones.danger.border}` }} />
             </Box>
           )}
         </Box>
@@ -784,17 +784,17 @@ export default function AvailableRoomsPage({
               >
                 {filteredCategories.slice(cardPage * cardRowsPerPage, cardPage * cardRowsPerPage + cardRowsPerPage).map((cat) => {
                   const statusBoxes = [
-                    { label: "Available", value: cat.available, color: "#0F766E", bg: "#ECFDF5", border: "#A7F3D0" },
-                    { label: "Booked", value: cat.occupied + cat.reserved, color: "#B45309", bg: "#FFFBEB", border: "#FDE68A" },
-                    { label: "Cleaning", value: cat.cleaning, color: "#B42318", bg: "#FEF2F2", border: "#FECACA" },
+                    { label: "Available", value: cat.available, ...themeConfig.tones.success },
+                    { label: "Booked", value: cat.occupied + cat.reserved, ...themeConfig.tones.warning },
+                    { label: "Cleaning", value: cat.cleaning, ...themeConfig.tones.danger },
                   ];
                   const barTotal = statusBoxes.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
                   const isEmptyCategory = cat.totalRooms === 0;
                   const statePill = isEmptyCategory
-                    ? { label: "No rooms", color: "#64748B", bg: "#F1F5F9", border: "#E2E8F0" }
+                    ? { label: "No rooms", ...themeConfig.tones.neutral }
                     : cat.available > 0
-                      ? { label: "Available", color: "#047857", bg: "#ECFDF5", border: "#A7F3D0" }
-                      : { label: "Unavailable", color: "#B45309", bg: "#FFFBEB", border: "#FDE68A" };
+                      ? { label: "Available", ...themeConfig.tones.success }
+                      : { label: "Unavailable", ...themeConfig.tones.warning };
 
                   return (
                     <Card
@@ -1050,12 +1050,12 @@ export default function AvailableRoomsPage({
                   const bookedGuestName = getRoomGuestName(room);
 
                   const statusMeta = isAvail
-                    ? { label: "Available", color: "#047857", bg: "#ECFDF5", border: "#A7F3D0" }
+                    ? { label: "Available", ...themeConfig.tones.success }
                     : isOcc
-                      ? { label: room.status === "RESERVED" ? "Reserved" : "Booked", color: "#B45309", bg: "#FFFBEB", border: "#FDE68A" }
+                      ? { label: room.status === "RESERVED" ? "Reserved" : "Booked", ...themeConfig.tones.warning }
                       : isCln
-                        ? { label: "Cleaning", color: "#B42318", bg: "#FEF2F2", border: "#FECACA" }
-                        : { label: room.status === "BLOCKED" ? "Blocked" : "Maintenance", color: "#64748B", bg: "#F1F5F9", border: "#E2E8F0" };
+                        ? { label: "Cleaning", ...themeConfig.tones.danger }
+                        : { label: room.status === "BLOCKED" ? "Blocked" : "Maintenance", ...themeConfig.tones.neutral };
 
                   const actionButtonSx = {
                     minHeight: 38,

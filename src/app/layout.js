@@ -125,6 +125,10 @@ const jsonLd = {
   ],
 };
 
+// Runs before first paint on themed (signed-in / login) routes so a saved dark theme never flashes light.
+// Public marketing pages keep their own light design and are intentionally excluded.
+const themeBootScript = `(function(){try{var p=location.pathname;var themed=/^\/(app|login|admin|receptionist|super-admin)(\/|$)/.test(p);if(!themed)return;if(localStorage.getItem("admin_theme_mode")==="dark"){var d=document.documentElement;d.classList.add("dark-theme");d.setAttribute("data-theme-mode","dark");d.style.colorScheme="dark";var v={"--color-primary":"#0d9488","--color-primary-dark":"#0f766e","--color-primary-light":"#5eead4","--color-primary-glow":"rgba(45,212,191,0.16)","--color-bg-main":"#0a1312","--color-bg-card":"#111e1c","--color-bg-header":"#0e1a18","--color-bg-footer":"#0e1a18","--color-text-main":"#e7f2f0","--color-text-muted":"#9db5b0","--color-border":"rgba(148,210,198,0.14)","--color-border-hover":"#2dd4bf"};for(var k in v)d.style.setProperty(k,v[k]);}}catch(e){}})();`;
+
 export default function RootLayout({ children }) {
   const themeStyles = {
     "--color-primary": themeConfig.primary,
@@ -145,14 +149,16 @@ export default function RootLayout({ children }) {
     <html
       lang="en"
       style={themeStyles}
+      suppressHydrationWarning
     >
       <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       </head>
-      <body className="min-h-screen pb-14 md:pb-0 font-sans antialiased" style={{ backgroundColor: themeConfig.bgMain, color: themeConfig.textMain }}>
+      <body suppressHydrationWarning className="min-h-screen pb-14 md:pb-0 font-sans antialiased" style={{ backgroundColor: themeConfig.bgMain, color: themeConfig.textMain }}>
         <ReactQueryProvider>
           <DisableBrowserAutofill />
           {children}

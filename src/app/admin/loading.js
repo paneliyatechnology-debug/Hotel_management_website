@@ -1,6 +1,6 @@
 export default function AdminLoading() {
   return (
-    <div className="min-h-screen bg-[#F8FAFA] flex flex-col items-center justify-center p-6 text-center font-sans">
+    <div className="min-h-screen bg-[var(--color-bg-main)] flex flex-col items-center justify-center p-6 text-center font-sans">
       <div className="relative flex items-center justify-center">
         {/* Glowing Admin Spinner */}
         <div className="w-16 h-16 rounded-full border-4 border-amber-200/60 border-t-[#0F766E] animate-spin"></div>
@@ -10,20 +10,20 @@ export default function AdminLoading() {
       </div>
 
       <div className="mt-5 space-y-1.5">
-        <h3 className="text-sm font-bold text-[#0F172A] tracking-wide">
+        <h3 className="text-sm font-bold text-[var(--color-text-main)] tracking-wide">
           Loading Hotel Admin Management Panel...
         </h3>
-        <p className="text-xs text-slate-500 max-w-xs animate-pulse">
+        <p className="text-xs text-[var(--color-text-muted)] max-w-xs animate-pulse">
           Fetching revenue analytics, collections, room status & staff team records.
         </p>
       </div>
 
       {/* Admin Panel Skeleton grid preview */}
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-4 gap-3 w-full max-w-2xl opacity-60">
-        <div className="h-20 bg-slate-200/70 rounded-xl animate-pulse"></div>
-        <div className="h-20 bg-slate-200/70 rounded-xl animate-pulse"></div>
-        <div className="h-20 bg-slate-200/70 rounded-xl animate-pulse"></div>
-        <div className="h-20 bg-slate-200/70 rounded-xl animate-pulse"></div>
+        <div className="h-20 bg-[var(--color-border)] rounded-xl animate-pulse"></div>
+        <div className="h-20 bg-[var(--color-border)] rounded-xl animate-pulse"></div>
+        <div className="h-20 bg-[var(--color-border)] rounded-xl animate-pulse"></div>
+        <div className="h-20 bg-[var(--color-border)] rounded-xl animate-pulse"></div>
       </div>
     </div>
   );

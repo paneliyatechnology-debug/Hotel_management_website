@@ -8,8 +8,8 @@ export function dialogPaperSx(themeConfig, isDarkMode) {
   return {
     borderRadius: "16px",
     border: `1px solid ${themeConfig.border}`,
-    bgcolor: themeConfig.bgCard || (isDarkMode ? "#0E312C" : "#FFFFFF"),
-    boxShadow: isDarkMode ? "none" : "0 12px 32px rgba(15, 23, 42, 0.12)",
+    bgcolor: themeConfig.bgElevated || themeConfig.bgCard || "#FFFFFF",
+    boxShadow: isDarkMode ? themeConfig.shadowModal : "0 12px 32px rgba(15, 23, 42, 0.12)",
     overflowX: "hidden",
     overflowY: "auto",
     maxHeight: "90vh",
@@ -24,7 +24,7 @@ export function dialogFooterSx(themeConfig, isDarkMode) {
     py: 1.75,
     gap: 1,
     borderTop: `1px solid ${themeConfig.border}`,
-    bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC",
+    bgcolor: isDarkMode ? themeConfig.bgSubtle : "#F8FAFC",
   };
 }
 
@@ -39,8 +39,8 @@ export function dialogCancelButtonSx(themeConfig, isDarkMode) {
     borderColor: themeConfig.border,
     bgcolor: isDarkMode ? "transparent" : "#FFFFFF",
     "&:hover": {
-      borderColor: themeConfig.primary,
-      bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F0FDFA",
+      borderColor: isDarkMode ? themeConfig.borderHover : themeConfig.primary,
+      bgcolor: isDarkMode ? themeConfig.champagne : "#F0FDFA",
     },
   };
 }
@@ -86,7 +86,7 @@ export function AppDialogHeader({ eyebrow, title, icon, onClose, closeDisabled =
           alignItems: "center",
           justifyContent: "space-between",
           gap: 1.5,
-          bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "#F0FDFA",
+          bgcolor: isDarkMode ? themeConfig.bgSubtle : "#F0FDFA",
           borderBottom: `1px solid ${themeConfig.border}`,
         }}
       >

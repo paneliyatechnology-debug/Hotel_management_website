@@ -213,11 +213,11 @@ export default function StaffTeamPage({
           <TableHead>
             <TableRow>
               {["Name", "Role", "Phone", "Status"].map((heading, index) => (
-                <TableCell key={heading} sx={{ fontWeight: 700, fontSize: "0.72rem", letterSpacing: "0.06em", textTransform: "uppercase", color: themeConfig.primaryDark, py: 1.75, px: 2.5, pl: index === 0 ? 3 : 2.5, borderRadius: 0, borderBottom: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne || "#F4F7F6", whiteSpace: "nowrap" }}>
+                <TableCell key={heading} sx={{ fontWeight: 700, fontSize: "0.72rem", letterSpacing: "0.06em", textTransform: "uppercase", color: themeConfig.accent, py: 1.75, px: 2.5, pl: index === 0 ? 3 : 2.5, borderRadius: 0, borderBottom: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne || "#F4F7F6", whiteSpace: "nowrap" }}>
                   {heading}
                 </TableCell>
               ))}
-              <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.72rem", letterSpacing: "0.06em", textTransform: "uppercase", color: themeConfig.primaryDark, py: 1.75, px: 2.5, pr: 3, borderRadius: 0, borderBottom: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne || "#F4F7F6", whiteSpace: "nowrap" }}>
+              <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.72rem", letterSpacing: "0.06em", textTransform: "uppercase", color: themeConfig.accent, py: 1.75, px: 2.5, pr: 3, borderRadius: 0, borderBottom: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : themeConfig.champagne || "#F4F7F6", whiteSpace: "nowrap" }}>
                 Actions
               </TableCell>
             </TableRow>
@@ -257,7 +257,7 @@ export default function StaffTeamPage({
                       <Avatar
                         sx={{
                           bgcolor: meta.bg || themeConfig.champagne,
-                          color: meta.color || themeConfig.primaryDark,
+                          color: meta.color || themeConfig.accent,
                           fontWeight: 700,
                           width: 40,
                           height: 40,
@@ -285,7 +285,7 @@ export default function StaffTeamPage({
                         fontWeight: 600,
                         borderRadius: "999px",
                         bgcolor: meta.bg || themeConfig.champagne,
-                        color: meta.color || themeConfig.primaryDark,
+                        color: meta.color || themeConfig.accent,
                         border: `1px solid ${meta.border || themeConfig.border}`,
                       }}
                     />
@@ -311,7 +311,7 @@ export default function StaffTeamPage({
                           }}
                         />
                       )}
-                      <Typography sx={{ fontSize: "0.8rem", fontWeight: 600, color: isActive ? "#047857" : themeConfig.textMuted }}>
+                      <Typography sx={{ fontSize: "0.8rem", fontWeight: 600, color: isActive ? themeConfig.tones.success.color : themeConfig.textMuted }}>
                         {isActive ? "Active" : "Inactive"}
                       </Typography>
                     </Box>
@@ -569,7 +569,7 @@ export default function StaffTeamPage({
                         display: "grid",
                         placeItems: "center",
                         flexShrink: 0,
-                        color: themeConfig.primaryDark,
+                        color: themeConfig.accent,
                         bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : themeConfig.champagne,
                       }}
                     >

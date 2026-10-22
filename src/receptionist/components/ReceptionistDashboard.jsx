@@ -822,7 +822,8 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
             zIndex: 9999,
             boxShadow: themeConfig.shadowModal,
             borderRadius: 0,
-            bgcolor: notification.severity === "success" ? "#FAF9F6" : "#FFF5F5",
+            bgcolor: notification.severity === "success" ? themeConfig.tones.success.bg : themeConfig.tones.danger.bg,
+            color: notification.severity === "success" ? themeConfig.tones.success.color : themeConfig.tones.danger.color,
             border: `1px solid ${notification.severity === "success" ? themeConfig.success : themeConfig.danger}`,
           }}
         >
@@ -1299,7 +1300,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, onTabChange
               </Box>
               <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>Room Allocation:</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.primaryDark }}>
+                <Typography variant="body2" sx={{ fontWeight: 900, color: themeConfig.accent }}>
                   Room {checkInSuccessModal.booking?.roomNumber}
                 </Typography>
               </Box>

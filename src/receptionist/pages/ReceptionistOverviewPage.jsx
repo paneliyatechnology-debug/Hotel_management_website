@@ -32,7 +32,9 @@ import {
 } from "@mui/material";
 import { toast } from "@/shared/utils/toast";
 import CheckoutDialog from "@/receptionist/components/CheckoutDialog";
+import PeriodRangeFilter from "@/shared/components/PeriodRangeFilter";
 import {
+  CalendarMonth,
   HowToReg,
   CleaningServices,
   Build,
@@ -906,15 +908,6 @@ export default function ReceptionistOverviewPage({
   const bankTotal = Number(summaryMethods.bank_transfer_collected_amount ?? summaryMethods.bankTransferCollectedAmount ?? 0) + Number(summaryMethods.online_collected_amount ?? summaryMethods.onlineCollectedAmount ?? 0);
   const shareBase = cashTotal + upiTotal + cardTotal + bankTotal || todayCollected;
   const sharePercent = (amount) => (shareBase > 0 ? Math.min(100, Math.round((Number(amount) || 0) / shareBase * 100)) : 0);
-  const rangeChips = [
-    { id: "TODAY", label: "Today" },
-    { id: "THIS_WEEK", label: "This Week" },
-    { id: "LAST_WEEK", label: "Last Week" },
-    { id: "THIS_MONTH", label: "This Month" },
-    { id: "LAST_MONTH", label: "Last Month" },
-    { id: "CUSTOM", label: "Custom" },
-  ];
-  const rangeLabel = rangeChips.find((chip) => chip.id === summaryRange)?.label || "Today";
   const sourceBoxes = [
     { label: "Cash", amount: cashTotal, color: themeConfig.primary, icon: <Hotel sx={{ fontSize: 16, color: themeConfig.primary }} /> },
     { label: "UPI", amount: upiTotal, color: "#8B5CF6", icon: <Receipt sx={{ fontSize: 16, color: "#8B5CF6" }} /> },
@@ -924,38 +917,18 @@ export default function ReceptionistOverviewPage({
 
   return (
     <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
-      <Paper elevation={0} sx={{ mb: 2, p: { xs: 1.25, sm: 1.5 }, borderRadius: "16px", border: `1px solid ${themeConfig.border}`, bgcolor: themeConfig.bgCard || "#FFFFFF" }}>
-        <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.75rem", fontWeight: 700, mb: 1.25 }}>
-          Period: {rangeLabel}
-        </Typography>
-        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
-          {rangeChips.map((chip) => {
-            const active = summaryRange === chip.id;
-            return (
-              <Chip
-                key={chip.id}
-                label={chip.label}
-                clickable
-                onClick={() => setSummaryRange(chip.id)}
-                sx={{
-                  fontWeight: 800,
-                  height: 34,
-                  borderRadius: "10px",
-                  bgcolor: active ? themeConfig.primary : (isDarkMode ? "rgba(255,255,255,0.06)" : "#F1F5F9"),
-                  color: active ? "#FFFFFF" : themeConfig.textMain,
-                  border: `1px solid ${active ? themeConfig.primary : themeConfig.border}`,
-                }}
-              />
-            );
-          })}
-          {summaryRange === "CUSTOM" && (
-            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-              <TextField size="small" type="date" label="Start" value={summaryStart} onChange={(e) => setSummaryStart(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 150 }} />
-              <TextField size="small" type="date" label="End" value={summaryEnd} onChange={(e) => setSummaryEnd(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 150 }} />
-            </Box>
-          )}
-        </Box>
-      </Paper>
+      <PeriodRangeFilter
+        value={summaryRange}
+        onChange={setSummaryRange}
+        start={summaryStart}
+        end={summaryEnd}
+        onApplyCustom={(from, to) => {
+          setSummaryStart(from);
+          setSummaryEnd(to);
+          setSummaryRange("CUSTOM");
+        }}
+        sx={{ mb: 2 }}
+      />
 
       <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, gap: 2, mb: 2 }}>
         {[

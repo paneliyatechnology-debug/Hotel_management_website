@@ -62,21 +62,42 @@ export function tableSearchSx(themeConfig) {
   return {
     flex: { xs: "1 1 100%", sm: "1 1 240px" },
     maxWidth: { sm: 320 },
+    minWidth: { sm: 150 },
     "& .MuiOutlinedInput-root": { height: 40, borderRadius: "10px", bgcolor: themeConfig.bgMain },
   };
 }
 
 // Toolbar above a table: optional title, filters on the left, primary actions pushed to the right
-export function TableToolbar({ title, children, actions, sx, ...rest }) {
+// `filtersRight` pushes the search / filters to the right edge (title stays on the left)
+export function TableToolbar({ title, children, actions, filtersRight = false, sx, ...rest }) {
   const { themeConfig } = useAppTheme();
+  const filters = filtersRight ? (
+    <Box
+      sx={{
+        ml: { sm: "auto" },
+        display: "flex",
+        alignItems: "center",
+        justifyContent: { xs: "flex-start", sm: "flex-end" },
+        // one single row from tablet width up; wraps only on small phones
+        flexWrap: { xs: "wrap", sm: "nowrap" },
+        gap: 1.5,
+        flex: { xs: "1 1 100%", sm: "1 1 auto" },
+        minWidth: 0,
+      }}
+    >
+      {children}
+    </Box>
+  ) : (
+    children
+  );
   return (
-    <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5, mb: 2, ...sx }} {...rest}>
+    <Box sx={{ display: "flex", flexWrap: filtersRight ? { xs: "wrap", sm: "nowrap" } : "wrap", alignItems: "center", gap: 1.5, mb: 2, ...sx }} {...rest}>
       {title ? (
-        <Typography variant="subtitle1" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 1, mr: { sm: 1 } }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 800, color: themeConfig.textMain, display: "flex", alignItems: "center", gap: 1, mr: { sm: 1 }, whiteSpace: "nowrap", flexShrink: 0 }}>
           {title}
         </Typography>
       ) : null}
-      {children}
+      {filters}
       {actions ? <Box sx={{ ml: { sm: "auto" }, display: "flex", alignItems: "center", gap: 1.25, flexWrap: "wrap" }}>{actions}</Box> : null}
     </Box>
   );

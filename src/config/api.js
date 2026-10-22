@@ -252,6 +252,8 @@ export const API_ENDPOINTS = createCaseFlexibleProxy({
     DAILY_COLLECTIONS: `${API_BASE_URL}/api/v1/bookings`,
     SETTLE_HANDOVER: `${API_BASE_URL}/api/v1/reports/collections/settle`,
     PROFILE: `${API_BASE_URL}/api/v1/auth/me`,
+    // Hotel admin updates their own hotel profile / settings
+    UPDATE_HOTEL: `${API_BASE_URL}/api/v1/hotels/me`,
     REPORTS: `${API_BASE_URL}/api/v1/bookings`,
     REVENUE_DETAILS: `${API_BASE_URL}/api/v1/bookings`,
     FOLIO_PDF: (id) => `${API_BASE_URL}/api/v1/bookings/${id}/pdf`,

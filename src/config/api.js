@@ -1176,6 +1176,18 @@ function prepareRequestBody(body, endpoint) {
         payload.paid_amount = 0;
       }
 
+      // Payment method accepted by the API: CASH, ONLINE, CARD, UPI, BANK_TRANSFER
+      const rawMethod = String(payload.payment_method ?? payload.paymentMethod ?? "").trim().toUpperCase();
+      const normalizedMethod = rawMethod === "NET_BANKING" ? "BANK_TRANSFER" : rawMethod;
+      payload.payment_method = ["CASH", "ONLINE", "CARD", "UPI", "BANK_TRANSFER"].includes(normalizedMethod)
+        ? normalizedMethod
+        : "CASH";
+      delete payload.paymentMethod;
+      if (payload.transaction_id === undefined && payload.transactionId) {
+        payload.transaction_id = String(payload.transactionId).trim();
+      }
+      delete payload.transactionId;
+
       // Notes
       if (!payload.notes && (payload.remarks || payload.special_requests || payload.payment_note)) {
         payload.notes = payload.remarks || payload.special_requests || payload.payment_note;
@@ -1406,6 +1418,8 @@ function prepareRequestBody(body, endpoint) {
         "late_checkout_hours",
         "gst_rate",
         "paid_amount",
+        "payment_method",
+        "transaction_id",
         "notes",
         "booking_status",
         "created_by",

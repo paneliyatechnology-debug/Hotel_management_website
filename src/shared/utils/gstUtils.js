@@ -130,7 +130,7 @@ export function calculateMultiRoomBookingGST({
   const roomBreakdowns = rooms.map((r, index) => {
     const basePrice = Number(r.pricePerNight) || Number(r.customPricePerNight) || Number(r.basePrice) || 0;
     const gstEnabled = r.gstEnabled !== false;
-    const gstRate = Number(r.gstRate) ?? 18;
+    const gstRate = Number(r.gstRate) || 18;
     const taxInclusive = Boolean(r.taxInclusive);
 
     const calc = calculateSingleRoomGST({

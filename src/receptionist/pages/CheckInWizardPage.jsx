@@ -440,22 +440,26 @@ export default function CheckInWizardPage({
     };
   };
 
-  // Helper to extract room nightly tariff (per room — never the combined multi-room rate)
+  // Per-room nightly tariff only. Never use checkInData.rate (that is the combined sum).
   const getRoomTariff = (room) => {
     if (!room) return 0;
+    if (room.nightlyRate != null && Number(room.nightlyRate) > 0) {
+      return Number(room.nightlyRate);
+    }
     const rt = getRoomTypeObj(room);
-    const raw =
-      room.customPricePerNight ??
-      room.custom_price_per_night ??
-      rt?.basePrice ??
-      rt?.base_price ??
-      room.basePrice ??
-      room.base_price ??
-      room.pricePerNight ??
-      room.price_per_night ??
-      0;
-    const n = Number(raw);
-    return Number.isFinite(n) && n > 0 ? n : 0;
+    const candidates = [
+      room.customPricePerNight,
+      room.custom_price_per_night,
+      rt?.basePrice,
+      rt?.base_price,
+      room.basePrice,
+      room.base_price,
+    ];
+    for (const raw of candidates) {
+      const n = Number(raw);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    return 0;
   };
 
   // Helper to extract exact room capacity based on seatingCapacity & bed configuration
@@ -722,35 +726,42 @@ export default function CheckInWizardPage({
     setStepError("");
   };
 
-  // Combined nightly tariff = sum of each selected room's own price (not rate × room count)
-  const combinedNightlyRate = selectedRoomsList.length > 0
-    ? selectedRoomsList.reduce((sum, r) => sum + getRoomTariff(r), 0)
+  // Bill math: (room1 + room2 + room3) × nights  — never × room count again
+  // Example: (2000 + 2000 + 3000) × 2 = 14,000
+  const stayNightsForBilling = Math.max(1, Number(checkInData.numberOfNights) || nights || 1);
+  const roomRateRows = selectedRoomsList.map((r) => ({
+    id: r._id || r.id,
+    roomNumber: r.roomNumber,
+    nightly: getRoomTariff(r),
+    room: r,
+  }));
+  const combinedNightlyRate = roomRateRows.length > 0
+    ? roomRateRows.reduce((sum, row) => sum + row.nightly, 0)
     : Number(checkInData.rate) || 0;
+  // Source of truth for room charges (before discount / GST)
+  const baseTariffTotal = Math.round(combinedNightlyRate * stayNightsForBilling * 100) / 100;
 
-  // Centralized GST: each room uses its own nightly price × nights, then amounts are summed
+  // GST per room using only that room's own nightly price (clean objects — no spread of polluted fields)
   const gstBookingResult = calculateMultiRoomBookingGST({
-    rooms: (selectedRoomsList.length > 0
-      ? selectedRoomsList
-      : [{ pricePerNight: Number(checkInData.rate) || 0, gstEnabled: true, gstRate: 18 }]
-    ).map((r) => {
-      const rt = getRoomTypeObj(r);
-      // Always use this room's tariff — never the combined checkInData.rate
-      const price = getRoomTariff(r) || Number(r.pricePerNight) || 0;
-      return {
-        ...r,
-        pricePerNight: price,
-        basePrice: price,
-        gstEnabled: r.gstEnabled !== undefined ? r.gstEnabled : (rt?.gstEnabled ?? true),
-        gstRate: r.gstRate !== undefined ? r.gstRate : (rt?.gstRate ?? 18),
-        taxInclusive: r.taxInclusive !== undefined ? r.taxInclusive : (rt?.taxInclusive ?? false),
-      };
-    }),
-    nights: checkInData.numberOfNights || nights || 1,
+    rooms: roomRateRows.length > 0
+      ? roomRateRows.map((row) => {
+          const r = row.room;
+          const rt = getRoomTypeObj(r);
+          return {
+            _id: row.id,
+            roomNumber: row.roomNumber,
+            pricePerNight: row.nightly,
+            gstEnabled: r?.gstEnabled !== undefined ? r.gstEnabled : (rt?.gstEnabled ?? true),
+            gstRate: Number(r?.gstRate ?? rt?.gstRate) || 18,
+            taxInclusive: Boolean(r?.taxInclusive ?? rt?.taxInclusive),
+          };
+        })
+      : [{ pricePerNight: combinedNightlyRate, gstEnabled: true, gstRate: 18 }],
+    nights: stayNightsForBilling,
     isInterstate: Boolean(checkInData.isInterstate),
   });
 
   const isVipGuest = Boolean(checkInData.isRepeatGuest || (checkInData.totalVisits && checkInData.totalVisits >= 2));
-  const baseTariffTotal = gstBookingResult.taxableAmount;
   const totalGstAmount = gstBookingResult.gstAmount;
   const totalCgstAmount = gstBookingResult.cgstAmount;
   const totalSgstAmount = gstBookingResult.sgstAmount;
@@ -1210,12 +1221,17 @@ export default function CheckInWizardPage({
     setCheckInData((prev) => ({ ...prev, mobile: val }));
   };
 
+  const withNightlyRates = (list) =>
+    list.map((r) => ({ ...r, nightlyRate: getRoomTariff(r) }));
+
   // Add a specific room to the selection (for Quick Suggester)
   const handleAddAdditionalRoom = (roomIdToAdd) => {
     const strIdToAdd = String(roomIdToAdd);
     if (selectedRoomIds.map(String).includes(strIdToAdd)) return;
     const newIds = [...selectedRoomIds.map(String), strIdToAdd];
-    const newSelectedRooms = rooms.filter((r) => newIds.includes(String(r._id)));
+    const newSelectedRooms = withNightlyRates(
+      rooms.filter((r) => newIds.includes(String(r._id)) || newIds.includes(String(r.id)))
+    );
     const newRoomNumbers = newSelectedRooms.map((r) => String(r.roomNumber));
     const primaryRoom = newSelectedRooms[0];
     const primaryCat = getRoomCategoryName(primaryRoom);
@@ -1227,7 +1243,7 @@ export default function CheckInWizardPage({
 
     setCheckInData((prev) => ({
       ...prev,
-      roomId: primaryRoom ? String(primaryRoom._id) : "",
+      roomId: primaryRoom ? String(primaryRoom._id || primaryRoom.id) : "",
       roomNumber: newRoomNumbers.join(", "),
       roomIds: newIds,
       selectedRooms: newSelectedRooms,
@@ -1248,7 +1264,9 @@ export default function CheckInWizardPage({
       return;
     }
     const newIds = selectedRoomIds.map(String).filter((id) => id !== strIdToRemove);
-    const newSelectedRooms = rooms.filter((r) => newIds.includes(String(r._id)));
+    const newSelectedRooms = withNightlyRates(
+      rooms.filter((r) => newIds.includes(String(r._id)) || newIds.includes(String(r.id)))
+    );
     const newRoomNumbers = newSelectedRooms.map((r) => String(r.roomNumber));
     const primaryRoom = newSelectedRooms[0];
     const primaryCat = getRoomCategoryName(primaryRoom);
@@ -1259,7 +1277,7 @@ export default function CheckInWizardPage({
 
     setCheckInData((prev) => ({
       ...prev,
-      roomId: primaryRoom ? String(primaryRoom._id) : "",
+      roomId: primaryRoom ? String(primaryRoom._id || primaryRoom.id) : "",
       roomNumber: newRoomNumbers.join(", "),
       roomIds: newIds,
       selectedRooms: newSelectedRooms,
@@ -1278,7 +1296,9 @@ export default function CheckInWizardPage({
     const selectedIds = (typeof rawVal === "string" ? rawVal.split(",") : rawVal).map(String);
     if (selectedIds.length === 0) return;
 
-    const newSelectedRooms = rooms.filter((r) => selectedIds.includes(String(r._id)));
+    const newSelectedRooms = withNightlyRates(
+      rooms.filter((r) => selectedIds.includes(String(r._id)) || selectedIds.includes(String(r.id)))
+    );
     const newRoomNumbers = newSelectedRooms.map((r) => String(r.roomNumber));
     const primaryRoom = newSelectedRooms[0];
     const primaryCat = getRoomCategoryName(primaryRoom);
@@ -1289,7 +1309,7 @@ export default function CheckInWizardPage({
 
     setCheckInData((prev) => ({
       ...prev,
-      roomId: primaryRoom ? String(primaryRoom._id) : "",
+      roomId: primaryRoom ? String(primaryRoom._id || primaryRoom.id) : "",
       roomNumber: newRoomNumbers.join(", "),
       roomIds: selectedIds,
       selectedRooms: newSelectedRooms,
@@ -1420,9 +1440,10 @@ export default function CheckInWizardPage({
     </Box>
   );
 
-  const stayNightsCount = Number(checkInData.numberOfNights) || nights || 1;
-  const grossRoomCharge = (Number(checkInData.rate) || 0) * stayNightsCount * (selectedRoomsList.length || 1);
-  const rateError = Number(checkInData.rate) > 0 ? "" : "Enter a rate greater than 0";
+  const stayNightsCount = stayNightsForBilling;
+  // Combined nightly × nights only — do NOT multiply by room count again
+  const grossRoomCharge = baseTariffTotal;
+  const rateError = combinedNightlyRate > 0 ? "" : "Enter a rate greater than 0";
   const discountError = Number(checkInData.discountAmount) > grossRoomCharge ? "Discount cannot exceed the room charges" : "";
   const advancePaid = Number(checkInData.paid) || 0;
   const balanceDue = Math.max(0, calculatedGrandTotal - advancePaid);
@@ -2171,14 +2192,11 @@ export default function CheckInWizardPage({
                 </Typography>
                 {[
                   {
-                    label: `Room charges (${selectedRoomsList.map((r) => `#${r.roomNumber}`).join(", ") || checkInData.roomNumber})`,
-                    hint: selectedRoomsList.length > 1
-                      ? selectedRoomsList
-                          .map((r) => `#${r.roomNumber} ₹${getRoomTariff(r).toLocaleString("en-IN")}`)
-                          .join(" + ") +
-                        ` × ${checkInData.numberOfNights || nights || 1} ${(checkInData.numberOfNights || nights || 1) === 1 ? "night" : "nights"}`
-                      : `₹${(combinedNightlyRate || Number(checkInData.rate) || 0).toLocaleString("en-IN")} × ${checkInData.numberOfNights || nights || 1} ${(checkInData.numberOfNights || nights || 1) === 1 ? "night" : "nights"}`,
-                    value: `₹${(priceAfterDiscount + discountApplied).toLocaleString("en-IN")}`,
+                    label: `Room charges (${roomRateRows.map((r) => `#${r.roomNumber}`).join(", ") || checkInData.roomNumber})`,
+                    hint: roomRateRows.length > 1
+                      ? `(${roomRateRows.map((r) => `₹${r.nightly.toLocaleString("en-IN")}`).join(" + ")}) × ${stayNightsForBilling} ${stayNightsForBilling === 1 ? "night" : "nights"}`
+                      : `₹${combinedNightlyRate.toLocaleString("en-IN")} × ${stayNightsForBilling} ${stayNightsForBilling === 1 ? "night" : "nights"}`,
+                    value: `₹${baseTariffTotal.toLocaleString("en-IN")}`,
                     show: true,
                   },
                   {

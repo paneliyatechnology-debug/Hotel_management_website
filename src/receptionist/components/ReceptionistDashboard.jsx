@@ -694,12 +694,16 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
     }
 
     const firstRoom = roomsArr[0];
-    // Combined nightly rate = sum of each room's own price (bill = this × nights)
-    const totalTariff = roomsArr.reduce((sum, r) => {
+    const resolveRoomNightly = (r) => {
       const rt = typeof r.roomType === "object" && r.roomType !== null
         ? r.roomType
-        : roomTypes.find((t) => String(t._id) === String(r.roomType) || String(t._id) === String(r.roomTypeId || r.room_type_id));
+        : roomTypes.find((t) =>
+            String(t._id) === String(r.roomType) ||
+            String(t._id) === String(r.roomTypeId || r.room_type_id) ||
+            String(t.id) === String(r.roomTypeId || r.room_type_id || r.roomType)
+          );
       const raw =
+        r.nightlyRate ??
         r.customPricePerNight ??
         r.custom_price_per_night ??
         rt?.basePrice ??
@@ -708,13 +712,20 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
         r.base_price ??
         0;
       const price = Number(raw);
-      return sum + (Number.isFinite(price) && price > 0 ? price : 0);
-    }, 0);
+      return Number.isFinite(price) && price > 0 ? price : 0;
+    };
+    // Snapshot each room with its own nightly rate so billing never uses the combined sum per room
+    const roomsWithRates = roomsArr.map((r) => ({
+      ...r,
+      nightlyRate: resolveRoomNightly(r),
+    }));
+    // Combined nightly = sum of each room (bill base = this × nights only)
+    const totalTariff = roomsWithRates.reduce((sum, r) => sum + (Number(r.nightlyRate) || 0), 0);
 
-    const roomNumbersStr = roomsArr.map((r) => String(r.roomNumber)).join(", ");
+    const roomNumbersStr = roomsWithRates.map((r) => String(r.roomNumber)).join(", ");
     const categoryNames = Array.from(
       new Set(
-        roomsArr.map((r) => {
+        roomsWithRates.map((r) => {
           const rt = typeof r.roomType === "object" && r.roomType !== null
             ? r.roomType
             : roomTypes.find((t) => String(t._id) === String(r.roomType));
@@ -741,12 +752,12 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
       signature: "",
       guestSignature: "",
       accompanyingGuests: [],
-      activeRoomId: String(firstRoom._id),
-      roomId: String(firstRoom._id),
-      roomIds: roomsArr.map((r) => String(r._id || r.id)),
+      activeRoomId: String(firstRoom._id || firstRoom.id),
+      roomId: String(firstRoom._id || firstRoom.id),
+      roomIds: roomsWithRates.map((r) => String(r._id || r.id)),
       roomNumber: roomNumbersStr,
-      selectedRooms: roomsArr,
-      selectedRoomNumbers: roomsArr.map((r) => String(r.roomNumber)),
+      selectedRooms: roomsWithRates,
+      selectedRoomNumbers: roomsWithRates.map((r) => String(r.roomNumber)),
       roomType: categoryNames,
       floor: firstRoom.floor || 1,
       rate: totalTariff,

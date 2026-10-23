@@ -380,7 +380,22 @@ export function deepConvertKeysToSnake(obj) {
   const result = {};
   for (const [key, value] of Object.entries(obj)) {
     const snakeKey = toSnakeCase(key);
-    result[snakeKey] = deepConvertKeysToSnake(value);
+    const next = deepConvertKeysToSnake(value);
+    // Prefer array values when camelCase + snake_case collide (e.g. roomId vs room_id)
+    if (Object.prototype.hasOwnProperty.call(result, snakeKey)) {
+      const prev = result[snakeKey];
+      if (Array.isArray(prev) && !Array.isArray(next)) continue;
+      if (Array.isArray(next) && !Array.isArray(prev)) {
+        result[snakeKey] = next;
+        continue;
+      }
+      if (Array.isArray(prev) && Array.isArray(next) && next.length > prev.length) {
+        result[snakeKey] = next;
+        continue;
+      }
+      if (Array.isArray(prev)) continue;
+    }
+    result[snakeKey] = next;
   }
   return result;
 }
@@ -1107,27 +1122,51 @@ function prepareRequestBody(body, endpoint) {
       delete payload.guest_address;
       delete payload.residential_address;
 
-      // Room ID: Normalized to Array of positive integers matching Postman [12, 15] schema
-      let roomIds = [];
-      if (Array.isArray(payload.room_id)) {
-        roomIds = payload.room_id.map(Number).filter((n) => !isNaN(n) && n > 0);
-      } else if (typeof payload.room_id === "string" && payload.room_id.startsWith("[")) {
-        try {
-          const parsed = JSON.parse(payload.room_id);
-          if (Array.isArray(parsed)) roomIds = parsed.map(Number).filter((n) => !isNaN(n) && n > 0);
-        } catch {}
-      } else if (payload.room_id !== undefined && payload.room_id !== null) {
-        const num = Number(payload.room_id);
-        if (!isNaN(num) && num > 0) roomIds = [num];
-      } else if (payload.room !== undefined) {
-        const rId = typeof payload.room === "object" && payload.room !== null ? (payload.room.id || payload.room._id) : payload.room;
-        const num = Number(rId);
-        if (!isNaN(num) && num > 0) roomIds = [num];
+      // Room IDs: always send an array so multi-room check-in books every selected room.
+      // Prefer the longest list among room_id / room_ids (roomId snake_cases to room_id and
+      // used to overwrite the array with a single id).
+      const collectRoomIds = (value) => {
+        if (Array.isArray(value)) {
+          return value.map(Number).filter((n) => Number.isInteger(n) && n > 0);
+        }
+        if (typeof value === "string") {
+          const trimmed = value.trim();
+          if (!trimmed) return [];
+          if (trimmed.startsWith("[")) {
+            try {
+              const parsed = JSON.parse(trimmed);
+              return Array.isArray(parsed)
+                ? parsed.map(Number).filter((n) => Number.isInteger(n) && n > 0)
+                : [];
+            } catch {
+              return [];
+            }
+          }
+          return trimmed
+            .split(",")
+            .map((part) => Number(part.trim()))
+            .filter((n) => Number.isInteger(n) && n > 0);
+        }
+        if (value !== undefined && value !== null && value !== "") {
+          const num = Number(value);
+          return Number.isInteger(num) && num > 0 ? [num] : [];
+        }
+        return [];
+      };
+
+      const fromRoomId = collectRoomIds(payload.room_id);
+      const fromRoomIds = collectRoomIds(payload.room_ids);
+      let roomIds = fromRoomIds.length > fromRoomId.length ? fromRoomIds : fromRoomId;
+      if (roomIds.length === 0 && payload.room !== undefined) {
+        const rId = typeof payload.room === "object" && payload.room !== null
+          ? (payload.room.id || payload.room._id)
+          : payload.room;
+        roomIds = collectRoomIds(rId);
       }
-      if (roomIds.length === 0) {
-        roomIds = [9]; // Fallback to Room 202
-      }
+      // Keep unique ids in selection order
+      roomIds = [...new Set(roomIds)];
       payload.room_id = roomIds;
+      delete payload.room_ids;
 
       const toSqlDateTime = (value, fallback) => {
         if (!value) return fallback;

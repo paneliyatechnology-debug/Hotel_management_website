@@ -1764,6 +1764,20 @@ export default function CheckInWizardPage({
                     helperText={typeof fieldErrors.email === "string" ? fieldErrors.email : ""}
                   />
                 </Grid>
+
+                <Grid id="field-primary-address" size={{ xs: 12 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    multiline
+                    minRows={2}
+                    autoComplete="off"
+                    label="Address"
+                    placeholder="Guest residential address"
+                    value={checkInData.address || ""}
+                    onChange={(e) => setCheckInData({ ...checkInData, address: e.target.value })}
+                  />
+                </Grid>
               </Grid>
             </Box>
 

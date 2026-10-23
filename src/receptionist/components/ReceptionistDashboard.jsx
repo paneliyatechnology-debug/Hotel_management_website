@@ -451,7 +451,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
         secondary_guest_name: (checkInData.accompanyingGuests && checkInData.accompanyingGuests[0]?.name) || null,
         mobile_number: checkInData.mobile || checkInData.mobileNumber || checkInData.phone || "",
         email: checkInData.email || "",
-        address: checkInData.address || "Local Address",
+        address: String(checkInData.address || "").trim(),
         city: checkInData.city || "",
         state: checkInData.state || "",
         country: checkInData.country || "India",
@@ -481,14 +481,14 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
         back_image: checkInData.backImage || (checkInData.idImages && checkInData.idImages[1]) || checkInData.idProofBackImage || "",
         images: checkInData.idImages || (checkInData.frontImage ? [checkInData.frontImage, ...(checkInData.backImage ? [checkInData.backImage] : [])] : []),
         signature: checkInData.signature || checkInData.guestSignature || "",
-        // Dual-access properties for local UI rendering
+        // Dual-access properties for local UI rendering.
+        // Do not send roomId / roomIds here: snake_case turns roomId into room_id and
+        // would overwrite the room_id array with only the first room.
         guestId: checkInData.guestId,
         fullName: checkInData.fullName || checkInData.guestName || "Walk-in Guest",
         mobileNumber: checkInData.mobile || checkInData.mobileNumber || checkInData.phone || "",
         checkInDate: checkInData.checkInDate,
         checkOutDate: checkInData.checkOutDate,
-        roomId: String(bookingRoomId || ""),
-        roomIds: bookingRoomIds.map(String),
         roomNumber: resolvedRoomNumbers,
         isInstantCheckIn: true,
       };

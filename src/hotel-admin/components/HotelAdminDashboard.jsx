@@ -234,6 +234,19 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchedTabs, setFetchedTabs] = useState({});
+  const dashboardFromApi = useRef(false);
+
+  const loadDashboard = () =>
+    apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD)
+      .then((res) => {
+        if (res?.data) {
+          dashboardFromApi.current = true;
+          setDashboardData(adaptHotelDashboard(res.data));
+        }
+      })
+      .catch(() => {
+        dashboardFromApi.current = false;
+      });
 
   // Filters & Searches
   const [staffSearch, setStaffSearch] = useState("");
@@ -302,6 +315,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
 
       if (forceRefresh) {
         endpointsToFetch.push(
+          loadDashboard(),
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
           apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`).then((res) => setBookings(extractRecords(res))),
           apiRequest(`${API_ENDPOINTS.RECEPTIONIST.GUESTS}?page=1&limit=100`).then((res) => setGuests(extractRecords(res))),
@@ -313,6 +327,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
         // Route 0: OVERVIEW / DASHBOARD
         if (tabIndex === 0) {
           endpointsToFetch.push(
+            loadDashboard(),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
             apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=10`).then((res) => setRoomTypes(normalizeRoomTypes(res))),
             apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`).then((res) => setBookings(extractRecords(res))),
@@ -378,7 +393,9 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
     loadTabData(activeNav);
   }, [activeNav]);
 
+  // Fallback KPIs from bookings/rooms only when /api/v1/dashboard did not return data
   useEffect(() => {
+    if (dashboardFromApi.current) return;
     const localKey = (value) => {
       if (!value) return "";
       if (typeof value === "string" && value.includes("/")) {
@@ -537,6 +554,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
     } else if (eventName === "booking:updated") {
       setBookings((prev) => mergeBookingEvent(prev, payload));
     } else if (eventName === "dashboard:updated" && payload?.data && typeof payload.data === "object") {
+      dashboardFromApi.current = true;
       setDashboardData((prev) => {
         const next = adaptHotelDashboard(payload.data);
         return prev?.subscription && !payload.data.subscription ? { ...next, subscription: prev.subscription } : next;

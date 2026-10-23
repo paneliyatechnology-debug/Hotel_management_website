@@ -68,8 +68,8 @@ export function OccupancyDonutChart({ rooms = [], statuses = null, occupancyRate
   const occRate = occupancyRate != null ? Math.round(Number(occupancyRate)) : Math.round((occupied / total) * 100);
 
   const segments = [
-    { label: "Occupied", count: occupied, color: "#047857", grad: "url(#donutOccupied)", desc: "Currently in room" },
-    { label: "Reserved", count: reserved, color: "#0F766E", grad: "url(#donutOccupied)", desc: "Reserved" },
+    { label: "Occupied", count: occupied, color: "#0B8EE0", grad: "url(#donutOccupied)", desc: "Currently in room" },
+    { label: "Reserved", count: reserved, color: "#6366F1", grad: "url(#donutReserved)", desc: "Reserved" },
     { label: "Available", count: available, color: "#10B981", grad: "url(#donutAvailable)", desc: "Ready for check-in" },
     { label: "Cleaning", count: cleaning, color: "#F59E0B", grad: "url(#donutCleaning)", desc: "In turnaround" },
     { label: "Maintenance", count: maintenance, color: "#EF4444", grad: "url(#donutMaint)", desc: "Blocked / Repair" },
@@ -124,14 +124,14 @@ export function OccupancyDonutChart({ rooms = [], statuses = null, occupancyRate
             </Typography>
           </Box>
           <Chip
-            icon={<CheckCircle sx={{ fontSize: "13px !important", color: "#10B981" }} />}
+            icon={<CheckCircle sx={{ fontSize: "13px !important", color: "#0B8EE0" }} />}
             label={`${occRate}% Occupied`}
             size="small"
             sx={{
               fontWeight: 800,
-              bgcolor: "rgba(16, 185, 129, 0.12)",
-              color: "#10B981",
-              border: "1px solid rgba(16, 185, 129, 0.25)",
+              bgcolor: "rgba(11, 142, 224, 0.12)",
+              color: "#0B8EE0",
+              border: "1px solid rgba(11, 142, 224, 0.25)",
               fontSize: "0.72rem",
               height: 24,
               flexShrink: 0,
@@ -145,8 +145,12 @@ export function OccupancyDonutChart({ rooms = [], statuses = null, occupancyRate
           <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(-90deg)" }}>
             <defs>
               <linearGradient id="donutOccupied" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#6EE7B7" />
-                <stop offset="100%" stopColor="#047857" />
+                <stop offset="0%" stopColor="#38BDF8" />
+                <stop offset="100%" stopColor="#0B8EE0" />
+              </linearGradient>
+              <linearGradient id="donutReserved" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#A5B4FC" />
+                <stop offset="100%" stopColor="#6366F1" />
               </linearGradient>
               <linearGradient id="donutAvailable" x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" stopColor="#34D399" />

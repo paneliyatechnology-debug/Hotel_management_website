@@ -2421,7 +2421,10 @@ export function downloadGuestDirectoryPDF(guests = [], hotel = {}) {
   const dateStr = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
 
   const inHouse = guests.filter((g) => (g.status || "").toUpperCase() === "IN-HOUSE" || (g.status || "").toUpperCase() === "CHECKED_IN").length;
-  const departed = guests.filter((g) => (g.status || "").toUpperCase() === "DEPARTED" || (g.status || "").toUpperCase() === "CHECKED_OUT").length;
+  const checkedOut = guests.filter((g) => {
+    const s = (g.status || "").toUpperCase();
+    return s === "CHECKED_OUT" || s === "DEPARTED" || s === "CHECKOUT" || s === "CHECK_OUT";
+  }).length;
 
   const html = `
     <!-- Hero Ribbon -->
@@ -2452,8 +2455,8 @@ export function downloadGuestDirectoryPDF(guests = [], hotel = {}) {
         <div class="kpi-sub">Currently Occupied</div>
       </div>
       <div class="kpi-card orange">
-        <div class="kpi-title">Departed / Settled</div>
-        <div class="kpi-val">${departed}</div>
+        <div class="kpi-title">Checked Out / Settled</div>
+        <div class="kpi-val">${checkedOut}</div>
         <div class="kpi-sub">Past Stays Completed</div>
       </div>
       <div class="kpi-card purple">
@@ -2492,8 +2495,8 @@ export function downloadGuestDirectoryPDF(guests = [], hotel = {}) {
             <td>${g.totalGuests || g.numberOfGuests || 1}</td>
             <td><span class="badge badge-primary">${g.govtIdType || "ID"}: ${g.govtIdNumber || g.idNumber || "Verified"}</span></td>
             <td class="text-center">
-              <span class="badge ${g.status === "IN-HOUSE" ? "badge-success" : g.status === "DEPARTED" ? "badge-warning" : "badge-primary"}">
-                ${g.status || "REGISTERED"}
+              <span class="badge ${(["IN-HOUSE", "CHECKED_IN"].includes(String(g.status || "").toUpperCase())) ? "badge-success" : (["CHECKED_OUT", "DEPARTED", "CHECKOUT", "CHECK_OUT"].includes(String(g.status || "").toUpperCase())) ? "badge-warning" : "badge-primary"}">
+                ${(["CHECKED_OUT", "DEPARTED", "CHECKOUT", "CHECK_OUT"].includes(String(g.status || "").toUpperCase())) ? "CHECKED OUT" : (g.status || "REGISTERED")}
               </span>
             </td>
           </tr>

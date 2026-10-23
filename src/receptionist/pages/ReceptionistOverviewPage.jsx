@@ -678,8 +678,8 @@ export default function ReceptionistOverviewPage({
       const rawBStatus = String(b.booking_status || b.status || "").toUpperCase();
       const statusNormalized = (rawBStatus === "CHECKED_IN" || rawBStatus === "IN-HOUSE")
         ? "IN-HOUSE"
-        : (rawBStatus === "CHECKED_OUT" || rawBStatus === "COMPLETED")
-          ? "DEPARTED"
+        : (rawBStatus === "CHECKED_OUT" || rawBStatus === "DEPARTED" || rawBStatus === "COMPLETED")
+          ? "CHECKED_OUT"
           : (rawBStatus || "CONFIRMED");
 
       const bTotal = Number(b.totalAmount ?? b.total_amount ?? b.total ?? b.grandTotal ?? 0);
@@ -847,7 +847,7 @@ export default function ReceptionistOverviewPage({
     }
 
     if (recentFilter === "CHECK_OUT") {
-      return allFormattedBookings.filter((b) => b.status === "DEPARTED" || b.rawStatus === "CHECKED_OUT" || b.status === "CHECKED_OUT");
+      return allFormattedBookings.filter((b) => b.status === "CHECKED_OUT" || b.status === "DEPARTED" || b.rawStatus === "CHECKED_OUT" || b.rawStatus === "DEPARTED");
     }
 
     return allFormattedBookings;
@@ -1162,7 +1162,7 @@ export default function ReceptionistOverviewPage({
           >
             <MenuItem value="ALL">All ({countAll})</MenuItem>
             <MenuItem value="CHECK_IN">Check-in ({allFormattedBookings.filter((b) => b.status === "IN-HOUSE" || b.rawStatus === "CHECKED_IN" || b.status === "CHECKED_IN").length})</MenuItem>
-            <MenuItem value="CHECK_OUT">Check-out ({allFormattedBookings.filter((b) => b.status === "DEPARTED" || b.rawStatus === "CHECKED_OUT" || b.status === "CHECKED_OUT").length})</MenuItem>
+            <MenuItem value="CHECK_OUT">Check-out ({allFormattedBookings.filter((b) => b.status === "CHECKED_OUT" || b.status === "DEPARTED" || b.rawStatus === "CHECKED_OUT" || b.rawStatus === "DEPARTED").length})</MenuItem>
           </TextField>
         </TableToolbar>
 

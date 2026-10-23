@@ -568,7 +568,7 @@ export default function HotelOverviewPage({
             totalAmount: totalAmt,
             advancePayment: paidAmt,
             pendingDues: dueAmt,
-            status: b.status === "CHECKED_IN" ? "IN-HOUSE" : b.status === "CHECKED_OUT" ? "DEPARTED" : b.status || "IN-HOUSE",
+            status: b.status === "CHECKED_IN" ? "IN-HOUSE" : b.status === "CHECKED_OUT" || b.status === "DEPARTED" ? "CHECKED_OUT" : b.status || "IN-HOUSE",
           };
         });
     }
@@ -1054,13 +1054,15 @@ export default function HotelOverviewPage({
         />
 
           <TableContainer sx={{ overflowX: "auto", overflowY: "auto", maxHeight: { xs: "52vh", md: "420px" } }}>
-            <Table size="small" stickyHeader sx={{ minWidth: 700 }}>
+            <Table size="small" stickyHeader sx={{ minWidth: 980 }}>
               <TableHead>
                 <TableRow>
                   <TableCell>Guest Name</TableCell>
                   <TableCell>Room</TableCell>
                   <TableCell>Stay Dates</TableCell>
-                  <TableCell>Balance Dues</TableCell>
+                  <TableCell align="right">Total Amount</TableCell>
+                  <TableCell align="right">Paid Amount</TableCell>
+                  <TableCell align="right">Due Amount</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
@@ -1068,7 +1070,7 @@ export default function HotelOverviewPage({
               <TableBody>
                 {activeRecentGuests.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} align="center" sx={{ py: 3, color: themeConfig.textMuted, fontWeight: 700 }}>
+                    <TableCell colSpan={8} align="center" sx={{ py: 3, color: themeConfig.textMuted, fontWeight: 700 }}>
                       No active in-house guests currently checked in.
                     </TableCell>
                   </TableRow>
@@ -1120,8 +1122,14 @@ export default function HotelOverviewPage({
                             <span>Out: {g.checkOutDate || "—"}</span>
                           </Box>
                         </TableCell>
-                        <TableCell sx={{ fontWeight: 800, color: g.pendingDues > 0 ? "#EF4444" : "#10B981" }}>
-                          {g.pendingDues > 0 ? `₹${g.pendingDues.toLocaleString("en-IN")}` : "✓ Paid"}
+                        <TableCell align="right" sx={{ fontWeight: 700, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
+                          ₹{Number(g.totalAmount || 0).toLocaleString("en-IN")}
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 700, color: "#10B981", whiteSpace: "nowrap" }}>
+                          ₹{Number(g.advancePayment || 0).toLocaleString("en-IN")}
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 800, color: g.pendingDues > 0 ? "#EF4444" : "#10B981", whiteSpace: "nowrap" }}>
+                          ₹{Number(g.pendingDues || 0).toLocaleString("en-IN")}
                         </TableCell>
                         <TableCell>
                           <StatusChip status={g.status} size="small" />

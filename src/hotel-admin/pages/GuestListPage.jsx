@@ -589,12 +589,17 @@ export default function GuestListPage({
         ) : (
           <>
           <TableContainer sx={{ overflowX: "auto" }}>
-            <Table size="medium" sx={{ minWidth: 720 }}>
+            <Table size="medium" sx={{ minWidth: 980 }}>
               <TableHead>
                 <TableRow>
-                  {["Guest", "Room", "Check-In", "Check-Out", "Amount", "Status"].map((heading) => (
-                    <TableCell key={heading}>{heading}</TableCell>
-                  ))}
+                  <TableCell>Guest</TableCell>
+                  <TableCell>Room</TableCell>
+                  <TableCell>Check-In</TableCell>
+                  <TableCell>Check-Out</TableCell>
+                  <TableCell align="right">Total Amount</TableCell>
+                  <TableCell align="right">Paid Amount</TableCell>
+                  <TableCell align="right">Due Amount</TableCell>
+                  <TableCell>Status</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
@@ -635,13 +640,14 @@ export default function GuestListPage({
                     <TableCell sx={{ fontWeight: 700, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
                       {formatDateTime(g.checkOut)}
                     </TableCell>
-                    <TableCell sx={{ fontWeight: 900, color: themeConfig.accent, whiteSpace: "nowrap" }}>
+                    <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
                       {formatCurrency(g.totalAmount)}
-                      {g.dueAmount > 0 ? (
-                        <Typography variant="caption" sx={{ color: "#DC2626", fontWeight: 800, display: "block" }}>
-                          Due {formatCurrency(g.dueAmount)}
-                        </Typography>
-                      ) : null}
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 800, color: "#10B981", whiteSpace: "nowrap" }}>
+                      {formatCurrency(g.paidAmount)}
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 800, color: g.dueAmount > 0 ? "#DC2626" : "#10B981", whiteSpace: "nowrap" }}>
+                      {formatCurrency(g.dueAmount)}
                     </TableCell>
 
                     {/* Status */}

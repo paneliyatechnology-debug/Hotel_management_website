@@ -331,7 +331,10 @@ export default function CheckInWizardPage({
     if (!room) return null;
     if (typeof room.roomType === "object" && room.roomType !== null) return room.roomType;
     if (roomTypes && roomTypes.length > 0) {
-      const found = roomTypes.find((t) => String(t._id) === String(room.roomType));
+      const typeKey = room.roomTypeId || room.room_type_id || room.roomType;
+      const found = roomTypes.find(
+        (t) => String(t._id) === String(typeKey) || String(t.id) === String(typeKey)
+      );
       if (found) return found;
     }
     return null;
@@ -437,11 +440,22 @@ export default function CheckInWizardPage({
     };
   };
 
-  // Helper to extract room nightly tariff
+  // Helper to extract room nightly tariff (per room — never the combined multi-room rate)
   const getRoomTariff = (room) => {
     if (!room) return 0;
     const rt = getRoomTypeObj(room);
-    return room.customPricePerNight || rt?.basePrice || room.basePrice || 0;
+    const raw =
+      room.customPricePerNight ??
+      room.custom_price_per_night ??
+      rt?.basePrice ??
+      rt?.base_price ??
+      room.basePrice ??
+      room.base_price ??
+      room.pricePerNight ??
+      room.price_per_night ??
+      0;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 0;
   };
 
   // Helper to extract exact room capacity based on seatingCapacity & bed configuration
@@ -497,17 +511,33 @@ export default function CheckInWizardPage({
       ? [String(checkInData.roomId)]
       : [];
 
+  const roomMatchesId = (room, id) => {
+    const target = String(id);
+    return String(room?._id) === target || String(room?.id) === target;
+  };
+
   const selectedRoomsList = (() => {
-    // 1. Match by selected roomIds
+    // 1. Match by selected roomIds (prefer live rooms list so tariffs stay current)
     if (selectedRoomIds.length > 0) {
-      const matched = rooms.filter((r) => selectedRoomIds.includes(String(r._id)));
+      const matched = rooms.filter((r) => selectedRoomIds.some((id) => roomMatchesId(r, id)));
+      if (matched.length === selectedRoomIds.length) return matched;
+      // Fall back to selectedRooms objects when some ids are not in the live list yet
+      if (Array.isArray(checkInData.selectedRooms) && checkInData.selectedRooms.length > 0) {
+        const fromSelection = selectedRoomIds
+          .map((id) =>
+            rooms.find((r) => roomMatchesId(r, id)) ||
+            checkInData.selectedRooms.find((r) => roomMatchesId(r, id) || String(r) === id)
+          )
+          .filter(Boolean);
+        if (fromSelection.length > 0) return fromSelection;
+      }
       if (matched.length > 0) return matched;
     }
 
     // 2. Match by selectedRooms array
     if (Array.isArray(checkInData.selectedRooms) && checkInData.selectedRooms.length > 0) {
       const matched = checkInData.selectedRooms
-        .map((sr) => rooms.find((r) => String(r._id) === String(sr._id || sr.id)) || sr)
+        .map((sr) => rooms.find((r) => roomMatchesId(r, sr._id || sr.id)) || sr)
         .filter(Boolean);
       if (matched.length > 0) return matched;
     }
@@ -692,11 +722,20 @@ export default function CheckInWizardPage({
     setStepError("");
   };
 
-  // Centralized GST calculation across selected rooms (Requirements #4 & #5)
+  // Combined nightly tariff = sum of each selected room's own price (not rate × room count)
+  const combinedNightlyRate = selectedRoomsList.length > 0
+    ? selectedRoomsList.reduce((sum, r) => sum + getRoomTariff(r), 0)
+    : Number(checkInData.rate) || 0;
+
+  // Centralized GST: each room uses its own nightly price × nights, then amounts are summed
   const gstBookingResult = calculateMultiRoomBookingGST({
-    rooms: (selectedRoomsList.length > 0 ? selectedRoomsList : [{ pricePerNight: checkInData.rate ?? 3000, gstEnabled: true, gstRate: 18 }]).map((r) => {
+    rooms: (selectedRoomsList.length > 0
+      ? selectedRoomsList
+      : [{ pricePerNight: Number(checkInData.rate) || 0, gstEnabled: true, gstRate: 18 }]
+    ).map((r) => {
       const rt = getRoomTypeObj(r);
-      const price = Number(checkInData.rate) > 0 ? Number(checkInData.rate) : (getRoomTariff(r) || 0);
+      // Always use this room's tariff — never the combined checkInData.rate
+      const price = getRoomTariff(r) || Number(r.pricePerNight) || 0;
       return {
         ...r,
         pricePerNight: price,
@@ -727,8 +766,8 @@ export default function CheckInWizardPage({
   const securityDepositAmount = checkInData.collectSecurityDeposit ? (Number(checkInData.securityDepositAmount) || 1000) : 0;
   const calculatedGrandTotal = priceAfterDiscount + displayCgst + displaySgst + displayIgst + securityDepositAmount;
 
-  // Keep total and balance due in sync with the advance entered by the receptionist
-  // Billing flow: base amount (before tax, before discount) -> discount -> GST on the discounted amount -> extras (deposit)
+  // Keep total, rate, and balance due in sync with selected rooms × nights
+  // Billing flow: base (sum of room×nights) -> discount -> GST on discounted amount -> extras (deposit)
   const effectiveGstRate = Number(gstBookingResult.roomBreakdowns?.[0]?.gstRate ?? 18) || 0;
   useEffect(() => {
     setCheckInData((prev) => {
@@ -741,7 +780,8 @@ export default function CheckInWizardPage({
         prev.due === due &&
         prev.baseAmount === baseTariffTotal &&
         prev.appliedDiscount === discountApplied &&
-        prev.gstRate === effectiveGstRate
+        prev.gstRate === effectiveGstRate &&
+        Number(prev.rate) === Number(combinedNightlyRate)
       ) {
         return prev;
       }
@@ -753,9 +793,11 @@ export default function CheckInWizardPage({
         baseAmount: baseTariffTotal,
         appliedDiscount: discountApplied,
         gstRate: effectiveGstRate,
+        // rate = sum of each room's nightly price (used by nights/date handlers as rate × nights)
+        rate: combinedNightlyRate,
       };
     });
-  }, [calculatedGrandTotal, checkInData.isPaidManuallyEdited, baseTariffTotal, discountApplied, effectiveGstRate]);
+  }, [calculatedGrandTotal, checkInData.isPaidManuallyEdited, baseTariffTotal, discountApplied, effectiveGstRate, combinedNightlyRate]);
 
   // Aadhaar 12-Digit Format & Validation Helpers
   const formatAadhaarNumber = (val) => {
@@ -2135,7 +2177,12 @@ export default function CheckInWizardPage({
                 {[
                   {
                     label: `Room charges (${selectedRoomsList.map((r) => `#${r.roomNumber}`).join(", ") || checkInData.roomNumber})`,
-                    hint: `₹${(Number(checkInData.rate) || 0).toLocaleString("en-IN")} × ${checkInData.numberOfNights || nights || 1} ${(checkInData.numberOfNights || nights || 1) === 1 ? "night" : "nights"}${selectedRoomsList.length > 1 ? ` × ${selectedRoomsList.length} rooms` : ""}`,
+                    hint: selectedRoomsList.length > 1
+                      ? selectedRoomsList
+                          .map((r) => `#${r.roomNumber} ₹${getRoomTariff(r).toLocaleString("en-IN")}`)
+                          .join(" + ") +
+                        ` × ${checkInData.numberOfNights || nights || 1} ${(checkInData.numberOfNights || nights || 1) === 1 ? "night" : "nights"}`
+                      : `₹${(combinedNightlyRate || Number(checkInData.rate) || 0).toLocaleString("en-IN")} × ${checkInData.numberOfNights || nights || 1} ${(checkInData.numberOfNights || nights || 1) === 1 ? "night" : "nights"}`,
                     value: `₹${(priceAfterDiscount + discountApplied).toLocaleString("en-IN")}`,
                     show: true,
                   },

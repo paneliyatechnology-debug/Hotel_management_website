@@ -97,10 +97,13 @@ export default function StatusChip({ status, size = "small" }) {
       label = "IN-HOUSE";
       break;
     case "CHECKED_OUT":
+    case "DEPARTED":
+    case "CHECKOUT":
+    case "CHECK_OUT":
       bg = themeConfig.champagne;
       color = themeConfig.textMuted;
       border = themeConfig.border;
-      label = "DEPARTED";
+      label = "CHECKED OUT";
       break;
     case "CANCELLED":
       bg = themeConfig.dangerBg;

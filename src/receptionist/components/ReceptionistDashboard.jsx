@@ -694,11 +694,21 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
     }
 
     const firstRoom = roomsArr[0];
+    // Combined nightly rate = sum of each room's own price (bill = this × nights)
     const totalTariff = roomsArr.reduce((sum, r) => {
       const rt = typeof r.roomType === "object" && r.roomType !== null
         ? r.roomType
-        : roomTypes.find((t) => String(t._id) === String(r.roomType));
-      return sum + (r.customPricePerNight || rt?.basePrice || r.basePrice || 0);
+        : roomTypes.find((t) => String(t._id) === String(r.roomType) || String(t._id) === String(r.roomTypeId || r.room_type_id));
+      const raw =
+        r.customPricePerNight ??
+        r.custom_price_per_night ??
+        rt?.basePrice ??
+        rt?.base_price ??
+        r.basePrice ??
+        r.base_price ??
+        0;
+      const price = Number(raw);
+      return sum + (Number.isFinite(price) && price > 0 ? price : 0);
     }, 0);
 
     const roomNumbersStr = roomsArr.map((r) => String(r.roomNumber)).join(", ");

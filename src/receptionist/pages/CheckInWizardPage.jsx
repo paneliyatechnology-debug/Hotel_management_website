@@ -88,6 +88,7 @@ import { useAppTheme } from "@/shared/context/ThemeContext";
 import { formatTime12Hour, formatTime24Hour } from "@/shared/utils/timeUtils";
 import { getAmenityIcon } from "@/shared/utils/amenityUtils";
 import { apiRequest, API_ENDPOINTS } from "@/config/api";
+import { paymentMethodLabel, useHotelPaymentMethods } from "@/shared/hooks/useHotelPaymentMethods";
 
 const DigitalSignaturePad = dynamic(() => import("@/shared/components/DigitalSignaturePad"), { ssr: false });
 
@@ -147,6 +148,18 @@ export default function CheckInWizardPage({
   isCheckInSubmitting = false,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
+  const { methods: hotelPaymentMethods, defaultName: defaultPaymentMethod } = useHotelPaymentMethods();
+
+  // Keep the selected method on the hotel list so booking sends a valid payment_method name
+  useEffect(() => {
+    if (!hotelPaymentMethods.length) return;
+    setCheckInData((prev) => {
+      const current = String(prev.paymentMethod || "").trim();
+      const match = hotelPaymentMethods.find((item) => item.name.toLowerCase() === current.toLowerCase());
+      const next = match?.name || defaultPaymentMethod;
+      return next === prev.paymentMethod ? prev : { ...prev, paymentMethod: next };
+    });
+  }, [hotelPaymentMethods, defaultPaymentMethod, setCheckInData]);
   const checkInTimeFormatted = formatTime12Hour(hotelSettings?.checkInTime || "14:00");
   const checkOutTimeFormatted = formatTime12Hour(hotelSettings?.checkOutTime || "12:00");
   const timezoneStr = hotelSettings?.timezone || "Asia/Kolkata";
@@ -1372,7 +1385,8 @@ export default function CheckInWizardPage({
   const advancePaid = Number(checkInData.paid) || 0;
   const balanceDue = Math.max(0, calculatedGrandTotal - advancePaid);
   const paidError = advancePaid > calculatedGrandTotal ? "Advance cannot exceed the total amount" : "";
-  const paymentMethodLabel = { CASH: "Cash", ONLINE: "Online", CARD: "Card", UPI: "UPI", BANK_TRANSFER: "Bank transfer" }[checkInData.paymentMethod || "CASH"] || "Cash";
+  const selectedPaymentMethod = checkInData.paymentMethod || defaultPaymentMethod;
+  const selectedPaymentLabel = paymentMethodLabel(selectedPaymentMethod);
 
   const renderReviewTile = (title, children) => (
     <Box sx={{ height: "100%", p: 2, borderRadius: "12px", border: `1px solid ${themeConfig.border}`, bgcolor: themeConfig.bgCard || "#FFFFFF" }}>
@@ -2054,14 +2068,14 @@ export default function CheckInWizardPage({
                     fullWidth
                     size="small"
                     label="Payment method"
-                    value={checkInData.paymentMethod || "CASH"}
+                    value={hotelPaymentMethods.some((item) => item.name === selectedPaymentMethod) ? selectedPaymentMethod : (hotelPaymentMethods[0]?.name || "")}
                     onChange={(e) => setCheckInData({ ...checkInData, paymentMethod: e.target.value })}
                   >
-                    <MenuItem value="CASH">Cash</MenuItem>
-                    <MenuItem value="UPI">UPI</MenuItem>
-                    <MenuItem value="CARD">Card</MenuItem>
-                    <MenuItem value="ONLINE">Online</MenuItem>
-                    <MenuItem value="BANK_TRANSFER">Bank transfer</MenuItem>
+                    {hotelPaymentMethods.map((item) => (
+                      <MenuItem key={item.id || item.name} value={item.name}>
+                        {paymentMethodLabel(item.name)}
+                      </MenuItem>
+                    ))}
                   </TextField>
                 </Grid>
 
@@ -2084,7 +2098,7 @@ export default function CheckInWizardPage({
                   />
                 </Grid>
 
-                {(checkInData.paymentMethod || "CASH") !== "CASH" && (
+                {String(selectedPaymentMethod).toUpperCase() !== "CASH" && (
                   <Grid size={{ xs: 12, sm: 4 }}>
                     <TextField
                       fullWidth
@@ -2161,7 +2175,7 @@ export default function CheckInWizardPage({
                   <Typography sx={{ color: themeConfig.textMain, fontSize: "0.88rem", fontWeight: 500 }}>
                     Advance paid
                     <Typography component="span" sx={{ color: themeConfig.textMuted, fontSize: "0.78rem", ml: 1 }}>
-                      {paymentMethodLabel}
+                      {selectedPaymentLabel}
                     </Typography>
                   </Typography>
                   <Typography sx={{ color: isDarkMode ? "#6EE7B7" : themeConfig.tones.success.color, fontSize: "0.88rem", fontWeight: 600 }}>
@@ -2319,7 +2333,7 @@ export default function CheckInWizardPage({
                 </Box>
                 <Box>
                   <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 600 }}>
-                    Advance paid ({paymentMethodLabel})
+                    Advance paid ({selectedPaymentLabel})
                   </Typography>
                   <Typography sx={{ fontWeight: 700, color: isDarkMode ? "#6EE7B7" : themeConfig.tones.success.color, fontSize: "1.2rem" }}>
                     ₹{advancePaid.toLocaleString("en-IN")}

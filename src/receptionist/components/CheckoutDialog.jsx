@@ -21,6 +21,7 @@ import { useAppTheme } from "@/shared/context/ThemeContext";
 import { loadBookingDetail } from "@/shared/utils/folioMoney";
 import { computeCheckoutBill } from "@/shared/utils/billingUtils";
 import FolioPdfButton from "@/shared/components/FolioPdfButton";
+import { paymentMethodLabel, useHotelPaymentMethods } from "@/shared/hooks/useHotelPaymentMethods";
 
 const sanitizeAmount = (value) => {
   const cleaned = String(value || "").replace(/[^\d.]/g, "");
@@ -55,6 +56,7 @@ const EMPTY = {
  */
 export default function CheckoutDialog({ open, onClose, booking, roomNumber, hotelSettings, onCheckOut, onDone }) {
   const { themeConfig } = useAppTheme();
+  const { methods: hotelPaymentMethods, defaultName: defaultPaymentMethod } = useHotelPaymentMethods();
   const [state, setState] = useState(EMPTY);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -83,6 +85,7 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
           extraCharges,
           discount,
           amount: due,
+          paymentMethod: defaultPaymentMethod,
         });
       } catch (err) {
         if (!cancelled) setError(err?.message || "Could not load booking details");
@@ -95,6 +98,16 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, booking?._id, booking?.id]);
+
+  useEffect(() => {
+    if (!hotelPaymentMethods.length) return;
+    setState((prev) => {
+      const current = String(prev.paymentMethod || "").trim();
+      const match = hotelPaymentMethods.find((item) => item.name.toLowerCase() === current.toLowerCase());
+      const next = match?.name || defaultPaymentMethod;
+      return next === prev.paymentMethod ? prev : { ...prev, paymentMethod: next };
+    });
+  }, [hotelPaymentMethods, defaultPaymentMethod]);
 
   const update = (patch) => setState((prev) => ({ ...prev, ...patch }));
 
@@ -388,14 +401,14 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
                   fullWidth
                   size="small"
                   label="Payment method"
-                  value={state.paymentMethod || "CASH"}
+                  value={hotelPaymentMethods.some((item) => item.name === state.paymentMethod) ? state.paymentMethod : (hotelPaymentMethods[0]?.name || "")}
                   onChange={(e) => update({ paymentMethod: e.target.value })}
                 >
-                  <MenuItem value="CASH">Cash</MenuItem>
-                  <MenuItem value="UPI">UPI</MenuItem>
-                  <MenuItem value="CARD">Card</MenuItem>
-                  <MenuItem value="ONLINE">Online</MenuItem>
-                  <MenuItem value="BANK_TRANSFER">Bank transfer</MenuItem>
+                  {hotelPaymentMethods.map((item) => (
+                    <MenuItem key={item.id || item.name} value={item.name}>
+                      {paymentMethodLabel(item.name)}
+                    </MenuItem>
+                  ))}
                 </TextField>
                 <TextField
                   fullWidth
@@ -409,7 +422,7 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
                   onChange={(e) => update({ amount: sanitizeAmount(e.target.value) })}
                   slotProps={{ htmlInput: { inputMode: "decimal" } }}
                 />
-                {state.paymentMethod !== "CASH" && (
+                {String(state.paymentMethod || "").toUpperCase() !== "CASH" && (
                   <TextField
                     fullWidth
                     size="small"

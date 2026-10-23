@@ -271,6 +271,10 @@ export const API_ENDPOINTS = createCaseFlexibleProxy({
   SETTINGS: {
     PUBLIC: `${API_BASE_URL}/api/v1/settings`,
   },
+  PAYMENT_METHODS: {
+    LIST: `${API_BASE_URL}/api/v1/payment-methods`,
+    BY_ID: (id) => `${API_BASE_URL}/api/v1/payment-methods/${id}`,
+  },
   UPLOAD: `${API_BASE_URL}/api/v1/upload`,
   UPLOAD_MULTIPLE: `${API_BASE_URL}/api/v1/upload/multiple`,
   TRIAL_REQUESTS: {
@@ -949,10 +953,9 @@ function prepareRequestBody(body, endpoint) {
       late_checkout_hours: Number(parsedBody.late_checkout_hours ?? parsedBody.lateCheckoutHours ?? 0),
     };
     // Payment method accepted by the API: CASH, ONLINE, CARD, UPI, BANK_TRANSFER
-    const rawMethod = String(parsedBody.payment_method ?? parsedBody.paymentMethod ?? "").trim().toUpperCase();
-    const normalizedMethod = rawMethod === "NET_BANKING" ? "BANK_TRANSFER" : rawMethod;
-    if (["CASH", "ONLINE", "CARD", "UPI", "BANK_TRANSFER"].includes(normalizedMethod)) {
-      checkOutPayload.payment_method = normalizedMethod;
+    const rawMethod = String(parsedBody.payment_method ?? parsedBody.paymentMethod ?? "").trim();
+    if (rawMethod) {
+      checkOutPayload.payment_method = rawMethod.toUpperCase() === "NET_BANKING" ? "BANK_TRANSFER" : rawMethod;
     }
     if (parsedBody.notes) checkOutPayload.notes = String(parsedBody.notes);
     return checkOutPayload;
@@ -1176,12 +1179,9 @@ function prepareRequestBody(body, endpoint) {
         payload.paid_amount = 0;
       }
 
-      // Payment method accepted by the API: CASH, ONLINE, CARD, UPI, BANK_TRANSFER
-      const rawMethod = String(payload.payment_method ?? payload.paymentMethod ?? "").trim().toUpperCase();
-      const normalizedMethod = rawMethod === "NET_BANKING" ? "BANK_TRANSFER" : rawMethod;
-      payload.payment_method = ["CASH", "ONLINE", "CARD", "UPI", "BANK_TRANSFER"].includes(normalizedMethod)
-        ? normalizedMethod
-        : "CASH";
+      // Hotel payment method name from GET /api/v1/payment-methods (CASH, UPI, or a custom name)
+      const rawMethod = String(payload.payment_method ?? payload.paymentMethod ?? "").trim();
+      payload.payment_method = !rawMethod || rawMethod.toUpperCase() === "NET_BANKING" ? (rawMethod ? "BANK_TRANSFER" : "CASH") : rawMethod;
       delete payload.paymentMethod;
       if (payload.transaction_id === undefined && payload.transactionId) {
         payload.transaction_id = String(payload.transactionId).trim();

@@ -93,7 +93,7 @@ import { paymentMethodLabel, useHotelPaymentMethods } from "@/shared/hooks/useHo
 const DigitalSignaturePad = dynamic(() => import("@/shared/components/DigitalSignaturePad"), { ssr: false });
 
 const CHECKIN_STEPS = [
-  "Guest Profile & ID",
+  "Guest Profile",
   "Stay Schedule",
   "Billing & Settlement",
   "Review & Check-In",
@@ -1496,84 +1496,79 @@ export default function CheckInWizardPage({
           mx: "auto",
         }}
       >
-        {/* Page header */}
+        {/* Page header — icon-only Back / Reset + title on one line */}
         <Box
           sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: { xs: "flex-start", sm: "center" },
-            flexWrap: "wrap",
-            gap: 2,
             mb: 3,
             pb: 2.5,
             borderBottom: `1px solid ${themeConfig.border}`,
           }}
         >
-          <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
-              <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: { xs: "1.1rem", sm: "1.25rem" }, lineHeight: 1.3 }}>
-                Express check-in
-              </Typography>
-              {isVipGuest && (
-                <Chip
-                  icon={<Star sx={{ "&&": { color: "#F59E0B" } }} />}
-                  label="Returning guest · 10% discount"
-                  size="small"
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0, width: "100%" }}>
+            {onBackToRooms && (
+              <Tooltip title="Back to rooms">
+                <IconButton
+                  onClick={onBackToRooms}
+                  aria-label="Back to rooms"
                   sx={{
-                    bgcolor: themeConfig.tones.warning.bg,
-                    color: themeConfig.tones.warning.color,
-                    fontWeight: 700,
-                    fontSize: "0.72rem",
-                    border: `1px solid ${themeConfig.tones.warning.border}`,
+                    width: 40,
+                    height: 40,
+                    borderRadius: "10px",
+                    border: `1px solid ${themeConfig.border}`,
+                    color: themeConfig.textMain,
+                    bgcolor: themeConfig.bgCard,
+                    flexShrink: 0,
+                    "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
                   }}
-                />
-              )}
-            </Box>
-            <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.82rem", mt: 0.5 }}>
-              Add guest details, choose the stay and complete check-in.
-            </Typography>
-          </Box>
-
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
-            <Button
-              variant="text"
-              onClick={handleClearFormDraft}
-              startIcon={<Refresh sx={{ fontSize: 16 }} />}
+                >
+                  <ArrowBack sx={{ fontSize: 20 }} />
+                </IconButton>
+              </Tooltip>
+            )}
+            <Typography
               sx={{
-                minHeight: 40,
-                borderRadius: "10px",
-                fontWeight: 600,
-                fontSize: "0.82rem",
-                color: themeConfig.textMuted,
-                textTransform: "none",
-                whiteSpace: "nowrap",
-                "&:hover": { color: themeConfig.tones.danger.color, bgcolor: themeConfig.tones.danger.bg },
+                fontWeight: 700,
+                color: themeConfig.textMain,
+                fontSize: { xs: "1.1rem", sm: "1.25rem" },
+                lineHeight: 1.3,
+                ml: 0.5,
+                flex: 1,
+                minWidth: 0,
               }}
             >
-              Reset form
-            </Button>
-            {onBackToRooms && (
-              <Button
-                variant="outlined"
-                startIcon={<ArrowBack sx={{ fontSize: 18 }} />}
-                onClick={onBackToRooms}
+              Express check-in
+            </Typography>
+            {isVipGuest && (
+              <Chip
+                icon={<Star sx={{ "&&": { color: "#F59E0B" } }} />}
+                label="Returning guest · 10% discount"
+                size="small"
                 sx={{
-                  minHeight: 40,
-                  borderRadius: "10px",
+                  bgcolor: themeConfig.tones.warning.bg,
+                  color: themeConfig.tones.warning.color,
                   fontWeight: 700,
-                  fontSize: "0.82rem",
-                  borderColor: themeConfig.border,
-                  color: themeConfig.textMain,
-                  bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
-                  whiteSpace: "nowrap",
-                  textTransform: "none",
-                  boxShadow: "none",
-                  "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary, boxShadow: "none" },
+                  fontSize: "0.72rem",
+                  border: `1px solid ${themeConfig.tones.warning.border}`,
+                }}
+              />
+            )}
+            <Tooltip title="Reset form">
+              <IconButton
+                onClick={handleClearFormDraft}
+                aria-label="Reset form"
+                sx={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: "10px",
+                  color: themeConfig.textMuted,
+                  flexShrink: 0,
+                  ml: "auto",
+                  "&:hover": { color: themeConfig.tones.danger.color, bgcolor: themeConfig.tones.danger.bg },
                 }}
               >
-                Back to rooms
-              </Button>
-            )}
+                <Refresh sx={{ fontSize: 20 }} />
+              </IconButton>
+            </Tooltip>
           </Box>
         </Box>
 

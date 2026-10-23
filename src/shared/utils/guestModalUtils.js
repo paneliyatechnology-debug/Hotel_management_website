@@ -15,8 +15,29 @@ export function createSafeGuestModalData(data) {
       phone: raw.phone || raw.mobile || raw.mobileNumber || raw.mobile_number || raw.guest?.phone || raw.guest?.mobileNumber || "",
       mobileNumber: raw.mobileNumber || raw.mobile_number || raw.mobile || raw.phone || raw.guest?.phone || raw.guest?.mobileNumber || "",
       email: raw.email || raw.guest?.email || "",
-      roomAssigned: raw.roomAssigned || raw.roomNumber || raw.room?.roomNumber || (Array.isArray(raw.rooms) ? raw.rooms.map((r) => r.room_number || r.roomNumber).filter(Boolean).join(", ") : "") || (Array.isArray(raw.roomNumbers) ? raw.roomNumbers.join(", ") : ""),
-      roomNumbers: Array.isArray(raw.roomNumbers) ? raw.roomNumbers : raw.roomAssigned ? [raw.roomAssigned] : [],
+      roomAssigned: (() => {
+        const fromRooms = Array.isArray(raw.rooms)
+          ? raw.rooms.map((r) => (typeof r === "object" ? r.room_number || r.roomNumber : r)).filter(Boolean).map(String)
+          : [];
+        const fromNumbers = Array.isArray(raw.roomNumbers)
+          ? raw.roomNumbers.map(String).filter(Boolean)
+          : Array.isArray(raw.room_numbers)
+            ? raw.room_numbers.map(String).filter(Boolean)
+            : [];
+        const list = fromRooms.length ? fromRooms : fromNumbers;
+        if (list.length) return [...new Set(list)].join(", ");
+        return raw.roomAssigned || raw.roomNumber || raw.room_number || raw.room?.room_number || raw.room?.roomNumber || "";
+      })(),
+      roomNumbers: (() => {
+        const fromRooms = Array.isArray(raw.rooms)
+          ? raw.rooms.map((r) => (typeof r === "object" ? r.room_number || r.roomNumber : r)).filter(Boolean).map(String)
+          : [];
+        if (fromRooms.length) return [...new Set(fromRooms)];
+        if (Array.isArray(raw.roomNumbers) && raw.roomNumbers.length) return raw.roomNumbers.map(String);
+        if (raw.roomAssigned) return String(raw.roomAssigned).split(",").map((s) => s.trim()).filter(Boolean);
+        const single = raw.roomNumber || raw.room_number || raw.room?.room_number || raw.room?.roomNumber;
+        return single ? [String(single)] : [];
+      })(),
       status: raw.status || raw.booking_status || "IN-HOUSE",
       checkInDate: raw.checkInDate || raw.check_in_date || "",
       checkOutDate: raw.checkOutDate || raw.check_out_date || "",

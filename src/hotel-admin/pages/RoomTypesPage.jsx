@@ -86,7 +86,7 @@ function categoryStatusCounts(category, fallbackRooms = []) {
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useSocket } from "@/shared/context/SocketContext";
-import { TablePager } from "@/shared/components/DataTable";
+import { TableCard, TablePager, TableToolbar } from "@/shared/components/DataTable";
 import InfiniteScrollSentinel from "@/shared/components/InfiniteScrollSentinel";
 import { useInfiniteList } from "@/shared/hooks/useInfiniteList";
 import EmptyState from "@/shared/components/EmptyState";
@@ -536,8 +536,6 @@ export default function RoomTypesPage({
 
   const pagedRooms = serverRooms ? serverRooms.list : selectedRooms.slice(roomPage * roomRowsPerPage, roomPage * roomRowsPerPage + roomRowsPerPage);
   const totalCategoryRooms = serverRooms ? serverRooms.total : selectedRooms.length;
-  const showCategoryGridOnly = !selectedCategory && roomTypes.length > 0;
-
   // Lazy loading: category cards load in batches while scrolling
   const {
     visibleItems: pagedCategories,
@@ -646,19 +644,10 @@ export default function RoomTypesPage({
         </Box>
       </Box>
 
-      <Card
-        elevation={0}
-        sx={{
-          // Category grid sits directly on the page; the card background is only used for an opened category / empty state
-          ...(showCategoryGridOnly
-            ? { border: "none", bgcolor: "transparent", borderRadius: 0, overflow: "visible", "&:hover": { boxShadow: "none" } }
-            : { borderRadius: "20px", border: `1.5px solid ${themeConfig.border}`, bgcolor: themeConfig.bgCard }),
-          boxShadow: "none",
-        }}
-      >
-        <CardContent sx={showCategoryGridOnly ? { p: 0, "&:last-child": { pb: 0 } } : { p: { xs: 2, sm: 3 }, "&:last-child": { pb: { xs: 2, sm: 3 } } }}>
-          {selectedCategory ? <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexWrap: "wrap", gap: 1.5 }}>
-            {selectedCategory ? (
+      {selectedCategory ? (
+        <TableCard>
+          <TableToolbar
+            title={
               <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
                 <Tooltip title="All categories" arrow>
                   <IconButton
@@ -678,10 +667,113 @@ export default function RoomTypesPage({
                   </Typography>
                 </Box>
               </Box>
-            ) : null}
-          </Box> : null}
-
-          {roomTypes.length === 0 ? (
+            }
+          />
+          {(serverRooms ? serverRooms.total : selectedRooms.length) === 0 ? (
+            <EmptyState embedded title="No rooms in this category" description={`${selectedCategory.name} does not have any rooms yet.`} />
+          ) : (
+            <>
+              <TableContainer sx={{ overflowX: "auto" }}>
+                <Table size="medium" sx={{ width: "100%", minWidth: 640 }}>
+                  <TableHead>
+                    <TableRow>
+                      {["Room", "Floor", "Nightly rate", "Status"].map((heading) => (
+                        <TableCell key={heading}>{heading}</TableCell>
+                      ))}
+                      <TableCell align="right">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {pagedRooms.map((room) => {
+                      const tariff = Number(room.customPricePerNight || selectedCategory.basePrice || room.basePrice || 0);
+                      const statusKey = String(room.status || "AVAILABLE").toUpperCase();
+                      const statusMeta = {
+                        AVAILABLE: { label: "Available", color: themeConfig.tones.success.color, bg: themeConfig.tones.success.bg },
+                        OCCUPIED: { label: "Occupied", color: themeConfig.tones.warning.color, bg: themeConfig.tones.warning.bg },
+                        RESERVED: { label: "Reserved", color: themeConfig.tones.warning.color, bg: themeConfig.tones.warning.bg },
+                        CLEANING: { label: "Cleaning", color: themeConfig.tones.danger.color, bg: themeConfig.tones.danger.bg },
+                        MAINTENANCE: { label: "Maintenance", color: themeConfig.tones.danger.color, bg: themeConfig.tones.danger.bg },
+                        BLOCKED: { label: "Blocked", color: themeConfig.textMuted, bg: themeConfig.bgSubtle },
+                      }[statusKey] || { label: statusKey, color: themeConfig.textMuted, bg: themeConfig.bgSubtle };
+                      const actionSx = {
+                        width: 32,
+                        height: 32,
+                        borderRadius: "8px",
+                        color: themeConfig.textMuted,
+                        "&:hover": { bgcolor: themeConfig.bgMain, color: themeConfig.textMain },
+                      };
+                      return (
+                        <TableRow key={room._id || room.roomNumber}>
+                          <TableCell>
+                            <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.92rem" }}>
+                              Room {room.roomNumber}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography sx={{ fontWeight: 600, color: themeConfig.textMain, fontSize: "0.9rem" }}>
+                              Floor {room.floor || 1}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography sx={{ fontWeight: 700, color: themeConfig.accent, fontSize: "0.9rem", whiteSpace: "nowrap" }}>
+                              ₹{tariff.toLocaleString("en-IN")} / night
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={statusMeta.label}
+                              size="small"
+                              sx={{ fontWeight: 600, borderRadius: "999px", bgcolor: statusMeta.bg, color: statusMeta.color }}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.25 }}>
+                              <Tooltip title="Edit">
+                                <IconButton size="small" onClick={() => openEditRoom(room)} sx={actionSx}>
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Remove">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => onDeleteRoom && onDeleteRoom(room)}
+                                  sx={{ ...actionSx, "&:hover": { bgcolor: themeConfig.dangerBg, color: themeConfig.danger } }}
+                                >
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              <TablePager
+                count={totalCategoryRooms}
+                page={roomPage}
+                onPageChange={(e, next) => setRoomPage(next)}
+                rowsPerPage={roomRowsPerPage}
+                onRowsPerPageChange={(e) => {
+                  setRoomRowsPerPage(parseInt(e.target.value, 10));
+                  setRoomPage(0);
+                }}
+              />
+            </>
+          )}
+        </TableCard>
+      ) : roomTypes.length === 0 ? (
+        <Card
+          elevation={0}
+          sx={{
+            borderRadius: "20px",
+            border: `1.5px solid ${themeConfig.border}`,
+            bgcolor: themeConfig.bgCard,
+            boxShadow: "none",
+          }}
+        >
+          <CardContent sx={{ p: { xs: 2, sm: 3 }, "&:last-child": { pb: { xs: 2, sm: 3 } } }}>
             <Box sx={{ py: 6 }}>
               <EmptyState
                 title="No categories yet"
@@ -690,124 +782,22 @@ export default function RoomTypesPage({
                 onAction={openAddCategory}
               />
             </Box>
-          ) : selectedCategory ? (
-            <Box>
-              {(serverRooms ? serverRooms.total : selectedRooms.length) === 0 ? (
-                <EmptyState embedded title="No rooms in this category" description={`${selectedCategory.name} does not have any rooms yet.`} />
-              ) : (
-                <>
-                <TableContainer sx={{ overflowX: "auto" }}>
-                  <Table size="medium" sx={{ width: "100%", minWidth: 640 }}>
-                    <TableHead>
-                      <TableRow>
-                        {["Room", "Floor", "Nightly rate", "Status"].map((heading) => (
-                          <TableCell key={heading}>
-                            {heading}
-                          </TableCell>
-                        ))}
-                        <TableCell align="right">
-                          Actions
-                        </TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {pagedRooms.map((room) => {
-                        const tariff = Number(room.customPricePerNight || selectedCategory.basePrice || room.basePrice || 0);
-                        const statusKey = String(room.status || "AVAILABLE").toUpperCase();
-                        const statusMeta = {
-                          AVAILABLE: { label: "Available", color: themeConfig.tones.success.color, bg: themeConfig.tones.success.bg },
-                          OCCUPIED: { label: "Occupied", color: themeConfig.tones.warning.color, bg: themeConfig.tones.warning.bg },
-                          RESERVED: { label: "Reserved", color: themeConfig.tones.warning.color, bg: themeConfig.tones.warning.bg },
-                          CLEANING: { label: "Cleaning", color: themeConfig.tones.danger.color, bg: themeConfig.tones.danger.bg },
-                          MAINTENANCE: { label: "Maintenance", color: themeConfig.tones.danger.color, bg: themeConfig.tones.danger.bg },
-                          BLOCKED: { label: "Blocked", color: themeConfig.textMuted, bg: themeConfig.bgSubtle },
-                        }[statusKey] || { label: statusKey, color: themeConfig.textMuted, bg: themeConfig.bgSubtle };
-                        const actionSx = {
-                          width: 32,
-                          height: 32,
-                          borderRadius: "8px",
-                          color: themeConfig.textMuted,
-                          "&:hover": { bgcolor: themeConfig.bgMain, color: themeConfig.textMain },
-                        };
-                        return (
-                          <TableRow key={room._id || room.roomNumber}>
-                            <TableCell>
-                              <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.92rem" }}>
-                                Room {room.roomNumber}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Typography sx={{ fontWeight: 600, color: themeConfig.textMain, fontSize: "0.9rem" }}>
-                                Floor {room.floor || 1}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Typography sx={{ fontWeight: 700, color: themeConfig.accent, fontSize: "0.9rem", whiteSpace: "nowrap" }}>
-                                ₹{tariff.toLocaleString("en-IN")} / night
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Chip
-                                label={statusMeta.label}
-                                size="small"
-                                sx={{ fontWeight: 600, borderRadius: "999px", bgcolor: statusMeta.bg, color: statusMeta.color }}
-                              />
-                            </TableCell>
-                            <TableCell align="right">
-                              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.25 }}>
-                                <Tooltip title="Edit">
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => openEditRoom(room)}
-                                    sx={actionSx}
-                                  >
-                                    <Edit fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Remove">
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => onDeleteRoom && onDeleteRoom(room)}
-                                    sx={{ ...actionSx, "&:hover": { bgcolor: themeConfig.dangerBg, color: themeConfig.danger } }}
-                                  >
-                                    <Delete fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                              </Box>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-                <TablePager
-                  count={totalCategoryRooms}
-                  page={roomPage}
-                  onPageChange={(e, next) => setRoomPage(next)}
-                  rowsPerPage={roomRowsPerPage}
-                  onRowsPerPageChange={(e) => {
-                    setRoomRowsPerPage(parseInt(e.target.value, 10));
-                    setRoomPage(0);
-                  }}
-                />
-                </>
-              )}
-            </Box>
-          ) : (
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: {
-                  xs: "1fr",
-                  sm: "repeat(2, minmax(0, 1fr))",
-                  lg: "repeat(3, minmax(0, 1fr))",
-                },
-                gap: 1.5,
-                minWidth: 0,
-                width: "100%",
-              }}
-            >
+          </CardContent>
+        </Card>
+      ) : (
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "repeat(2, minmax(0, 1fr))",
+              lg: "repeat(3, minmax(0, 1fr))",
+            },
+            gap: 1.5,
+            minWidth: 0,
+            width: "100%",
+          }}
+        >
               {pagedCategories.map((cat) => {
                 const catRooms = rooms.filter((r) => {
                   const typeId = typeof r.roomType === "object" ? (r.roomType?._id || r.roomType?.id) : (r.roomType || r.room_type_id || r.roomTypeId);
@@ -938,10 +928,8 @@ export default function RoomTypesPage({
                   </Card>
                 );
               })}
-            </Box>
-          )}
-        </CardContent>
-      </Card>
+        </Box>
+      )}
       {!selectedCategory && roomTypes.length > 0 && (
         <InfiniteScrollSentinel
           hasMore={hasMoreCategories}

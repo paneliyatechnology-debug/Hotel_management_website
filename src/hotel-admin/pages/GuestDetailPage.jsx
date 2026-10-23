@@ -244,22 +244,39 @@ export default function GuestDetailPage({
 
   const guestEmail = g.email || b.email || b.guestEmail || "";
 
-  const roomAssigned =
-    b.roomNumber ||
-    b.room_number ||
-    b.room?.roomNumber ||
-    (Array.isArray(b.roomNumbers) ? b.roomNumbers.join(", ") : "") ||
-    (Array.isArray(b.rooms)
-      ? b.rooms.map((r) => r.room_number || r.roomNumber).filter(Boolean).join(", ")
-      : "") ||
-    "—";
+  const roomNumbersList = (() => {
+    const fromRooms = Array.isArray(b.rooms)
+      ? b.rooms
+          .map((r) => (typeof r === "object" ? r.room_number || r.roomNumber || r.number : r))
+          .filter(Boolean)
+          .map(String)
+      : [];
+    const fromIds = Array.isArray(b.roomNumbers)
+      ? b.roomNumbers.map(String).filter(Boolean)
+      : Array.isArray(b.room_numbers)
+        ? b.room_numbers.map(String).filter(Boolean)
+        : [];
+    const list = fromRooms.length ? fromRooms : fromIds;
+    if (list.length) return [...new Set(list)];
+    const single = b.roomNumber || b.room_number || b.room?.room_number || b.room?.roomNumber;
+    return single ? [String(single)] : [];
+  })();
+  const roomAssigned = roomNumbersList.length ? roomNumbersList.join(", ") : "—";
 
-  const roomType =
-    b.roomTypeName ||
-    b.room_type_name ||
-    b.roomType?.name ||
-    b.room?.roomType?.name ||
-    "Deluxe Room";
+  const roomType = (() => {
+    const typesFromRooms = Array.isArray(b.rooms)
+      ? b.rooms.map((r) => r.room_type_name || r.roomTypeName).filter(Boolean)
+      : [];
+    if (typesFromRooms.length) return [...new Set(typesFromRooms)].join(", ");
+    return (
+      b.roomTypeName ||
+      b.room_type_name ||
+      b.roomType?.name ||
+      b.room?.roomType?.name ||
+      b.rooms?.[0]?.room_type_name ||
+      "Deluxe Room"
+    );
+  })();
 
   const rawStatus = String(b.booking_status || b.status || "CONFIRMED").toUpperCase();
   const normalizedStatus =

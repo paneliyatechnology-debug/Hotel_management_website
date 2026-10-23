@@ -111,11 +111,15 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
 
   const update = (patch) => setState((prev) => ({ ...prev, ...patch }));
 
-  // Update a charge field and recalculate the balance to collect (unless the amount itself was edited)
+  // Charge edits always reset collected amount to the exact balance due
   const updateCharges = (patch) =>
     setState((prev) => {
       const next = { ...prev, ...patch };
-      next.amount = computeCheckoutBill(next.detail, next.extraCharges, next.lateFee, next.discount).due;
+      const preview = computeCheckoutBill(next.detail, next.extraCharges, next.lateFee, next.discount);
+      const maxDiscount = preview.base;
+      const discountNum = Math.min(Math.max(0, Number(next.discount) || 0), maxDiscount);
+      next.discount = discountNum;
+      next.amount = computeCheckoutBill(next.detail, next.extraCharges, next.lateFee, discountNum).due;
       return next;
     });
 
@@ -127,10 +131,23 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
   const bookingNumber = detail?.bookingNumber || detail?.booking_number || "Active";
 
   const bill = computeCheckoutBill(detail, state.extraCharges, state.lateFee, state.discount);
-  const collectNow = Number(state.amount) || 0;
-  const collectError = collectNow > bill.due + 0.001 ? "Cannot exceed the balance due" : "";
-  const remainingAfter = Math.max(0, bill.due - collectNow);
+  // Always collect exactly the balance due — no more, no less (sent to API, not shown in UI)
+  const collectNow = bill.due;
+  const discountError =
+    Number(state.discount) > bill.base + 0.001
+      ? `Discount cannot exceed room charges (${inr(bill.base)})`
+      : "";
+  const remainingAfter = 0;
   const lateHoursValue = Number(state.lateHours) || 0;
+
+  // Keep stored amount locked to due whenever charges change
+  useEffect(() => {
+    if (!detail) return;
+    setState((prev) => {
+      if (Math.abs((Number(prev.amount) || 0) - bill.due) < 0.009) return prev;
+      return { ...prev, amount: bill.due };
+    });
+  }, [detail, bill.due]);
 
   const hotelUpi = hotelSettings?.upiId || "jatinkakadiya234-1@okicici";
   const upiPayee = encodeURIComponent(hotelSettings?.hotelName || "Hotel");
@@ -147,15 +164,20 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
 
   const handleConfirm = async () => {
     if (!detail || !onCheckOut) return;
+    const dueNow = computeCheckoutBill(detail, state.extraCharges, state.lateFee, state.discount).due;
+    if ((Number(state.discount) || 0) > bill.base + 0.001) {
+      setError(`Discount cannot exceed room charges (${inr(bill.base)})`);
+      return;
+    }
     try {
       setSubmitting(true);
       setError("");
       await onCheckOut(detail, {
         paymentMethod: state.paymentMethod,
         extraCharges: Number(state.extraCharges) || 0,
-        discount: Number(state.discount) || 0,
+        discount: Math.min(Number(state.discount) || 0, bill.base),
         notes: state.notes || "",
-        settlementPaymentAmount: collectNow,
+        settlementPaymentAmount: dueNow,
         lateCheckoutFee: Number(state.lateFee) || 0,
         lateCheckoutType: Number(state.lateFee) > 0 ? "manual" : "none",
         lateCheckoutHours: lateHoursValue,
@@ -227,7 +249,11 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
   return (
     <Dialog
       open={open}
-      onClose={() => !submitting && onClose()}
+      onClose={(_, reason) => {
+        if (submitting) return;
+        if (reason === "backdropClick" || reason === "escapeKeyDown") return;
+        onClose();
+      }}
       maxWidth="sm"
       fullWidth
       slotProps={{
@@ -297,10 +323,10 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
               </Box>
             </Box>
 
-            {/* Additional charges */}
+            {/* Additional charges — 2×2 so all four fields stay aligned */}
             <Box>
               {sectionTitle("Additional charges")}
-              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(4, 1fr)" }, gap: 2 }}>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
                 <TextField
                   fullWidth
                   size="small"
@@ -318,7 +344,13 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
                   label="Discount (₹)"
                   placeholder="0"
                   value={Number(state.discount) ? state.discount : ""}
-                  onChange={(e) => updateCharges({ discount: sanitizeAmount(e.target.value) })}
+                  error={Boolean(discountError)}
+                  helperText={discountError || `Max ${inr(bill.base)}`}
+                  onChange={(e) => {
+                    const raw = sanitizeAmount(e.target.value);
+                    const capped = Math.min(Number(raw) || 0, bill.base);
+                    updateCharges({ discount: raw === "" ? "" : capped });
+                  }}
                   slotProps={{ htmlInput: { inputMode: "decimal" } }}
                 />
                 <TextField
@@ -344,7 +376,83 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
               </Box>
             </Box>
 
-            {/* Bill calculation */}
+            {/* Payment method + notes above; bill calculation below */}
+            <Box>
+              {sectionTitle("Payment")}
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  label="Payment method"
+                  value={hotelPaymentMethods.some((item) => item.name === state.paymentMethod) ? state.paymentMethod : (hotelPaymentMethods[0]?.name || "")}
+                  onChange={(e) => update({ paymentMethod: e.target.value })}
+                >
+                  {hotelPaymentMethods.map((item) => (
+                    <MenuItem key={item.id || item.name} value={item.name}>
+                      {paymentMethodLabel(item.name)}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                {String(state.paymentMethod || "").toUpperCase() !== "CASH" && (
+                  <TextField
+                    fullWidth
+                    size="small"
+                    autoComplete="off"
+                    label="Reference number"
+                    placeholder="Transaction or reference no."
+                    value={state.transactionId || ""}
+                    onChange={(e) => update({ transactionId: e.target.value })}
+                  />
+                )}
+                <TextField
+                  fullWidth
+                  size="small"
+                  autoComplete="off"
+                  label="Notes"
+                  placeholder="e.g. Collected remaining balance at the desk"
+                  value={state.notes || ""}
+                  onChange={(e) => update({ notes: e.target.value })}
+                />
+              </Box>
+
+              {state.paymentMethod === "UPI" && collectNow > 0 && (
+                <Box
+                  sx={{
+                    mt: 2,
+                    p: 1.5,
+                    borderRadius: "12px",
+                    border: `1px solid ${themeConfig.border}`,
+                    bgcolor: themeConfig.bgSubtle,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 2,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <Box
+                    component="img"
+                    src={qrCodeUrl}
+                    alt="UPI payment QR code"
+                    sx={{ width: 96, height: 96, borderRadius: "8px", border: `1px solid ${themeConfig.border}`, bgcolor: "#FFFFFF", p: 0.5 }}
+                  />
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.85rem" }}>
+                      Scan to pay {inr(collectNow)}
+                    </Typography>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.78rem" }}>UPI ID: {hotelUpi}</Typography>
+                      <Tooltip title={copiedUpi ? "Copied" : "Copy UPI ID"}>
+                        <IconButton size="small" onClick={handleCopyUpi} sx={{ p: 0.4, color: themeConfig.primary }}>
+                          {copiedUpi ? <Check sx={{ fontSize: 14 }} /> : <ContentCopy sx={{ fontSize: 14 }} />}
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  </Box>
+                </Box>
+              )}
+            </Box>
+
             <Box>
               {sectionTitle("Bill calculation")}
               <Box sx={{ p: 2, borderRadius: "12px", border: `1px solid ${themeConfig.border}`, bgcolor: themeConfig.bgCard || "#FFFFFF" }}>
@@ -392,97 +500,6 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
               </Box>
             </Box>
 
-            {/* Payment */}
-            <Box>
-              {sectionTitle("Payment")}
-              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 2 }}>
-                <TextField
-                  select
-                  fullWidth
-                  size="small"
-                  label="Payment method"
-                  value={hotelPaymentMethods.some((item) => item.name === state.paymentMethod) ? state.paymentMethod : (hotelPaymentMethods[0]?.name || "")}
-                  onChange={(e) => update({ paymentMethod: e.target.value })}
-                >
-                  {hotelPaymentMethods.map((item) => (
-                    <MenuItem key={item.id || item.name} value={item.name}>
-                      {paymentMethodLabel(item.name)}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  fullWidth
-                  size="small"
-                  autoComplete="off"
-                  label="Amount collected (₹)"
-                  placeholder="0"
-                  value={Number(state.amount) ? state.amount : ""}
-                  error={Boolean(collectError)}
-                  helperText={collectError}
-                  onChange={(e) => update({ amount: sanitizeAmount(e.target.value) })}
-                  slotProps={{ htmlInput: { inputMode: "decimal" } }}
-                />
-                {String(state.paymentMethod || "").toUpperCase() !== "CASH" && (
-                  <TextField
-                    fullWidth
-                    size="small"
-                    autoComplete="off"
-                    label="Reference number"
-                    placeholder="Transaction or reference no."
-                    value={state.transactionId || ""}
-                    onChange={(e) => update({ transactionId: e.target.value })}
-                  />
-                )}
-                <Box sx={{ gridColumn: { sm: "1 / -1" } }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    autoComplete="off"
-                    label="Notes"
-                    placeholder="e.g. Collected remaining balance at the desk"
-                    value={state.notes || ""}
-                    onChange={(e) => update({ notes: e.target.value })}
-                  />
-                </Box>
-              </Box>
-
-              {state.paymentMethod === "UPI" && collectNow > 0 && (
-                <Box
-                  sx={{
-                    mt: 2,
-                    p: 1.5,
-                    borderRadius: "12px",
-                    border: `1px solid ${themeConfig.border}`,
-                    bgcolor: themeConfig.bgSubtle,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 2,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <Box
-                    component="img"
-                    src={qrCodeUrl}
-                    alt="UPI payment QR code"
-                    sx={{ width: 96, height: 96, borderRadius: "8px", border: `1px solid ${themeConfig.border}`, bgcolor: "#FFFFFF", p: 0.5 }}
-                  />
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.85rem" }}>
-                      Scan to pay {inr(collectNow)}
-                    </Typography>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                      <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.78rem" }}>UPI ID: {hotelUpi}</Typography>
-                      <Tooltip title={copiedUpi ? "Copied" : "Copy UPI ID"}>
-                        <IconButton size="small" onClick={handleCopyUpi} sx={{ p: 0.4, color: themeConfig.primary }}>
-                          {copiedUpi ? <Check sx={{ fontSize: 14 }} /> : <ContentCopy sx={{ fontSize: 14 }} />}
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  </Box>
-                </Box>
-              )}
-            </Box>
-
             {error ? (
               <Typography sx={{ color: themeConfig.tones.danger.color, fontWeight: 600, fontSize: "0.85rem" }}>{error}</Typography>
             ) : null}
@@ -497,7 +514,7 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
         <FolioPdfButton booking={state.detail || booking} label="Generate Folio" />
         <Button
           variant="contained"
-          disabled={submitting || loading || !detail || Boolean(collectError)}
+          disabled={submitting || loading || !detail || Boolean(discountError)}
           onClick={handleConfirm}
           startIcon={<Logout sx={{ fontSize: 16 }} />}
           sx={{

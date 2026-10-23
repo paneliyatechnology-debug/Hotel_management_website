@@ -679,9 +679,19 @@ export function deepDualCase(obj) {
     result.booking_status = result.status;
   }
 
-  // Booking rooms array compatibility
-  if (Array.isArray(result.rooms) && result.rooms.length > 0 && !result.room) {
-    result.room = result.rooms[0];
+  // Booking rooms array compatibility — keep all room numbers for multi-room stays
+  if (Array.isArray(result.rooms) && result.rooms.length > 0) {
+    if (!result.room) result.room = result.rooms[0];
+    const roomNums = result.rooms
+      .map((r) => (typeof r === "object" ? r.room_number || r.roomNumber : r))
+      .filter(Boolean)
+      .map(String);
+    if (roomNums.length) {
+      result.roomNumbers = roomNums;
+      result.room_numbers = roomNums;
+      result.roomNumber = roomNums.join(", ");
+      result.room_number = roomNums.join(", ");
+    }
   }
   if (Array.isArray(result.room_id) && result.room_id.length > 0 && result.roomId === undefined) {
     result.roomId = result.room_id[0];

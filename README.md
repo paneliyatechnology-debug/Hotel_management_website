@@ -81,7 +81,7 @@ npm install
 
 Create a `.env.local` file if you want to override the default API base URL:
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:5001
+NEXT_PUBLIC_API_URL=https://api.myownpms.com
 ```
 
 ### 4. Running Locally

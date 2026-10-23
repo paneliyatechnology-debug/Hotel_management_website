@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Avatar,
   Box,
@@ -88,15 +88,6 @@ function formatDateTime(val) {
 function num(val) {
   const n = Number(val);
   return Number.isFinite(n) ? n : 0;
-}
-
-function unwrapBooking(res) {
-  const data = res?.data?.data || res?.data || res?.booking || null;
-  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-  if (data.booking && typeof data.booking === "object" && !Array.isArray(data.booking)) {
-    return { ...data, ...data.booking };
-  }
-  return data;
 }
 
 function staySources(record) {
@@ -225,13 +216,11 @@ export default function GuestListPage({
   const [rowsPerPage, setRowsPerPage] = useState(defaultRowsPerPage);
   const [bookingDetails, setBookingDetails] = useState({});
   const [serverPage, setServerPage] = useState(null);
-  const detailAttempts = useRef(new Set());
 
   const [liveTick, setLiveTick] = useState(0);
 
   // Real-Time Socket Auto-Sync.
-  // This page lists bookings from its own paginated API call and caches per-booking details,
-  // so a live event must reload both of them, not only the dashboard data passed in as props.
+  // Guest Directory uses the bookings list API only (all row fields come from that payload).
   useSocket(
     [
       "BOOKING_CREATED",
@@ -370,36 +359,6 @@ export default function GuestListPage({
       cancelled = true;
     };
   }, [searchQuery, liveTick]);
-
-  useEffect(() => {
-    const missing = unifiedGuests.filter((g) => {
-      if (!g.id || detailAttempts.current.has(String(g.id))) return false;
-      const hasStay = Boolean(g.checkInDate || g.actualCheckIn);
-      const hasMoney = Boolean(g.baseAmount || g.gstAmount || g.totalAmount);
-      return !hasStay || !hasMoney;
-    });
-    if (missing.length === 0) return undefined;
-    missing.forEach((g) => detailAttempts.current.add(String(g.id)));
-    (async () => {
-      const loaded = {};
-      await Promise.all(
-        missing.map(async (g) => {
-          try {
-            const endpoint =
-              (typeof API_ENDPOINTS.BOOKINGS?.BY_ID === "function" && API_ENDPOINTS.BOOKINGS.BY_ID(g.id)) ||
-              `${API_ENDPOINTS.BOOKINGS.ALL}/${g.id}`;
-            const res = await apiRequest(endpoint, { forceRefresh: true });
-            const detail = unwrapBooking(res);
-            if (detail) loaded[g.id] = detail;
-            else detailAttempts.current.delete(String(g.id));
-          } catch {
-            detailAttempts.current.delete(String(g.id));
-          }
-        })
-      );
-      if (Object.keys(loaded).length) setBookingDetails((prev) => ({ ...prev, ...loaded }));
-    })();
-  }, [unifiedGuests]);
 
   const withApiStay = (g) => {
     const d = bookingDetails[g.id];

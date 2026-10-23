@@ -732,8 +732,8 @@ export default function CheckInWizardPage({
   const effectiveGstRate = Number(gstBookingResult.roomBreakdowns?.[0]?.gstRate ?? 18) || 0;
   useEffect(() => {
     setCheckInData((prev) => {
-      // Advance defaults to the full total (incl. GST) until the receptionist edits it
-      const advance = prev.isPaidManuallyEdited ? Number(prev.paid) || 0 : calculatedGrandTotal;
+      // Advance stays 0 unless the receptionist types an amount
+      const advance = prev.isPaidManuallyEdited ? Number(prev.paid) || 0 : 0;
       const due = Math.max(0, calculatedGrandTotal - advance);
       if (
         prev.paid === advance &&

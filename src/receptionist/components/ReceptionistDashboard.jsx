@@ -411,13 +411,15 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
         return;
       }
 
-      const resolvedRoomIds = (checkInData.roomIds && checkInData.roomIds.length > 0)
-        ? checkInData.roomIds.map(String)
-        : checkInData.roomId
-          ? [String(checkInData.roomId)]
-          : (checkInData.selectedRooms && checkInData.selectedRooms.length > 0)
-            ? checkInData.selectedRooms.map((r) => String(r._id || r.id || r))
-            : [];
+      const resolvedRoomIds = [...new Set(
+        [
+          ...(Array.isArray(checkInData.roomIds) ? checkInData.roomIds : []),
+          ...(Array.isArray(checkInData.selectedRooms) ? checkInData.selectedRooms.map((r) => r?._id || r?.id || r) : []),
+          checkInData.roomId,
+        ]
+          .map((id) => Number(id))
+          .filter((id) => Number.isInteger(id) && id > 0)
+      )];
 
       const resolvedRoomNumbers = (checkInData.selectedRooms && checkInData.selectedRooms.length > 0)
         ? checkInData.selectedRooms.map((r) => String(r.roomNumber)).join(", ")
@@ -434,15 +436,17 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
         user?.hotel?.id ||
         getActiveHotelId();
 
-      let bookingRoomId = Number(checkInData.roomId || resolvedRoomIds[0] || 0);
-      if (!bookingRoomId || bookingRoomId <= 0) {
+      let bookingRoomIds = resolvedRoomIds;
+      if (bookingRoomIds.length === 0) {
         const fallbackRoom = rooms?.find((r) => r.status === "AVAILABLE") || rooms?.[0];
-        bookingRoomId = Number(fallbackRoom?.id || fallbackRoom?._id || 10);
+        const fallbackId = Number(fallbackRoom?.id || fallbackRoom?._id || 0);
+        if (fallbackId > 0) bookingRoomIds = [fallbackId];
       }
+      const bookingRoomId = bookingRoomIds[0];
 
       const payload = {
         hotel_id: effectiveHotelId ? Number(effectiveHotelId) : undefined,
-        room_id: bookingRoomId,
+        room_id: bookingRoomIds,
         primary_guest_name: checkInData.fullName || checkInData.guestName || "Walk-in Guest",
         secondary_guest_name: (checkInData.accompanyingGuests && checkInData.accompanyingGuests[0]?.name) || null,
         mobile_number: checkInData.mobile || checkInData.mobileNumber || checkInData.phone || "",
@@ -483,7 +487,8 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
         mobileNumber: checkInData.mobile || checkInData.mobileNumber || checkInData.phone || "",
         checkInDate: checkInData.checkInDate,
         checkOutDate: checkInData.checkOutDate,
-        roomId: String(bookingRoomId),
+        roomId: String(bookingRoomId || ""),
+        roomIds: bookingRoomIds.map(String),
         roomNumber: resolvedRoomNumbers,
         isInstantCheckIn: true,
       };
@@ -496,21 +501,22 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
       const confirmedBooking = res?.data?.booking || res?.data || payload;
       const createdBookingId = confirmedBooking?.id || confirmedBooking?._id || res?.data?.id;
 
-      // Update physical room status to OCCUPIED on server
-      try {
-        await apiRequest(API_ENDPOINTS.ROOMS.BY_ID(bookingRoomId), {
-          method: "PUT",
-          body: { status: "OCCUPIED" },
-        });
-      } catch (e) {
-        console.warn("Could not mark room status to OCCUPIED via API:", e);
-      }
+      // Update physical room status to OCCUPIED on server for every room on this booking
+      await Promise.all(bookingRoomIds.map(async (roomId) => {
+        try {
+          await apiRequest(API_ENDPOINTS.ROOMS.BY_ID(roomId), {
+            method: "PUT",
+            body: { status: "OCCUPIED" },
+          });
+        } catch (e) {
+          console.warn(`Could not mark room ${roomId} as OCCUPIED via API:`, e);
+        }
+      }));
 
-
-      // Optimistically update rooms in local state so room turns OCCUPIED instantly
+      // Optimistically update rooms in local state so every booked room turns OCCUPIED instantly
       setRooms((prev) =>
         prev.map((r) =>
-          (r.id === bookingRoomId || r._id === bookingRoomId)
+          (bookingRoomIds.includes(Number(r.id)) || bookingRoomIds.includes(Number(r._id)))
             ? { ...r, status: "OCCUPIED", is_available: false }
             : r
         )
@@ -727,7 +733,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
       accompanyingGuests: [],
       activeRoomId: String(firstRoom._id),
       roomId: String(firstRoom._id),
-      roomIds: roomsArr.map((r) => String(r._id)),
+      roomIds: roomsArr.map((r) => String(r._id || r.id)),
       roomNumber: roomNumbersStr,
       selectedRooms: roomsArr,
       selectedRoomNumbers: roomsArr.map((r) => String(r.roomNumber)),
@@ -748,8 +754,9 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
       checkOutTime: hotelSettings?.checkOutTime || "12:00",
       discountAmount: 0,
       total: totalTariff,
-      paid: totalTariff,
-      due: 0,
+      paid: 0,
+      due: totalTariff,
+      isPaidManuallyEdited: false,
     });
     setActiveStep(0);
     setIsCheckInOpen(true);

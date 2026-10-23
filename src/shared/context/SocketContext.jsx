@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from "react";
 import { io } from "socket.io-client";
-import { getApiBaseUrl, LIVE_API_URL } from "@/config/api";
+import { getApiBaseUrl } from "@/config/api";
 import { getActiveHotelId } from "@/shared/utils/cookieAuth";
 
 const SocketContext = createContext({
@@ -16,8 +16,7 @@ const SocketContext = createContext({
   joinRoom: () => {},
 });
 
-// Live Railway host. Localhost pages proxy HTTP, but Socket.IO must reach the API directly.
-const SOCKET_URL = (LIVE_API_URL || "https://hotelmanagementbackendnew-production.up.railway.app").replace(/\/+$/, "");
+const SOCKET_URL = getApiBaseUrl();
 
 export const SOCKET_ENABLED = true;
 // Logs connection problems and live events in the browser console (development only)
@@ -210,8 +209,7 @@ export function SocketProvider({ children }) {
     const { token: sessionToken } = readSession();
     if (!sessionToken) return;
 
-    const apiBase = getApiBaseUrl();
-    const socketUrl = apiBase && /localhost:\d+|127\.0\.0\.1:\d+/.test(apiBase) ? apiBase : SOCKET_URL;
+    const socketUrl = getApiBaseUrl() || SOCKET_URL;
     const existing = socketRef.current && socketRef.current !== dummySocket ? socketRef.current : null;
     let socket = existing;
 

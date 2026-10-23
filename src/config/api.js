@@ -1,8 +1,5 @@
 /**
- * 🛠️ API Environment Configuration
- * 
- * Connected to Hotel Management Backend (TradeNexa Architecture - MySQL Knex)
- * Live Base URL: https://hotelmanagementbackendnew-production.up.railway.app
+ * API configuration. All HTTP calls use NEXT_PUBLIC_API_URL as the backend host.
  */
 import axios from "axios";
 import { toast } from "../shared/utils/toast.js";
@@ -33,50 +30,9 @@ async function apiFetch(url, config = {}) {
   };
 }
 
-export const ENVIRONMENT = "LIVE"; // 👉 Toggle "LOCAL" or "LIVE" here
+export const API_BASE_URL = String(process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/+$/, "");
 
-// NEXT_PUBLIC_* values are inlined into the browser bundle only when referenced
-// statically, so each one is listed here instead of read with a dynamic key.
-const PUBLIC_ENV = {
-  NEXT_PUBLIC_API_MODE: process.env.NEXT_PUBLIC_API_MODE,
-  NEXT_PUBLIC_LOCAL_API_URL: process.env.NEXT_PUBLIC_LOCAL_API_URL,
-  NEXT_PUBLIC_LIVE_API_URL: process.env.NEXT_PUBLIC_LIVE_API_URL,
-  NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
-  NEXT_PUBLIC_ADMIN_URL: process.env.NEXT_PUBLIC_ADMIN_URL,
-  NEXT_PUBLIC_LOCAL_ADMIN_URL: process.env.NEXT_PUBLIC_LOCAL_ADMIN_URL,
-};
-
-const envValue = (name) => String(PUBLIC_ENV[name] || "").trim();
-
-export const LOCAL_API_URL = (envValue("NEXT_PUBLIC_LOCAL_API_URL") || "http://localhost:5001").replace(/\/+$/, "");
-export const LIVE_API_URL = (
-  envValue("NEXT_PUBLIC_API_URL") ||
-  envValue("NEXT_PUBLIC_LIVE_API_URL") ||
-  "https://hotelmanagementbackendnew-production.up.railway.app"
-).replace(/\/+$/, "");
-
-export const LOCAL_ADMIN_URL = (envValue("NEXT_PUBLIC_LOCAL_ADMIN_URL") || "http://localhost:3001").replace(/\/+$/, "");
-export const LIVE_ADMIN_URL = (envValue("NEXT_PUBLIC_ADMIN_URL") || "https://hotel-management-admin-livid.vercel.app").replace(/\/+$/, "");
-
-export const getApiBaseUrl = () => {
-  const mode = envValue("NEXT_PUBLIC_API_MODE").toUpperCase() || "LIVE";
-  if (mode === "LOCAL") return LOCAL_API_URL;
-  return LIVE_API_URL;
-};
-
-// Helper function to switch environment dynamically (ONLINE / OFFLINE)
-export const setApiEnvironment = (mode) => {
-  if (typeof window === "undefined") return;
-  const envMode = (mode || "").trim().toUpperCase();
-  if (envMode === "LIVE" || envMode === "LOCAL") {
-    localStorage.setItem("API_ENVIRONMENT", envMode);
-  } else {
-    localStorage.removeItem("API_ENVIRONMENT");
-  }
-  window.location.reload();
-};
-
-export const API_BASE_URL = getApiBaseUrl();
+export const getApiBaseUrl = () => API_BASE_URL;
 
 /**
  * Complete API Endpoints Catalog matching 100% of the Postman Collection:
@@ -315,8 +271,8 @@ export const API_ENDPOINTS = createCaseFlexibleProxy({
   SETTINGS: {
     PUBLIC: `${API_BASE_URL}/api/v1/settings`,
   },
-  UPLOAD: `${LIVE_API_URL}/api/v1/upload`,
-  UPLOAD_MULTIPLE: `${LIVE_API_URL}/api/v1/upload/multiple`,
+  UPLOAD: `${API_BASE_URL}/api/v1/upload`,
+  UPLOAD_MULTIPLE: `${API_BASE_URL}/api/v1/upload/multiple`,
   TRIAL_REQUESTS: {
     SUBMIT: `${API_BASE_URL}/api/v1/users`,
     SUPER_ADMIN_LIST: `${API_BASE_URL}/api/v1/users?role=HOTEL_ADMIN`,
@@ -1861,31 +1817,14 @@ async function executeApiRequest(endpoint, options = {}) {
     cleanEndpoint = `${pathPart}?${newParams.toString()}`;
   }
 
-  const resolvedBase = getApiBaseUrl();
-  const currentBase = (resolvedBase === "" ? "" : (resolvedBase || LIVE_API_URL)).replace(/\/+$/, "");
+  const currentBase = API_BASE_URL;
   let fullUrl;
   if (cleanEndpoint.startsWith("http://") || cleanEndpoint.startsWith("https://")) {
-    fullUrl = cleanEndpoint
-      .replace(/^https?:\/\/(localhost|127\.0\.0\.1):500[01]/, currentBase)
-      .replace(/^https?:\/\/hotel-management-backend-9qf5\.onrender\.com/, currentBase)
-      .replace(/^https?:\/\/hotelmanagementbackend-dev\.up\.railway\.app/, currentBase)
-      .replace(/^https?:\/\/accomplished-smile-dev\.up\.railway\.app/, currentBase);
+    fullUrl = cleanEndpoint;
   } else {
     fullUrl = currentBase
       ? `${currentBase}/${cleanEndpoint.replace(/^\/+/, "")}`
       : `/${cleanEndpoint.replace(/^\/+/, "")}`;
-  }
-
-  // Safety guard: prevent any stale render or old dev domain from ever being contacted
-  if (
-    fullUrl.includes("hotel-management-backend-9qf5.onrender.com") ||
-    fullUrl.includes("hotelmanagementbackend-dev.up.railway.app") ||
-    fullUrl.includes("accomplished-smile-dev.up.railway.app")
-  ) {
-    fullUrl = fullUrl
-      .replace("https://hotel-management-backend-9qf5.onrender.com", LIVE_API_URL)
-      .replace("https://hotelmanagementbackend-dev.up.railway.app", LIVE_API_URL)
-      .replace("https://accomplished-smile-dev.up.railway.app", LIVE_API_URL);
   }
 
   // Pre-flight check for /check-out: Ensure paid_amount matches booking due if 0 or empty was passed
@@ -1927,27 +1866,10 @@ async function executeApiRequest(endpoint, options = {}) {
     }
   }
 
-  // Localhost browser cannot complete the cross-origin booking upload.
-  // Send it to this Next app; next.config rewrites /api to the live Railway URL.
-  if (
-    typeof window !== "undefined" &&
-    /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname) &&
-    resolvedBase !== LOCAL_API_URL &&
-    /^https?:\/\//i.test(fullUrl)
-  ) {
-    try {
-      const parsed = new URL(fullUrl);
-      fullUrl = `${parsed.pathname}${parsed.search}`;
-    } catch {
-      // keep the absolute URL
-    }
-  }
-
   if (isFormData && config.body instanceof FormData) {
     config.body = await shrinkFormImages(config.body);
   }
 
-  // Same-origin on localhost (proxied to Railway). Live URL on the deployed site.
   const candidateUrls = [fullUrl];
 
   let response;

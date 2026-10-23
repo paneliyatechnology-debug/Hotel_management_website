@@ -1,15 +1,6 @@
 import { NextResponse } from "next/server";
 
-const IS_LOCAL_MODE = (process.env.NEXT_PUBLIC_API_MODE || "").trim().toUpperCase() === "LOCAL";
-
-const TARGET_BASE_URL = (
-  IS_LOCAL_MODE
-    ? process.env.NEXT_PUBLIC_LOCAL_API_URL || "http://localhost:5001"
-    : process.env.NEXT_PUBLIC_LIVE_API_URL || "https://hotelmanagementbackendnew-production.up.railway.app"
-).replace(/\/+$/, "");
-
-// Origin the backend expects: the local app when talking to the local backend
-const FORWARDED_ORIGIN = IS_LOCAL_MODE ? "http://localhost:3000" : "https://myownpms.com";
+const TARGET_BASE_URL = String(process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/+$/, "");
 
 async function proxyRequest(request, context) {
   try {
@@ -17,6 +8,9 @@ async function proxyRequest(request, context) {
     const pathSegments = params?.path || [];
     const path = Array.isArray(pathSegments) ? pathSegments.join("/") : pathSegments;
     const url = new URL(request.url);
+    if (!TARGET_BASE_URL) {
+      return NextResponse.json({ message: "NEXT_PUBLIC_API_URL is not set." }, { status: 500 });
+    }
     const targetUrl = `${TARGET_BASE_URL}/api/${path}${url.search}`;
 
     const headers = new Headers();
@@ -35,9 +29,11 @@ async function proxyRequest(request, context) {
       }
     });
 
-    // Emulate allowed origin so Railway server allows the request
-    headers.set("Origin", FORWARDED_ORIGIN);
-    headers.set("Referer", FORWARDED_ORIGIN);
+    const requestOrigin = request.headers.get("origin") || request.headers.get("referer");
+    if (requestOrigin) {
+      headers.set("Origin", requestOrigin);
+      headers.set("Referer", requestOrigin);
+    }
 
     const method = request.method;
     const fetchOptions = {

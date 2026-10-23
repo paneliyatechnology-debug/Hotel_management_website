@@ -1,13 +1,5 @@
 /** @type {import('next').NextConfig} */
-const IS_LOCAL_MODE = (process.env.NEXT_PUBLIC_API_MODE || "").trim().toUpperCase() === "LOCAL";
-const LOCAL_BACKEND_URL = (process.env.NEXT_PUBLIC_LOCAL_API_URL || "http://localhost:5001").trim().replace(/\/+$/, "");
-
-const BACKEND_URL = IS_LOCAL_MODE ? LOCAL_BACKEND_URL : (
-  process.env.BACKEND_PROXY_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  process.env.NEXT_PUBLIC_LIVE_API_URL ||
-  "https://hotelmanagementbackendnew-production.up.railway.app"
-).trim().replace(/\/+$/, "");
+const BACKEND_URL = String(process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/+$/, "");
 
 const nextConfig = {
   allowedDevOrigins: [
@@ -22,6 +14,7 @@ const nextConfig = {
     removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error"] } : false,
   },
   async rewrites() {
+    if (!BACKEND_URL) return [];
     return [
       {
         source: "/mobile-sign",

@@ -129,9 +129,10 @@ export default function DashboardLayout({
   };
 
   // Check if Hotel is Disabled
+  const hotelActive = user?.hotel?.is_active ?? user?.hotel?.isActive;
   const isHotelDisabled =
     user?.role !== "SUPER_ADMIN" &&
-    (user?.hotel?.status === "DISABLED" || user?.hotel?.status === "SUSPENDED");
+    (user?.hotel?.status === "DISABLED" || user?.hotel?.status === "SUSPENDED" || hotelActive === false);
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: themeConfig.bgMain }}>

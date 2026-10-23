@@ -595,33 +595,6 @@ export default function HotelOverviewPage({
     });
   }, [bookings, guests, stayById, todayStr]);
 
-  const stayFetchIds = useRef(new Set());
-
-  useEffect(() => {
-    const missing = (bookings || []).filter((booking) => {
-      const id = String(booking?.id || booking?._id || "");
-      if (!id || stayFetchIds.current.has(id)) return false;
-      return formatStayLabel(booking, "in") === "—" || formatStayLabel(booking, "out") === "—";
-    });
-    if (!missing.length) return undefined;
-    missing.forEach((booking) => stayFetchIds.current.add(String(booking.id || booking._id)));
-    (async () => {
-      const loaded = {};
-      await Promise.all(missing.map(async (booking) => {
-        const id = String(booking.id || booking._id);
-        try {
-          const res = await apiRequest(API_ENDPOINTS.BOOKINGS.BY_ID(id), { forceRefresh: true });
-          const body = res?.data?.booking || res?.data?.data || res?.data || res?.booking || null;
-          if (body && typeof body === "object" && !Array.isArray(body) && Object.keys(body).length) loaded[id] = body;
-          else stayFetchIds.current.delete(id);
-        } catch {
-          stayFetchIds.current.delete(id);
-        }
-      }));
-      if (Object.keys(loaded).length) setStayById((prev) => ({ ...prev, ...loaded }));
-    })();
-  }, [bookings]);
-
   function formatStayLabel(record, kind) {
     if (!record || typeof record !== "object") return "—";
     const names = kind === "in"

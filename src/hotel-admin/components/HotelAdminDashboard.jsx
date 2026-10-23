@@ -195,8 +195,8 @@ function adaptHotelDashboard(data) {
         day: day.day,
         dayName: day.day,
         amount: Number(day.revenue || 0),
-        cashAmount: 0,
-        upiAmount: 0,
+        cashAmount: Number(day.cash || 0),
+        upiAmount: Number(day.upi || 0),
       })),
     },
     operationsSummary: {
@@ -302,11 +302,10 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
 
       if (forceRefresh) {
         endpointsToFetch.push(
-          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(adaptHotelDashboard(res.data))),
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
           apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`).then((res) => setBookings(extractRecords(res))),
           apiRequest(`${API_ENDPOINTS.RECEPTIONIST.GUESTS}?page=1&limit=100`).then((res) => setGuests(extractRecords(res))),
-          apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=100`).then((res) => setRoomTypes(normalizeRoomTypes(res))),
+          apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=10`).then((res) => setRoomTypes(normalizeRoomTypes(res))),
           apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings)),
           reloadStaffList()
         );
@@ -314,9 +313,8 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
         // Route 0: OVERVIEW / DASHBOARD
         if (tabIndex === 0) {
           endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(adaptHotelDashboard(res.data))),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
-            apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=100`).then((res) => setRoomTypes(normalizeRoomTypes(res))),
+            apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=10`).then((res) => setRoomTypes(normalizeRoomTypes(res))),
             apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`).then((res) => setBookings(extractRecords(res))),
             apiRequest(`${API_ENDPOINTS.RECEPTIONIST.GUESTS}?page=1&limit=100`).then((res) => setGuests(extractRecords(res))),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
@@ -338,15 +336,13 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
         // Route 3: ROOMS & CATEGORIES
         else if (tabIndex === 3) {
           endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(adaptHotelDashboard(res.data))),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
-            apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=100`).then((res) => setRoomTypes(normalizeRoomTypes(res)))
+            apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=10`).then((res) => setRoomTypes(normalizeRoomTypes(res)))
           );
         }
         // Route 5: SUBSCRIPTION
         else if (tabIndex === 5) {
           endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD).then((res) => res?.data && setDashboardData(adaptHotelDashboard(res.data))),
             apiRequest(API_ENDPOINTS.SUBSCRIPTION_PLANS.PUBLIC),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => {
               const profile = res?.data || res;
@@ -381,6 +377,102 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
   useEffect(() => {
     loadTabData(activeNav);
   }, [activeNav]);
+
+  useEffect(() => {
+    const localKey = (value) => {
+      if (!value) return "";
+      if (typeof value === "string" && value.includes("/")) {
+        const parts = value.split("/");
+        if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+      }
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value).split("T")[0];
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${date.getFullYear()}-${month}-${day}`;
+    };
+    const amountOf = (record) => {
+      const paid = Number(record.paidAmount ?? record.paid_amount ?? record.advancePaymentAmount ?? record.advance_payment_amount ?? 0);
+      const total = Number(record.totalAmount ?? record.total_amount ?? record.grandTotal ?? record.grand_total ?? 0);
+      const base = Number(record.baseAmount ?? record.base_amount ?? 0);
+      const rate = Number(record.pricePerNight ?? record.price_per_night ?? record.customPricePerNight ?? 0);
+      const nights = Number(record.nights ?? record.numberOfNights ?? record.number_of_nights ?? 0);
+      return paid || total || base || (rate > 0 ? rate * (nights || 1) : 0);
+    };
+    const startOf = (record) => localKey(record.check_in_date || record.checkInDate || record.actual_check_in || record.actualCheckIn || record.created_at || record.createdAt);
+    const endOf = (record) => localKey(record.check_out_date || record.checkOutDate || record.actual_check_out || record.actualCheckOut) || startOf(record);
+    const methodOf = (record) => String(record.payment_method || record.paymentMethod || "").toUpperCase();
+    const seen = new Map();
+    [...bookings, ...guests].forEach((record) => {
+      if (!record || typeof record !== "object") return;
+      const id = String(record.id || record._id || `${startOf(record)}-${record.guestName || record.name || amountOf(record)}`);
+      if (!seen.has(id)) seen.set(id, record);
+    });
+    const records = [...seen.values()];
+    const today = new Date();
+    const todayKey = localKey(today);
+    const days = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(today);
+      date.setDate(today.getDate() - (6 - index));
+      return {
+        date: localKey(date),
+        day: date.toLocaleDateString("en-US", { weekday: "short" }),
+        revenue: 0,
+        cash: 0,
+        upi: 0,
+      };
+    });
+    const addToDay = (key, amount, method) => {
+      const row = days.find((day) => day.date === key);
+      if (!row || !amount) return;
+      row.revenue += amount;
+      if (method.includes("UPI") || method.includes("ONLINE") || method.includes("CARD")) row.upi += amount;
+      else row.cash += amount;
+    };
+    let monthRevenue = 0;
+    const monthKey = todayKey.slice(0, 7);
+    records.forEach((record) => {
+      const amount = amountOf(record);
+      const start = startOf(record);
+      let end = endOf(record);
+      const status = String(record.status || record.booking_status || "").toUpperCase();
+      if ((!end || end === start) && (status === "CHECKED_IN" || status === "IN_HOUSE" || status === "IN-HOUSE" || status === "OCCUPIED")) {
+        end = todayKey;
+      }
+      const coversToday = start && start <= todayKey && (end || start) >= todayKey;
+      const bucket = days.some((day) => day.date === start) ? start : coversToday ? todayKey : "";
+      addToDay(bucket, amount, methodOf(record));
+      if ((start && start.startsWith(monthKey)) || coversToday) monthRevenue += amount;
+    });
+    const todayRow = days[days.length - 1];
+    const occupied = rooms.filter((room) => {
+      const status = String(room.status || room.room_status || "").toUpperCase();
+      return status === "OCCUPIED" || status === "CHECKED_IN";
+    }).length;
+    setDashboardData((prev) => adaptHotelDashboard({
+      ...(prev || {}),
+      kpis: {
+        today_revenue: todayRow.revenue,
+        month_revenue: monthRevenue,
+        total_outstanding_due: records.reduce((sum, record) => sum + Number(record.dueAmount || record.due_amount || 0), 0),
+        occupancy_rate_percentage: rooms.length ? Math.round((occupied / rooms.length) * 100) : 0,
+        total_physical_rooms: rooms.length,
+        active_staff_count: staffList.length,
+      },
+      today_pulse: {
+        current_in_house_guests: records.filter((record) => {
+          const status = String(record.status || record.booking_status || "").toUpperCase();
+          return status === "CHECKED_IN" || status === "IN_HOUSE" || status === "IN-HOUSE" || status === "OCCUPIED";
+        }).length,
+      },
+      weekly_revenue_graph: days,
+      revenue_by_payment_method: {
+        CASH: days.reduce((sum, day) => sum + day.cash, 0),
+        UPI: days.reduce((sum, day) => sum + day.upi, 0),
+      },
+      subscription: prev?.subscription,
+    }));
+  }, [bookings, guests, rooms, staffList]);
 
   const fetchAllData = async () => {
     await loadTabData(activeNav, true);

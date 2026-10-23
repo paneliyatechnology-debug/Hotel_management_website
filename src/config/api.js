@@ -4,7 +4,34 @@
  * Connected to Hotel Management Backend (TradeNexa Architecture - MySQL Knex)
  * Live Base URL: https://hotelmanagementbackendnew-production.up.railway.app
  */
+import axios from "axios";
+import { toast } from "../shared/utils/toast.js";
 import { getCookie, setCookie, clearAuthCookies, getActiveHotelId } from '../shared/utils/cookieAuth.js';
+
+const http = axios.create({ validateStatus: () => true });
+
+async function apiFetch(url, config = {}) {
+  const method = String(config.method || "GET").toUpperCase();
+  const headers = { ...(config.headers || {}) };
+  let data = config.body;
+  if (method === "GET" || method === "HEAD" || (typeof FormData !== "undefined" && data instanceof FormData)) {
+    delete headers["Content-Type"];
+    delete headers["content-type"];
+  }
+  const res = await http.request({
+    url,
+    method,
+    headers,
+    data: method === "GET" || method === "HEAD" ? undefined : data,
+    withCredentials: config.credentials === "include",
+  });
+  return {
+    ok: res.status >= 200 && res.status < 300,
+    status: res.status,
+    statusText: res.statusText || "",
+    json: async () => (res.data === undefined || res.data === "" ? {} : res.data),
+  };
+}
 
 export const ENVIRONMENT = "LIVE"; // 👉 Toggle "LOCAL" or "LIVE" here
 
@@ -1765,7 +1792,8 @@ async function executeApiRequest(endpoint, options = {}) {
   const isFormData = typeof FormData !== "undefined" && preparedBody instanceof FormData;
   const reqHeaders = { ...headers };
 
-  if (!isFormData && !reqHeaders["Content-Type"]) {
+  const requestMethod = String(method || "GET").toUpperCase();
+  if (!isFormData && !reqHeaders["Content-Type"] && requestMethod !== "GET" && requestMethod !== "HEAD") {
     reqHeaders["Content-Type"] = "application/json";
   }
   if (isFormData && reqHeaders["Content-Type"]) {
@@ -1876,7 +1904,7 @@ async function executeApiRequest(endpoint, options = {}) {
     if ((!payloadObj.paid_amount || Number(payloadObj.paid_amount) === 0) && bId) {
       try {
         const fetchUrl = `${currentBase}/api/v1/bookings/${bId}`;
-        const checkRes = await fetch(fetchUrl, {
+        const checkRes = await apiFetch(fetchUrl, {
           method: "GET",
           headers: reqHeaders,
           credentials: "include",
@@ -1932,7 +1960,7 @@ async function executeApiRequest(endpoint, options = {}) {
   for (let attempt = 1; attempt <= maxAttempts && !response; attempt++) {
     for (const targetUrl of candidateUrls) {
       try {
-        response = await fetch(targetUrl, config);
+        response = await apiFetch(targetUrl, config);
         if (response && response.status < 500) break;
         if (response && response.ok) break;
       } catch (netErr) {
@@ -1977,7 +2005,7 @@ async function executeApiRequest(endpoint, options = {}) {
       const storedRefreshToken = localStorage.getItem("refreshToken") || getCookie("refreshToken");
       if (storedRefreshToken && !options._retry) {
         try {
-          const refreshRes = await fetch(API_ENDPOINTS.AUTH.REFRESH_TOKEN, {
+          const refreshRes = await apiFetch(API_ENDPOINTS.AUTH.REFRESH_TOKEN, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2013,7 +2041,14 @@ async function executeApiRequest(endpoint, options = {}) {
               _retry: true,
             });
           }
+          if (refreshRes.status !== 401 && refreshRes.status !== 403) {
+            const error = new Error(refreshData?.message || "Unable to refresh the session.");
+            error.status = response.status;
+            error.data = data;
+            throw error;
+          }
         } catch (refreshErr) {
+          if (refreshErr?.status) throw refreshErr;
           console.warn("Auto token refresh failed:", refreshErr);
         }
       }
@@ -2054,6 +2089,31 @@ async function executeApiRequest(endpoint, options = {}) {
           });
         }
       }
+    }
+
+    if (
+      response.status === 403 &&
+      typeof window !== "undefined" &&
+      /deactivat/i.test(String(firstErrorMessage || ""))
+    ) {
+      try {
+        const stored = JSON.parse(localStorage.getItem("user") || "{}");
+        if (stored?.role && stored.role !== "SUPER_ADMIN") {
+          const hotel = stored.hotel && typeof stored.hotel === "object" ? stored.hotel : {};
+          stored.hotel = { ...hotel, is_active: false, isActive: false, status: "DISABLED" };
+          localStorage.setItem("user", JSON.stringify(stored));
+          window.dispatchEvent(new CustomEvent("hotel-status-lockout", {
+            detail: {
+              hotelStatus: "DISABLED",
+              message: firstErrorMessage || "This hotel has been deactivated. Please contact the platform administrator.",
+            },
+          }));
+        }
+      } catch {}
+    }
+
+    if (response.status >= 500 && typeof window !== "undefined") {
+      toast.error(firstErrorMessage || "Server error. Please try again.", { toastId: "server-error" });
     }
 
     const error = new Error(firstErrorMessage || `API Error: ${response.statusText} (${response.status})`);

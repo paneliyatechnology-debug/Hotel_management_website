@@ -188,6 +188,20 @@ export default function UnifiedLogin({ onLoginSuccess }) {
             return;
           }
 
+          const hotelRecord = user.hotel && typeof user.hotel === "object" ? user.hotel : null;
+          const hotelActive = hotelRecord ? (hotelRecord.is_active ?? hotelRecord.isActive) : user.is_active ?? user.isActive;
+          if (user.role !== "SUPER_ADMIN" && hotelActive === false) {
+            localStorage.removeItem("token");
+            localStorage.removeItem("refreshToken");
+            localStorage.removeItem("user");
+            clearAuthCookies();
+            const errStr = "This hotel has been deactivated. Please contact the platform administrator.";
+            toast.error(errStr);
+            setError(errStr);
+            setLoading(false);
+            return;
+          }
+
           localStorage.setItem("user", JSON.stringify(user));
           setAuthCookies({ accessToken: token, refreshToken, user });
 

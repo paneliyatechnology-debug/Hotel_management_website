@@ -89,11 +89,12 @@ function HotelWebAppContent() {
     const hotel = userData.hotel;
     if (!hotel) return { locked: false, type: "EXPIRED", reason: "" };
 
-    if (hotel.status === "DISABLED" || hotel.status === "SUSPENDED") {
+    const hotelActive = hotel.is_active ?? hotel.isActive;
+    if (hotel.status === "DISABLED" || hotel.status === "SUSPENDED" || hotelActive === false) {
       return {
         locked: true,
-        type: hotel.status,
-        reason: hotel.statusReason || `Hotel account has been ${hotel.status.toLowerCase()} by Super Admin policy.`,
+        type: "DISABLED",
+        reason: hotel.statusReason || "This hotel has been deactivated. Please contact the platform administrator.",
       };
     }
 
@@ -194,13 +195,14 @@ function HotelWebAppContent() {
         const userHotelId = String(user?.hotel?._id || user?.hotel || user?.hotelId || "");
         const targetHotelId = String(updatedHotel._id || updatedHotel.id || "");
         if (userHotelId && targetHotelId && userHotelId === targetHotelId) {
-          if (updatedHotel.status === "DISABLED" || updatedHotel.status === "SUSPENDED" || updatedHotel.status === "EXPIRED") {
+          const hotelTurnedOff = updatedHotel.is_active === false || updatedHotel.isActive === false;
+          if (updatedHotel.status === "DISABLED" || updatedHotel.status === "SUSPENDED" || updatedHotel.status === "EXPIRED" || hotelTurnedOff) {
             setLockout({
               locked: true,
-              type: updatedHotel.status,
-              reason: updatedHotel.statusReason || `Your hotel account has been ${updatedHotel.status.toLowerCase()} by Super Admin policy.`,
+              type: "DISABLED",
+              reason: updatedHotel.statusReason || "This hotel has been deactivated. Please contact the platform administrator.",
             });
-          } else if (updatedHotel.status === "ACTIVE") {
+          } else if (updatedHotel.status === "ACTIVE" || updatedHotel.is_active === true || updatedHotel.isActive === true) {
             setLockout({ locked: false, type: "EXPIRED", reason: "" });
           }
         }
@@ -266,7 +268,15 @@ function HotelWebAppContent() {
             checkUserLockout(res.data);
           }
         })
-        .catch(() => {});
+        .catch((err) => {
+          const message = String(err?.message || "");
+          if (err?.status === 403 && /deactivat/i.test(message)) {
+            checkUserLockout({
+              role: "HOTEL_ADMIN",
+              hotel: { is_active: false, status: "DISABLED", statusReason: message },
+            });
+          }
+        });
     }
 
     const handleLockoutEvent = (e) => {

@@ -207,16 +207,17 @@ export function SocketProvider({ children }) {
 
     if (typeof window === "undefined") return;
 
-    if (socketRef.current && socketRef.current.connected) {
-      joinRoom();
-      return;
-    }
+    const { token: sessionToken } = readSession();
+    if (!sessionToken) return;
 
     const apiBase = getApiBaseUrl();
     const socketUrl = apiBase && /localhost:\d+|127\.0\.0\.1:\d+/.test(apiBase) ? apiBase : SOCKET_URL;
+    const existing = socketRef.current && socketRef.current !== dummySocket ? socketRef.current : null;
+    let socket = existing;
 
+    if (!socket) {
     const { token } = readSession();
-    const socket = io(socketUrl, {
+    socket = io(socketUrl, {
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionAttempts: Infinity,
@@ -240,6 +241,9 @@ export function SocketProvider({ children }) {
     });
 
     socketRef.current = socket;
+    }
+
+    if (existing) socket.removeAllListeners();
 
     socket.on("connect", () => {
       setIsConnected(true);
@@ -367,8 +371,6 @@ export function SocketProvider({ children }) {
       window.removeEventListener("storage", handleAuthChange);
       window.removeEventListener("focus", handleWindowFocus);
       window.removeEventListener("visibilitychange", handleWindowFocus);
-      socket.disconnect();
-      socketRef.current = dummySocket;
     };
   }, [joinRoom]);
 

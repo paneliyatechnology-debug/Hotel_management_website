@@ -672,26 +672,26 @@ export default function AvailableRoomsPage({
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
             <Tooltip title="All categories">
               <IconButton
-                onClick={() => {
+              onClick={() => {
                   if (typeof window !== "undefined") sessionStorage.setItem("receptionist.rooms.category", "none");
-                  if (cameFromExternalRoute && onNavigateTab) {
-                    setCameFromExternalRoute(false);
-                    setSelectedCategory(null);
-                    onNavigateTab(0);
-                  } else {
-                    setSelectedCategory(null);
-                  }
-                }}
-                sx={{
+                if (cameFromExternalRoute && onNavigateTab) {
+                  setCameFromExternalRoute(false);
+                  setSelectedCategory(null);
+                  onNavigateTab(0);
+                } else {
+                  setSelectedCategory(null);
+                }
+              }}
+              sx={{
                   width: 36,
                   height: 36,
-                  borderRadius: "10px",
+                borderRadius: "10px",
                   border: `1px solid ${themeConfig.border}`,
-                  bgcolor: themeConfig.bgCard || "#FFFFFF",
+                bgcolor: themeConfig.bgCard || "#FFFFFF",
                   color: themeConfig.textMain,
-                  "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
-                }}
-              >
+                "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
+              }}
+            >
                 <ArrowBack sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
@@ -722,14 +722,14 @@ export default function AvailableRoomsPage({
           /* Categories overview: search + quick summary */
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", flex: 1, minWidth: 0 }}>
             <TextField
-              size="small"
+                size="small"
               value={categorySearch}
               onChange={(e) => {
                 setCategorySearch(e.target.value);
               }}
               placeholder="Search category"
               autoComplete="off"
-              sx={{
+                sx={{
                 width: { xs: "100%", sm: 280 },
                 "& .MuiOutlinedInput-root": {
                   borderRadius: "12px",
@@ -848,19 +848,19 @@ export default function AvailableRoomsPage({
                             <MeetingRoom sx={{ fontSize: 18, flexShrink: 0, color: themeConfig.primary }} />
                             <Tooltip title={cat.name} arrow>
                               <Typography noWrap sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "1.05rem", lineHeight: 1.3 }}>
-                                {cat.name}
-                              </Typography>
+                            {cat.name}
+                          </Typography>
                             </Tooltip>
-                          </Box>
+                        </Box>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mt: 0.5 }}>
                             <KingBed sx={{ fontSize: 14, flexShrink: 0, color: themeConfig.textMuted }} />
                             <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 600 }}>
                               {cat.totalRooms} {cat.totalRooms === 1 ? "room" : "rooms"}
                             </Typography>
                           </Box>
-                        </Box>
-                        <Box
-                          sx={{
+                          </Box>
+                      <Box
+                        sx={{
                             flexShrink: 0,
                             px: 1,
                             py: 0.25,
@@ -874,15 +874,15 @@ export default function AvailableRoomsPage({
                           }}
                         >
                           {statePill.label}
-                        </Box>
                       </Box>
+              </Box>
 
-                      <Box
-                        sx={{
+                <Box
+                  sx={{
                           display: "flex",
                           height: 4,
                           borderRadius: 999,
-                          overflow: "hidden",
+                      overflow: "hidden",
                           bgcolor: isDarkMode ? "rgba(255,255,255,0.08)" : "#EEF2F6",
                         }}
                       >
@@ -892,13 +892,13 @@ export default function AvailableRoomsPage({
                               <Box key={item.label} sx={{ width: `${(item.value / barTotal) * 100}%`, bgcolor: item.color, opacity: 0.85 }} />
                             ) : null
                           )}
-                      </Box>
+                                      </Box>
 
                       <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 1 }}>
                         {statusBoxes.map((item) => (
                           <Box
                             key={item.label}
-                            sx={{
+                                        sx={{
                               borderRadius: "12px",
                               bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : item.bg,
                               border: `1px solid ${item.border}`,
@@ -911,20 +911,20 @@ export default function AvailableRoomsPage({
                           >
                             <Typography sx={{ fontWeight: 700, color: item.color, fontSize: "0.95rem", lineHeight: 1 }}>{item.value}</Typography>
                             <Typography sx={{ color: item.color, fontSize: "0.62rem", fontWeight: 600, mt: 0.6, lineHeight: 1.2 }}>{item.label}</Typography>
-                          </Box>
+                                      </Box>
                         ))}
-                      </Box>
+                                    </Box>
                     </Card>
-                  );
-                })}
-              </Box>
+                              );
+                            })}
+                  </Box>
               <InfiniteScrollSentinel
                 hasMore={hasMoreCategories}
                 onLoadMore={loadMoreCategories}
                 loadedCount={visibleCategoryCount}
                 endLabel={filteredCategories.length > 12 ? `Showing all ${filteredCategories.length} categories` : undefined}
               />
-              </Box>
+                                    </Box>
             )
           )}
         </>
@@ -942,52 +942,52 @@ export default function AvailableRoomsPage({
               mb: 2.5,
             }}
           >
-            <TextField
-              fullWidth
-              size="small"
+              <TextField
+                fullWidth
+                size="small"
               placeholder="Search room or guest"
               autoComplete="off"
-              value={roomSearch}
-              onChange={(e) => {
-                setRoomSearch(e.target.value);
-              }}
+                value={roomSearch}
+                onChange={(e) => {
+                  setRoomSearch(e.target.value);
+                }}
               sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px", bgcolor: themeConfig.bgCard || "#FFFFFF", fontSize: "0.875rem" } }}
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
                       <Search sx={{ fontSize: 18, color: themeConfig.textMuted }} />
-                    </InputAdornment>
-                  ),
-                },
-              }}
-            />
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+              />
 
-            <TextField
-              select
-              fullWidth
-              size="small"
-              value={selectedFloor}
-              onChange={(e) => {
-                setSelectedFloor(e.target.value);
-              }}
+              <TextField
+                select
+                fullWidth
+                size="small"
+                value={selectedFloor}
+                onChange={(e) => {
+                  setSelectedFloor(e.target.value);
+                }}
               sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px", bgcolor: themeConfig.bgCard || "#FFFFFF", fontSize: "0.875rem", fontWeight: 600 } }}
-            >
+              >
               <MenuItem value="ALL">All floors</MenuItem>
-              {distinctFloors.map((fl) => (
-                <MenuItem key={fl} value={String(fl)}>
-                  Floor {fl}
-                </MenuItem>
-              ))}
-            </TextField>
+                {distinctFloors.map((fl) => (
+                  <MenuItem key={fl} value={String(fl)}>
+                    Floor {fl}
+                  </MenuItem>
+                ))}
+              </TextField>
 
-            <TextField
-              select
-              fullWidth
-              size="small"
-              value={selectedStatus}
-              onChange={(e) => {
-                setSelectedStatus(e.target.value);
+              <TextField
+                select
+                fullWidth
+                size="small"
+                value={selectedStatus}
+                onChange={(e) => {
+                  setSelectedStatus(e.target.value);
               }}
               sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px", bgcolor: themeConfig.bgCard || "#FFFFFF", fontSize: "0.875rem", fontWeight: 600 } }}
             >
@@ -997,8 +997,8 @@ export default function AvailableRoomsPage({
               <MenuItem value="CLEANING">Cleaning</MenuItem>
               <MenuItem value="MAINTENANCE">Maintenance</MenuItem>
               <MenuItem value="BLOCKED">Blocked</MenuItem>
-            </TextField>
-          </Box>
+              </TextField>
+            </Box>
 
           {/* Room cards */}
           {(
@@ -1095,34 +1095,34 @@ export default function AvailableRoomsPage({
                     >
                       <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1, minWidth: 0 }}>
                         <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.75, minWidth: 0 }}>
-                          {isAvail && (
-                            <Checkbox
-                              size="small"
-                              checked={isSelected}
-                              onChange={(e) => handleToggleRoomSelection(room._id, e)}
-                              onClick={(e) => e.stopPropagation()}
+                            {isAvail && (
+                              <Checkbox
+                                size="small"
+                                checked={isSelected}
+                                onChange={(e) => handleToggleRoomSelection(room._id, e)}
+                                onClick={(e) => e.stopPropagation()}
                               sx={{ p: 0, mt: 0.25, color: themeConfig.border, "&.Mui-checked": { color: themeConfig.primary } }}
                             />
                           )}
                           <Box sx={{ minWidth: 0 }}>
                             <Typography noWrap sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "1.05rem", lineHeight: 1.3 }}>
-                              Room {room.roomNumber}
-                            </Typography>
+                                Room {room.roomNumber}
+                              </Typography>
                             <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mt: 0.5 }}>
                               <Apartment sx={{ fontSize: 14, flexShrink: 0, color: themeConfig.textMuted }} />
                               <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 600 }}>
                                 Floor {room.floor || 1}
                               </Typography>
-                            </Box>
+                          </Box>
                           </Box>
                         </Box>
                         <Box
-                          sx={{
+                                sx={{
                             flexShrink: 0,
                             px: 1,
                             py: 0.25,
                             borderRadius: 999,
-                            fontSize: "0.65rem",
+                                  fontSize: "0.65rem",
                             fontWeight: 700,
                             lineHeight: 1.5,
                             color: statusMeta.color,
@@ -1131,38 +1131,38 @@ export default function AvailableRoomsPage({
                           }}
                         >
                           {statusMeta.label}
+                          </Box>
                         </Box>
-                      </Box>
 
                       <Box sx={{ minHeight: 44 }}>
                         <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
                           <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "1.1rem", lineHeight: 1.2 }}>
-                            ₹{Number(tariff).toLocaleString("en-IN")}
-                          </Typography>
+                          ₹{Number(tariff).toLocaleString("en-IN")}
+                        </Typography>
                           <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.7rem", fontWeight: 600 }}>/ night</Typography>
                         </Box>
                         {bookedGuestName ? (
                           <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mt: 0.75, minWidth: 0 }}>
                             <Person sx={{ fontSize: 14, flexShrink: 0, color: themeConfig.textMuted }} />
                             <Typography noWrap sx={{ color: themeConfig.textMuted, fontSize: "0.75rem", fontWeight: 600 }}>
-                              {bookedGuestName}
-                            </Typography>
+                            {bookedGuestName}
+                          </Typography>
                           </Box>
                         ) : null}
                       </Box>
 
                       {(isAvail && onSelectRoomForCheckIn) || isOcc || isCln ? (
                         <Box>
-                          {isAvail && onSelectRoomForCheckIn && (
-                            <Button
-                              fullWidth
-                              variant="contained"
-                              startIcon={<Bolt sx={{ fontSize: 16 }} />}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onSelectRoomForCheckIn(room);
-                              }}
-                              sx={{
+                        {isAvail && onSelectRoomForCheckIn && (
+                          <Button
+                            fullWidth
+                            variant="contained"
+                            startIcon={<Bolt sx={{ fontSize: 16 }} />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectRoomForCheckIn(room);
+                            }}
+                            sx={{
                                 ...actionButtonSx,
                                 bgcolor: themeConfig.primary,
                                 color: themeConfig.onPrimary,
@@ -1170,16 +1170,16 @@ export default function AvailableRoomsPage({
                               }}
                             >
                               Check-in
-                            </Button>
-                          )}
-                          {isOcc && (
-                            <Button
-                              fullWidth
+                          </Button>
+                        )}
+                        {isOcc && (
+                          <Button
+                            fullWidth
                               variant="outlined"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenStatusDialog(room);
-                              }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenStatusDialog(room);
+                            }}
                               sx={{
                                 ...actionButtonSx,
                                 color: themeConfig.primary,
@@ -1188,17 +1188,17 @@ export default function AvailableRoomsPage({
                               }}
                             >
                               Check-out
-                            </Button>
-                          )}
-                          {isCln && (
-                            <Button
-                              fullWidth
+                          </Button>
+                        )}
+                        {isCln && (
+                          <Button
+                            fullWidth
                               variant="outlined"
-                              disabled={busyRoomId === String(room._id || room.id)}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleMarkAvailable(room);
-                              }}
+                            disabled={busyRoomId === String(room._id || room.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMarkAvailable(room);
+                            }}
                               sx={{
                                 ...actionButtonSx,
                                 color: themeConfig.primary,
@@ -1207,9 +1207,9 @@ export default function AvailableRoomsPage({
                               }}
                             >
                               {busyRoomId === String(room._id || room.id) ? "Saving..." : "Mark available"}
-                            </Button>
-                          )}
-                        </Box>
+                          </Button>
+                        )}
+                      </Box>
                       ) : null}
                     </Card>
                   );
@@ -1225,7 +1225,7 @@ export default function AvailableRoomsPage({
               endLabel={filteredCategoryRooms.length > 12 ? `Showing all ${filteredCategoryRooms.length} rooms` : undefined}
             />
           )}
-        </Box>
+              </Box>
       )}
 
 
@@ -1282,7 +1282,7 @@ export default function AvailableRoomsPage({
             <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap", minWidth: 0 }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
                 <Box
-                  sx={{
+                sx={{
                     width: 36,
                     height: 36,
                     flexShrink: 0,
@@ -1304,8 +1304,8 @@ export default function AvailableRoomsPage({
                     {selectedRoomsList.length === 1 ? "Room selected" : "Rooms selected"}
                   </Typography>
                   <Typography noWrap sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 600, mt: 0.25 }}>
-                    {selectedStats.roomNumbers}
-                  </Typography>
+                  {selectedStats.roomNumbers}
+                </Typography>
                 </Box>
               </Box>
 
@@ -1318,7 +1318,7 @@ export default function AvailableRoomsPage({
                     <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.62rem", fontWeight: 600, lineHeight: 1.2 }}>Capacity</Typography>
                     <Typography sx={{ color: themeConfig.textMain, fontSize: "0.82rem", fontWeight: 700, lineHeight: 1.3 }}>
                       {selectedStats.totalAdultCapacity} guests
-                    </Typography>
+                </Typography>
                   </Box>
                 </Box>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>

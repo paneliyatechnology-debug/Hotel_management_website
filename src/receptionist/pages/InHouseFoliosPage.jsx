@@ -486,11 +486,11 @@ export default function InHouseFoliosPage({
           <TextField
             select
             size="small"
-            value={balanceFilter}
-            onChange={(e) => {
-              setBalanceFilter(e.target.value);
-              setPage(0);
-            }}
+                value={balanceFilter}
+                onChange={(e) => {
+                  setBalanceFilter(e.target.value);
+                  setPage(0);
+                }}
             sx={tableFieldSx(themeConfig, 170)}
           >
             <MenuItem value="ALL">All balances</MenuItem>
@@ -498,25 +498,25 @@ export default function InHouseFoliosPage({
             <MenuItem value="SETTLED">Fully settled</MenuItem>
           </TextField>
 
-          <TextField
-            size="small"
-            placeholder="Search folio #, guest, room #, phone..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setPage(0);
-            }}
+            <TextField
+              size="small"
+              placeholder="Search folio #, guest, room #, phone..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(0);
+              }}
             sx={tableSearchSx(themeConfig)}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
                     <Search sx={{ fontSize: 18, color: themeConfig.textMuted }} />
-                  </InputAdornment>
-                ),
-              },
-            }}
-          />
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
         </TableToolbar>
         {/* 3D Folios Table */}
         <TableContainer sx={{ overflowX: "hidden", overflowY: "auto", maxHeight: "560px" }}>

@@ -139,6 +139,10 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
       : "";
   const remainingAfter = 0;
   const lateHoursValue = Number(state.lateHours) || 0;
+  const lateHoursError =
+    lateHoursValue > 24
+      ? "Late check-out hours cannot be more than 24"
+      : "";
 
   // Keep stored amount locked to due whenever charges change
   useEffect(() => {
@@ -167,6 +171,10 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
     const dueNow = computeCheckoutBill(detail, state.extraCharges, state.lateFee, state.discount).due;
     if ((Number(state.discount) || 0) > bill.base + 0.001) {
       setError(`Discount cannot exceed room charges (${inr(bill.base)})`);
+      return;
+    }
+    if (lateHoursValue > 24) {
+      setError("Late check-out hours cannot be more than 24");
       return;
     }
     try {
@@ -360,8 +368,13 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
                   label="Late check-out hours"
                   placeholder="0"
                   value={Number(state.lateHours) ? state.lateHours : ""}
-                  onChange={(e) => update({ lateHours: sanitizeAmount(e.target.value).split(".")[0] })}
-                  slotProps={{ htmlInput: { inputMode: "numeric" } }}
+                  error={Boolean(lateHoursError)}
+                  helperText={lateHoursError || "Maximum 24 hours"}
+                  onChange={(e) => {
+                    const hours = sanitizeAmount(e.target.value).split(".")[0];
+                    update({ lateHours: hours });
+                  }}
+                  slotProps={{ htmlInput: { inputMode: "numeric", max: 24 } }}
                 />
                 <TextField
                   fullWidth
@@ -514,7 +527,7 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
         <FolioPdfButton booking={state.detail || booking} label="Generate Folio" />
         <Button
           variant="contained"
-          disabled={submitting || loading || !detail || Boolean(discountError)}
+          disabled={submitting || loading || !detail || Boolean(discountError) || Boolean(lateHoursError)}
           onClick={handleConfirm}
           startIcon={<Logout sx={{ fontSize: 16 }} />}
           sx={{

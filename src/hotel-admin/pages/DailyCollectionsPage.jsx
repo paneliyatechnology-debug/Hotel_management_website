@@ -48,6 +48,7 @@ import {
   Search,
   FilterList,
 } from "@/shared/icons";
+import { paymentMethodLabel, useHotelPaymentMethods } from "@/shared/hooks/useHotelPaymentMethods";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useSocket } from "@/shared/context/SocketContext";
@@ -103,6 +104,7 @@ function bookingsToCollections(list) {
 
 export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOverview }) {
   const { themeConfig, isDarkMode } = useAppTheme();
+  const { methods: hotelPaymentMethods } = useHotelPaymentMethods();
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -601,10 +603,11 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
             sx={tableFieldSx(themeConfig, 170)}
           >
             <MenuItem value="ALL">All modes</MenuItem>
-            <MenuItem value="CASH">Cash</MenuItem>
-            <MenuItem value="UPI">UPI QR</MenuItem>
-            <MenuItem value="CARD">Card POS</MenuItem>
-            <MenuItem value="BANK_TRANSFER">Bank NEFT</MenuItem>
+            {hotelPaymentMethods.map((item) => (
+              <MenuItem key={item.id || item.name} value={item.name}>
+                {paymentMethodLabel(item.name)}
+              </MenuItem>
+            ))}
           </TextField>
           <TextField
             select

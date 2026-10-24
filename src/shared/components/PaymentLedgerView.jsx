@@ -51,6 +51,7 @@ import { apiRequest, API_ENDPOINTS } from "@/config/api";
 import EmptyState from "@/shared/components/EmptyState";
 import { TableCard, TableToolbar, TablePager, tableFieldSx, tableSearchSx } from "@/shared/components/DataTable";
 import { downloadDailyLedgerPDF, downloadPaymentReceiptPDF } from "@/shared/utils/pdfGenerator";
+import { paymentMethodLabel, useHotelPaymentMethods } from "@/shared/hooks/useHotelPaymentMethods";
 
 export default function PaymentLedgerView({
   user,
@@ -61,6 +62,7 @@ export default function PaymentLedgerView({
   onPaymentSuccess,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
+  const { methods: hotelPaymentMethods, defaultName: defaultPaymentMethod } = useHotelPaymentMethods();
 
   const [loading, setLoading] = useState(true);
   const [payments, setPayments] = useState([]);
@@ -96,7 +98,7 @@ export default function PaymentLedgerView({
   const [collectData, setCollectData] = useState({
     bookingId: "",
     amount: "",
-    paymentMethod: "UPI",
+    paymentMethod: "CASH",
     paymentType: "PARTIAL",
     transactionId: "",
     paymentReference: "",
@@ -171,7 +173,7 @@ export default function PaymentLedgerView({
     setCollectData({
       bookingId: targetBooking?._id || "",
       amount: targetBooking?.dueAmount ? String(targetBooking.dueAmount) : "",
-      paymentMethod: "UPI",
+      paymentMethod: defaultPaymentMethod,
       paymentType: targetBooking?.dueAmount ? "FULL_SETTLEMENT" : "PARTIAL",
       transactionId: "",
       paymentReference: "",
@@ -669,11 +671,11 @@ export default function PaymentLedgerView({
             sx={tableFieldSx(themeConfig, 170)}
           >
             <MenuItem value="ALL">All modes</MenuItem>
-            <MenuItem value="UPI">UPI QR</MenuItem>
-            <MenuItem value="CASH">Cash counter</MenuItem>
-            <MenuItem value="CARD">Card POS</MenuItem>
-            <MenuItem value="BANK_TRANSFER">Bank transfer (NEFT)</MenuItem>
-            <MenuItem value="ONLINE">Online gateway</MenuItem>
+            {hotelPaymentMethods.map((item) => (
+              <MenuItem key={item.id || item.name} value={item.name}>
+                {paymentMethodLabel(item.name)}
+              </MenuItem>
+            ))}
           </TextField>
           <TextField
             select
@@ -947,14 +949,19 @@ export default function PaymentLedgerView({
             <FormControl fullWidth size="small">
               <InputLabel>Payment Method *</InputLabel>
               <Select
-                value={collectData.paymentMethod}
+                value={
+                  hotelPaymentMethods.some((item) => item.name === collectData.paymentMethod)
+                    ? collectData.paymentMethod
+                    : (hotelPaymentMethods[0]?.name || defaultPaymentMethod)
+                }
                 label="Payment Method *"
                 onChange={(e) => setCollectData({ ...collectData, paymentMethod: e.target.value })}
               >
-                <MenuItem value="UPI">🟣 UPI QR Code (GPay / PhonePe / Paytm)</MenuItem>
-                <MenuItem value="CASH">🟢 Cash Counter Drawer</MenuItem>
-                <MenuItem value="CARD">🔵 Card POS Terminal</MenuItem>
-                <MenuItem value="BANK_TRANSFER">🟠 Bank Transfer / NEFT / RTGS</MenuItem>
+                {hotelPaymentMethods.map((item) => (
+                  <MenuItem key={item.id || item.name} value={item.name}>
+                    {paymentMethodLabel(item.name)}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
 

@@ -24,6 +24,7 @@ import {
   Search,
   Print,
   WhatsApp,
+  Logout,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
@@ -143,13 +144,15 @@ function filledScore(record) {
 function mergePair(a, b) {
   if (!a) return b;
   if (!b) return a;
-  const primary = filledScore(b) >= filledScore(a) ? b : a;
+  const timeA = new Date(a.updated_at || a.updatedAt || a.created_at || a.createdAt || 0).getTime();
+  const timeB = new Date(b.updated_at || b.updatedAt || b.created_at || b.createdAt || 0).getTime();
+  const primary = (timeB > timeA) ? b : (timeA > timeB) ? a : (filledScore(b) >= filledScore(a) ? b : a);
   const secondary = primary === b ? a : b;
   const merged = { ...secondary, ...primary };
   Object.entries(secondary).forEach(([key, value]) => {
     const current = merged[key];
-    const empty = current === undefined || current === null || current === "" || current === 0;
-    if (empty && value) merged[key] = value;
+    const empty = current === undefined || current === null || current === "";
+    if (empty && value !== undefined && value !== null && value !== "") merged[key] = value;
   });
   return merged;
 }
@@ -197,6 +200,7 @@ export default function GuestListPage({
   rooms = [],
   hotelSettings = {},
   onRefresh,
+  onRequestCheckout,
   defaultRowsPerPage = 10,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
@@ -231,14 +235,13 @@ export default function GuestListPage({
       "ROOM_UPDATED",
     ],
     () => {
-      setBookingDetails({});
       setLiveTick((tick) => tick + 1);
       if (onRefresh) onRefresh();
     }
   );
 
   // booking:updated carries the whole booking (create, update, payment, check-out, status change, delete):
-  // show it in the list at once, the reload above then confirms it.
+  // show it in the list at once, the background refresh above then confirms it.
   useSocket(["booking:updated"], (payload) => {
     const id = payload?.id ?? payload?._id;
     if (id === undefined || id === null) return;
@@ -254,12 +257,9 @@ export default function GuestListPage({
     setServerPage((prev) => {
       if (!prev) return prev; // list comes from the dashboard props, which are patched by the dashboard
       const exists = prev.list.some((item) => String(item.id ?? item._id) === key);
-      const isNewOnFirstPage = !payload.deleted_at && page === 0 && statusFilter === "ALL" && !searchQuery.trim();
-      if (!exists && !isNewOnFirstPage) return prev;
-
       let total = prev.total;
-      if (!exists) total += 1;
-      else if (payload.deleted_at) total = Math.max(0, total - 1);
+      if (!exists && !payload.deleted_at) total += 1;
+      else if (exists && payload.deleted_at) total = Math.max(0, total - 1);
       return { list: mergeBookingEvent(prev.list, payload), total };
     });
   });
@@ -315,6 +315,7 @@ export default function GuestListPage({
         _id: id,
         bookingNumber: b.booking_number || b.bookingNumber || "",
         guestName: b.primary_guest_name || b.guestName || b.guest?.name || b.guest?.fullName || "Guest",
+        secondaryGuestName: b.secondary_guest_name || b.secondaryGuestName || b.secondary_guest || "",
         phone: b.mobile_number || b.phone || b.mobile || b.guest?.phone || "",
         email: b.email || b.guest?.email || "",
         roomAssigned: roomLabelFor(b, rooms),
@@ -370,10 +371,14 @@ export default function GuestListPage({
     const nights = num(firstValue(sources, ["number_of_nights", "numberOfNights", "nights"])) || 1;
     const rate = num(firstValue(sources, ["price_per_night", "pricePerNight", "rate_per_night", "ratePerNight", "custom_price_per_night", "nightly_rate", "rate"]));
     const bookedPlusGst = baseAmount + gstAmount;
-    const totalAmount = bookedPlusGst > 0
-      ? bookedPlusGst
-      : num(firstValue(sources, ["total_amount", "totalAmount", "grand_total", "grandTotal", "invoice_total", "bill_amount"])) || (rate > 0 ? rate * nights : 0);
-    const paidAmount = num(firstValue(sources, ["paid_amount", "paidAmount", "advance_paid", "advancePaid", "advance_payment_amount", "advancePaymentAmount"])) || g.paidAmount || 0;
+    const explicitTotal = firstValue(sources, ["total_amount", "totalAmount", "grand_total", "grandTotal", "invoice_total", "bill_amount"]);
+    const totalAmount = explicitTotal !== undefined && explicitTotal !== null && explicitTotal !== ""
+      ? num(explicitTotal)
+      : (bookedPlusGst > 0 ? bookedPlusGst : (rate > 0 ? rate * nights : 0));
+    const paidFromSources = firstValue(sources, ["paid_amount", "paidAmount", "advance_paid", "advancePaid", "advance_payment_amount", "advancePaymentAmount"]);
+    const paidAmount = paidFromSources !== undefined && paidFromSources !== null && paidFromSources !== ""
+      ? num(paidFromSources)
+      : (g.paidAmount || 0);
     const dueFromApi = firstValue(sources, ["due_amount", "dueAmount"]);
     const dueAmount = dueFromApi !== undefined && dueFromApi !== null && dueFromApi !== ""
       ? num(dueFromApi)
@@ -383,9 +388,14 @@ export default function GuestListPage({
     const email = firstValue(sources, ["email"]) || g.email;
     const bookingNumber = firstValue(sources, ["booking_number", "bookingNumber"]) || g.bookingNumber;
     const roomFromDetail = d ? roomLabelFor(d, rooms) : "";
-    const roomAssigned = roomFromDetail && roomFromDetail !== "—" ? roomFromDetail : g.roomAssigned;
+    let roomAssigned = roomFromDetail && roomFromDetail !== "—" ? roomFromDetail : (g.roomAssigned || roomLabelFor(g.raw || g, rooms));
+    roomAssigned = String(roomAssigned).replace(/^Room\s*#?\s*/i, "").trim() || "—";
     const rawStatus = String(firstValue(sources, ["booking_status", "status"]) || g.status || "").toUpperCase();
-    const status = rawStatus === "IN-HOUSE" || rawStatus === "IN_HOUSE" ? "CHECKED_IN" : (rawStatus || g.status);
+    const status = (rawStatus === "IN-HOUSE" || rawStatus === "IN_HOUSE")
+      ? "CHECKED_IN"
+      : (rawStatus === "CHECKED_OUT" || rawStatus === "DEPARTED" || rawStatus === "CHECKOUT")
+        ? "CHECKED_OUT"
+        : (rawStatus || g.status);
     return { ...g, checkIn, checkOut, baseAmount, gstAmount, totalAmount, paidAmount, dueAmount, guestName, phone, email, bookingNumber, roomAssigned, status };
   };
 
@@ -584,6 +594,11 @@ export default function GuestListPage({
                           <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.9rem", lineHeight: 1.2 }}>
                             {g.guestName}
                           </Typography>
+                          {g.secondaryGuestName && (
+                            <Typography variant="caption" sx={{ color: themeConfig.primary, fontWeight: 700, display: "block", fontSize: "0.74rem" }}>
+                              + {g.secondaryGuestName}
+                            </Typography>
+                          )}
                           <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 600 }}>
                             {g.phone || g.bookingNumber || "—"}
                           </Typography>
@@ -650,6 +665,29 @@ export default function GuestListPage({
                           </span>
                         </Tooltip>
                         <FolioPdfButton booking={g} iconOnly />
+                        {typeof onRequestCheckout === "function" &&
+                          (g.status === "CHECKED_IN" || g.status === "IN-HOUSE" || g.status === "IN_HOUSE") && (
+                          <Tooltip title="Check-out guest">
+                            <IconButton
+                              size="small"
+                              aria-label="Check-out guest"
+                              onClick={() => onRequestCheckout(g.raw || g)}
+                              sx={{
+                                color: "#DC2626",
+                                bgcolor: "rgba(220, 38, 38, 0.08)",
+                                border: "1px solid rgba(220, 38, 38, 0.28)",
+                                borderRadius: "8px",
+                                "&:hover": {
+                                  bgcolor: "#DC2626",
+                                  color: "#FFFFFF",
+                                  borderColor: "#DC2626",
+                                },
+                              }}
+                            >
+                              <Logout fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                       </Box>
                     </TableCell>
                   </TableRow>

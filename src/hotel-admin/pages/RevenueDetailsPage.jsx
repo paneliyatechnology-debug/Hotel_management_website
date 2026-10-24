@@ -48,6 +48,7 @@ import {
   CheckCircle,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
+import { paymentMethodLabel, useHotelPaymentMethods } from "@/shared/hooks/useHotelPaymentMethods";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useSocket } from "@/shared/context/SocketContext";
 import { folioMoney } from "@/shared/utils/folioMoney";
@@ -86,6 +87,7 @@ function billAmount(record, bookings = []) {
 
 export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, initialFilter = "THIS_WEEK", dashboardData }) {
   const { themeConfig, isDarkMode } = useAppTheme();
+  const { methods: hotelPaymentMethods } = useHotelPaymentMethods();
   const [liveTick, setLiveTick] = useState(0);
   useSocket(
     ["PAYMENT_RECORDED", "BOOKING_CREATED", "BOOKING_UPDATED", "GUEST_CHECKED_OUT", "DASHBOARD_SYNC"],
@@ -813,11 +815,11 @@ export default function RevenueDetailsPage({ onBackToDashboard, hotelSettings, i
             sx={tableFieldSx(themeConfig, 170)}
           >
             <MenuItem value="ALL">All methods</MenuItem>
-            <MenuItem value="UPI">UPI</MenuItem>
-            <MenuItem value="CASH">Cash</MenuItem>
-            <MenuItem value="CARD">Card</MenuItem>
-            <MenuItem value="ONLINE">Online</MenuItem>
-            <MenuItem value="BANK_TRANSFER">Bank transfer</MenuItem>
+            {hotelPaymentMethods.map((item) => (
+              <MenuItem key={item.id || item.name} value={item.name}>
+                {paymentMethodLabel(item.name)}
+              </MenuItem>
+            ))}
           </TextField>
           <TextField
             select

@@ -1343,11 +1343,12 @@ export default function CheckInWizardPage({
     }
     setCheckInData({
       fullName: "",
+      guestName: "",
+      secondaryGuestName: "",
+      secondary_guest_name: "",
       mobile: "",
       email: "",
       address: "",
-      govtIdType: "AADHAAR",
-      govtIdNumber: "",
       roomType: "",
       roomNumber: "",
       roomId: "",
@@ -1764,10 +1765,18 @@ export default function CheckInWizardPage({
                     fullWidth
                     size="small"
                     autoComplete="off"
-                    label="Guest name"
-                    placeholder="Only if different from main guest"
-                    value={checkInData.guestName || ""}
-                    onChange={(e) => setCheckInData({ ...checkInData, guestName: e.target.value })}
+                    label="Secondary guest name"
+                    placeholder="Secondary / co-guest name (optional)"
+                    value={checkInData.secondary_guest_name || checkInData.secondaryGuestName || checkInData.guestName || ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCheckInData((prev) => ({
+                        ...prev,
+                        guestName: val,
+                        secondaryGuestName: val,
+                        secondary_guest_name: val,
+                      }));
+                    }}
                   />
                 </Grid>
 

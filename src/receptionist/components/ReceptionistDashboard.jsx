@@ -102,18 +102,14 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
   const [activeStep, setActiveStep] = useState(0);
   const [checkInData, setCheckInData] = useState({
     fullName: "",
+    guestName: "",
+    secondaryGuestName: "",
+    secondary_guest_name: "",
     mobile: "",
     email: "",
-    gender: "Male",
-    dob: "",
-    nationality: "Indian",
     address: "",
     city: "",
     state: "",
-    country: "India",
-    emergencyContact: "",
-    govtIdType: "AADHAAR",
-    govtIdNumber: "",
     frontImage: "",
     backImage: "",
     idStatus: "Verified",
@@ -444,29 +440,29 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
       }
       const bookingRoomId = bookingRoomIds[0];
 
+      // Resolve secondary guest name from any field where it might have been entered or captured
+      const resolvedSecondaryGuest =
+        String(
+          checkInData.secondary_guest_name ||
+          checkInData.secondaryGuestName ||
+          (checkInData.guestName && checkInData.guestName.trim() !== String(checkInData.fullName || "").trim() ? checkInData.guestName : "") ||
+          (Array.isArray(checkInData.accompanyingGuests) && checkInData.accompanyingGuests.find((g) => g?.name?.trim())?.name) ||
+          ""
+        ).trim();
+
       const payload = {
         hotel_id: effectiveHotelId ? Number(effectiveHotelId) : undefined,
         room_id: bookingRoomIds,
         primary_guest_name: checkInData.fullName || checkInData.guestName || "Walk-in Guest",
-        secondary_guest_name: (checkInData.accompanyingGuests && checkInData.accompanyingGuests[0]?.name) || null,
+        secondary_guest_name: resolvedSecondaryGuest || undefined,
         mobile_number: checkInData.mobile || checkInData.mobileNumber || checkInData.phone || "",
         email: checkInData.email || "",
         address: String(checkInData.address || "").trim(),
         city: checkInData.city || "",
         state: checkInData.state || "",
-        country: checkInData.country || "India",
-        gender: checkInData.gender || "Male",
-        date_of_birth: checkInData.dateOfBirth || checkInData.dob || "",
-        nationality: checkInData.nationality || "Indian",
-        id_type: checkInData.govtIdType || "AADHAAR",
-        govt_id_type: checkInData.govtIdType || "AADHAAR",
-        id_number: checkInData.govtIdNumber || "PENDING",
-        govt_id_number: checkInData.govtIdNumber || "PENDING",
         check_in_date: combineLocalDateTime(checkInData.checkInDate, checkInData.checkInTime),
         check_out_date: combineLocalDateTime(checkInData.checkOutDate, checkInData.checkOutTime || hotelSettings?.checkOutTime || "12:00"),
         actual_check_in: combineLocalDateTime(checkInData.checkInDate, checkInData.checkInTime),
-        adults: Number(checkInData.adults) || (1 + (checkInData.accompanyingGuests?.length || 0)),
-        children: Number(checkInData.children) || 0,
         // Room charge before tax and extras (before discount); GST is applied on (base_amount - discount_amount)
         base_amount: Number.isFinite(Number(checkInData.baseAmount)) ? Number(checkInData.baseAmount) : 0,
         discount_amount: Number(checkInData.appliedDiscount ?? checkInData.discountAmount) || 0,
@@ -550,11 +546,14 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
       setActiveStep(0);
       setCheckInData({
         fullName: "",
+        guestName: "",
+        secondaryGuestName: "",
+        secondary_guest_name: "",
         mobile: "",
         email: "",
         address: "",
-        govtIdType: "AADHAAR",
-        govtIdNumber: "",
+        city: "",
+        state: "",
         roomType: "",
         roomNumber: "",
         roomId: "",
@@ -573,8 +572,6 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
         })(),
         checkOutTime: hotelSettings?.checkOutTime || "12:00",
         numberOfNights: 1,
-        adults: 1,
-        children: 0,
         accompanyingGuests: [],
         rate: 0,
         discountAmount: 0,
@@ -737,16 +734,14 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
     // Always start with fresh blank guest data for a new room check-in session
     setCheckInData({
       fullName: "",
+      guestName: "",
+      secondaryGuestName: "",
+      secondary_guest_name: "",
       mobile: "",
       email: "",
       address: "",
       city: "",
       state: "",
-      country: "India",
-      nationality: "Indian",
-      gender: "Male",
-      govtIdType: "AADHAAR",
-      govtIdNumber: "",
       frontImage: "",
       backImage: "",
       signature: "",
@@ -922,11 +917,14 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
                 }
                 setCheckInData({
                   fullName: "",
+                  guestName: "",
+                  secondaryGuestName: "",
+                  secondary_guest_name: "",
                   mobile: "",
                   email: "",
                   address: "",
-                  govtIdType: "AADHAAR",
-                  govtIdNumber: "",
+                  city: "",
+                  state: "",
                   roomType: "",
                   roomNumber: "",
                   roomId: "",
@@ -964,6 +962,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
             rooms={rooms}
             hotelSettings={hotelSettings}
             onRefresh={fetchFrontDeskData}
+            onRequestCheckout={(booking) => setDeskCheckout(booking)}
             defaultRowsPerPage={5}
           />
         </Box>

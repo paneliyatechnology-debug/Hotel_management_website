@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from "react";
 import { io } from "socket.io-client";
 import { getApiBaseUrl } from "@/config/api";
-import { getActiveHotelId } from "@/shared/utils/cookieAuth";
+import { getActiveHotelId, getCookie } from "@/shared/utils/cookieAuth";
 
 const SocketContext = createContext({
   socket: null,
@@ -109,14 +109,30 @@ const SUPER_ADMIN_EVENTS = [
 
 function readSession() {
   if (typeof window === "undefined") return { token: "", user: null, hotelId: "", role: "" };
-  const token = localStorage.getItem("token") || "";
+  const token =
+    localStorage.getItem("token") ||
+    localStorage.getItem("accessToken") ||
+    getCookie("accessToken") ||
+    getCookie("token") ||
+    "";
   let user = null;
   try {
     user = JSON.parse(localStorage.getItem("user") || "null");
   } catch {
     user = null;
   }
-  const hotelId = user?.hotel?._id || user?.hotel?.id || user?.hotel || user?.hotelId || user?.hotel_id || "";
+  if (!user && typeof document !== "undefined") {
+    const cu = getCookie("user");
+    if (cu && typeof cu === "object") user = cu;
+  }
+  const hotelId =
+    getActiveHotelId() ||
+    user?.hotel?._id ||
+    user?.hotel?.id ||
+    user?.hotel ||
+    user?.hotelId ||
+    user?.hotel_id ||
+    "";
   return {
     token,
     user,
@@ -179,7 +195,7 @@ export function SocketProvider({ children }) {
     const { token, user, hotelId, role } = readSession();
 
     if (role === "SUPER_ADMIN") {
-      sock.emit("join_super_admin", { user, token });
+      sock.emit("join_super_admin", { user, token, hotelId });
     } else if (hotelId) {
       sock.emit("join_hotel", { hotelId, token, user });
     }
@@ -196,6 +212,7 @@ export function SocketProvider({ children }) {
     }
 
     sock.emit("get_presence");
+    sock.emit("dashboard:subscribe", { date_range: role === "RECEPTIONIST" ? "today" : "this_month" });
   }, []);
 
   useEffect(() => {
@@ -221,17 +238,17 @@ export function SocketProvider({ children }) {
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
+      withCredentials: true,
+      extraHeaders: token ? { Authorization: `Bearer ${token}` } : {},
       // Evaluated on every (re)connect so a refreshed token or a switched hotel is always used.
       // The backend joins the client to hotel:<hotel_id> from the token; a SUPER_ADMIN must send hotel_id.
       auth: (cb) => {
         const session = readSession();
         const payload = { token: session.token };
-        if (session.role === "SUPER_ADMIN") {
-          const activeHotel = getActiveHotelId();
-          if (activeHotel) {
-            payload.hotel_id = activeHotel;
-            payload.hotelId = activeHotel;
-          }
+        const activeHotel = getActiveHotelId() || session.hotelId;
+        if (activeHotel) {
+          payload.hotel_id = activeHotel;
+          payload.hotelId = activeHotel;
         }
         cb(payload);
       },

@@ -1111,11 +1111,22 @@ function prepareRequestBody(body, endpoint) {
       delete payload.full_name;
 
       // Secondary guest name
-      if (!payload.secondary_guest_name && (payload.accompanying_guest_name || payload.secondary_guest)) {
-        payload.secondary_guest_name = payload.accompanying_guest_name || payload.secondary_guest;
+      if (!payload.secondary_guest_name) {
+        payload.secondary_guest_name =
+          payload.secondaryGuestName ||
+          payload.secondary_guest ||
+          payload.accompanying_guest_name ||
+          "";
       }
       delete payload.accompanying_guest_name;
       delete payload.secondary_guest;
+      delete payload.secondaryGuestName;
+      if (typeof payload.secondary_guest_name === "string") {
+        payload.secondary_guest_name = payload.secondary_guest_name.trim();
+        if (!payload.secondary_guest_name) {
+          delete payload.secondary_guest_name;
+        }
+      }
 
       // Mobile number
       if (!payload.mobile_number) {
@@ -1207,9 +1218,19 @@ function prepareRequestBody(body, endpoint) {
       }
       payload.check_out_date = toSqlDateTime(payload.check_out_date, tomorrowSql);
 
-      // Guest counts
-      payload.adults = payload.adults !== undefined ? (Number(payload.adults) || 1) : 1;
-      payload.children = payload.children !== undefined ? (Number(payload.children) || 0) : 0;
+      // Strip fields removed as per booking payload requirements:
+      // country, gender, nationality, id_type, govt_id_type, id_number, govt_id_number, adults, children
+      delete payload.country;
+      delete payload.gender;
+      delete payload.nationality;
+      delete payload.id_type;
+      delete payload.govt_id_type;
+      delete payload.id_number;
+      delete payload.govt_id_number;
+      delete payload.adults;
+      delete payload.children;
+      delete payload.date_of_birth;
+      delete payload.dob;
 
       // Amounts & Rates
       if (payload.base_amount === undefined) {
@@ -1446,20 +1467,10 @@ function prepareRequestBody(body, endpoint) {
         "address",
         "city",
         "state",
-        "country",
-        "gender",
-        "nationality",
-        "date_of_birth",
-        "id_type",
-        "govt_id_type",
-        "id_number",
-        "govt_id_number",
         "check_in_date",
         "check_out_date",
         "actual_check_in",
         "actual_check_out",
-        "adults",
-        "children",
         "base_amount",
         "discount_amount",
         "extra_charges_total",

@@ -70,6 +70,8 @@ import {
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
+import { useSocket } from "@/shared/context/SocketContext";
+import { mergeBookingEvent, applyRoomStatusEvent } from "@/shared/utils/liveSync";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import { TableCard, TableToolbar, TablePager } from "@/shared/components/DataTable";
@@ -102,6 +104,7 @@ export default function HotelOverviewPage({
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
   const [localRooms, setLocalRooms] = useState(rooms);
+  const [localBookings, setLocalBookings] = useState(bookings);
   const [showRevenueDetailsView, setShowRevenueDetailsView] = useState(false);
   const [revenueFilterMode, setRevenueFilterMode] = useState("THIS_WEEK");
 
@@ -118,10 +121,27 @@ export default function HotelOverviewPage({
     guestId: null,
   });
 
-  // Sync localRooms with incoming prop
+  // Sync localRooms and localBookings with incoming props
   useEffect(() => {
     setLocalRooms(rooms);
   }, [rooms]);
+
+  useEffect(() => {
+    setLocalBookings(bookings);
+  }, [bookings]);
+
+  // Real-Time instant updates via sockets
+  useSocket(["room:status"], (payload) => {
+    setLocalRooms((prev) => applyRoomStatusEvent(prev, payload));
+  });
+
+  useSocket(["booking:updated"], (payload) => {
+    setLocalBookings((prev) => mergeBookingEvent(prev, payload));
+    const key = String(payload?.id ?? payload?._id ?? "");
+    if (key) {
+      setStayById((prev) => ({ ...prev, [key]: payload }));
+    }
+  });
 
   // Room Matrix Pagination (8 rooms per page)
   const [roomPage, setRoomPage] = useState(1);
@@ -211,20 +231,23 @@ export default function HotelOverviewPage({
   };
 
   const enrichedRooms = useMemo(() => {
+    const bookingsList = localBookings && localBookings.length > 0 ? localBookings : bookings;
     return localRooms.map((room) => {
-      const matchedBooking = bookings.find((b) => {
-        const bStatus = b.status === "CHECKED_IN" || b.status === "IN-HOUSE";
+      const matchedBooking = bookingsList.find((b) => {
+        const rawStatus = String(b.booking_status || b.status || "").toUpperCase();
+        const bStatus = rawStatus === "CHECKED_IN" || rawStatus === "IN-HOUSE" || rawStatus === "IN_HOUSE" || rawStatus === "OCCUPIED";
         if (!bStatus) return false;
-        const rNum = String(room.roomNumber);
-        const rId = String(room._id || room.id);
-        const bRoomId = String(b.room?._id || b.room || "");
-        const bRoomNum = String(b.roomNumber || b.room?.roomNumber || "");
-        const bRoomsList = Array.isArray(b.roomNumbers) ? b.roomNumbers.map(String) : [];
-        const bRoomIdsList = Array.isArray(b.rooms) ? b.rooms.map((r) => String(typeof r === "object" ? r._id || r.id : r)) : [];
-        return bRoomNum === rNum || bRoomId === rId || bRoomsList.includes(rNum) || bRoomIdsList.includes(rId);
+        const rNum = String(room.roomNumber || room.room_number || "");
+        const rId = String(room._id || room.id || "");
+        const bRoomId = String(b.room_id || b.roomId || b.room?._id || b.room || "");
+        const bRoomNum = String(b.room_number || b.roomNumber || b.room?.roomNumber || b.room?.room_number || "");
+        const bRoomsList = Array.isArray(b.roomNumbers || b.room_numbers) ? (b.roomNumbers || b.room_numbers).map(String) : [];
+        const bRoomIdsList = Array.isArray(b.rooms) ? b.rooms.map((r) => String(typeof r === "object" ? r.id || r._id || r.room_number : r)) : [];
+        return bRoomNum === rNum || bRoomId === rId || bRoomsList.includes(rNum) || bRoomIdsList.includes(rId) || bRoomIdsList.includes(rNum);
       });
 
       const guestName =
+        matchedBooking?.primary_guest_name ||
         matchedBooking?.guest?.fullName ||
         matchedBooking?.guest?.name ||
         matchedBooking?.guestName ||
@@ -232,6 +255,7 @@ export default function HotelOverviewPage({
         (room.status === "OCCUPIED" ? "Resident Guest" : null);
 
       const guestPhone =
+        matchedBooking?.mobile_number ||
         matchedBooking?.guest?.mobileNumber ||
         matchedBooking?.guest?.phone ||
         matchedBooking?.guestPhone ||
@@ -239,12 +263,16 @@ export default function HotelOverviewPage({
         "";
 
       const totalBill =
-        matchedBooking?.totalAmount !== undefined
+        matchedBooking?.total_amount !== undefined
+          ? Number(matchedBooking.total_amount)
+          : matchedBooking?.totalAmount !== undefined
           ? Number(matchedBooking.totalAmount)
           : Number(room.customPricePerNight || room.pricePerNight || 0);
 
       const advancePaid =
-        matchedBooking?.paidAmount !== undefined
+        matchedBooking?.paid_amount !== undefined
+          ? Number(matchedBooking.paid_amount)
+          : matchedBooking?.paidAmount !== undefined
           ? Number(matchedBooking.paidAmount)
           : matchedBooking?.advancePaymentAmount !== undefined
           ? Number(matchedBooking.advancePaymentAmount)
@@ -252,9 +280,12 @@ export default function HotelOverviewPage({
           ? Number(matchedBooking.advancePaid)
           : 0;
 
-      const duesAmount = matchedBooking?.dueAmount !== undefined
-        ? Number(matchedBooking.dueAmount)
-        : Math.max(0, totalBill - advancePaid);
+      const duesAmount =
+        matchedBooking?.due_amount !== undefined
+          ? Number(matchedBooking.due_amount)
+          : matchedBooking?.dueAmount !== undefined
+          ? Number(matchedBooking.dueAmount)
+          : Math.max(0, totalBill - advancePaid);
 
       return {
         ...room,
@@ -266,7 +297,7 @@ export default function HotelOverviewPage({
         duesAmount,
       };
     });
-  }, [localRooms, bookings]);
+  }, [localRooms, localBookings, bookings]);
 
   // Dynamic Category Icon helper matching Receptionist UI
   const getCategoryIcon = (name = "") => {
@@ -538,62 +569,117 @@ export default function HotelOverviewPage({
 
   // Find active in-house guests for table and quick actions
   const activeRecentGuests = useMemo(() => {
-    if (bookings && bookings.length > 0) {
-      return bookings.map((b) => {
-          const g = typeof b.guest === "object" ? b.guest : {};
-          const paidAmt = b.paidAmount !== undefined ? Number(b.paidAmount) : (b.advancePaymentAmount !== undefined ? Number(b.advancePaymentAmount) : (b.advancePaid !== undefined ? Number(b.advancePaid) : (b.advancePayment || 0)));
-          const totalAmt = Number(b.totalAmount || b.room?.customPricePerNight || b.room?.pricePerNight || 0);
-          const dueAmt = b.dueAmount !== undefined ? Number(b.dueAmount) : Math.max(0, totalAmt - paidAmt);
-          const detail = stayById[String(b.id || b._id)] || {};
-          const staySource = {
-            ...b,
-            ...Object.fromEntries(Object.entries(detail).filter(([, value]) => value != null && value !== "")),
-          };
-          const assignedRoom = staySource.room_number || staySource.roomNumber || staySource.room?.room_number || staySource.room?.roomNumber || "-";
-          return {
-            ...b,
-            booking: b,
-            activeBooking: b,
-            _id: b.id || b._id,
-            id: b.id || b._id,
-            bookingId: b.id || b._id,
-            booking_number: b.booking_number || b.bookingNumber,
-            guestId: b.id || b._id || g?.id || g?._id || b.guest,
-            name: g?.fullName || g?.name || b.primary_guest_name || b.guestName || "Resident Guest",
-            email: g?.email || b.email || "",
-            phone: g?.mobileNumber || g?.phone || b.mobile_number || b.mobileNumber || b.guestPhone || "N/A",
-            roomAssigned: assignedRoom,
-            checkInDate: formatStayLabel(staySource, "in"),
-            checkOutDate: formatStayLabel(staySource, "out"),
-            totalAmount: totalAmt,
-            advancePayment: paidAmt,
-            pendingDues: dueAmt,
-            status: b.status === "CHECKED_IN" ? "IN-HOUSE" : b.status === "CHECKED_OUT" || b.status === "DEPARTED" ? "CHECKED_OUT" : b.status || "IN-HOUSE",
-          };
-        });
-    }
+    const list = localBookings && localBookings.length > 0 ? localBookings : (bookings && bookings.length > 0 ? bookings : guests);
+    if (!list || list.length === 0) return [];
 
-    return (guests || []).map((g) => {
-      const paidAmt = g.paidAmount !== undefined ? Number(g.paidAmount) : (g.advancePayment || 0);
-      const totalAmt = Number(g.totalAmount || 0);
-      const dueAmt = g.dueAmount !== undefined ? Number(g.dueAmount) : Math.max(0, totalAmt - paidAmt);
-      const assignedRoom = g.roomNumber || g.roomAssigned || (Array.isArray(g.roomNumbers) && g.roomNumbers.length > 0 ? g.roomNumbers.join(", ") : "-");
+    return list.map((b) => {
+      const g = typeof b.guest === "object" ? b.guest : {};
+      const paidAmt = b.paid_amount !== undefined
+        ? Number(b.paid_amount)
+        : (b.paidAmount !== undefined
+          ? Number(b.paidAmount)
+          : (b.advance_paid !== undefined
+            ? Number(b.advance_paid)
+            : (b.advancePaid !== undefined
+              ? Number(b.advancePaid)
+              : (b.advance_payment_amount !== undefined
+                ? Number(b.advance_payment_amount)
+                : (b.advancePaymentAmount !== undefined
+                  ? Number(b.advancePaymentAmount)
+                  : Number(b.advancePayment || 0))))));
+
+      const totalAmt = Number(
+        b.total_amount ??
+        b.totalAmount ??
+        b.grand_total ??
+        b.grandTotal ??
+        b.bill_amount ??
+        b.invoice_total ??
+        b.room?.customPricePerNight ??
+        b.room?.pricePerNight ??
+        0
+      );
+
+      const dueAmt = (b.due_amount !== undefined && b.due_amount !== null && b.due_amount !== "")
+        ? Number(b.due_amount)
+        : (b.dueAmount !== undefined && b.dueAmount !== null && b.dueAmount !== "")
+          ? Number(b.dueAmount)
+          : Math.max(0, totalAmt - paidAmt);
+
+      const detail = stayById[String(b.id || b._id)] || {};
+      const staySource = {
+        ...b,
+        ...Object.fromEntries(Object.entries(detail).filter(([, value]) => value != null && value !== "")),
+      };
+
+      // Extract room numbers cleanly from rooms array or direct properties
+      let assignedRoom = "-";
+      if (Array.isArray(staySource.rooms) && staySource.rooms.length > 0) {
+        const nums = staySource.rooms
+          .map((r) => r.room_number || r.roomNumber || (typeof r === "object" ? r.id || r._id : r))
+          .filter(Boolean)
+          .map(String);
+        if (nums.length > 0) assignedRoom = nums.join(", ");
+      } else if (Array.isArray(staySource.room_numbers) && staySource.room_numbers.length > 0) {
+        assignedRoom = staySource.room_numbers.filter(Boolean).map(String).join(", ");
+      } else if (Array.isArray(staySource.roomNumbers) && staySource.roomNumbers.length > 0) {
+        assignedRoom = staySource.roomNumbers.filter(Boolean).map(String).join(", ");
+      } else if (staySource.room_number || staySource.roomNumber) {
+        assignedRoom = String(staySource.room_number || staySource.roomNumber);
+      } else if (staySource.room?.room_number || staySource.room?.roomNumber) {
+        assignedRoom = String(staySource.room.room_number || staySource.room.roomNumber);
+      } else if (staySource.roomAssigned) {
+        assignedRoom = String(staySource.roomAssigned);
+      }
+      assignedRoom = assignedRoom.replace(/^Room\s*#?\s*/i, "").trim() || "-";
+
+      const rawStatus = String(staySource.booking_status || staySource.status || "CONFIRMED").toUpperCase();
+      const normalizedStatus = (rawStatus === "CHECKED_IN" || rawStatus === "IN-HOUSE" || rawStatus === "IN_HOUSE")
+        ? "IN-HOUSE"
+        : (rawStatus === "CHECKED_OUT" || rawStatus === "DEPARTED" || rawStatus === "CHECKOUT")
+          ? "CHECKED_OUT"
+          : rawStatus;
+
+      const guestName =
+        staySource.primary_guest_name ||
+        staySource.guestName ||
+        staySource.guest_name ||
+        g?.fullName ||
+        g?.name ||
+        staySource.name ||
+        "Resident Guest";
+
+      const guestPhone =
+        staySource.mobile_number ||
+        staySource.mobileNumber ||
+        staySource.phone ||
+        staySource.guestPhone ||
+        g?.mobileNumber ||
+        g?.phone ||
+        "N/A";
+
       return {
-        _id: g._id,
-        guestId: g._id,
-        name: g.fullName || g.name || "Guest",
-        email: g.email || "",
-        phone: g.mobileNumber || g.phone || "N/A",
+        ...staySource,
+        booking: staySource,
+        activeBooking: staySource,
+        _id: staySource.id || staySource._id,
+        id: staySource.id || staySource._id,
+        bookingId: staySource.id || staySource._id,
+        booking_number: staySource.booking_number || staySource.bookingNumber,
+        guestId: staySource.id || staySource._id || g?.id || g?._id || staySource.guest,
+        name: guestName,
+        email: staySource.email || g?.email || "",
+        phone: guestPhone,
         roomAssigned: assignedRoom,
-        checkInDate: formatStayLabel(g, "in"),
-        checkOutDate: formatStayLabel(g, "out"),
+        checkInDate: formatStayLabel(staySource, "in"),
+        checkOutDate: formatStayLabel(staySource, "out"),
         totalAmount: totalAmt,
         advancePayment: paidAmt,
         pendingDues: dueAmt,
-        status: g.status || "IN-HOUSE",
+        status: normalizedStatus,
       };
     });
-  }, [bookings, guests, stayById, todayStr]);
+  }, [localBookings, bookings, guests, stayById, todayStr]);
 
   function formatStayLabel(record, kind) {
     if (!record || typeof record !== "object") return "—";

@@ -53,6 +53,7 @@ import { formatTime12Hour } from "@/shared/utils/timeUtils";
 import { computeBookingBill } from "@/shared/utils/billingUtils";
 import { toast } from "@/shared/utils/toast";
 import { useSocket } from "@/shared/context/SocketContext";
+import { normalizeBooking } from "@/shared/utils/liveSync";
 import { downloadBookingBill } from "@/shared/utils/bookingPdf";
 import FolioPdfButton from "@/shared/components/FolioPdfButton";
 import StatusChip from "@/shared/components/StatusChip";
@@ -184,7 +185,7 @@ export default function GuestDetailPage({
   useSocket(["booking:updated"], (payload) => {
     const updatedId = payload?.id ?? payload?._id;
     if (updatedId && effectiveId && String(updatedId) === String(effectiveId)) {
-      setBookingDetail((prev) => ({ ...(prev || {}), ...payload }));
+      setBookingDetail((prev) => ({ ...(prev || {}), ...normalizeBooking(payload) }));
     }
   });
 
@@ -231,6 +232,13 @@ export default function GuestDetailPage({
     b.guestName ||
     b.customer_name ||
     "Guest";
+
+  const secondaryGuestName =
+    b.secondary_guest_name ||
+    b.secondaryGuestName ||
+    g.secondary_guest_name ||
+    g.secondaryGuestName ||
+    "";
 
   const guestPhone =
     g.phone ||
@@ -775,6 +783,17 @@ export default function GuestDetailPage({
                       {b.adults || g.adults || 2} Adult(s) {b.children || g.children ? `, ${b.children || g.children} Child` : ""}
                     </Typography>
                   </Grid>
+
+                  {secondaryGuestName && (
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+                        Secondary Guest
+                      </Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 800, color: themeConfig.textMain, mt: 0.3 }}>
+                        {secondaryGuestName}
+                      </Typography>
+                    </Grid>
+                  )}
 
                   <Grid size={{ xs: 12 }}>
                     <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>

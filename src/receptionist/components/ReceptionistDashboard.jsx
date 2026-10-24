@@ -264,107 +264,46 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
     return Array.isArray(raw) ? raw : [];
   };
 
-  // On-Demand Tab-Specific Data Loading (forceRefresh only reloads the active tab — never all APIs)
-  const loadTabData = async (tabIndex, forceRefresh = false) => {
-    if (!forceRefresh && fetchedTabs[tabIndex]) return;
-    if (!dashboardData && !rooms.length && !forceRefresh) {
-      setLoading(true);
-    }
-    try {
-      const endpointsToFetch = [];
-      const skipCache = forceRefresh
-        ? { skipCache: true, forceRefresh: true, skipDeduplication: true }
-        : { skipCache: true };
-
-      const loadRooms = () =>
-        apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?page=1&limit=100`, skipCache).then((res) =>
-          setRooms(extractRooms(res))
-        );
-      const loadRoomTypes = () =>
-        apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES}?page=1&limit=100`, skipCache).then((res) =>
-          setRoomTypes(extractRoomTypes(res))
-        );
-      const loadBookings = () =>
-        apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`, skipCache)
-          .then((res) => {
-            setBookings(extractBookings(res));
-            setBookingsError("");
-          })
-          .catch((err) => setBookingsError(err?.message || "Could not load folios"));
-      const loadGuests = () =>
-        apiRequest(`${API_ENDPOINTS.RECEPTIONIST.GUESTS}?page=1&limit=100`, skipCache).then((res) =>
-          setGuests(extractGuests(res))
-        );
-      const loadDashboard = () =>
-        apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD, skipCache)
-          .then((res) => res?.data && setDashboardData(res.data))
-          .catch(() => {});
-
-      if (tabIndex === 0) {
-        // Overview: dashboard + rooms summary + recent bookings/guests
-        endpointsToFetch.push(loadDashboard(), loadRooms(), loadRoomTypes(), loadBookings(), loadGuests());
-      } else if (tabIndex === 1) {
-        // Rooms: room grid only — checkout uses room.current_booking_id (no bookings/dashboard)
-        endpointsToFetch.push(loadRooms(), loadRoomTypes());
-      } else if (tabIndex === 2) {
-        // Guest Directory
-        endpointsToFetch.push(loadBookings(), loadGuests(), loadRooms());
-      } else if (tabIndex === 3) {
-        endpointsToFetch.push(loadDashboard());
-      }
-
-      await Promise.allSettled(endpointsToFetch);
-      setFetchedTabs((prev) => ({ ...prev, [tabIndex]: true }));
-    } catch (err) {
-      console.error("Front desk error:", err);
-    } finally {
-      setLoading(false);
-    }
+  // Pages own their own fetches. Parent only keeps check-in wizard helpers.
+  const loadTabData = async (tabIndex) => {
+    setFetchedTabs((prev) => ({ ...prev, [tabIndex]: true }));
+    setLoading(false);
   };
 
-  // Re-fetch when activeNav changes OR when user is first resolved (page refresh fix)
   useEffect(() => {
-    if (!user) return; // Wait for user auth to resolve before fetching
-    // Reset fetchedTabs for current tab so data always reloads fresh on tab switch / user change
-    setFetchedTabs((prev) => ({ ...prev, [activeNav]: false }));
+    if (!user) return;
     loadTabData(activeNav);
   }, [activeNav, user?.id || user?._id || user?.email]);
 
-  // Re-fetch when page becomes visible again (tab switch / window focus after refresh)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible" && user) {
-        loadTabData(activeNav, true);
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [activeNav, user]);
-
-  const fetchFrontDeskData = async (isSilent = false) => {
-    await loadTabData(activeNav, true);
+  const fetchFrontDeskData = async () => {
+    // No shared dump refresh — each page refetches itself when needed
   };
 
-  // Real-Time Socket Auto-Sync across all operational mutations
-  useSocket(
-    [
-      "ROOM_UPDATED",
-      "BOOKING_CREATED",
-      "BOOKING_UPDATED",
-      "GUEST_CHECKED_OUT",
-      "PAYMENT_RECORDED",
-      "GUEST_UPDATED",
-      "SIGNATURE_SUBMITTED",
-      "HOTEL_UPDATED",
-      "SUBSCRIPTION_UPDATED",
-    ],
-    () => {
-      fetchFrontDeskData(true);
-    }
-  );
+  // Prefetch check-in dependencies only when the wizard opens (not on Rooms grid)
+  const loadCheckInDependencies = async () => {
+    const opts = { skipCache: true, forceRefresh: true, skipDeduplication: true };
+    await Promise.allSettled([
+      apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?status=AVAILABLE&page=1&limit=12`, opts).then((res) => {
+        const next = extractRooms(res);
+        setRooms((prev) => {
+          const map = new Map(prev.map((r) => [String(r.id || r._id), r]));
+          next.forEach((r) => map.set(String(r.id || r._id), { ...map.get(String(r.id || r._id)), ...r }));
+          return Array.from(map.values());
+        });
+      }),
+      apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES}?page=1&limit=12`, opts).then((res) =>
+        setRoomTypes(extractRoomTypes(res))
+      ),
+      apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=12`, opts)
+        .then((res) => {
+          setBookings(extractBookings(res));
+          setBookingsError("");
+        })
+        .catch(() => {}),
+    ]);
+  };
 
-  // Live backend events: update the screen the moment the event arrives
-  // (the legacy listener above reloads once afterwards as a safety net)
+  // Live patches only — no full-tab refetch on every socket event
   useSocket(["room:status", "booking:updated", "dashboard:updated"], (payload, eventName) => {
     if (eventName === "room:status") {
       setRooms((prev) => applyRoomStatusEvent(prev, payload));
@@ -542,7 +481,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
           email: checkInData.email,
         },
       });
-      await fetchFrontDeskData();
+      setFetchedTabs((prev) => ({ ...prev, 0: false, 2: false }));
       setActiveStep(0);
       setCheckInData({
         fullName: "",
@@ -628,9 +567,9 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
 
       setRooms(rooms.map((r) => ((r._id === room._id || r.id === room.id) ? { ...r, status: nextStatus } : r)));
       showToast(`Room ${room.roomNumber} status updated to ${nextStatus}`);
-      await fetchFrontDeskData();
     } catch (err) {
       showToast(err.message || "Failed to update room status", "error");
+      throw err;
     }
   };
 
@@ -673,9 +612,9 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
         },
       });
       showToast(res.message || "Booking checked out successfully! Room marked for cleaning.");
-      await fetchFrontDeskData();
     } catch (err) {
       showToast(err.message || "Failed to process checkout", "error");
+      throw err;
     }
   };
 
@@ -779,6 +718,8 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
     if (onTabChange) {
       onTabChange(1);
     }
+    // Wizard-only data (overlap + available rooms) — not loaded on the Rooms grid
+    loadCheckInDependencies();
   };
 
   const handleDeleteRoom = async (room) => {
@@ -792,7 +733,8 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
         method: "DELETE",
       });
       showToast(res.message || `Room ${room.roomNumber} deleted successfully!`);
-      await fetchFrontDeskData();
+      setRooms((prev) => prev.filter((r) => String(r._id || r.id) !== String(room._id || room.id)));
+      setFetchedTabs((prev) => ({ ...prev, 0: false }));
       return res;
     } catch (err) {
       showToast(err.message || "Failed to delete room", "error");
@@ -859,13 +801,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
       {activeNav === 0 && (
         <ReceptionistOverviewPage
           user={user}
-          rooms={rooms}
-          roomTypes={roomTypes}
-          guests={guests}
-          bookings={bookings}
-          dashboardData={dashboardData}
           hotelSettings={hotelSettings}
-          onRefresh={fetchFrontDeskData}
           onNavigateTab={(tab, categoryId) => {
             if (categoryId) setInitialSelectedCategory(categoryId);
             onTabChange && onTabChange(tab);
@@ -876,25 +812,20 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
         />
       )}
 
-      {/* ROUTE 1: ROOMS */}
-      <Box sx={{ display: activeNav === 1 && !isCheckInOpen ? "block" : "none" }}>
+      {/* ROUTE 1: ROOMS — mount only when active so it owns its own paginated fetches */}
+      {activeNav === 1 && !isCheckInOpen && (
         <AvailableRoomsPage
           user={user}
           resetToken={navClick?.tab === 1 ? navClick.id : 0}
           initialSelectedCategory={initialSelectedCategory}
           onClearInitialCategory={() => setInitialSelectedCategory(null)}
-          rooms={rooms}
-          roomTypes={roomTypes}
-          guests={guests}
           hotelSettings={hotelSettings}
-          onRefresh={fetchFrontDeskData}
           onNavigateTab={(tab) => onTabChange && onTabChange(tab)}
           onRoomStatusChange={handleRoomStatusToggle}
           onCheckOut={handleCheckOut}
           onSelectRoomForCheckIn={handleSelectRoomForCheckIn}
-          onDeleteRoom={handleDeleteRoom}
         />
-      </Box>
+      )}
 
       {activeNav === 1 && isCheckInOpen && (
             <CheckInWizardPage
@@ -955,13 +886,9 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
       {activeNav === 2 && (
         <Box sx={{ px: { xs: 1.5, sm: 2.5, md: 3 }, py: { xs: 2, md: 2.5 } }}>
           <GuestListPage
-            guests={guests}
-            bookings={bookings}
-            rooms={rooms}
             hotelSettings={hotelSettings}
-            onRefresh={fetchFrontDeskData}
             onRequestCheckout={(booking) => setDeskCheckout(booking)}
-            defaultRowsPerPage={5}
+            defaultRowsPerPage={10}
           />
         </Box>
       )}
@@ -982,7 +909,6 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
         hotelSettings={hotelSettings}
         onClose={() => setDeskCheckout(null)}
         onCheckOut={handleCheckOut}
-        onDone={fetchFrontDeskData}
       />
 
       {/* POS Charge Modal */}

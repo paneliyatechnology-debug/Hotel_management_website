@@ -47,27 +47,44 @@ export function parsePaymentMethods(res) {
     .sort((a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name));
 }
 
+let cachedMethods = null;
+let cachedHotelId = null;
+
 /**
  * Active payment methods for the signed-in hotel (GET /api/v1/payment-methods).
  * Booking and checkout send the method `name` as payment_method.
+ * Pass `{ enabled: false }` until the dialog/wizard is open so unused pages do not fetch.
  */
-export function useHotelPaymentMethods() {
-  const [methods, setMethods] = useState([]);
-  const [loading, setLoading] = useState(true);
+export function useHotelPaymentMethods({ enabled = true } = {}) {
+  const [methods, setMethods] = useState(() => cachedMethods || []);
+  const [loading, setLoading] = useState(() => enabled && !cachedMethods);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return undefined;
+    }
+    const hotelId = getActiveHotelId();
+    if (cachedMethods && cachedHotelId === hotelId) {
+      setMethods(cachedMethods);
+      setLoading(false);
+      return undefined;
+    }
     let cancelled = false;
     (async () => {
+      setLoading(true);
       try {
-        const hotelId = getActiveHotelId();
         const url = hotelId
           ? `${API_ENDPOINTS.PAYMENT_METHODS.LIST}?hotel_id=${encodeURIComponent(hotelId)}`
           : API_ENDPOINTS.PAYMENT_METHODS.LIST;
-        const res = await apiRequest(url, { forceRefresh: true });
+        const res = await apiRequest(url);
         const parsed = parsePaymentMethods(res);
+        const next = parsed.length ? parsed : FALLBACK;
         if (!cancelled) {
-          setMethods(parsed.length ? parsed : FALLBACK);
+          cachedMethods = next;
+          cachedHotelId = hotelId;
+          setMethods(next);
           setError("");
         }
       } catch (err) {
@@ -82,7 +99,7 @@ export function useHotelPaymentMethods() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [enabled]);
 
   const names = methods.map((item) => item.name);
   const defaultName = names.find((name) => name.toUpperCase() === "CASH") || names[0] || "CASH";

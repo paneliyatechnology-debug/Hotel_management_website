@@ -76,16 +76,44 @@ import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
 import FolioPdfButton from "@/shared/components/FolioPdfButton";
 import RoomNumberChips from "@/shared/components/RoomNumberChips";
 import { downloadBookingBill } from "@/shared/utils/bookingPdf";
+import {
+  buildListQuery,
+  extractRoomTypesFromResponse,
+  extractRoomsFromResponse,
+} from "@/shared/utils/listQuery";
+import { normalizeBooking } from "@/shared/utils/liveSync";
+
+function readCount(source, snakeKey, camelKey) {
+  const value = source?.[snakeKey] ?? source?.[camelKey];
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+/** Prefer room-type API status counts — no rooms list required on the dashboard */
+function categoryStatusCounts(category) {
+  const counts = category?.room_status_counts || category?.roomStatusCounts || category?.summary || {};
+  const available = readCount(counts, "available_count", "availableCount");
+  const occupied = readCount(counts, "occupied_count", "occupiedCount");
+  const reserved = readCount(counts, "reserved_count", "reservedCount");
+  const cleaning = readCount(counts, "cleaning_count", "cleaningCount");
+  const maintenance =
+    readCount(counts, "maintenance_count", "maintenanceCount") +
+    readCount(counts, "blocked_count", "blockedCount");
+  const statedTotal = readCount(counts, "total_room_count", "totalRoomCount");
+  const booked = occupied + reserved;
+  return {
+    available,
+    occupied: booked,
+    reserved: 0,
+    cleaning,
+    maintenance,
+    totalRooms: statedTotal || available + booked + cleaning + maintenance,
+  };
+}
 
 export default function ReceptionistOverviewPage({
   user,
-  rooms = [],
-  roomTypes = [],
-  guests = [],
-  bookings = [],
-  dashboardData,
   hotelSettings = { checkInTime: "14:00", checkOutTime: "12:00", timezone: "Asia/Kolkata" },
-  onRefresh,
   onNavigateTab,
   onSelectRoomForCheckIn,
   onCheckOut,
@@ -98,23 +126,34 @@ export default function ReceptionistOverviewPage({
   const [summaryStart, setSummaryStart] = useState("");
   const [summaryEnd, setSummaryEnd] = useState("");
 
-  // Real-Time Socket Auto-Sync
-  useSocket(
-    [
-      "ROOM_UPDATED",
-      "BOOKING_CREATED",
-      "BOOKING_UPDATED",
-      "GUEST_CHECKED_OUT",
-      "PAYMENT_RECORDED",
-      "GUEST_UPDATED",
-      "DASHBOARD_SYNC",
-    ],
-    () => {
-      if (onRefresh) onRefresh();
-      setSummaryTick((tick) => tick + 1);
-    }
-  );
+  // Dashboard-owned data (no parent rooms/bookings dump)
+  const [roomTypes, setRoomTypes] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [bookingsTotal, setBookingsTotal] = useState(0);
+  const [bookingsTick, setBookingsTick] = useState(0);
+  const [roomTypesTick, setRoomTypesTick] = useState(0);
+  const [rooms, setRooms] = useState([]); // only filled when a Rooms telemetry modal opens
+  const [guests] = useState([]);
 
+  // Pagination for Recent Check-Ins Table — must match API page/limit
+  const [guestPage, setGuestPage] = useState(0);
+  const [guestRowsPerPage, setGuestRowsPerPage] = useState(5);
+  const [billBusyId, setBillBusyId] = useState("");
+  const [recentFilter, setRecentFilter] = useState("ALL");
+
+  // Live updates: refresh only the matching dataset (never all four APIs at once)
+  useSocket(["PAYMENT_RECORDED", "DASHBOARD_SYNC"], () => {
+    setSummaryTick((tick) => tick + 1);
+  });
+  useSocket(["ROOM_UPDATED"], () => {
+    setRoomTypesTick((tick) => tick + 1);
+  });
+  useSocket(["BOOKING_CREATED", "BOOKING_UPDATED", "GUEST_CHECKED_OUT", "GUEST_UPDATED"], () => {
+    setBookingsTick((tick) => tick + 1);
+    setSummaryTick((tick) => tick + 1);
+  });
+
+  // 1) Summary KPIs / sources
   useEffect(() => {
     const now = new Date();
     const ymd = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -140,7 +179,7 @@ export default function ReceptionistOverviewPage({
     let cancelled = false;
     (async () => {
       try {
-        const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.SUMMARY(start, end), { forceRefresh: true });
+        const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.SUMMARY(start, end));
         const payload = res?.data && !Array.isArray(res.data) ? res.data : res;
         if (!cancelled && payload && typeof payload === "object") setDaySummary(payload);
       } catch {
@@ -152,12 +191,63 @@ export default function ReceptionistOverviewPage({
     };
   }, [summaryTick, summaryRange, summaryStart, summaryEnd]);
 
-  // Pagination for Recent Check-Ins Table
-  const [guestPage, setGuestPage] = useState(0);
-  const [guestRowsPerPage, setGuestRowsPerPage] = useState(5);
-  const [billBusyId, setBillBusyId] = useState("");
-  // Filter for Recent Front Desk Table: "TODAY_ALL" (Default: In & Out) | "TODAY_CHECKIN" | "TODAY_CHECKOUT" | "IN_HOUSE" | "ALL"
-  const [recentFilter, setRecentFilter] = useState("ALL");
+  // 2) Room categories + inventory chips (from room-types counts — not rooms list)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const q = buildListQuery({ page: 1, limit: 12 });
+        const res = await apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES}?${q}`);
+        if (!cancelled) setRoomTypes(extractRoomTypesFromResponse(res).roomTypes);
+      } catch {
+        if (!cancelled) setRoomTypes([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [roomTypesTick]);
+
+  // 3) Guest table — API pagination matches rows-per-page (default 5)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const status =
+          recentFilter === "CHECK_IN" || recentFilter === "IN_HOUSE" || recentFilter === "TODAY_CHECKIN"
+            ? "CHECKED_IN"
+            : recentFilter === "CHECK_OUT" || recentFilter === "TODAY_CHECKOUT"
+              ? "CHECKED_OUT"
+              : undefined;
+        const q = buildListQuery({
+          page: guestPage + 1,
+          limit: guestRowsPerPage,
+          status,
+        });
+        const res = await apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?${q}`);
+        const raw =
+          res?.data?.bookings ||
+          res?.bookings ||
+          (Array.isArray(res?.data) ? res.data : null) ||
+          (Array.isArray(res) ? res : []) ||
+          [];
+        const list = (Array.isArray(raw) ? raw : []).map((b) => normalizeBooking(b) || b);
+        const total = Number(res?.data?.total ?? res?.total ?? list.length) || list.length;
+        if (!cancelled) {
+          setBookings(list);
+          setBookingsTotal(total);
+        }
+      } catch {
+        if (!cancelled) {
+          setBookings([]);
+          setBookingsTotal(0);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [guestPage, guestRowsPerPage, recentFilter, bookingsTick]);
 
   const apiDateLabel = (value) => {
     if (!value) return "—";
@@ -218,6 +308,34 @@ export default function ReceptionistOverviewPage({
   });
   const [telemetrySearch, setTelemetrySearch] = useState("");
 
+  // Load rooms list only when a room-status modal needs row details
+  useEffect(() => {
+    if (!telemetryModal.open) return undefined;
+    const type = telemetryModal.type;
+    if (!type || type === "IN_HOUSE_GUESTS") return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const status =
+          type === "OCCUPIED"
+            ? "OCCUPIED"
+            : type === "CLEANING"
+              ? "CLEANING"
+              : type === "MAINTENANCE"
+                ? "MAINTENANCE"
+                : "AVAILABLE";
+        const q = buildListQuery({ page: 1, limit: 12, status });
+        const res = await apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?${q}`);
+        if (!cancelled) setRooms(extractRoomsFromResponse(res).rooms);
+      } catch {
+        if (!cancelled) setRooms([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [telemetryModal.open, telemetryModal.type]);
+
   // Live Current Clock for Operational Banner & Housekeeping Countdown
   const [liveCurrentTime, setLiveCurrentTime] = useState(new Date());
   const resolvedCleaningRoomIds = useRef(new Set());
@@ -230,7 +348,12 @@ export default function ReceptionistOverviewPage({
         body: { status: nextStatus },
       });
       toast.success(`Room ${room.roomNumber} updated to ${nextStatus}!`);
-      if (onRefresh) await onRefresh();
+      setRooms((prev) =>
+        prev.map((r) =>
+          String(r._id || r.id) === String(room._id || room.id) ? { ...r, status: nextStatus } : r
+        )
+      );
+      setRoomTypesTick((t) => t + 1);
     } catch (err) {
       toast.error(err.message || "Failed to update room status");
     }
@@ -286,11 +409,25 @@ export default function ReceptionistOverviewPage({
     };
   };
 
-  // Overall Global Counts
-  const totalOccupied = rooms.filter((r) => r.status === "OCCUPIED").length;
-  const totalAvailable = rooms.filter((r) => r.status === "AVAILABLE").length;
-  const totalCleaning = rooms.filter((r) => r.status === "CLEANING").length;
-  const totalMaintenance = rooms.filter((r) => r.status === "MAINTENANCE" || r.status === "BLOCKED").length;
+  // Overall inventory chips — summed from room-types API counts (no rooms list)
+  const inventoryTotals = useMemo(() => {
+    return (roomTypes || []).reduce(
+      (acc, rt) => {
+        const c = categoryStatusCounts(rt);
+        acc.available += c.available;
+        acc.occupied += c.occupied;
+        acc.cleaning += c.cleaning;
+        acc.maintenance += c.maintenance;
+        acc.total += c.totalRooms;
+        return acc;
+      },
+      { available: 0, occupied: 0, cleaning: 0, maintenance: 0, total: 0 }
+    );
+  }, [roomTypes]);
+  const totalOccupied = inventoryTotals.occupied;
+  const totalAvailable = inventoryTotals.available;
+  const totalCleaning = inventoryTotals.cleaning;
+  const totalMaintenance = inventoryTotals.maintenance;
 
   // Compile all hotel guests (from guests directory + bookings)
   const totalGuestsList = useMemo(() => {
@@ -523,103 +660,34 @@ export default function ReceptionistOverviewPage({
     return <Hotel sx={{ fontSize: 22 }} />;
   };
 
-  // Grouped Categories with Live Counts
+  // Categories from room-types API counts (backend already aggregates — no rooms list query)
   const categoryStats = useMemo(() => {
-    const catMap = new Map();
-
-    (roomTypes || []).forEach((rt) => {
-      const id = String(rt._id || rt.id || "");
-      if (!id) return;
-      catMap.set(id, {
-        _id: id,
-        id: id,
-        name: rt.name,
-        description: rt.description || "",
-        basePrice: rt.basePrice || rt.price || 0,
-        bedCount: rt.bedCount || 1,
-        bedType: rt.bedType || "1 King Bed",
-        capacity: rt.capacity || { adults: 2, children: 1 },
-        amenities: rt.amenities || [],
-        totalRooms: 0,
-        available: 0,
-        occupied: 0,
-        cleaning: 0,
-        maintenance: 0,
-        reserved: 0,
-        rooms: [],
-      });
-    });
-
-    (rooms || []).forEach((r) => {
-      const rtObj = typeof r.roomType === "object" ? r.roomType : (typeof r.room_type === "object" ? r.room_type : null);
-      const rtId = String(
-        rtObj?._id || rtObj?.id || r.roomTypeId || r.room_type_id || r.roomType || r.room_type || ""
-      );
-      const rtName = rtObj?.name || r.roomTypeName || r.room_type_name || r.type || "Standard Room";
-
-      let item = null;
-      if (rtId && catMap.has(rtId)) {
-        item = catMap.get(rtId);
-      } else {
-        for (const cat of catMap.values()) {
-          if (cat.name && rtName && cat.name.trim().toLowerCase() === rtName.trim().toLowerCase()) {
-            item = cat;
-            break;
-          }
-        }
-      }
-
-      if (!item) {
-        const fallbackId = rtId || rtName || `CAT_${catMap.size + 1}`;
-        item = {
-          _id: fallbackId,
-          id: fallbackId,
-          name: rtName,
-          description: "",
-          basePrice: r.customPricePerNight || rtObj?.basePrice || r.basePrice || 0,
-          bedCount: r.bedCount || 1,
-          bedType: r.bedType || "1 King Bed",
-          capacity: { adults: r.seatingCapacity || 2, children: 1 },
-          amenities: r.amenities || [],
-          totalRooms: 0,
-          available: 0,
-          occupied: 0,
-          cleaning: 0,
-          maintenance: 0,
-          reserved: 0,
+    return (roomTypes || [])
+      .map((rt) => {
+        const id = String(rt._id || rt.id || "");
+        if (!id) return null;
+        const counts = categoryStatusCounts(rt);
+        return {
+          _id: id,
+          id,
+          name: rt.name,
+          description: rt.description || "",
+          basePrice: rt.basePrice || rt.price || 0,
+          bedCount: rt.bedCount || 1,
+          bedType: rt.bedType || "1 King Bed",
+          capacity: rt.capacity || { adults: 2, children: 1 },
+          amenities: rt.amenities || [],
+          totalRooms: counts.totalRooms,
+          available: counts.available,
+          occupied: counts.occupied,
+          cleaning: counts.cleaning,
+          maintenance: counts.maintenance,
+          reserved: counts.reserved,
           rooms: [],
         };
-        catMap.set(fallbackId, item);
-      }
-
-      item.totalRooms += 1;
-      item.rooms.push(r);
-
-      const effectiveRoomPrice = r.customPricePerNight || rtObj?.basePrice || r.basePrice || 0;
-      if (effectiveRoomPrice > 0 && (!item.basePrice || r.customPricePerNight)) {
-        item.basePrice = effectiveRoomPrice;
-      }
-
-      const st = String(r.status || "").toUpperCase();
-      if (st === "AVAILABLE") item.available += 1;
-      else if (st === "OCCUPIED" || st === "BOOKED") item.occupied += 1;
-      else if (st === "CLEANING") item.cleaning += 1;
-      else if (st === "RESERVED") item.reserved += 1;
-      else if (st === "MAINTENANCE" || st === "BLOCKED") item.maintenance += 1;
-      else item.available += 1;
-    });
-
-    catMap.forEach((cat) => {
-      cat.rooms.sort((a, b) => {
-        const numA = parseInt(a.roomNumber || a.room_number, 10) || 0;
-        const numB = parseInt(b.roomNumber || b.room_number, 10) || 0;
-        return numA - numB;
-      });
-    });
-
-    // Only return categories that have rooms allotted (totalRooms > 0)
-    return Array.from(catMap.values()).filter((cat) => cat.totalRooms > 0);
-  }, [rooms, roomTypes]);
+      })
+      .filter((cat) => cat && cat.totalRooms > 0);
+  }, [roomTypes]);
 
   // All formatted bookings for recent table
   // Helper to determine if a date is Today
@@ -730,174 +798,9 @@ export default function ReceptionistOverviewPage({
     });
   }, [bookings]);
 
-  // Active bookings filtered by selected mode ("TODAY_ALL" | "TODAY_CHECKIN" | "TODAY_CHECKOUT" | "IN_HOUSE" | "ALL")
-  const activeRecentBookings = useMemo(() => {
-    if (recentFilter === "TODAY_ALL") {
-      const todayFromBookings = allFormattedBookings.filter((b) => {
-        return (
-          isTodayDate(b.checkInDateRaw) ||
-          isTodayDate(b.checkInDate) ||
-          isTodayDate(b.checkOutDateRaw) ||
-          isTodayDate(b.checkOutDate) ||
-          b.status === "IN-HOUSE" ||
-          b.rawStatus === "CHECKED_IN"
-        );
-      });
-      const seenBookingIds = new Set(todayFromBookings.map((b) => String(b.id || b._id)));
-
-      const extraTodayGuests = (inHouseGuestsList || [])
-        .filter(
-          (g) => !seenBookingIds.has(String(g.id || g._id || g.booking?.id || g.booking?._id))
-        )
-        .map((g) => {
-          const cleanB = (g.booking && g.booking !== g) ? { ...g.booking } : null;
-          if (cleanB) { delete cleanB.guest; delete cleanB.booking; delete cleanB.activeBooking; }
-          const cleanG = (g.guest && g.guest !== g) ? { ...g.guest } : null;
-          if (cleanG) { delete cleanG.guest; delete cleanG.booking; delete cleanG.activeBooking; }
-          const realId = g.id || g._id || cleanB?.id || cleanB?._id;
-          const bNum = g.booking_number || g.bookingNumber || cleanB?.booking_number || cleanB?.bookingNumber;
-          const rawIn = g.actual_check_in || g.actualCheckIn || g.check_in_date || g.checkInDate || g.checkInDateRaw || "";
-          const rawOut = g.actual_check_out || g.actualCheckOut || g.check_out_date || g.checkOutDate || g.checkOutDateRaw || "";
-          return {
-            _id: realId,
-            id: realId,
-            bookingId: realId,
-            booking_number: bNum,
-            bookingNumber: bNum,
-            ...(cleanB || {}),
-            ...g,
-            booking: cleanB,
-            activeBooking: cleanB,
-            guest: cleanG,
-            guestId: realId,
-            name: g.name || g.fullName || cleanB?.primary_guest_name || "Guest",
-            email: g.email || "",
-            phone: g.phone || g.mobileNumber || cleanB?.mobile_number || "N/A",
-            roomAssigned: g.roomAssigned || "101",
-            roomNumbers: [g.roomAssigned || "101"],
-            checkInDateRaw: rawIn,
-            checkInDate: rawIn ? apiDateLabel(rawIn) : "—",
-            checkOutDateRaw: rawOut,
-            checkOutDate: rawOut ? apiDateLabel(rawOut) : "—",
-            totalAmount: Number(g.totalAmount ?? g.total_amount ?? cleanB?.totalAmount ?? cleanB?.total_amount ?? 0),
-            paidAmount: Number(g.paidAmount ?? g.paid_amount ?? cleanB?.paidAmount ?? cleanB?.paid_amount ?? 0),
-            baseAmount: Number(g.baseAmount ?? g.base_amount ?? cleanB?.baseAmount ?? cleanB?.base_amount ?? 0),
-            gstAmount: Number(g.gstAmount ?? g.gst_amount ?? cleanB?.gstAmount ?? cleanB?.gst_amount ?? 0),
-            pricePerNight: Number(g.pricePerNight ?? g.price_per_night ?? cleanB?.pricePerNight ?? cleanB?.price ?? 0),
-            numberOfNights: Number(g.numberOfNights ?? g.nights ?? cleanB?.numberOfNights ?? cleanB?.nights ?? 1),
-            roomType: g.roomType || cleanB?.roomType || cleanB?.roomTypeName || "Standard Room",
-            dueAmount: Number(g.dueAmount ?? g.due_amount ?? cleanB?.dueAmount ?? cleanB?.due_amount ?? Math.max(0, Number(g.totalAmount ?? cleanB?.totalAmount ?? 0) - Number(g.paidAmount ?? cleanB?.paidAmount ?? 0))),
-            status: "IN-HOUSE",
-            rawStatus: "CHECKED_IN",
-          };
-        });
-
-      return [...todayFromBookings, ...extraTodayGuests];
-    }
-
-    if (recentFilter === "IN_HOUSE") {
-      const inHouseFromBookings = allFormattedBookings.filter(
-        (b) => b.status === "IN-HOUSE" || b.rawStatus === "CHECKED_IN"
-      );
-      const seenBookingIds = new Set(inHouseFromBookings.map((b) => String(b.id || b._id)));
-
-      const extraInHouse = (inHouseGuestsList || [])
-        .filter((g) => !seenBookingIds.has(String(g.id || g._id || g.booking?.id || g.booking?._id || "")))
-        .map((g) => {
-          const cleanB = (g.booking && g.booking !== g) ? { ...g.booking } : null;
-          if (cleanB) { delete cleanB.guest; delete cleanB.booking; delete cleanB.activeBooking; }
-          const cleanG = (g.guest && g.guest !== g) ? { ...g.guest } : null;
-          if (cleanG) { delete cleanG.guest; delete cleanG.booking; delete cleanG.activeBooking; }
-          const rawIn = g.actual_check_in || g.actualCheckIn || g.check_in_date || g.checkInDate || g.checkInDateRaw || "";
-          const rawOut = g.actual_check_out || g.actualCheckOut || g.check_out_date || g.checkOutDate || g.checkOutDateRaw || "";
-          return {
-            _id: g._id,
-            ...(cleanB || {}),
-            ...g,
-            booking: cleanB,
-            activeBooking: cleanB,
-            guest: cleanG,
-            guestId: g._id,
-            name: g.name || g.fullName || cleanB?.primary_guest_name || "Guest",
-            email: g.email || "",
-            phone: g.phone || g.mobileNumber || cleanB?.mobile_number || "N/A",
-            roomAssigned: g.roomAssigned || "101",
-            roomNumbers: [g.roomAssigned || "101"],
-            checkInDateRaw: rawIn,
-            checkInDate: rawIn ? apiDateLabel(rawIn) : "—",
-            checkOutDateRaw: rawOut,
-            checkOutDate: rawOut ? apiDateLabel(rawOut) : "—",
-            totalAmount: Number(g.totalAmount ?? g.total_amount ?? cleanB?.totalAmount ?? cleanB?.total_amount ?? 0),
-            paidAmount: Number(g.paidAmount ?? g.paid_amount ?? cleanB?.paidAmount ?? cleanB?.paid_amount ?? 0),
-            baseAmount: Number(g.baseAmount ?? g.base_amount ?? cleanB?.baseAmount ?? cleanB?.base_amount ?? 0),
-            gstAmount: Number(g.gstAmount ?? g.gst_amount ?? cleanB?.gstAmount ?? cleanB?.gst_amount ?? 0),
-            pricePerNight: Number(g.pricePerNight ?? g.price_per_night ?? cleanB?.pricePerNight ?? cleanB?.price ?? 0),
-            numberOfNights: Number(g.numberOfNights ?? g.nights ?? cleanB?.numberOfNights ?? cleanB?.nights ?? 1),
-            roomType: g.roomType || cleanB?.roomType || cleanB?.roomTypeName || "Standard Room",
-            dueAmount: Number(g.dueAmount ?? g.due_amount ?? cleanB?.dueAmount ?? cleanB?.due_amount ?? Math.max(0, Number(g.totalAmount ?? cleanB?.totalAmount ?? 0) - Number(g.paidAmount ?? cleanB?.paidAmount ?? 0))),
-            status: "IN-HOUSE",
-            rawStatus: "CHECKED_IN",
-          };
-        });
-
-      return [...inHouseFromBookings, ...extraInHouse];
-    }
-
-    if (recentFilter === "CHECK_IN") {
-      return allFormattedBookings.filter((b) => b.status === "IN-HOUSE" || b.rawStatus === "CHECKED_IN" || b.status === "CHECKED_IN");
-    }
-
-    if (recentFilter === "CHECK_OUT") {
-      return allFormattedBookings.filter((b) => b.status === "CHECKED_OUT" || b.status === "DEPARTED" || b.rawStatus === "CHECKED_OUT" || b.rawStatus === "DEPARTED");
-    }
-
-    return allFormattedBookings;
-  }, [allFormattedBookings, inHouseGuestsList, recentFilter]);
-
-  const countTodayAll = useMemo(() => {
-    const fromBookings = allFormattedBookings.filter(
-      (b) =>
-        isTodayDate(b.checkInDateRaw) ||
-        isTodayDate(b.checkInDate) ||
-        isTodayDate(b.checkOutDateRaw) ||
-        isTodayDate(b.checkOutDate) ||
-        b.status === "IN-HOUSE" ||
-        b.rawStatus === "CHECKED_IN"
-    );
-    const seenBookingIds = new Set(fromBookings.map((b) => String(b._id)));
-    const extraTodayGuests = (inHouseGuestsList || []).filter(
-      (g) => !seenBookingIds.has(String(g.booking?._id || g._id))
-    );
-    return fromBookings.length + extraTodayGuests.length;
-  }, [allFormattedBookings, inHouseGuestsList]);
-
-  const countTodayCheckout = useMemo(() => {
-    const fromBookings = allFormattedBookings.filter(
-      (b) => isTodayDate(b.checkOutDateRaw) || isTodayDate(b.checkOutDate)
-    ).length;
-    const fromGuests = (inHouseGuestsList || []).filter(
-      (g) => isTodayDate(g.checkOutDate) || isTodayDate(g.guest?.checkOutDate)
-    ).length;
-    return Math.max(fromBookings, fromGuests);
-  }, [allFormattedBookings, inHouseGuestsList]);
-
-  const countInHouse = useMemo(() => {
-    const fromBookings = allFormattedBookings.filter(
-      (b) => b.status === "IN-HOUSE" || b.rawStatus === "CHECKED_IN"
-    );
-    const seen = new Set(fromBookings.map((b) => String(b.id || b._id)));
-    const extra = (inHouseGuestsList || []).filter((g) => {
-      const gid = String(g.id || g._id || g.booking?.id || g.booking?._id || "");
-      return gid && !seen.has(gid);
-    });
-    return fromBookings.length + extra.length;
-  }, [allFormattedBookings, inHouseGuestsList]);
-
-  const countTodayCheckIn = useMemo(() => {
-    return allFormattedBookings.filter((b) => isTodayDate(b.checkInDateRaw) || isTodayDate(b.checkInDate)).length;
-  }, [allFormattedBookings]);
-
-  const countAll = allFormattedBookings.length;
+  // API already returns the current page for the selected filter — no client re-query/slice
+  const activeRecentBookings = allFormattedBookings;
+  const countAll = bookingsTotal;
   const summaryMethods = daySummary?.collection_by_payment_method || daySummary?.collectionByPaymentMethod || {};
   const money = (value) => `₹${Number(value || 0).toLocaleString("en-IN")}`;
   const todayCollected = Number(daySummary?.total_collected_amount ?? daySummary?.totalCollectedAmount ?? 0);
@@ -986,7 +889,7 @@ export default function ReceptionistOverviewPage({
             { label: "Cleaning", value: totalCleaning, color: "#D97706", icon: <CleaningServices sx={{ fontSize: 16, color: "#D97706" }} />, type: "CLEANING" },
             { label: "Blocked", value: totalMaintenance, color: "#EF4444", icon: <Build sx={{ fontSize: 16, color: "#EF4444" }} />, type: "MAINTENANCE" },
           ].map((item) => {
-            const roomTotal = Math.max(rooms.length, 1);
+            const roomTotal = Math.max(inventoryTotals.total, 1);
             const percent = Math.min(100, Math.round((Number(item.value) || 0) / roomTotal * 100));
             return (
               <Box
@@ -1054,7 +957,7 @@ export default function ReceptionistOverviewPage({
                 "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
               }}
             >
-              Open Rooms List ({rooms.length})
+              Open Rooms List ({inventoryTotals.total})
             </Button>
           </Box>
 
@@ -1161,9 +1064,9 @@ export default function ReceptionistOverviewPage({
             onChange={(e) => { setRecentFilter(e.target.value); setGuestPage(0); }}
             sx={tableFieldSx(themeConfig, 220)}
           >
-            <MenuItem value="ALL">All ({countAll})</MenuItem>
-            <MenuItem value="CHECK_IN">Check-in ({allFormattedBookings.filter((b) => b.status === "IN-HOUSE" || b.rawStatus === "CHECKED_IN" || b.status === "CHECKED_IN").length})</MenuItem>
-            <MenuItem value="CHECK_OUT">Check-out ({allFormattedBookings.filter((b) => b.status === "CHECKED_OUT" || b.status === "DEPARTED" || b.rawStatus === "CHECKED_OUT" || b.rawStatus === "DEPARTED").length})</MenuItem>
+            <MenuItem value="ALL">All{recentFilter === "ALL" ? ` (${countAll})` : ""}</MenuItem>
+            <MenuItem value="CHECK_IN">Check-in{recentFilter === "CHECK_IN" ? ` (${countAll})` : ""}</MenuItem>
+            <MenuItem value="CHECK_OUT">Check-out{recentFilter === "CHECK_OUT" ? ` (${countAll})` : ""}</MenuItem>
           </TextField>
         </TableToolbar>
 
@@ -1197,9 +1100,7 @@ export default function ReceptionistOverviewPage({
                     </TableCell>
                   </TableRow>
                 ) : (
-                  activeRecentBookings
-                    .slice(guestPage * guestRowsPerPage, guestPage * guestRowsPerPage + guestRowsPerPage)
-                    .map((g) => (
+                  activeRecentBookings.map((g) => (
                       <TableRow
                         key={g.id || g._id || g.name}
                         onClick={() => {
@@ -1318,10 +1219,10 @@ export default function ReceptionistOverviewPage({
               </TableBody>
             </Table>
           </TableContainer>
-        {activeRecentBookings.length > 0 && (
+        {bookingsTotal > 0 && (
           <TablePager
             rowsPerPageOptions={[5, 10, 25]}
-            count={activeRecentBookings.length}
+            count={bookingsTotal}
             rowsPerPage={guestRowsPerPage}
             page={guestPage}
             onPageChange={(e, newPage) => setGuestPage(newPage)}

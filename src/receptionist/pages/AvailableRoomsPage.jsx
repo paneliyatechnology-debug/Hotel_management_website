@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect, Fragment } from "react";
+import { useState, useMemo, useEffect, useRef, Fragment } from "react";
 import {
   Box,
   Typography,
@@ -76,21 +76,61 @@ import {
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import EmptyState from "@/shared/components/EmptyState";
 import InfiniteScrollSentinel from "@/shared/components/InfiniteScrollSentinel";
-import { useInfiniteList } from "@/shared/hooks/useInfiniteList";
 import CheckoutDialog from "@/receptionist/components/CheckoutDialog";
+import { API_ENDPOINTS, apiRequest } from "@/config/api";
+import { useSocket } from "@/shared/context/SocketContext";
+import { applyRoomStatusEvent } from "@/shared/utils/liveSync";
+import {
+  buildListQuery,
+  extractRoomsFromResponse,
+  extractRoomTypesFromResponse,
+  mergeById,
+} from "@/shared/utils/listQuery";
+
+/** Match on-screen load batches (category cards + room cards) */
+const CATEGORY_PAGE_SIZE = 12;
+const ROOMS_PAGE_SIZE = 12;
+
+// Survive React Strict Mode remount so page-1 is not fired twice for the same key
+let lastRoomTypesFetchKey = "";
+let lastRoomTypesFetchAt = 0;
+
+function readCount(source, snakeKey, camelKey) {
+  const value = source?.[snakeKey] ?? source?.[camelKey];
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+/** Inventory chips on category cards come from room-types API — no rooms list needed */
+function categoryStatusCounts(category) {
+  const counts = category?.room_status_counts || category?.roomStatusCounts || category?.summary || {};
+  const available = readCount(counts, "available_count", "availableCount");
+  const occupied = readCount(counts, "occupied_count", "occupiedCount");
+  const reserved = readCount(counts, "reserved_count", "reservedCount");
+  const cleaning = readCount(counts, "cleaning_count", "cleaningCount");
+  const maintenance =
+    readCount(counts, "maintenance_count", "maintenanceCount") +
+    readCount(counts, "blocked_count", "blockedCount");
+  const statedTotal = readCount(counts, "total_room_count", "totalRoomCount");
+  const booked = occupied + reserved;
+  return {
+    available,
+    occupied: booked,
+    reserved: 0,
+    cleaning,
+    maintenance,
+    totalRooms: statedTotal || available + booked + cleaning + maintenance,
+  };
+}
 
 export default function AvailableRoomsPage({
   user,
-  rooms = [],
-  roomTypes = [],
-  guests = [],
   hotelSettings = {
     checkInTime: "14:00",
     checkOutTime: "12:00",
     timezone: "Asia/Kolkata",
     upiId: "jatinkakadiya234-1@okicici",
   },
-  onRefresh,
   onRoomStatusChange,
   onCheckOut,
   onSelectRoomForCheckIn,
@@ -100,6 +140,19 @@ export default function AvailableRoomsPage({
   resetToken = 0,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
+
+  // Category list → room-types only. Room rows load only after opening a category.
+  const [rooms, setRooms] = useState([]);
+  const [roomTypes, setRoomTypes] = useState([]);
+  const [typesPage, setTypesPage] = useState(1);
+  const [typesHasMore, setTypesHasMore] = useState(false);
+  const [typesLoading, setTypesLoading] = useState(true);
+  const [typesLoadingMore, setTypesLoadingMore] = useState(false);
+  const [roomsPage, setRoomsPage] = useState(1);
+  const [roomsHasMore, setRoomsHasMore] = useState(false);
+  const [roomsLoading, setRoomsLoading] = useState(false);
+  const [roomsLoadingMore, setRoomsLoadingMore] = useState(false);
+  const [roomsError, setRoomsError] = useState("");
 
   // Guest name comes from the room payload (rooms API / room:status) — no bookings list lookup
   const getRoomGuestName = (room) => {
@@ -158,9 +211,139 @@ export default function AvailableRoomsPage({
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("ALL");
   const [selectedFloor, setSelectedFloor] = useState("ALL");
   const [selectedStatus, setSelectedStatus] = useState("ALL");
+  const [debouncedRoomSearch, setDebouncedRoomSearch] = useState("");
 
-  // Category card pagination
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedRoomSearch(roomSearch.trim()), 300);
+    return () => clearTimeout(t);
+  }, [roomSearch]);
+
+  // Category card search (API)
   const [categorySearch, setCategorySearch] = useState("");
+  const [debouncedCategorySearch, setDebouncedCategorySearch] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedCategorySearch(categorySearch.trim()), 300);
+    return () => clearTimeout(t);
+  }, [categorySearch]);
+
+  const typesInFlightRef = useRef(false);
+
+  const fetchRoomTypesPage = async (pageNum, { append = false } = {}) => {
+    if (typesInFlightRef.current) return;
+    typesInFlightRef.current = true;
+    if (append) setTypesLoadingMore(true);
+    else setTypesLoading(true);
+    try {
+      const q = buildListQuery({
+        page: pageNum,
+        limit: CATEGORY_PAGE_SIZE,
+        search: debouncedCategorySearch || undefined,
+      });
+      const res = await apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES}?${q}`);
+      const { roomTypes: pageTypes, page, totalPages } = extractRoomTypesFromResponse(res);
+      setRoomTypes((prev) => (append ? mergeById(prev, pageTypes) : pageTypes));
+      setTypesPage(page || pageNum);
+      // No more pages if this batch was short — avoids empty page-2 on short category lists
+      const fullPage = pageTypes.length >= CATEGORY_PAGE_SIZE;
+      setTypesHasMore(fullPage && (page || pageNum) < (totalPages || 1));
+      setRoomsError("");
+    } catch (err) {
+      if (!append) setRoomTypes([]);
+      setRoomsError(err?.message || "Could not load room types");
+      setTypesHasMore(false);
+    } finally {
+      typesInFlightRef.current = false;
+      setTypesLoading(false);
+      setTypesLoadingMore(false);
+    }
+  };
+
+  const roomsInFlightRef = useRef(false);
+
+  const fetchRoomsPage = async (pageNum, { append = false } = {}) => {
+    if (!selectedCategory) {
+      setRooms([]);
+      setRoomsHasMore(false);
+      setRoomsLoading(false);
+      return;
+    }
+    if (roomsInFlightRef.current) return;
+    roomsInFlightRef.current = true;
+    if (append) setRoomsLoadingMore(true);
+    else setRoomsLoading(true);
+    try {
+      const statusParam =
+        selectedStatus === "ALL"
+          ? undefined
+          : selectedStatus === "OCCUPIED"
+            ? undefined
+            : selectedStatus;
+      const q = buildListQuery({
+        page: pageNum,
+        limit: ROOMS_PAGE_SIZE,
+        room_type_id: selectedCategory,
+        floor: selectedFloor !== "ALL" ? selectedFloor : undefined,
+        status: statusParam,
+        search: debouncedRoomSearch || undefined,
+      });
+      const res = await apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?${q}`);
+      const { rooms: pageRooms, page, totalPages } = extractRoomsFromResponse(res);
+      setRooms((prev) => (append ? mergeById(prev, pageRooms) : pageRooms));
+      setRoomsPage(page || pageNum);
+      const fullPage = pageRooms.length >= ROOMS_PAGE_SIZE;
+      setRoomsHasMore(fullPage && (page || pageNum) < (totalPages || 1));
+      setRoomsError("");
+    } catch (err) {
+      if (!append) setRooms([]);
+      setRoomsError(err?.message || "Could not load rooms");
+      setRoomsHasMore(false);
+    } finally {
+      roomsInFlightRef.current = false;
+      setRoomsLoading(false);
+      setRoomsLoadingMore(false);
+    }
+  };
+
+  // Category list: room-types with the same page size as the card grid (once per key)
+  useEffect(() => {
+    if (selectedCategory) return;
+    const key = `types:1:${resetToken}:${debouncedCategorySearch}`;
+    const now = Date.now();
+    // Block Strict Mode double-mount; allow a real revisit after a short gap
+    if (lastRoomTypesFetchKey === key && now - lastRoomTypesFetchAt < 1000) return;
+    lastRoomTypesFetchKey = key;
+    lastRoomTypesFetchAt = now;
+    fetchRoomTypesPage(1, { append: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCategory, resetToken, debouncedCategorySearch]);
+
+  // Room cards: only after a category is opened
+  useEffect(() => {
+    if (!selectedCategory) {
+      setRooms([]);
+      setRoomsHasMore(false);
+      setRoomsLoading(false);
+      return;
+    }
+    fetchRoomsPage(1, { append: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCategory, selectedFloor, selectedStatus, debouncedRoomSearch]);
+
+  const loadMoreCategoriesFromApi = () => {
+    if (selectedCategory || !typesHasMore || typesLoadingMore || typesLoading) return;
+    fetchRoomTypesPage(typesPage + 1, { append: true });
+  };
+
+  const loadMoreRoomsFromApi = () => {
+    if (!selectedCategory || !roomsHasMore || roomsLoadingMore || roomsLoading) return;
+    fetchRoomsPage(roomsPage + 1, { append: true });
+  };
+
+  // Live patch room cards only — never refetch room-types while inside a category
+  useSocket(["room:status"], (payload) => {
+    setRooms((prev) => applyRoomStatusEvent(prev, payload));
+  });
 
   // Multi-Room Selection State for Quick Bulk Booking & Check-In
   const [selectedRoomIds, setSelectedRoomIds] = useState([]);
@@ -259,121 +442,41 @@ export default function AvailableRoomsPage({
     return <Hotel sx={{ fontSize: 20 }} />;
   };
 
-  // Grouped Categories with Live Counts & Room Lists
+  // Categories from room-types API counts only (rooms list is unused on this screen)
   const categoryStats = useMemo(() => {
-    const catMap = new Map();
-
-    // 1. Add all configured roomTypes
-    roomTypes.forEach((rt) => {
-      const id = String(rt._id || rt.id || "");
-      if (!id) return;
-      catMap.set(id, {
-        _id: id,
-        id: id,
-        name: rt.name,
-        description: rt.description || "",
-        basePrice: rt.basePrice || rt.price || 0,
-        bedCount: rt.bedCount || rt.beds || 1,
-        bedType: rt.bedType || "1 King Bed",
-        capacity: rt.capacity || { adults: rt.max_adults || rt.adults || 2, children: rt.max_children || rt.children || 1 },
-        amenities: rt.amenities || [],
-        totalRooms: 0,
-        available: 0,
-        occupied: 0,
-        cleaning: 0,
-        maintenance: 0,
-        reserved: 0,
-        rooms: [],
-      });
-    });
-
-    // 2. Count rooms into each category
-    rooms.forEach((r) => {
-      const rtObj = typeof r.roomType === "object" ? r.roomType : (typeof r.room_type === "object" ? r.room_type : null);
-      const rtId = String(
-        rtObj?._id || rtObj?.id || r.roomType || r.room_type || r.room_type_id || r.roomTypeId || ""
-      );
-      const rtName = rtObj?.name || r.type || r.room_type_name || "Standard Room";
-
-      // Match category by ID first, then fallback to name match
-      let item = null;
-      if (rtId && catMap.has(rtId)) {
-        item = catMap.get(rtId);
-      } else {
-        for (const cat of catMap.values()) {
-          if (cat.name && rtName && cat.name.trim().toLowerCase() === rtName.trim().toLowerCase()) {
-            item = cat;
-            break;
-          }
-        }
-      }
-
-      if (!item) {
-        const fallbackId = rtId || rtName || `CAT_${catMap.size + 1}`;
-        item = {
-          _id: fallbackId,
-          id: fallbackId,
-          name: rtName,
-          description: "",
-          basePrice: r.customPricePerNight || rtObj?.basePrice || r.basePrice || 0,
-          bedCount: r.bedCount || 1,
-          bedType: r.bedType || "1 King Bed",
-          capacity: { adults: r.seatingCapacity || 2, children: 1 },
-          amenities: r.amenities || [],
-          totalRooms: 0,
-          available: 0,
-          occupied: 0,
-          cleaning: 0,
-          maintenance: 0,
-          reserved: 0,
+    return (roomTypes || [])
+      .map((rt) => {
+        const id = String(rt._id || rt.id || "");
+        if (!id) return null;
+        const counts = categoryStatusCounts(rt);
+        return {
+          _id: id,
+          id,
+          name: rt.name,
+          description: rt.description || "",
+          basePrice: rt.basePrice || rt.price || 0,
+          bedCount: rt.bedCount || rt.beds || 1,
+          bedType: rt.bedType || "1 King Bed",
+          capacity: rt.capacity || { adults: rt.max_adults || rt.adults || 2, children: rt.max_children || rt.children || 1 },
+          amenities: rt.amenities || [],
+          totalRooms: counts.totalRooms,
+          available: counts.available,
+          occupied: counts.occupied,
+          cleaning: counts.cleaning,
+          maintenance: counts.maintenance,
+          reserved: counts.reserved,
           rooms: [],
         };
-        catMap.set(fallbackId, item);
-      }
+      })
+      .filter((cat) => cat && (cat.totalRooms > 0 || cat.available > 0 || cat.occupied > 0 || cat.cleaning > 0));
+  }, [roomTypes]);
 
-      item.totalRooms += 1;
-      item.rooms.push(r);
-
-      const effectiveRoomPrice = r.customPricePerNight || rtObj?.basePrice || r.basePrice || 0;
-      if (effectiveRoomPrice > 0 && (!item.basePrice || r.customPricePerNight)) {
-        item.basePrice = effectiveRoomPrice;
-      }
-
-      const st = String(r.status || "").toUpperCase();
-      if (st === "AVAILABLE") item.available += 1;
-      else if (st === "OCCUPIED" || st === "BOOKED") item.occupied += 1;
-      else if (st === "CLEANING") item.cleaning += 1;
-      else if (st === "RESERVED") item.reserved += 1;
-      else if (st === "MAINTENANCE" || st === "BLOCKED") item.maintenance += 1;
-      else item.available += 1;
-    });
-
-    // Sort room lists inside each category numerically by room number
-    catMap.forEach((cat) => {
-      cat.rooms.sort((a, b) => {
-        const numA = parseInt(a.roomNumber, 10) || 0;
-        const numB = parseInt(b.roomNumber, 10) || 0;
-        return numA - numB;
-      });
-    });
-
-    // Return all categories (including those where all rooms are booked or categories configured in system)
-    return Array.from(catMap.values());
-  }, [rooms, roomTypes]);
-
-  const filteredCategories = useMemo(() => {
-    const query = categorySearch.trim().toLowerCase();
-    if (!query) return categoryStats;
-    return categoryStats.filter((cat) => String(cat.name || "").toLowerCase().includes(query));
-  }, [categoryStats, categorySearch]);
-
-  // Lazy loading: show a batch of category cards and load the next batch while scrolling
-  const {
-    visibleItems: visibleCategories,
-    visibleCount: visibleCategoryCount,
-    hasMore: hasMoreCategories,
-    loadMore: loadMoreCategories,
-  } = useInfiniteList(filteredCategories, { pageSize: 12, resetKey: categorySearch });
+  // API already returns the current pages — search is sent as query param
+  const filteredCategories = categoryStats;
+  const visibleCategories = filteredCategories;
+  const visibleCategoryCount = visibleCategories.length;
+  const hasMoreCategories = typesHasMore;
+  const loadMoreCategories = loadMoreCategoriesFromApi;
 
   const overviewTotals = useMemo(
     () =>
@@ -384,25 +487,21 @@ export default function AvailableRoomsPage({
     [categoryStats]
   );
 
-  // Overall Global Room Stats
-  const globalStats = useMemo(() => {
-    let total = rooms.length;
-    let available = 0;
-    let occupied = 0;
-    let cleaning = 0;
-    let maintenance = 0;
-
-    rooms.forEach((r) => {
-      const st = String(r.status || "").toUpperCase();
-      if (st === "AVAILABLE") available++;
-      else if (st === "OCCUPIED" || st === "BOOKED" || st === "RESERVED") occupied++;
-      else if (st === "CLEANING") cleaning++;
-      else if (st === "MAINTENANCE" || st === "BLOCKED") maintenance++;
-      else available++;
-    });
-
-    return { total, available, occupied, cleaning, maintenance };
-  }, [rooms]);
+  // Overall inventory from room-types counts (same source as category cards)
+  const globalStats = useMemo(
+    () =>
+      categoryStats.reduce(
+        (acc, cat) => ({
+          total: acc.total + cat.totalRooms,
+          available: acc.available + cat.available,
+          occupied: acc.occupied + cat.occupied + cat.reserved,
+          cleaning: acc.cleaning + cat.cleaning,
+          maintenance: acc.maintenance + cat.maintenance,
+        }),
+        { total: 0, available: 0, occupied: 0, cleaning: 0, maintenance: 0 }
+      ),
+    [categoryStats]
+  );
 
   // Current selected category object (for Box drill-down)
   const activeCategory = useMemo(() => {
@@ -424,18 +523,10 @@ export default function AvailableRoomsPage({
     }
   }, [selectedCategory, activeCategory, categoryStats]);
 
-  useEffect(() => {
-    if (selectedCategory || categoryStats.length !== 1) return;
-    if (typeof window !== "undefined" && sessionStorage.getItem("receptionist.rooms.category") === "none") return;
-    const only = categoryStats[0];
-    setSelectedCategory(only?._id || only?.id || only?.name || null);
-  }, [categoryStats, selectedCategory]);
-
-  // Distinct floors across all rooms
+  // Floors for filters (only meaningful after a category is opened)
   const distinctFloors = useMemo(() => {
-    const list = selectedCategory && activeCategory ? activeCategory.rooms : rooms;
-    return Array.from(new Set(list.map((r) => r.floor || 1))).sort((a, b) => a - b);
-  }, [rooms, selectedCategory, activeCategory]);
+    return Array.from(new Set(rooms.map((r) => r.floor || 1))).sort((a, b) => a - b);
+  }, [rooms]);
 
   // Filtered rooms for Table View
   const filteredAllRooms = useMemo(() => {
@@ -483,10 +574,10 @@ export default function AvailableRoomsPage({
     });
   }, [rooms, categoryStats, selectedCategoryFilter, selectedFloor, selectedStatus, roomSearch]);
 
-  // Filtered rooms inside active category (for Category drill-down)
+  // Drill-down room cards come from rooms API for the selected category
   const filteredCategoryRooms = useMemo(() => {
     if (!activeCategory) return [];
-    return activeCategory.rooms.filter((r) => {
+    return rooms.filter((r) => {
       if (selectedFloor !== "ALL" && String(r.floor || 1) !== String(selectedFloor)) {
         return false;
       }
@@ -507,18 +598,13 @@ export default function AvailableRoomsPage({
       }
       return true;
     });
-  }, [activeCategory, selectedFloor, selectedStatus, roomSearch]);
+  }, [activeCategory, rooms, selectedFloor, selectedStatus, roomSearch]);
 
-  // Lazy loading: room cards load in batches while scrolling
-  const {
-    visibleItems: visibleRooms,
-    visibleCount: visibleRoomCount,
-    hasMore: hasMoreRooms,
-    loadMore: loadMoreRooms,
-  } = useInfiniteList(filteredCategoryRooms, {
-    pageSize: 12,
-    resetKey: `${selectedCategory}|${selectedFloor}|${selectedStatus}|${roomSearch}`,
-  });
+  // Server pages are already the visible set — scroll loads the next API page
+  const visibleRooms = filteredCategoryRooms;
+  const visibleRoomCount = visibleRooms.length;
+  const hasMoreRooms = roomsHasMore;
+  const loadMoreRooms = loadMoreRoomsFromApi;
 
   // Expanded Category IDs state for Table View (Category Grouped Accordion)
   const [expandedCategoryIds, setExpandedCategoryIds] = useState([]);
@@ -551,10 +637,6 @@ export default function AvailableRoomsPage({
       if (selectedCategoryFilter !== "ALL" && cat._id !== selectedCategoryFilter) {
         return false;
       }
-      if (selectedFloor !== "ALL") {
-        const hasFloor = cat.rooms.some((r) => String(r.floor || 1) === String(selectedFloor));
-        if (!hasFloor) return false;
-      }
       if (selectedStatus !== "ALL") {
         if (selectedStatus === "AVAILABLE" && cat.available === 0) return false;
         if (selectedStatus === "OCCUPIED" && cat.occupied === 0 && cat.reserved === 0) return false;
@@ -565,13 +647,11 @@ export default function AvailableRoomsPage({
         const q = roomSearch.toLowerCase();
         const matchCat = (cat.name || "").toLowerCase().includes(q);
         const matchBed = (cat.bedType || "").toLowerCase().includes(q);
-        const matchRoomNum = cat.rooms.some((r) => r.roomNumber?.toString().toLowerCase().includes(q));
-        const matchGuest = cat.rooms.some((r) => getRoomGuestName(r).toLowerCase().includes(q));
-        return matchCat || matchBed || matchRoomNum || matchGuest;
+        return matchCat || matchBed;
       }
       return true;
     });
-  }, [categoryStats, selectedCategoryFilter, selectedFloor, selectedStatus, roomSearch]);
+  }, [categoryStats, selectedCategoryFilter, selectedStatus, roomSearch]);
 
   // Open check-out using current_booking_id from the rooms API (not bookings list)
   const handleOpenStatusDialog = (room) => {
@@ -601,7 +681,11 @@ export default function AvailableRoomsPage({
       setActionError("");
       setBusyRoomId(id);
       await onRoomStatusChange(room, "AVAILABLE");
-      if (onRefresh) await onRefresh();
+      setRooms((prev) =>
+        prev.map((r) =>
+          String(r._id || r.id) === id ? { ...r, status: "AVAILABLE", current_booking_id: null, currentBookingId: null } : r
+        )
+      );
     } catch (err) {
       setActionError(err?.message || "Failed to mark room available");
     } finally {
@@ -611,8 +695,15 @@ export default function AvailableRoomsPage({
 
   return (
     <Box sx={{ width: "100%", minWidth: 0, maxWidth: "100%", overflowX: "hidden", px: { xs: 1.5, sm: 2.5, md: 3 }, py: { xs: 2, sm: 2.5 }, pb: { xs: 12, md: 4 } }}>
-      {actionError ? (
-        <Typography sx={{ mb: 1.5, color: "#DC2626", fontWeight: 700, fontSize: "0.85rem" }}>{actionError}</Typography>
+      {actionError || roomsError ? (
+        <Typography sx={{ mb: 1.5, color: "#DC2626", fontWeight: 700, fontSize: "0.85rem" }}>
+          {actionError || roomsError}
+        </Typography>
+      ) : null}
+      {(typesLoading && roomTypes.length === 0) || (selectedCategory && roomsLoading && rooms.length === 0) ? (
+        <Typography sx={{ mb: 1.5, color: themeConfig.textMuted, fontWeight: 600, fontSize: "0.85rem" }}>
+          {selectedCategory ? "Loading rooms…" : "Loading categories…"}
+        </Typography>
       ) : null}
       {/* Top Header Control Bar: Dynamic Category Title & Status Badges */}
       <Box
@@ -1195,7 +1286,7 @@ export default function AvailableRoomsPage({
         onClose={() => setCheckoutTarget(null)}
         onCheckOut={onCheckOut}
         onDone={async () => {
-          if (onRefresh) await onRefresh();
+          if (selectedCategory) await fetchRoomsPage(1, { append: false });
         }}
       />
 

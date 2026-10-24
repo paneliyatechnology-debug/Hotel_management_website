@@ -239,7 +239,7 @@ export default function GuestListPage({
 
   const [liveTick, setLiveTick] = useState(0);
 
-  // Real-Time Socket Auto-Sync (create, checkout, payment, status change).
+  // Real-Time Socket Auto-Sync — refresh this page's list only (no parent dump refetch)
   useSocket(
     [
       "BOOKING_CREATED",
@@ -251,7 +251,6 @@ export default function GuestListPage({
     ],
     () => {
       setLiveTick((tick) => tick + 1);
-      if (onRefresh) onRefresh();
     }
   );
 
@@ -360,41 +359,36 @@ export default function GuestListPage({
     return items;
   }, [bookings, guests, rooms, serverPage, bookingDetails]);
 
+  // Server-side page/limit — matches the table pager (not load-100-then-slice)
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const params = new URLSearchParams({ page: "1", limit: "100" });
+      const params = new URLSearchParams({
+        page: String(page + 1),
+        limit: String(rowsPerPage),
+      });
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
+      if (statusFilter !== "ALL") params.set("status", statusFilter);
       try {
-        const res = await apiRequest(`${API_ENDPOINTS.BOOKINGS.ALL}?${params.toString()}`, {
-          forceRefresh: true,
-          skipDeduplication: true,
-          skipCache: true,
-        });
+        const res = await apiRequest(`${API_ENDPOINTS.BOOKINGS.ALL}?${params.toString()}`);
         const pageData = readBookingPage(res);
         if (cancelled) return;
-        if (pageData.list.length > 0) {
-          setServerPage((prev) => {
-            const liveRows = Object.values(bookingDetails);
-            const mergedList = sortBookingsNewestFirst(
-              mergeFetchedBookings(
-                mergeLists(pageData.list, liveRows),
-                prev?.list || []
-              )
-            );
-            return { list: mergedList, total: pageData.total || mergedList.length };
-          });
-        } else {
-          setServerPage(null);
-        }
+        const liveRows = Object.values(bookingDetails);
+        const mergedList = sortBookingsNewestFirst(
+          mergeFetchedBookings(mergeLists(pageData.list, liveRows), [])
+        );
+        setServerPage({
+          list: mergedList,
+          total: pageData.total ?? mergedList.length,
+        });
       } catch {
-        if (!cancelled) setServerPage(null);
+        if (!cancelled) setServerPage({ list: [], total: 0 });
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [searchQuery, liveTick]);
+  }, [searchQuery, statusFilter, page, rowsPerPage, liveTick]);
 
   const withApiStay = (g) => {
     const d = bookingDetails[g.id] || bookingDetails[String(g.id)] || bookingDetails[String(g._id)];
@@ -438,32 +432,11 @@ export default function GuestListPage({
     return { ...g, checkIn, checkOut, baseAmount, gstAmount, totalAmount, paidAmount, dueAmount, guestName, phone, email, bookingNumber, roomAssigned, status };
   };
 
-  // Filtered & Sorted List
+  // Search/status come from the API; only payment + sort are applied on the current page
   const filteredGuests = useMemo(() => {
     return unifiedGuests
       .filter((item) => {
-        // Status filter
-        if (statusFilter !== "ALL") {
-          if (statusFilter === "CHECKED_IN" && item.status !== "CHECKED_IN") return false;
-          if (statusFilter === "CHECKED_OUT" && item.status !== "CHECKED_OUT" && item.status !== "DEPARTED") return false;
-          if (statusFilter === "CONFIRMED" && item.status !== "CONFIRMED" && item.status !== "PENDING" && item.status !== "BOOKED") return false;
-          if (statusFilter === "CANCELLED" && item.status !== "CANCELLED") return false;
-        }
-
-        // Payment status filter
         if (paymentFilter !== "ALL" && item.paymentStatus !== paymentFilter) return false;
-
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
-          const matchName = item.guestName.toLowerCase().includes(q);
-          const matchPhone = item.phone.toLowerCase().includes(q);
-          const matchEmail = item.email.toLowerCase().includes(q);
-          const matchRoom = String(item.roomAssigned).toLowerCase().includes(q);
-          const matchRef = String(item.bookingNumber || item.id).toLowerCase().includes(q);
-
-          return matchName || matchPhone || matchEmail || matchRoom || matchRef;
-        }
-
         return true;
       })
       .sort((a, b) => {
@@ -484,13 +457,12 @@ export default function GuestListPage({
         }
         return 0;
       });
-  }, [unifiedGuests, statusFilter, paymentFilter, searchQuery, sortBy]);
+  }, [unifiedGuests, paymentFilter, sortBy]);
 
-  // Paginated Slices
-  const paginatedGuests = useMemo(() => {
-    const start = page * rowsPerPage;
-    return filteredGuests.slice(start, start + rowsPerPage);
-  }, [filteredGuests, page, rowsPerPage]);
+  // Current API page (payment/sort still applied on this page's rows)
+  const paginatedGuests = filteredGuests;
+  const serverTotal = Number(serverPage?.total);
+  const tableCount = Number.isFinite(serverTotal) ? serverTotal : filteredGuests.length;
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
@@ -737,7 +709,7 @@ export default function GuestListPage({
           </TableContainer>
 
           <TablePager
-            count={filteredGuests.length}
+            count={tableCount}
             page={page}
             onPageChange={handleChangePage}
             rowsPerPage={rowsPerPage}

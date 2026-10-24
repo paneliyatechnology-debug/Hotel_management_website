@@ -56,7 +56,9 @@ const EMPTY = {
  */
 export default function CheckoutDialog({ open, onClose, booking, roomNumber, hotelSettings, onCheckOut, onDone }) {
   const { themeConfig } = useAppTheme();
-  const { methods: hotelPaymentMethods, defaultName: defaultPaymentMethod } = useHotelPaymentMethods();
+  const { methods: hotelPaymentMethods, defaultName: defaultPaymentMethod } = useHotelPaymentMethods({
+    enabled: Boolean(open),
+  });
   const [state, setState] = useState(EMPTY);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);

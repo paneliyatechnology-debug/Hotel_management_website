@@ -74,6 +74,7 @@ import { sendCheckInWhatsApp, sendCheckoutBillWhatsApp } from "@/shared/utils/wh
 import { createSafeGuestModalData } from "@/shared/utils/guestModalUtils";
 import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
 import FolioPdfButton from "@/shared/components/FolioPdfButton";
+import RoomNumberChips from "@/shared/components/RoomNumberChips";
 import { downloadBookingBill } from "@/shared/utils/bookingPdf";
 
 export default function ReceptionistOverviewPage({
@@ -1167,12 +1168,15 @@ export default function ReceptionistOverviewPage({
         </TableToolbar>
 
           <TableContainer sx={{ overflowX: "auto" }}>
-            <Table size="medium" sx={{ minWidth: 720 }}>
+            <Table size="medium" sx={{ minWidth: 980 }}>
               <TableHead>
                 <TableRow>
                   <TableCell>Guest Name</TableCell>
                   <TableCell>Assigned Room</TableCell>
                   <TableCell>Contact</TableCell>
+                  <TableCell align="right">Total Amount</TableCell>
+                  <TableCell align="right">Paid Amount</TableCell>
+                  <TableCell align="right">Due Amount</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell align="right">Action</TableCell>
                 </TableRow>
@@ -1180,7 +1184,7 @@ export default function ReceptionistOverviewPage({
               <TableBody>
                 {activeRecentBookings.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 3.5, color: themeConfig.textMuted, fontWeight: 700 }}>
+                    <TableCell colSpan={8} align="center" sx={{ py: 3.5, color: themeConfig.textMuted, fontWeight: 700 }}>
                       {recentFilter === "TODAY_ALL"
                         ? "No check-ins, check-outs, or active in-house guests for today."
                         : recentFilter === "TODAY_CHECKOUT"
@@ -1227,41 +1231,21 @@ export default function ReceptionistOverviewPage({
                           </Box>
                         </TableCell>
                         <TableCell>
-                          {g.roomNumbers && g.roomNumbers.length > 1 ? (
-                            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                              {g.roomNumbers.map((rn) => (
-                                <Chip
-                                  key={rn}
-                                  label={`Room #${rn}`}
-                                  size="small"
-                                  sx={{
-                                    fontWeight: 800,
-                                    borderRadius: "8px",
-                                    bgcolor: themeConfig.champagne,
-                                    color: themeConfig.accent,
-                                    border: `1px solid ${themeConfig.border}`,
-                                  }}
-                                />
-                              ))}
-                            </Box>
-                          ) : (
-                            <Chip
-                              label={`Room #${g.roomAssigned}`}
-                              size="small"
-                              sx={{
-                                fontWeight: 800,
-                                borderRadius: "8px",
-                                bgcolor: themeConfig.champagne,
-                                color: themeConfig.accent,
-                                border: `1px solid ${themeConfig.border}`,
-                              }}
-                            />
-                          )}
+                          <RoomNumberChips rooms={g.roomNumbers?.length ? g.roomNumbers : g.roomAssigned} />
                         </TableCell>
                         <TableCell sx={{ color: themeConfig.textMuted }}>
                           <Typography variant="caption" sx={{ fontWeight: 700, color: themeConfig.textMain }}>
                             {g.phone}
                           </Typography>
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
+                          ₹{Number(g.totalAmount || 0).toLocaleString("en-IN")}
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 800, color: "#10B981", whiteSpace: "nowrap" }}>
+                          ₹{Number(g.paidAmount || 0).toLocaleString("en-IN")}
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 800, color: Number(g.dueAmount || 0) > 0 ? "#DC2626" : "#10B981", whiteSpace: "nowrap" }}>
+                          ₹{Number(g.dueAmount || 0).toLocaleString("en-IN")}
                         </TableCell>
                         <TableCell>
                           <StatusChip status={g.status || "IN-HOUSE"} size="small" />
@@ -1918,12 +1902,7 @@ export default function ReceptionistOverviewPage({
                             </TableCell>
                             <TableCell sx={{ whiteSpace: "nowrap" }}>
                               {room && room !== "Not Assigned" && room !== "N/A" ? (
-                                <Chip
-                                  icon={<MeetingRoom sx={{ fontSize: "14px !important" }} />}
-                                  label={`Room ${room}`}
-                                  size="small"
-                                  sx={{ fontWeight: 800, bgcolor: themeConfig.champagne, color: themeConfig.accent }}
-                                />
+                                <RoomNumberChips rooms={g.roomNumbers?.length ? g.roomNumbers : room} />
                               ) : (
                                 <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
                                   Not Checked-In

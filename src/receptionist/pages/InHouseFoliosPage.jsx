@@ -70,6 +70,7 @@ import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { createSafeGuestModalData } from "@/shared/utils/guestModalUtils";
 import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
 import FolioPdfButton from "@/shared/components/FolioPdfButton";
+import RoomNumberChips from "@/shared/components/RoomNumberChips";
 
 export default function InHouseFoliosPage({
   bookings = [],
@@ -637,43 +638,12 @@ export default function InHouseFoliosPage({
 
                         {/* Room Details */}
                         <TableCell sx={{ whiteSpace: "nowrap" }}>
-                          {roomsList.length > 1 ? (
-                            <Box sx={{ mb: 0.3 }}>
-                              <Chip
-                                icon={<MeetingRoom sx={{ fontSize: 14, color: `${themeConfig.accent} !important` }} />}
-                                label={`Rooms ${roomsList.join(", ")}`}
-                                size="small"
-                                sx={{
-                                  fontWeight: 800,
-                                  bgcolor: themeConfig.champagne,
-                                  color: themeConfig.accent,
-                                  border: `1px solid ${themeConfig.border}`,
-                                  height: 24,
-                                }}
-                              />
-                              <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", fontSize: "0.72rem", mt: 0.3 }}>
-                                {roomType} ({roomsList.length} Rooms)
-                              </Typography>
-                            </Box>
-                          ) : (
-                            <Box sx={{ mb: 0.3 }}>
-                              <Chip
-                                icon={<MeetingRoom sx={{ fontSize: 14, color: `${themeConfig.accent} !important` }} />}
-                                label={`Room ${roomsList[0] || "N/A"}`}
-                                size="small"
-                                sx={{
-                                  fontWeight: 800,
-                                  bgcolor: themeConfig.champagne,
-                                  color: themeConfig.accent,
-                                  border: `1px solid ${themeConfig.border}`,
-                                  height: 24,
-                                }}
-                              />
-                              <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", fontSize: "0.72rem", mt: 0.3 }}>
-                                {roomType}
-                              </Typography>
-                            </Box>
-                          )}
+                          <Box sx={{ mb: 0.3 }}>
+                            <RoomNumberChips rooms={roomsList} />
+                            <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", fontSize: "0.72rem", mt: 0.3 }}>
+                              {roomType}{roomsList.length > 1 ? ` (${roomsList.length} rooms)` : ""}
+                            </Typography>
+                          </Box>
                         </TableCell>
 
                         {/* Stay Duration */}

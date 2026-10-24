@@ -71,12 +71,13 @@ import {
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useSocket } from "@/shared/context/SocketContext";
-import { mergeBookingEvent, applyRoomStatusEvent } from "@/shared/utils/liveSync";
+import { mergeBookingEvent, applyRoomStatusEvent, sortBookingsNewestFirst, normalizeBooking, preferBookingStatus } from "@/shared/utils/liveSync";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import { TableCard, TableToolbar, TablePager } from "@/shared/components/DataTable";
 import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
 import FolioPdfButton from "@/shared/components/FolioPdfButton";
+import RoomNumberChips from "@/shared/components/RoomNumberChips";
 import { downloadBookingBill } from "@/shared/utils/bookingPdf";
 import { toast } from "@/shared/utils/toast";
 import { createSafeGuestModalData } from "@/shared/utils/guestModalUtils";
@@ -127,7 +128,26 @@ export default function HotelOverviewPage({
   }, [rooms]);
 
   useEffect(() => {
-    setLocalBookings(bookings);
+    setLocalBookings((prev) => {
+      // Prefer parent list (already socket-merged), but keep any newer local socket rows
+      const incoming = Array.isArray(bookings) ? bookings : [];
+      if (incoming.length === 0) return prev;
+      if (!prev || prev.length === 0) return incoming;
+      const byId = new Map();
+      [...incoming, ...prev].forEach((item) => {
+        const key = String(item?.id ?? item?._id ?? "");
+        if (!key) return;
+        const existing = byId.get(key);
+        if (!existing) {
+          byId.set(key, item);
+          return;
+        }
+        const tNew = new Date(item.updated_at || item.updatedAt || item.created_at || 0).getTime();
+        const tOld = new Date(existing.updated_at || existing.updatedAt || existing.created_at || 0).getTime();
+        byId.set(key, tNew >= tOld ? { ...existing, ...item } : { ...item, ...existing });
+      });
+      return Array.from(byId.values());
+    });
   }, [bookings]);
 
   // Real-Time instant updates via sockets
@@ -136,11 +156,22 @@ export default function HotelOverviewPage({
   });
 
   useSocket(["booking:updated"], (payload) => {
-    setLocalBookings((prev) => mergeBookingEvent(prev, payload));
+    const normalized = normalizeBooking(payload);
+    setLocalBookings((prev) => sortBookingsNewestFirst(mergeBookingEvent(prev, normalized)));
     const key = String(payload?.id ?? payload?._id ?? "");
     if (key) {
-      setStayById((prev) => ({ ...prev, [key]: payload }));
+      setStayById((prev) => ({
+        ...prev,
+        [key]: {
+          ...(prev[key] || {}),
+          ...normalized,
+          booking_status: preferBookingStatus(prev[key]?.booking_status || prev[key]?.status, normalized.booking_status || normalized.status),
+          status: preferBookingStatus(prev[key]?.status || prev[key]?.booking_status, normalized.status || normalized.booking_status),
+        },
+      }));
     }
+    // Keep the updated / new booking visible on page 1
+    setGuestPage(0);
   });
 
   // Room Matrix Pagination (8 rooms per page)
@@ -567,12 +598,12 @@ export default function HotelOverviewPage({
     }
   };
 
-  // Find active in-house guests for table and quick actions
+  // Find active in-house guests for table and quick actions (newest first for live inserts)
   const activeRecentGuests = useMemo(() => {
     const list = localBookings && localBookings.length > 0 ? localBookings : (bookings && bookings.length > 0 ? bookings : guests);
     if (!list || list.length === 0) return [];
 
-    return list.map((b) => {
+    const rows = list.map((b) => {
       const g = typeof b.guest === "object" ? b.guest : {};
       const paidAmt = b.paid_amount !== undefined
         ? Number(b.paid_amount)
@@ -633,10 +664,16 @@ export default function HotelOverviewPage({
       }
       assignedRoom = assignedRoom.replace(/^Room\s*#?\s*/i, "").trim() || "-";
 
-      const rawStatus = String(staySource.booking_status || staySource.status || "CONFIRMED").toUpperCase();
+      const liveDetail = stayById[String(b.id || b._id)] || {};
+      const rawStatus = String(
+        preferBookingStatus(
+          liveDetail.booking_status || liveDetail.status,
+          staySource.booking_status || staySource.status || "CONFIRMED"
+        ) || "CONFIRMED"
+      ).toUpperCase();
       const normalizedStatus = (rawStatus === "CHECKED_IN" || rawStatus === "IN-HOUSE" || rawStatus === "IN_HOUSE")
         ? "IN-HOUSE"
-        : (rawStatus === "CHECKED_OUT" || rawStatus === "DEPARTED" || rawStatus === "CHECKOUT")
+        : (rawStatus === "CHECKED_OUT" || rawStatus === "DEPARTED" || rawStatus === "CHECKOUT" || rawStatus === "CHECK_OUT")
           ? "CHECKED_OUT"
           : rawStatus;
 
@@ -679,6 +716,7 @@ export default function HotelOverviewPage({
         status: normalizedStatus,
       };
     });
+    return sortBookingsNewestFirst(rows);
   }, [localBookings, bookings, guests, stayById, todayStr]);
 
   function formatStayLabel(record, kind) {
@@ -1196,11 +1234,7 @@ export default function HotelOverviewPage({
                           </Box>
                         </TableCell>
                         <TableCell>
-                          <Chip
-                            label={`Room #${g.roomAssigned}`}
-                            size="small"
-                            sx={{ fontWeight: 800, borderRadius: "6px", bgcolor: themeConfig.champagne, color: themeConfig.accent }}
-                          />
+                          <RoomNumberChips rooms={g.roomAssigned} />
                         </TableCell>
                         <TableCell sx={{ color: themeConfig.textMuted, fontSize: "0.82rem" }}>
                           <Box sx={{ display: "flex", flexDirection: "column", lineHeight: 1.35 }}>

@@ -56,6 +56,7 @@ import { useSocket } from "@/shared/context/SocketContext";
 import { normalizeBooking } from "@/shared/utils/liveSync";
 import { downloadBookingBill } from "@/shared/utils/bookingPdf";
 import FolioPdfButton from "@/shared/components/FolioPdfButton";
+import RoomNumberChips from "@/shared/components/RoomNumberChips";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 
@@ -622,11 +623,9 @@ export default function GuestDetailPage({
                     </Box>
                   )}
 
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, color: themeConfig.textMuted, fontSize: "0.85rem" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, color: themeConfig.textMuted, fontSize: "0.85rem", flexWrap: "wrap" }}>
                     <HotelIcon fontSize="small" sx={{ color: themeConfig.primary }} />
-                    <Typography variant="body2" sx={{ fontWeight: 700, color: themeConfig.textMain }}>
-                      Room {roomAssigned}
-                    </Typography>
+                    <RoomNumberChips rooms={roomNumbersList.length ? roomNumbersList : roomAssigned} />
                     <Typography variant="caption" sx={{ color: themeConfig.textMuted }}>
                       ({roomType})
                     </Typography>
@@ -734,9 +733,9 @@ export default function GuestDetailPage({
                     <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
                       Assigned Room
                     </Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 800, color: themeConfig.textMain, mt: 0.3 }}>
-                      Room {roomAssigned}
-                    </Typography>
+                    <Box sx={{ mt: 0.5 }}>
+                      <RoomNumberChips rooms={roomNumbersList.length ? roomNumbersList : roomAssigned} />
+                    </Box>
                   </Grid>
 
                   <Grid size={{ xs: 12, sm: 6 }}>
@@ -772,15 +771,6 @@ export default function GuestDetailPage({
                     </Typography>
                     <Typography variant="body1" sx={{ fontWeight: 800, color: themeConfig.textMain, mt: 0.3 }}>
                       {nights} Night{nights > 1 ? "s" : ""}
-                    </Typography>
-                  </Grid>
-
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                      Number of Guests
-                    </Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 800, color: themeConfig.textMain, mt: 0.3 }}>
-                      {b.adults || g.adults || 2} Adult(s) {b.children || g.children ? `, ${b.children || g.children} Child` : ""}
                     </Typography>
                   </Grid>
 

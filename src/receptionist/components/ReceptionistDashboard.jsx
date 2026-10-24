@@ -172,6 +172,14 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
       const customPrice = Number(r.custom_price_per_night ?? r.customPricePerNight ?? r.basePrice ?? 0);
       const status = String(r.status || "AVAILABLE").toUpperCase();
       const floor = r.floor !== undefined ? r.floor : 1;
+      const currentBookingId = r.current_booking_id ?? r.currentBookingId ?? null;
+      const guestName =
+        r.guest_name ||
+        r.guestName ||
+        r.primary_guest_name ||
+        r.current_guest_name ||
+        r.currentGuestName ||
+        "";
       return {
         ...r,
         _id: String(id),
@@ -187,6 +195,10 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
         custom_price_per_night: customPrice,
         floor,
         status,
+        current_booking_id: currentBookingId,
+        currentBookingId: currentBookingId,
+        guestName: guestName || undefined,
+        guest_name: guestName || undefined,
       };
     });
   };
@@ -252,7 +264,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
     return Array.isArray(raw) ? raw : [];
   };
 
-  // On-Demand Tab-Specific Data Loading
+  // On-Demand Tab-Specific Data Loading (forceRefresh only reloads the active tab — never all APIs)
   const loadTabData = async (tabIndex, forceRefresh = false) => {
     if (!forceRefresh && fetchedTabs[tabIndex]) return;
     if (!dashboardData && !rooms.length && !forceRefresh) {
@@ -264,57 +276,45 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
         ? { skipCache: true, forceRefresh: true, skipDeduplication: true }
         : { skipCache: true };
 
-      if (forceRefresh) {
-        endpointsToFetch.push(
-          apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD, skipCache).then((res) => res?.data && setDashboardData(res.data)),
-          apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?page=1&limit=100`, skipCache).then((res) => setRooms(extractRooms(res))),
-          apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES}?page=1&limit=100`, skipCache).then((res) => setRoomTypes(extractRoomTypes(res))),
-          apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`, skipCache).then((res) => {
-            setBookings(extractBookings(res));
-            setBookingsError("");
-          }).catch((err) => setBookingsError(err?.message || "Could not load folios")),
-          apiRequest(`${API_ENDPOINTS.RECEPTIONIST.GUESTS}?page=1&limit=100`, skipCache).then((res) => setGuests(extractGuests(res)))
+      const loadRooms = () =>
+        apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?page=1&limit=100`, skipCache).then((res) =>
+          setRooms(extractRooms(res))
         );
-      } else {
-        if (tabIndex === 0) {
-          endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD, skipCache).then((res) => res?.data && setDashboardData(res.data)),
-            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?page=1&limit=100`, skipCache).then((res) => setRooms(extractRooms(res))),
-            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES}?page=1&limit=100`, skipCache).then((res) => setRoomTypes(extractRoomTypes(res))),
-            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`, skipCache).then((res) => {
+      const loadRoomTypes = () =>
+        apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES}?page=1&limit=100`, skipCache).then((res) =>
+          setRoomTypes(extractRoomTypes(res))
+        );
+      const loadBookings = () =>
+        apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`, skipCache)
+          .then((res) => {
             setBookings(extractBookings(res));
             setBookingsError("");
-          }).catch((err) => setBookingsError(err?.message || "Could not load folios")),
-            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.GUESTS}?page=1&limit=100`, skipCache).then((res) => setGuests(extractGuests(res)))
-          );
-        } else if (tabIndex === 1) {
-          endpointsToFetch.push(
-            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?page=1&limit=100`, skipCache).then((res) => setRooms(extractRooms(res))),
-            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOM_TYPES}?page=1&limit=100`, skipCache).then((res) => setRoomTypes(extractRoomTypes(res))),
-            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`, skipCache).then((res) => setBookings(extractBookings(res)))
-          );
-        } else if (tabIndex === 2) {
-          endpointsToFetch.push(
-            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`, skipCache).then((res) => {
-              setBookings(extractBookings(res));
-              setBookingsError("");
-            }).catch((err) => setBookingsError(err?.message || "Could not load guests")),
-            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.GUESTS}?page=1&limit=100`, skipCache).then((res) => setGuests(extractGuests(res))),
-            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?page=1&limit=100`, skipCache).then((res) => setRooms(extractRooms(res)))
-          );
-        } else if (tabIndex === 3) {
-          endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD, skipCache).then((res) => res?.data && setDashboardData(res.data))
-          );
-        }
+          })
+          .catch((err) => setBookingsError(err?.message || "Could not load folios"));
+      const loadGuests = () =>
+        apiRequest(`${API_ENDPOINTS.RECEPTIONIST.GUESTS}?page=1&limit=100`, skipCache).then((res) =>
+          setGuests(extractGuests(res))
+        );
+      const loadDashboard = () =>
+        apiRequest(API_ENDPOINTS.RECEPTIONIST.DASHBOARD, skipCache)
+          .then((res) => res?.data && setDashboardData(res.data))
+          .catch(() => {});
+
+      if (tabIndex === 0) {
+        // Overview: dashboard + rooms summary + recent bookings/guests
+        endpointsToFetch.push(loadDashboard(), loadRooms(), loadRoomTypes(), loadBookings(), loadGuests());
+      } else if (tabIndex === 1) {
+        // Rooms: room grid only — checkout uses room.current_booking_id (no bookings/dashboard)
+        endpointsToFetch.push(loadRooms(), loadRoomTypes());
+      } else if (tabIndex === 2) {
+        // Guest Directory
+        endpointsToFetch.push(loadBookings(), loadGuests(), loadRooms());
+      } else if (tabIndex === 3) {
+        endpointsToFetch.push(loadDashboard());
       }
 
       await Promise.allSettled(endpointsToFetch);
-      if (forceRefresh) {
-        setFetchedTabs({ 0: true, 1: true, 2: true, 3: true, 4: true });
-      } else {
-        setFetchedTabs((prev) => ({ ...prev, [tabIndex]: true }));
-      }
+      setFetchedTabs((prev) => ({ ...prev, [tabIndex]: true }));
     } catch (err) {
       console.error("Front desk error:", err);
     } finally {
@@ -588,7 +588,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
         } catch (e) { }
       }
       setIsCheckInOpen(false);
-      if (onTabChange) onTabChange(2);
+      if (onTabChange) onTabChange(1);
     } catch (err) {
       showToast(err.message || "Failed to process check-in", "error");
     } finally {
@@ -886,8 +886,6 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
           rooms={rooms}
           roomTypes={roomTypes}
           guests={guests}
-          bookings={bookings}
-          dashboardData={dashboardData}
           hotelSettings={hotelSettings}
           onRefresh={fetchFrontDeskData}
           onNavigateTab={(tab) => onTabChange && onTabChange(tab)}

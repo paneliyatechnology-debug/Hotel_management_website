@@ -29,13 +29,20 @@ import {
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useSocket } from "@/shared/context/SocketContext";
-import { mergeBookingEvent } from "@/shared/utils/liveSync";
+import {
+  mergeBookingEvent,
+  mergeFetchedBookings,
+  normalizeBooking,
+  preferBookingStatus,
+  sortBookingsNewestFirst,
+} from "@/shared/utils/liveSync";
 import { toast } from "@/shared/utils/toast";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
 import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
 import { downloadBookingBill } from "@/shared/utils/bookingPdf";
 import FolioPdfButton from "@/shared/components/FolioPdfButton";
+import RoomNumberChips from "@/shared/components/RoomNumberChips";
 import { TableCard, TableToolbar, TablePager, tableFieldSx, tableSearchSx } from "@/shared/components/DataTable";
 
 function formatCurrency(val) {
@@ -154,6 +161,15 @@ function mergePair(a, b) {
     const empty = current === undefined || current === null || current === "";
     if (empty && value !== undefined && value !== null && value !== "") merged[key] = value;
   });
+  // Never let an older copy roll status backwards (e.g. CHECKED_OUT -> CHECKED_IN)
+  const bestStatus = preferBookingStatus(
+    a.booking_status || a.status,
+    b.booking_status || b.status
+  );
+  if (bestStatus) {
+    merged.booking_status = bestStatus;
+    merged.status = bestStatus;
+  }
   return merged;
 }
 
@@ -223,8 +239,7 @@ export default function GuestListPage({
 
   const [liveTick, setLiveTick] = useState(0);
 
-  // Real-Time Socket Auto-Sync.
-  // Guest Directory uses the bookings list API only (all row fields come from that payload).
+  // Real-Time Socket Auto-Sync (create, checkout, payment, status change).
   useSocket(
     [
       "BOOKING_CREATED",
@@ -240,28 +255,34 @@ export default function GuestListPage({
     }
   );
 
-  // booking:updated carries the whole booking (create, update, payment, check-out, status change, delete):
-  // show it in the list at once, the background refresh above then confirms it.
+  // booking:updated is the live source of truth — patch the table immediately (including checkout).
   useSocket(["booking:updated"], (payload) => {
     const id = payload?.id ?? payload?._id;
     if (id === undefined || id === null) return;
     const key = String(id);
+    const normalized = normalizeBooking(payload);
 
     setBookingDetails((prev) => {
       const next = { ...prev };
       if (payload.deleted_at) delete next[key];
-      else next[key] = payload;
+      else next[key] = normalized;
       return next;
     });
 
     setServerPage((prev) => {
-      if (!prev) return prev; // list comes from the dashboard props, which are patched by the dashboard
-      const exists = prev.list.some((item) => String(item.id ?? item._id) === key);
-      let total = prev.total;
+      const baseList = prev?.list || asRecordList(bookings);
+      const exists = baseList.some((item) => String(item.id ?? item._id) === key);
+      let total = Number(prev?.total);
+      if (!Number.isFinite(total)) total = baseList.length;
       if (!exists && !payload.deleted_at) total += 1;
       else if (exists && payload.deleted_at) total = Math.max(0, total - 1);
-      return { list: mergeBookingEvent(prev.list, payload), total };
+      return {
+        list: sortBookingsNewestFirst(mergeBookingEvent(baseList, normalized)),
+        total,
+      };
     });
+
+    setPage(0);
   });
 
   // List the bookings API records (check-in / check-out stays) as they arrive.
@@ -345,11 +366,25 @@ export default function GuestListPage({
       const params = new URLSearchParams({ page: "1", limit: "100" });
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
       try {
-        const res = await apiRequest(`${API_ENDPOINTS.BOOKINGS.ALL}?${params.toString()}`, { forceRefresh: true });
+        const res = await apiRequest(`${API_ENDPOINTS.BOOKINGS.ALL}?${params.toString()}`, {
+          forceRefresh: true,
+          skipDeduplication: true,
+          skipCache: true,
+        });
         const pageData = readBookingPage(res);
-        if (!cancelled && pageData.list.length > 0) {
-          setServerPage(pageData);
-        } else if (!cancelled) {
+        if (cancelled) return;
+        if (pageData.list.length > 0) {
+          setServerPage((prev) => {
+            const liveRows = Object.values(bookingDetails);
+            const mergedList = sortBookingsNewestFirst(
+              mergeFetchedBookings(
+                mergeLists(pageData.list, liveRows),
+                prev?.list || []
+              )
+            );
+            return { list: mergedList, total: pageData.total || mergedList.length };
+          });
+        } else {
           setServerPage(null);
         }
       } catch {
@@ -362,7 +397,7 @@ export default function GuestListPage({
   }, [searchQuery, liveTick]);
 
   const withApiStay = (g) => {
-    const d = bookingDetails[g.id];
+    const d = bookingDetails[g.id] || bookingDetails[String(g.id)] || bookingDetails[String(g._id)];
     const sources = [...staySources(d), ...staySources(g.raw), g];
     const checkIn = firstValue(sources, ["actual_check_in", "actualCheckIn", "check_in_date", "checkInDate", "check_in", "checkIn", "expected_check_in", "from_date", "arrival_date"]);
     const checkOut = firstValue(sources, ["actual_check_out", "actualCheckOut", "check_out_date", "checkOutDate", "check_out", "checkOut", "expected_check_out", "to_date", "departure_date"]);
@@ -390,10 +425,14 @@ export default function GuestListPage({
     const roomFromDetail = d ? roomLabelFor(d, rooms) : "";
     let roomAssigned = roomFromDetail && roomFromDetail !== "—" ? roomFromDetail : (g.roomAssigned || roomLabelFor(g.raw || g, rooms));
     roomAssigned = String(roomAssigned).replace(/^Room\s*#?\s*/i, "").trim() || "—";
-    const rawStatus = String(firstValue(sources, ["booking_status", "status"]) || g.status || "").toUpperCase();
+    const liveStatus = preferBookingStatus(
+      d?.booking_status || d?.status,
+      firstValue(sources, ["booking_status", "status"]) || g.status
+    );
+    const rawStatus = String(liveStatus || g.status || "").toUpperCase();
     const status = (rawStatus === "IN-HOUSE" || rawStatus === "IN_HOUSE")
       ? "CHECKED_IN"
-      : (rawStatus === "CHECKED_OUT" || rawStatus === "DEPARTED" || rawStatus === "CHECKOUT")
+      : (rawStatus === "CHECKED_OUT" || rawStatus === "DEPARTED" || rawStatus === "CHECKOUT" || rawStatus === "CHECK_OUT")
         ? "CHECKED_OUT"
         : (rawStatus || g.status);
     return { ...g, checkIn, checkOut, baseAmount, gstAmount, totalAmount, paidAmount, dueAmount, guestName, phone, email, bookingNumber, roomAssigned, status };
@@ -605,8 +644,8 @@ export default function GuestListPage({
                         </Box>
                       </Box>
                     </TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
-                      Room {g.roomAssigned}
+                    <TableCell sx={{ whiteSpace: "nowrap" }}>
+                      <RoomNumberChips rooms={g.roomAssigned} />
                     </TableCell>
                     <TableCell sx={{ fontWeight: 700, color: themeConfig.textMain, whiteSpace: "nowrap" }}>
                       {formatDateTime(g.checkIn)}

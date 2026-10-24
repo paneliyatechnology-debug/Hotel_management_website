@@ -32,6 +32,28 @@ export function applyRoomStatusEvent(rooms, payload) {
   }
   if (payload.updated_at) next.updated_at = payload.updated_at;
 
+  // Live booking link for checkout from the Rooms grid (no bookings list needed)
+  if (payload.current_booking_id !== undefined || payload.currentBookingId !== undefined) {
+    const bookingId = payload.current_booking_id ?? payload.currentBookingId;
+    next.current_booking_id = bookingId;
+    next.currentBookingId = bookingId;
+  }
+  if (
+    payload.guest_name !== undefined ||
+    payload.guestName !== undefined ||
+    payload.primary_guest_name !== undefined ||
+    payload.current_guest_name !== undefined
+  ) {
+    const guestName =
+      payload.guest_name ??
+      payload.guestName ??
+      payload.primary_guest_name ??
+      payload.current_guest_name ??
+      "";
+    next.guestName = guestName || undefined;
+    next.guest_name = guestName || undefined;
+  }
+
   const copy = list.slice();
   copy[index] = next;
   return copy;
@@ -97,11 +119,16 @@ export function normalizeBooking(booking) {
       ? Number(booking.dueAmount)
       : Math.max(0, totalAmount - paidAmount);
 
-  // Statuses
-  const rawStatus = String(booking.booking_status || booking.status || "CONFIRMED").toUpperCase();
+  // Statuses (booking_status is the source of truth from the API / socket payload)
+  const rawStatus = String(
+    booking.booking_status ||
+    booking.bookingStatus ||
+    booking.status ||
+    "CONFIRMED"
+  ).toUpperCase();
   const normalizedStatus = (rawStatus === "CHECKED_IN" || rawStatus === "IN-HOUSE" || rawStatus === "IN_HOUSE")
     ? "CHECKED_IN"
-    : (rawStatus === "CHECKED_OUT" || rawStatus === "DEPARTED" || rawStatus === "CHECKOUT")
+    : (rawStatus === "CHECKED_OUT" || rawStatus === "DEPARTED" || rawStatus === "CHECKOUT" || rawStatus === "CHECK_OUT")
       ? "CHECKED_OUT"
       : rawStatus;
 
@@ -243,9 +270,66 @@ export function mergeBookingEvent(list, booking, normalize) {
 
   if (index >= 0) {
     const copy = current.slice();
-    copy[index] = { ...current[index], ...incoming };
+    // Socket payload wins for status / money / checkout fields
+    copy[index] = {
+      ...current[index],
+      ...incoming,
+      booking_status: incoming.booking_status || incoming.status,
+      status: incoming.status || incoming.booking_status,
+      updated_at: incoming.updated_at || incoming.updatedAt || new Date().toISOString(),
+      updatedAt: incoming.updatedAt || incoming.updated_at || new Date().toISOString(),
+    };
     return copy;
   }
 
   return [incoming, ...current];
+}
+
+/** Prefer a later stay status when merging two copies of the same booking */
+export function preferBookingStatus(a, b) {
+  const rank = (status) => {
+    const s = String(status || "").toUpperCase();
+    if (s === "CANCELLED") return 5;
+    if (s === "CHECKED_OUT" || s === "DEPARTED" || s === "CHECKOUT" || s === "CHECK_OUT") return 4;
+    if (s === "CHECKED_IN" || s === "IN-HOUSE" || s === "IN_HOUSE") return 3;
+    if (s === "CONFIRMED" || s === "BOOKED" || s === "RESERVED") return 2;
+    if (s === "PENDING") return 1;
+    return 0;
+  };
+  return rank(b) >= rank(a) ? b : a;
+}
+
+/**
+ * Merge a freshly fetched bookings list with the current in-memory list.
+ * Keeps socket-inserted rows that a slightly stale GET response may still omit.
+ */
+export function mergeFetchedBookings(fetched, previous, { retainMs = 30000 } = {}) {
+  const next = Array.isArray(fetched) ? fetched.slice() : [];
+  const prev = Array.isArray(previous) ? previous : [];
+  const nextIds = new Set(next.map((item) => String(item?.id ?? item?._id ?? "")).filter(Boolean));
+  const now = Date.now();
+
+  prev.forEach((item) => {
+    const id = item?.id ?? item?._id;
+    if (id === undefined || id === null) return;
+    const key = String(id);
+    if (nextIds.has(key)) return;
+    const updated = new Date(item.updated_at || item.updatedAt || item.created_at || item.createdAt || 0).getTime();
+    if (Number.isFinite(updated) && now - updated <= retainMs) {
+      next.unshift(item);
+      nextIds.add(key);
+    }
+  });
+
+  return next;
+}
+
+/** Newest stay first for dashboard / guest tables */
+export function sortBookingsNewestFirst(list) {
+  return (Array.isArray(list) ? list.slice() : []).sort((a, b) => {
+    const ta = new Date(a?.created_at || a?.createdAt || a?.actual_check_in || a?.check_in_date || a?.updated_at || 0).getTime();
+    const tb = new Date(b?.created_at || b?.createdAt || b?.actual_check_in || b?.check_in_date || b?.updated_at || 0).getTime();
+    if (tb !== ta) return tb - ta;
+    return Number(b?.id || b?._id || 0) - Number(a?.id || a?._id || 0);
+  });
 }

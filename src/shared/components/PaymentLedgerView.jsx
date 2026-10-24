@@ -52,6 +52,7 @@ import EmptyState from "@/shared/components/EmptyState";
 import { TableCard, TableToolbar, TablePager, tableFieldSx, tableSearchSx } from "@/shared/components/DataTable";
 import { downloadDailyLedgerPDF, downloadPaymentReceiptPDF } from "@/shared/utils/pdfGenerator";
 import { paymentMethodLabel, useHotelPaymentMethods } from "@/shared/hooks/useHotelPaymentMethods";
+import RoomNumberChips from "@/shared/components/RoomNumberChips";
 
 export default function PaymentLedgerView({
   user,
@@ -762,16 +763,17 @@ export default function PaymentLedgerView({
                       </TableCell>
 
                       {/* Column 2: Guest Name & Room Allocation */}
-                      <TableCell sx={{ py: 1.1, whiteSpace: "nowrap" }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                          <Box sx={{ p: 0.5, borderRadius: "6px", bgcolor: themeConfig.champagne, color: themeConfig.primary, display: "flex", alignItems: "center" }}>
+                      <TableCell sx={{ py: 1.1 }}>
+                        <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
+                          <Box sx={{ p: 0.5, borderRadius: "6px", bgcolor: themeConfig.champagne, color: themeConfig.primary, display: "flex", alignItems: "center", mt: 0.2 }}>
                             <MeetingRoom sx={{ fontSize: 15 }} />
                           </Box>
                           <div>
-                            <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.82rem" }}>
-                              Room {p.booking?.roomNumber || "N/A"} - {p.guest?.fullName || "Guest"}
+                            <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.82rem", mb: 0.35 }}>
+                              {p.guest?.fullName || "Guest"}
                             </Typography>
-                            <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", display: "block" }}>
+                            <RoomNumberChips rooms={p.booking?.rooms || p.booking?.roomNumber || p.roomNumber} />
+                            <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", display: "block", mt: 0.35 }}>
                               📞 {p.guest?.mobileNumber || "N/A"} &bull; Folio: #{p.booking?.bookingNumber || "N/A"}
                             </Typography>
                           </div>

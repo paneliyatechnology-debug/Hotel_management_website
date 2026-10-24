@@ -9,7 +9,23 @@ import { getActiveHotelId } from "@/shared/utils/cookieAuth";
 import dynamic from "next/dynamic";
 import { CircularProgress } from "@mui/material";
 import { useSocket } from "@/shared/context/SocketContext";
-import { applyRoomStatusEvent, mergeBookingEvent } from "@/shared/utils/liveSync";
+import { applyRoomStatusEvent, mergeBookingEvent, mergeFetchedBookings, normalizeBooking, preferBookingStatus, sortBookingsNewestFirst } from "@/shared/utils/liveSync";
+
+const BOOKINGS_QUERY = `${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`;
+
+async function fetchBookingsFresh() {
+  return apiRequest(BOOKINGS_QUERY, { forceRefresh: true, skipDeduplication: true, skipCache: true });
+}
+
+function applyFetchedBookings(setBookings, res) {
+  const fetched = sortBookingsNewestFirst(extractRecords(res));
+  setBookings((prev) => {
+    const merged = mergeFetchedBookings(fetched, prev);
+    if (Number.isFinite(Number(fetched.total))) merged.total = Number(fetched.total);
+    else if (Number.isFinite(Number(prev?.total))) merged.total = Number(prev.total);
+    return merged;
+  });
+}
 
 function extractRecords(res) {
   const payload = res?.data !== undefined ? res.data : res;
@@ -316,11 +332,11 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
       if (forceRefresh) {
         endpointsToFetch.push(
           loadDashboard(),
-          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
-          apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`).then((res) => setBookings(extractRecords(res))),
-          apiRequest(`${API_ENDPOINTS.RECEPTIONIST.GUESTS}?page=1&limit=100`).then((res) => setGuests(extractRecords(res))),
-          apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=10`).then((res) => setRoomTypes(normalizeRoomTypes(res))),
-          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings)),
+          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS, { forceRefresh: true, skipDeduplication: true }).then((res) => setRooms(asRoomList(res))),
+          fetchBookingsFresh().then((res) => applyFetchedBookings(setBookings, res)),
+          apiRequest(`${API_ENDPOINTS.RECEPTIONIST.GUESTS}?page=1&limit=100`, { forceRefresh: true, skipDeduplication: true }).then((res) => setGuests(extractRecords(res))),
+          apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=10`, { forceRefresh: true, skipDeduplication: true }).then((res) => setRoomTypes(normalizeRoomTypes(res))),
+          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE, { forceRefresh: true, skipDeduplication: true }).then((res) => res?.data?.settings && setHotelSettings(res.data.settings)),
           reloadStaffList()
         );
       } else {
@@ -330,7 +346,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
             loadDashboard(),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
             apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=10`).then((res) => setRoomTypes(normalizeRoomTypes(res))),
-            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`).then((res) => setBookings(extractRecords(res))),
+            fetchBookingsFresh().then((res) => applyFetchedBookings(setBookings, res)),
             apiRequest(`${API_ENDPOINTS.RECEPTIONIST.GUESTS}?page=1&limit=100`).then((res) => setGuests(extractRecords(res))),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
           );
@@ -338,7 +354,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
         // Route 1: GUEST DIRECTORY & PROFILES
         else if (tabIndex === 1) {
           endpointsToFetch.push(
-            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`).then((res) => setBookings(extractRecords(res))),
+            fetchBookingsFresh().then((res) => applyFetchedBookings(setBookings, res)),
             apiRequest(`${API_ENDPOINTS.RECEPTIONIST.GUESTS}?page=1&limit=100`).then((res) => setGuests(extractRecords(res))),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
             apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
@@ -552,7 +568,22 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
     if (eventName === "room:status") {
       setRooms((prev) => applyRoomStatusEvent(prev, payload));
     } else if (eventName === "booking:updated") {
-      setBookings((prev) => mergeBookingEvent(prev, payload));
+      setBookings((prev) => {
+        const normalized = normalizeBooking(payload);
+        const merged = mergeBookingEvent(prev, normalized).map((row) => {
+          if (String(row?.id ?? row?._id) !== String(normalized?.id ?? normalized?._id)) return row;
+          const status = preferBookingStatus(row.booking_status || row.status, normalized.booking_status || normalized.status);
+          return { ...row, ...normalized, booking_status: status, status };
+        });
+        const sorted = sortBookingsNewestFirst(merged);
+        if (Number.isFinite(Number(prev?.total)) && !(payload?.deleted_at)) {
+          const existed = (prev || []).some((item) => String(item?.id ?? item?._id) === String(payload?.id ?? payload?._id));
+          sorted.total = existed ? Number(prev.total) : Number(prev.total) + 1;
+        } else if (Number.isFinite(Number(prev?.total)) && payload?.deleted_at) {
+          sorted.total = Math.max(0, Number(prev.total) - 1);
+        }
+        return sorted;
+      });
     } else if (eventName === "dashboard:updated" && payload?.data && typeof payload.data === "object") {
       dashboardFromApi.current = true;
       setDashboardData((prev) => {

@@ -43,7 +43,7 @@ const LIVE_ALIASES = {
   "room:status": ["ROOM_UPDATED"],
   "room:status_breakdown": ["ROOM_UPDATED"],
   "room:category_counts": ["ROOM_UPDATED"],
-  "booking:updated": ["BOOKING_UPDATED", "GUEST_UPDATED", "PAYMENT_RECORDED"],
+  "booking:updated": ["BOOKING_CREATED", "BOOKING_UPDATED", "GUEST_UPDATED", "PAYMENT_RECORDED", "GUEST_CHECKED_OUT"],
   "dashboard:updated": ["DASHBOARD_SYNC"],
 };
 

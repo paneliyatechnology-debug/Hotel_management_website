@@ -39,7 +39,6 @@ import {
   MeetingRoom,
   KingBed,
   Apartment,
-  Groups,
   Hotel,
   Bed,
   HowToReg,
@@ -84,9 +83,7 @@ export default function AvailableRoomsPage({
   user,
   rooms = [],
   roomTypes = [],
-  bookings = [],
   guests = [],
-  dashboardData,
   hotelSettings = {
     checkInTime: "14:00",
     checkOutTime: "12:00",
@@ -104,47 +101,24 @@ export default function AvailableRoomsPage({
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
 
-  // Helper to reliably resolve guest name ONLY for currently occupied/reserved/booked rooms
+  // Guest name comes from the room payload (rooms API / room:status) — no bookings list lookup
   const getRoomGuestName = (room) => {
     const st = String(room?.status || "").toUpperCase();
     if (!room || (st !== "OCCUPIED" && st !== "RESERVED" && st !== "BOOKED")) {
       return "";
     }
-    if (room?.guestName && room.guestName.trim()) return room.guestName;
-    const rId = String(room?._id || room?.id || "");
-    const rNum = String(room?.roomNumber || "");
-
-    const activeBooking = bookings.find((b) => {
-      const bSt = String(b.status || "").toUpperCase();
-      const isLive = bSt === "CHECKED_IN" || bSt === "OCCUPIED" || bSt === "IN-HOUSE" || bSt === "CONFIRMED" || bSt === "BOOKED";
-      if (!isLive) return false;
-
-      const bRoomId = String(b.room?._id || b.room?.id || b.room || b.room_id || b.roomId || "");
-      const bRtId = String(b.roomType?._id || b.roomType?.id || b.roomType || b.room_type_id || "");
-      const rRtId = String(room?.roomType?._id || room?.roomType?.id || room?.roomType || room?.room_type_id || "");
-
-      if (bRoomId && rId && bRoomId === rId) return true;
-      if (Array.isArray(b.rooms) && b.rooms.some((id) => String(id?._id || id?.id || id) === rId)) return true;
-
-      if (!bRoomId && String(b.roomNumber || b.room_number || "") === rNum && (!bRtId || !rRtId || bRtId === rRtId)) return true;
-      if (!bRoomId && Array.isArray(b.roomNumbers) && b.roomNumbers.some((num) => String(num) === rNum)) return true;
-
-      return false;
-    });
-
-    if (activeBooking) {
-      return (
-        activeBooking.primary_guest_name ||
-        activeBooking.guest_name ||
-        activeBooking.guest?.fullName ||
-        activeBooking.guest?.name ||
-        activeBooking.fullName ||
-        activeBooking.name ||
-        ""
-      );
-    }
-    return "";
+    return (
+      room.guestName ||
+      room.guest_name ||
+      room.primary_guest_name ||
+      room.current_guest_name ||
+      room.currentGuestName ||
+      ""
+    ).trim();
   };
+
+  const getRoomBookingId = (room) =>
+    room?.current_booking_id ?? room?.currentBookingId ?? null;
 
   // Box View Navigation: null = Categories Overview, string (categoryId) = Category Drilldown
   const [selectedCategory, setSelectedCategory] = useState(() => {
@@ -211,18 +185,14 @@ export default function AvailableRoomsPage({
   // Combined stats for selected rooms
   const selectedStats = useMemo(() => {
     let totalRate = 0;
-    let totalAdultCapacity = 0;
     selectedRoomsList.forEach((r) => {
       const rtObj = typeof r.roomType === "object" ? r.roomType : null;
       const rate = r.customPricePerNight || rtObj?.basePrice || r.basePrice || 0;
-      const cap = r.seatingCapacity || rtObj?.capacity?.adults || 2;
       totalRate += rate;
-      totalAdultCapacity += cap;
     });
     return {
       count: selectedRoomsList.length,
       totalRate,
-      totalAdultCapacity,
       roomNumbers: selectedRoomsList.map((r) => `#${r.roomNumber}`).join(", "),
     };
   }, [selectedRoomsList]);
@@ -511,7 +481,7 @@ export default function AvailableRoomsPage({
       const numB = parseInt(b.roomNumber, 10) || 0;
       return numA - numB;
     });
-  }, [rooms, categoryStats, selectedCategoryFilter, selectedFloor, selectedStatus, roomSearch, bookings]);
+  }, [rooms, categoryStats, selectedCategoryFilter, selectedFloor, selectedStatus, roomSearch]);
 
   // Filtered rooms inside active category (for Category drill-down)
   const filteredCategoryRooms = useMemo(() => {
@@ -537,7 +507,7 @@ export default function AvailableRoomsPage({
       }
       return true;
     });
-  }, [activeCategory, selectedFloor, selectedStatus, roomSearch, bookings]);
+  }, [activeCategory, selectedFloor, selectedStatus, roomSearch]);
 
   // Lazy loading: room cards load in batches while scrolling
   const {
@@ -601,36 +571,24 @@ export default function AvailableRoomsPage({
       }
       return true;
     });
-  }, [categoryStats, selectedCategoryFilter, selectedFloor, selectedStatus, roomSearch, bookings]);
+  }, [categoryStats, selectedCategoryFilter, selectedFloor, selectedStatus, roomSearch]);
 
-  // Open the check-out dialog for an occupied room
+  // Open check-out using current_booking_id from the rooms API (not bookings list)
   const handleOpenStatusDialog = (room) => {
-    const rId = String(room?._id || "");
-    const rNum = String(room?.roomNumber || "");
-
-    const matchedBooking = bookings.find((b) => {
-      const bSt = String(b.status || "").toUpperCase();
-      const isLive = bSt === "CHECKED_IN" || bSt === "IN-HOUSE" || bSt === "OCCUPIED" || bSt === "CONFIRMED" || bSt === "BOOKED";
-      if (!isLive) return false;
-
-      const bRoomId = String(b.room?._id || b.room?.id || b.room || b.room_id || b.roomId || "");
-      const bRtId = String(b.roomType?._id || b.roomType?.id || b.roomType || b.room_type_id || "");
-      const rRtId = String(room?.roomType?._id || room?.roomType?.id || room?.roomType || room?.room_type_id || "");
-
-      if (bRoomId && rId && bRoomId === rId) return true;
-      if (Array.isArray(b.rooms) && b.rooms.some((id) => String(id?._id || id?.id || id) === rId)) return true;
-      if (!bRoomId && String(b.roomNumber || b.room_number || "") === rNum && (!bRtId || !rRtId || bRtId === rRtId)) return true;
-      if (!bRoomId && Array.isArray(b.roomNumbers) && b.roomNumbers.some((num) => String(num) === rNum)) return true;
-
-      return false;
-    });
-
-    if (!matchedBooking) {
+    const bookingId = getRoomBookingId(room);
+    if (!bookingId) {
       setActionError("No active booking found for this room");
       return;
     }
     setActionError("");
-    setCheckoutTarget({ booking: matchedBooking, room });
+    setCheckoutTarget({
+      booking: {
+        id: bookingId,
+        _id: bookingId,
+        guestName: getRoomGuestName(room) || undefined,
+      },
+      room,
+    });
   };
 
   const [busyRoomId, setBusyRoomId] = useState("");
@@ -1311,24 +1269,13 @@ export default function AvailableRoomsPage({
 
               <Box sx={{ display: { xs: "none", sm: "block" }, width: "1px", alignSelf: "stretch", bgcolor: themeConfig.border }} />
 
-              <Box sx={{ display: "flex", alignItems: "center", gap: 2.5 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-                  <Groups sx={{ fontSize: 16, color: themeConfig.textMuted }} />
-                  <Box>
-                    <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.62rem", fontWeight: 600, lineHeight: 1.2 }}>Capacity</Typography>
-                    <Typography sx={{ color: themeConfig.textMain, fontSize: "0.82rem", fontWeight: 700, lineHeight: 1.3 }}>
-                      {selectedStats.totalAdultCapacity} guests
-                </Typography>
-                  </Box>
-                </Box>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-                  <CurrencyRupee sx={{ fontSize: 16, color: themeConfig.textMuted }} />
-                  <Box>
-                    <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.62rem", fontWeight: 600, lineHeight: 1.2 }}>Total per night</Typography>
-                    <Typography sx={{ color: themeConfig.textMain, fontSize: "0.82rem", fontWeight: 700, lineHeight: 1.3 }}>
-                      ₹{selectedStats.totalRate.toLocaleString("en-IN")}
-                    </Typography>
-                  </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                <CurrencyRupee sx={{ fontSize: 16, color: themeConfig.textMuted }} />
+                <Box>
+                  <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.62rem", fontWeight: 600, lineHeight: 1.2 }}>Total per night</Typography>
+                  <Typography sx={{ color: themeConfig.textMain, fontSize: "0.82rem", fontWeight: 700, lineHeight: 1.3 }}>
+                    ₹{selectedStats.totalRate.toLocaleString("en-IN")}
+                  </Typography>
                 </Box>
               </Box>
             </Box>

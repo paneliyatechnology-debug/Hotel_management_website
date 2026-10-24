@@ -49,6 +49,7 @@ import {
   FilterList,
 } from "@/shared/icons";
 import { paymentMethodLabel, useHotelPaymentMethods } from "@/shared/hooks/useHotelPaymentMethods";
+import RoomNumberChips from "@/shared/components/RoomNumberChips";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useSocket } from "@/shared/context/SocketContext";
@@ -667,24 +668,7 @@ export default function DailyCollectionsPage({ user, hotelSettings, onRefreshOve
                         {/* Column 2: Guest & Room Allocation */}
                         <TableCell sx={{ py: 1.1, whiteSpace: "nowrap" }}>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                            <Box
-                              sx={{
-                                px: 0.8,
-                                py: 0.3,
-                                borderRadius: "8px",
-                                bgcolor: themeConfig.champagne,
-                                color: themeConfig.accent,
-                                fontWeight: 800,
-                                fontSize: "0.75rem",
-                                border: `1px solid ${themeConfig.border}`,
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 0.4,
-                              }}
-                            >
-                              <MeetingRoom sx={{ fontSize: 14, color: themeConfig.primary }} />
-                              Rm {g.roomNumber}
-                            </Box>
+                            <RoomNumberChips rooms={g.roomNumber} />
                             <Box sx={{ minWidth: 0, flex: 1, overflow: "hidden" }}>
                               <Typography
                                 variant="body2"

@@ -30,6 +30,7 @@ import {
 import {
   ArrowBack,
   Person,
+  Group,
   Phone,
   Email,
   LocationOn,
@@ -225,21 +226,45 @@ export default function GuestDetailPage({
   const b = bookingDetail || guest || {};
   const g = b.guest || b.guestData || b;
 
-  // Normalized Fields
-  const guestName =
-    b.primary_guest_name ||
-    g.name ||
-    g.fullName ||
-    b.guestName ||
-    b.customer_name ||
-    "Guest";
+  // Normalized Fields - robust parser for guests whether [{ id, name, display_order }] or [string]
+  const rawGuests = Array.isArray(b.guests) ? b.guests : Array.isArray(g.guests) ? g.guests : [];
+  const normalizedGuests = rawGuests
+    .map((item, idx) => {
+      if (!item) return null;
+      if (typeof item === "string") {
+        const name = item.trim();
+        return name ? { id: null, name, display_order: idx + 1 } : null;
+      }
+      if (typeof item === "object") {
+        const name = String(item.name || item.fullName || item.guest_name || item.guestName || "").trim();
+        if (!name) return null;
+        return {
+          id: item.id || item._id || null,
+          name,
+          display_order: item.display_order ?? item.displayOrder ?? (idx + 1),
+        };
+      }
+      return null;
+    })
+    .filter(Boolean);
 
-  const secondaryGuestName =
-    b.secondary_guest_name ||
-    b.secondaryGuestName ||
-    g.secondary_guest_name ||
-    g.secondaryGuestName ||
-    "";
+  const primaryGuestFromList = normalizedGuests.find((p) => p.display_order === 1)?.name;
+  const guestName =
+    String(
+      b.primary_guest_name ||
+      primaryGuestFromList ||
+      g.name ||
+      g.fullName ||
+      b.guestName ||
+      b.customer_name ||
+      "Guest"
+    ).trim();
+
+  // Co-guests: exclude primary guest (display_order: 1 or matching name)
+  const coGuestsList = normalizedGuests
+    .filter((p) => p.display_order !== 1 && p.name.toLowerCase() !== guestName.toLowerCase())
+    .map((p) => p.name);
+  const coGuestsLabel = coGuestsList.join(", ");
 
   const guestPhone =
     g.phone ||
@@ -580,6 +605,20 @@ export default function GuestDetailPage({
                     {guestName}
                   </Typography>
                   <StatusChip status={normalizedStatus} />
+                  {coGuestsList.length > 0 && (
+                    <Chip
+                      icon={<Group sx={{ fontSize: "14px !important", color: `${themeConfig.primary} !important` }} />}
+                      label={`+${coGuestsList.length} guest${coGuestsList.length > 1 ? "s" : ""}`}
+                      size="small"
+                      sx={{
+                        fontWeight: 700,
+                        fontSize: "0.75rem",
+                        bgcolor: isDarkMode ? "rgba(16, 185, 129, 0.16)" : "#ECFDF5",
+                        color: themeConfig.primary,
+                        border: `1px solid ${isDarkMode ? "rgba(16, 185, 129, 0.3)" : "#A7F3D0"}`,
+                      }}
+                    />
+                  )}
                 </Box>
 
                 <Box sx={{ display: "flex", alignItems: "center", gap: 2.5, flexWrap: "wrap", mt: 1 }}>
@@ -774,14 +813,28 @@ export default function GuestDetailPage({
                     </Typography>
                   </Grid>
 
-                  {secondaryGuestName && (
+                  {coGuestsList.length > 0 && (
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                        Secondary Guest
+                        Additional Guests ({coGuestsList.length})
                       </Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 800, color: themeConfig.textMain, mt: 0.3 }}>
-                        {secondaryGuestName}
-                      </Typography>
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 0.5 }}>
+                        {coGuestsList.map((cg, idx) => (
+                          <Chip
+                            key={`co-guest-${idx}`}
+                            icon={<Person sx={{ fontSize: "14px !important", color: `${themeConfig.primary} !important` }} />}
+                            label={cg}
+                            size="small"
+                            sx={{
+                              fontWeight: 700,
+                              fontSize: "0.8rem",
+                              bgcolor: isDarkMode ? "rgba(16, 185, 129, 0.12)" : "#ECFDF5",
+                              color: themeConfig.textMain,
+                              border: `1px solid ${isDarkMode ? "rgba(16, 185, 129, 0.25)" : "#A7F3D0"}`,
+                            }}
+                          />
+                        ))}
+                      </Box>
                     </Grid>
                   )}
 

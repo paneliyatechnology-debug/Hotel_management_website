@@ -59,6 +59,38 @@ export function applyRoomStatusEvent(rooms, payload) {
   return copy;
 }
 
+/** Merge `room:category_counts` into a room-types list (status badge counts). */
+export function mergeCategoryCounts(current, payload) {
+  const incoming = payload?.room_categories || payload?.roomCategories || [];
+  const byId = new Map(incoming.map((cat) => [String(cat?.id || cat?._id), cat]));
+  const next = (Array.isArray(current) ? current : []).map((cat) => {
+    const update = byId.get(String(cat?.id || cat?._id));
+    if (!update) return cat;
+    const counts = update.room_status_counts || update.roomStatusCounts;
+    return counts ? { ...cat, room_status_counts: counts, roomStatusCounts: counts } : cat;
+  });
+  incoming.forEach((cat) => {
+    const id = String(cat?.id || cat?._id || "");
+    if (!id || next.some((item) => String(item?.id || item?._id) === id)) return;
+    next.push({ ...cat, _id: cat?._id || cat?.id, id: cat?.id || cat?._id, name: cat?.name || "" });
+  });
+  next.summary = payload?.room_status_summary || payload?.roomStatusSummary || current?.summary || null;
+  next.total = current?.total ?? next.length;
+  return next;
+}
+
+/** True when a booking status means the stay has ended (or was cancelled). */
+export function isTerminalBookingStatus(status) {
+  const s = String(status || "").toUpperCase();
+  return (
+    s === "CHECKED_OUT" ||
+    s === "DEPARTED" ||
+    s === "CHECKOUT" ||
+    s === "CHECK_OUT" ||
+    s === "CANCELLED"
+  );
+}
+
 /**
  * Normalizes a booking payload from the backend socket event or REST API
  * into a comprehensive object with consistent camelCase and snake_case properties.

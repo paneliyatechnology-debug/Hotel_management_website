@@ -216,7 +216,7 @@ export function SocketProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    // Sockets are temporarily commented out / disabled
+    // No-op when SOCKET_ENABLED is false (feature flag)
     if (!SOCKET_ENABLED) {
       return;
     }

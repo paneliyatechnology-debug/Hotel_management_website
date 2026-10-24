@@ -25,7 +25,6 @@ import {
   DialogActions,
   Tooltip,
   TextField,
-  Divider,
   InputAdornment,
   LinearProgress,
   MenuItem,
@@ -34,19 +33,15 @@ import { toast } from "@/shared/utils/toast";
 import CheckoutDialog from "@/receptionist/components/CheckoutDialog";
 import PeriodRangeFilter from "@/shared/components/PeriodRangeFilter";
 import {
-  CalendarMonth,
   HowToReg,
   CleaningServices,
   Build,
-  Badge,
   CheckCircle,
   ArrowForward,
   People,
   MeetingRoom,
   KingBed,
-  Apartment,
   Hotel,
-  Bed,
   Favorite,
   FamilyRestroom,
   Diamond,
@@ -54,7 +49,6 @@ import {
   SingleBed,
   Work,
   Close,
-  Visibility,
   Phone,
   WhatsApp,
   CurrencyRupee,
@@ -82,6 +76,10 @@ import {
   extractRoomsFromResponse,
 } from "@/shared/utils/listQuery";
 import { normalizeBooking } from "@/shared/utils/liveSync";
+import {
+  useHotelPaymentMethods,
+  buildPaymentCollectionSourceRows,
+} from "@/shared/hooks/useHotelPaymentMethods";
 
 function readCount(source, snakeKey, camelKey) {
   const value = source?.[snakeKey] ?? source?.[camelKey];
@@ -120,6 +118,7 @@ export default function ReceptionistOverviewPage({
   onRequestCheckout,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
+  const { methods: hotelPaymentMethods } = useHotelPaymentMethods();
   const [daySummary, setDaySummary] = useState(null);
   const [summaryTick, setSummaryTick] = useState(0);
   const [summaryRange, setSummaryRange] = useState("TODAY");
@@ -132,6 +131,7 @@ export default function ReceptionistOverviewPage({
   const [bookingsTotal, setBookingsTotal] = useState(0);
   const [bookingsTick, setBookingsTick] = useState(0);
   const [roomTypesTick, setRoomTypesTick] = useState(0);
+  const [roomsTick, setRoomsTick] = useState(0);
   const [rooms, setRooms] = useState([]); // only filled when a Rooms telemetry modal opens
   const [guests] = useState([]);
 
@@ -147,10 +147,12 @@ export default function ReceptionistOverviewPage({
   });
   useSocket(["ROOM_UPDATED"], () => {
     setRoomTypesTick((tick) => tick + 1);
+    setRoomsTick((tick) => tick + 1);
   });
   useSocket(["BOOKING_CREATED", "BOOKING_UPDATED", "GUEST_CHECKED_OUT", "GUEST_UPDATED"], () => {
     setBookingsTick((tick) => tick + 1);
     setSummaryTick((tick) => tick + 1);
+    setRoomsTick((tick) => tick + 1);
   });
 
   // 1) Summary KPIs / sources
@@ -308,11 +310,11 @@ export default function ReceptionistOverviewPage({
   });
   const [telemetrySearch, setTelemetrySearch] = useState("");
 
-  // Load rooms list only when a room-status modal needs row details
+  // Load rooms list only when a room-status modal needs row details (roomsTick keeps it live)
   useEffect(() => {
     if (!telemetryModal.open) return undefined;
     const type = telemetryModal.type;
-    if (!type || type === "IN_HOUSE_GUESTS") return undefined;
+    if (!type || type === "IN_HOUSE_GUESTS" || type === "TOTAL_GUESTS") return undefined;
     let cancelled = false;
     (async () => {
       try {
@@ -325,7 +327,7 @@ export default function ReceptionistOverviewPage({
                 ? "MAINTENANCE"
                 : "AVAILABLE";
         const q = buildListQuery({ page: 1, limit: 12, status });
-        const res = await apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?${q}`);
+        const res = await apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?${q}`, { forceRefresh: true });
         if (!cancelled) setRooms(extractRoomsFromResponse(res).rooms);
       } catch {
         if (!cancelled) setRooms([]);
@@ -334,7 +336,7 @@ export default function ReceptionistOverviewPage({
     return () => {
       cancelled = true;
     };
-  }, [telemetryModal.open, telemetryModal.type]);
+  }, [telemetryModal.open, telemetryModal.type, roomsTick]);
 
   // Live Current Clock for Operational Banner & Housekeeping Countdown
   const [liveCurrentTime, setLiveCurrentTime] = useState(new Date());
@@ -590,7 +592,7 @@ export default function ReceptionistOverviewPage({
           booking_number: bNumber,
           bookingNumber: bNumber,
           ...cleanB,
-          name: gObj.fullName || gObj.name || b.guestName || b.primary_guest_name || "Guest",
+          name: b.primary_guest_name || gObj.fullName || gObj.name || b.guestName || "Guest",
           phone: gPhone || "N/A",
           email: gObj.email || b.guestEmail || "",
           status: b.status === "CHECKED_IN" ? "IN-HOUSE" : b.status,
@@ -601,7 +603,14 @@ export default function ReceptionistOverviewPage({
           verificationStatus: gObj.verificationStatus || "VERIFIED",
           checkInDate: checkInDateStr,
           checkOutDate: checkOutDateStr,
-          accompanyingGuests: b.accompanyingGuests || gObj.accompanyingGuests || [],
+          accompanyingGuests: (() => {
+            if (Array.isArray(b.guests) && b.guests.length > 0) {
+              return b.guests
+                .map((item) => (typeof item === "object" ? item?.name : item))
+                .filter((n) => Boolean(n) && String(n).trim().toLowerCase() !== String(b.primary_guest_name || gObj.fullName || "").trim().toLowerCase());
+            }
+            return b.accompanyingGuests || gObj.accompanyingGuests || [];
+          })(),
           totalAmount: bTotal > 0 ? bTotal : (bPaid + bDue),
           paidAmount: bPaid,
           dueAmount: bDue,
@@ -774,7 +783,7 @@ export default function ReceptionistOverviewPage({
         activeBooking: b,
         guest: g,
         guestId: g?.id || g?._id || b.guest?.id || b.guest?._id || (typeof b.guest === "string" ? b.guest : realBId),
-        name: g?.fullName || g?.name || b.guestName || b.primary_guest_name || b.guest_name || b.primaryGuestName || "Resident Guest",
+        name: b.primary_guest_name || g?.fullName || g?.name || b.guestName || "Resident Guest",
         email: g?.email || b.email || "guest@hotel.com",
         phone: g?.mobileNumber || g?.phone || b.mobileNumber || b.mobile_number || b.phone || b.guestPhone || "N/A",
         roomAssigned: roomsList.length > 1 ? roomsList.join(", ") : roomsList[0],
@@ -801,23 +810,22 @@ export default function ReceptionistOverviewPage({
   // API already returns the current page for the selected filter — no client re-query/slice
   const activeRecentBookings = allFormattedBookings;
   const countAll = bookingsTotal;
-  const summaryMethods = daySummary?.collection_by_payment_method || daySummary?.collectionByPaymentMethod || {};
+  const summaryMethods =
+    daySummary?.collection_by_payment_method || daySummary?.collectionByPaymentMethod || [];
   const money = (value) => `₹${Number(value || 0).toLocaleString("en-IN")}`;
   const todayCollected = Number(daySummary?.total_collected_amount ?? daySummary?.totalCollectedAmount ?? 0);
   const todayBookings = Number(daySummary?.total_booking_count ?? daySummary?.totalBookingCount ?? 0);
   const avgTicket = todayBookings > 0 ? Math.round(todayCollected / todayBookings) : 0;
-  const cashTotal = Number(summaryMethods.cash_collected_amount ?? summaryMethods.cashCollectedAmount ?? 0);
-  const upiTotal = Number(summaryMethods.upi_collected_amount ?? summaryMethods.upiCollectedAmount ?? 0);
-  const cardTotal = Number(summaryMethods.card_collected_amount ?? summaryMethods.cardCollectedAmount ?? 0);
-  const bankTotal = Number(summaryMethods.bank_transfer_collected_amount ?? summaryMethods.bankTransferCollectedAmount ?? 0) + Number(summaryMethods.online_collected_amount ?? summaryMethods.onlineCollectedAmount ?? 0);
-  const shareBase = cashTotal + upiTotal + cardTotal + bankTotal || todayCollected;
+  const SOURCE_COLORS = [themeConfig.primary, "#8B5CF6", "#F59E0B", "#10B981", "#EF4444", "#06B6D4"];
+  const sourceBoxes = buildPaymentCollectionSourceRows(summaryMethods, hotelPaymentMethods).map(
+    (row, index) => ({
+      label: row.label,
+      amount: row.amount,
+      color: SOURCE_COLORS[index % SOURCE_COLORS.length],
+    })
+  );
+  const shareBase = sourceBoxes.reduce((sum, row) => sum + (Number(row.amount) || 0), 0) || todayCollected;
   const sharePercent = (amount) => (shareBase > 0 ? Math.min(100, Math.round((Number(amount) || 0) / shareBase * 100)) : 0);
-  const sourceBoxes = [
-    { label: "Cash", amount: cashTotal, color: themeConfig.primary, icon: <Hotel sx={{ fontSize: 16, color: themeConfig.primary }} /> },
-    { label: "UPI", amount: upiTotal, color: "#8B5CF6", icon: <Receipt sx={{ fontSize: 16, color: "#8B5CF6" }} /> },
-    { label: "Card", amount: cardTotal, color: "#F59E0B", icon: <CurrencyRupee sx={{ fontSize: 16, color: "#F59E0B" }} /> },
-    { label: "Bank", amount: bankTotal, color: "#10B981", icon: <TrendingUp sx={{ fontSize: 16, color: "#10B981" }} /> },
-  ];
 
   return (
     <Box sx={{ px: { xs: 1.5, sm: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
@@ -857,21 +865,27 @@ export default function ReceptionistOverviewPage({
 
       <Paper elevation={0} sx={{ mb: 3, p: { xs: 1.25, sm: 1.5 }, borderRadius: "16px", border: `1px solid ${themeConfig.border}`, bgcolor: themeConfig.bgCard || "#FFFFFF" }}>
         <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.85rem", mb: 1.25 }}>Sources</Typography>
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(4, minmax(0, 1fr))" }, gap: 1 }}>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr 1fr",
+              md: `repeat(${Math.min(Math.max(sourceBoxes.length, 2), 6)}, minmax(0, 1fr))`,
+            },
+            gap: 1,
+          }}
+        >
           {sourceBoxes.map((item) => (
             <Box key={item.label} sx={{ minWidth: 0, p: 1.1, borderRadius: "12px", border: `1px solid ${themeConfig.border}`, bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "#F8FAFC" }}>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 0.5, mb: 0.4 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
-                  {item.icon}
-                  <Typography noWrap sx={{ fontSize: "0.72rem", fontWeight: 800, color: themeConfig.textMuted }}>{item.label}</Typography>
-                </Box>
-                <Typography sx={{ fontSize: "0.68rem", fontWeight: 800, color: item.color }}>{sharePercent(item.amount)}%</Typography>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 0.5, mb: 0.35 }}>
+                <Typography noWrap sx={{ fontSize: "0.72rem", fontWeight: 800, color: themeConfig.textMuted }}>{item.label}</Typography>
+                <Typography sx={{ fontSize: "0.68rem", fontWeight: 800, color: item.color, flexShrink: 0 }}>{sharePercent(item.amount)}%</Typography>
               </Box>
               <Typography noWrap sx={{ fontWeight: 800, fontSize: "0.95rem", color: themeConfig.textMain }}>{money(item.amount)}</Typography>
               <LinearProgress
                 variant="determinate"
                 value={sharePercent(item.amount)}
-                sx={{ mt: 0.7, height: 4, borderRadius: 3, bgcolor: themeConfig.tones.neutral.bg, "& .MuiLinearProgress-bar": { bgcolor: item.color, borderRadius: 3 } }}
+                sx={{ mt: 0.65, height: 4, borderRadius: 3, bgcolor: themeConfig.tones.neutral.bg, "& .MuiLinearProgress-bar": { bgcolor: item.color, borderRadius: 3 } }}
               />
             </Box>
           ))}
@@ -1889,6 +1903,13 @@ export default function ReceptionistOverviewPage({
         hotelSettings={hotelSettings}
         onClose={() => setCheckoutItem(null)}
         onCheckOut={onCheckOut}
+        onDone={() => {
+          setCheckoutItem(null);
+          setBookingsTick((t) => t + 1);
+          setRoomTypesTick((t) => t + 1);
+          setRoomsTick((t) => t + 1);
+          setSummaryTick((t) => t + 1);
+        }}
       />
     </Box>
   );

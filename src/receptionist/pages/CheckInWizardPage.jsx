@@ -141,7 +141,6 @@ export default function CheckInWizardPage({
   hotelSettings = { checkInTime: "14:00", checkOutTime: "12:00", timezone: "Asia/Kolkata" },
   rooms = [],
   roomTypes = [],
-  guests = [],
   bookings = [],
   onFinalCheckIn,
   onBackToRooms,
@@ -1344,8 +1343,7 @@ export default function CheckInWizardPage({
     setCheckInData({
       fullName: "",
       guestName: "",
-      secondaryGuestName: "",
-      secondary_guest_name: "",
+      guestNames: [""],
       mobile: "",
       email: "",
       address: "",
@@ -1740,7 +1738,8 @@ export default function CheckInWizardPage({
             <Box>
               {renderSectionHeader("Guest details")}
 
-              <Grid container spacing={2}>
+              <Grid container spacing={2.5}>
+                {/* 1. Main Guest Full Name */}
                 <Grid id="field-primary-fullname" size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
@@ -1748,7 +1747,7 @@ export default function CheckInWizardPage({
                     required
                     autoComplete="off"
                     label="Main guest name"
-                    placeholder="Name as on ID proof"
+                    placeholder="Full name as on ID proof"
                     value={checkInData.fullName || ""}
                     onChange={(e) => {
                       setCheckInData({ ...checkInData, fullName: e.target.value });
@@ -1757,29 +1756,19 @@ export default function CheckInWizardPage({
                     onBlur={() => validateField("fullName")}
                     error={Boolean(fieldErrors.fullName)}
                     helperText={typeof fieldErrors.fullName === "string" ? fieldErrors.fullName : ""}
-                  />
-                </Grid>
-
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    autoComplete="off"
-                    label="Secondary guest name"
-                    placeholder="Secondary / co-guest name (optional)"
-                    value={checkInData.secondary_guest_name || checkInData.secondaryGuestName || checkInData.guestName || ""}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setCheckInData((prev) => ({
-                        ...prev,
-                        guestName: val,
-                        secondaryGuestName: val,
-                        secondary_guest_name: val,
-                      }));
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Person sx={{ fontSize: 18, color: themeConfig.primary, opacity: 0.85 }} />
+                          </InputAdornment>
+                        ),
+                      },
                     }}
                   />
                 </Grid>
 
+                {/* 2. WhatsApp Mobile Number */}
                 <Grid id="field-primary-mobile" size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
@@ -1813,6 +1802,7 @@ export default function CheckInWizardPage({
                   />
                 </Grid>
 
+                {/* 3. Email Address */}
                 <Grid id="field-primary-email" size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
@@ -1820,7 +1810,7 @@ export default function CheckInWizardPage({
                     type="email"
                     autoComplete="off"
                     label="Email address"
-                    placeholder="name@example.com"
+                    placeholder="name@example.com (optional)"
                     value={checkInData.email || ""}
                     onChange={(e) => {
                       setCheckInData({ ...checkInData, email: e.target.value });
@@ -1832,18 +1822,221 @@ export default function CheckInWizardPage({
                   />
                 </Grid>
 
-                <Grid id="field-primary-address" size={{ xs: 12 }}>
+                {/* 4. Residential Address */}
+                <Grid id="field-primary-address" size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     size="small"
-                    multiline
-                    minRows={2}
                     autoComplete="off"
-                    label="Address"
-                    placeholder="Guest residential address"
+                    label="Residential address"
+                    placeholder="City, State, Country (optional)"
                     value={checkInData.address || ""}
                     onChange={(e) => setCheckInData({ ...checkInData, address: e.target.value })}
                   />
+                </Grid>
+
+                {/* 5. Dedicated Additional Guests Sub-Card */}
+                <Grid size={{ xs: 12 }}>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: { xs: 2, sm: 2.25 },
+                      borderRadius: "14px",
+                      border: `1px solid ${themeConfig.border}`,
+                      bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#F8FAFC",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    {/* Sub-card Header */}
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        flexWrap: "wrap",
+                        gap: 1.5,
+                        mb: (Array.isArray(checkInData.guestNames) && checkInData.guestNames.length > 0) ? 2 : 0,
+                      }}
+                    >
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+                        <Box
+                          sx={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: "10px",
+                            bgcolor: themeConfig.primaryGlow || "rgba(16, 185, 129, 0.12)",
+                            color: themeConfig.primary,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <Group sx={{ fontSize: 18 }} />
+                        </Box>
+                        <Box>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                            <Typography sx={{ fontWeight: 800, fontSize: "0.9rem", color: themeConfig.textMain }}>
+                              Additional guests
+                            </Typography>
+                            {Array.isArray(checkInData.guestNames) && checkInData.guestNames.filter(Boolean).length > 0 && (
+                              <Chip
+                                size="small"
+                                label={`${checkInData.guestNames.filter(Boolean).length} added`}
+                                sx={{
+                                  height: 20,
+                                  fontSize: "0.7rem",
+                                  fontWeight: 700,
+                                  bgcolor: themeConfig.primaryGlow || "rgba(16, 185, 129, 0.12)",
+                                  color: themeConfig.primary,
+                                  border: "none",
+                                }}
+                              />
+                            )}
+                          </Box>
+                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontSize: "0.75rem", display: "block" }}>
+                            Co-guests or family members sharing this room (optional)
+                          </Typography>
+                        </Box>
+                      </Box>
+
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<Add sx={{ fontSize: 16 }} />}
+                        onClick={() => {
+                          setCheckInData((prev) => {
+                            const current = Array.isArray(prev.guestNames) ? prev.guestNames : [];
+                            return { ...prev, guestNames: [...current, ""] };
+                          });
+                        }}
+                        sx={{
+                          textTransform: "none",
+                          fontWeight: 700,
+                          fontSize: "0.8rem",
+                          borderRadius: "8px",
+                          minHeight: 32,
+                          px: 1.5,
+                          borderColor: themeConfig.primary,
+                          color: themeConfig.primary,
+                          "&:hover": {
+                            borderColor: themeConfig.primary,
+                            bgcolor: themeConfig.primaryGlow || "rgba(16, 185, 129, 0.08)",
+                          },
+                        }}
+                      >
+                        Add guest
+                      </Button>
+                    </Box>
+
+                    {/* 2-column Grid of Guest Inputs */}
+                    {Array.isArray(checkInData.guestNames) && checkInData.guestNames.length > 0 ? (
+                      <Grid container spacing={2}>
+                        {checkInData.guestNames.map((name, index) => (
+                          <Grid key={`guest-name-${index}`} size={{ xs: 12, sm: 6 }}>
+                            <TextField
+                              fullWidth
+                              size="small"
+                              autoComplete="off"
+                              label={`Guest name ${index + 1}`}
+                              placeholder="Co-guest / family member name"
+                              value={name || ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setCheckInData((prev) => {
+                                  const list = Array.isArray(prev.guestNames) ? [...prev.guestNames] : [""];
+                                  list[index] = val;
+                                  return {
+                                    ...prev,
+                                    guestNames: list,
+                                  };
+                                });
+                              }}
+                              slotProps={{
+                                input: {
+                                  startAdornment: (
+                                    <InputAdornment position="start">
+                                      <Person sx={{ fontSize: 18, color: themeConfig.primary, opacity: 0.75 }} />
+                                    </InputAdornment>
+                                  ),
+                                  endAdornment: (
+                                    <InputAdornment position="end">
+                                      <Tooltip title="Remove guest" arrow>
+                                        <IconButton
+                                          size="small"
+                                          edge="end"
+                                          aria-label={`Remove guest ${index + 1}`}
+                                          onClick={() => {
+                                            setCheckInData((prev) => {
+                                              const list = Array.isArray(prev.guestNames) ? [...prev.guestNames] : [];
+                                              list.splice(index, 1);
+                                              return {
+                                                ...prev,
+                                                guestNames: list,
+                                              };
+                                            });
+                                          }}
+                                          sx={{
+                                            color: themeConfig.textMuted,
+                                            p: 0.5,
+                                            mr: -0.5,
+                                            transition: "all 0.15s ease",
+                                            "&:hover": {
+                                              color: "#DC2626",
+                                              bgcolor: "rgba(220, 38, 38, 0.08)",
+                                              transform: "scale(1.08)",
+                                            },
+                                          }}
+                                        >
+                                          <Close sx={{ fontSize: 16 }} />
+                                        </IconButton>
+                                      </Tooltip>
+                                    </InputAdornment>
+                                  ),
+                                },
+                              }}
+                              sx={{
+                                bgcolor: themeConfig.bgCard || "#FFFFFF",
+                                borderRadius: "8px",
+                              }}
+                            />
+                          </Grid>
+                        ))}
+                      </Grid>
+                    ) : (
+                      <Box
+                        sx={{
+                          p: 2,
+                          borderRadius: "10px",
+                          border: `1.5px dashed ${themeConfig.border}`,
+                          bgcolor: isDarkMode ? "rgba(255,255,255,0.01)" : "#FFFFFF",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 1.5,
+                          color: themeConfig.textMuted,
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                          "&:hover": {
+                            borderColor: themeConfig.primary,
+                            color: themeConfig.primary,
+                            bgcolor: themeConfig.primaryGlow || "rgba(16, 185, 129, 0.04)",
+                          },
+                        }}
+                        onClick={() => {
+                          setCheckInData((prev) => ({
+                            ...prev,
+                            guestNames: [""],
+                          }));
+                        }}
+                      >
+                        <Person sx={{ fontSize: 18 }} />
+                        <Typography sx={{ fontSize: "0.82rem", fontWeight: 600 }}>
+                          Solo traveler? No extra guests needed. Click to add a co-guest.
+                        </Typography>
+                      </Box>
+                    )}
+                  </Paper>
                 </Grid>
               </Grid>
             </Box>
@@ -2306,6 +2499,19 @@ export default function CheckInWizardPage({
                     <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.95rem" }}>
                       {checkInData.fullName || "Not added"}
                     </Typography>
+                    {Array.isArray(checkInData.guestNames) &&
+                      checkInData.guestNames
+                        .map((n) => String(n || "").trim())
+                        .filter((n) => Boolean(n) && n.toLowerCase() !== String(checkInData.fullName || "").trim().toLowerCase())
+                        .length > 0 && (
+                      <Typography sx={{ color: themeConfig.primary, fontSize: "0.78rem", fontWeight: 700, mt: 0.25 }}>
+                        +{" "}
+                        {checkInData.guestNames
+                          .map((n) => String(n || "").trim())
+                          .filter((n) => Boolean(n) && n.toLowerCase() !== String(checkInData.fullName || "").trim().toLowerCase())
+                          .join(", ")}
+                      </Typography>
+                    )}
                     <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.8rem", mt: 0.25 }}>
                       {checkInData.mobile ? `+91 ${checkInData.mobile}` : "No mobile number"}
                     </Typography>

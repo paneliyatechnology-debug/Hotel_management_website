@@ -16,7 +16,7 @@ export default function GuestDetailsModal({
 }) {
   const resolvedGuest = guestData?.raw || guestData || null;
   const resolvedId =
-    guestId ||
+      guestId ||
     resolvedGuest?._id ||
     resolvedGuest?.id ||
     resolvedGuest?.bookingId ||
@@ -24,15 +24,15 @@ export default function GuestDetailsModal({
     null;
 
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
+      <Dialog
+        open={open}
+        onClose={onClose}
       maxWidth="lg"
-      fullWidth
+        fullWidth
       scroll="paper"
-      slotProps={{
-        paper: {
-          sx: {
+        slotProps={{
+          paper: {
+            sx: {
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
@@ -60,6 +60,6 @@ export default function GuestDetailsModal({
           />
         ) : null}
       </DialogContent>
-    </Dialog>
+      </Dialog>
   );
 }

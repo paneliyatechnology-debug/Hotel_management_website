@@ -5,8 +5,6 @@ import {
   Avatar,
   Box,
   Typography,
-  Paper,
-  Button,
   IconButton,
   Tooltip,
   TextField,
@@ -18,7 +16,6 @@ import {
   TableRow,
   TableCell,
   TableContainer,
-  TablePagination,
 } from "@mui/material";
 import {
   Search,
@@ -31,10 +28,10 @@ import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useSocket } from "@/shared/context/SocketContext";
 import {
   mergeBookingEvent,
-  mergeFetchedBookings,
   normalizeBooking,
   preferBookingStatus,
   sortBookingsNewestFirst,
+  isTerminalBookingStatus,
 } from "@/shared/utils/liveSync";
 import { toast } from "@/shared/utils/toast";
 import StatusChip from "@/shared/components/StatusChip";
@@ -44,26 +41,12 @@ import { downloadBookingBill } from "@/shared/utils/bookingPdf";
 import FolioPdfButton from "@/shared/components/FolioPdfButton";
 import RoomNumberChips from "@/shared/components/RoomNumberChips";
 import { TableCard, TableToolbar, TablePager, tableFieldSx, tableSearchSx } from "@/shared/components/DataTable";
+import CheckoutDialog from "@/receptionist/components/CheckoutDialog";
 
 function formatCurrency(val) {
   const n = Number(val);
   if (!Number.isFinite(n)) return "₹0";
   return `₹${n.toLocaleString("en-IN")}`;
-}
-
-function formatDate(val) {
-  if (!val) return "—";
-  try {
-    const d = new Date(val);
-    if (Number.isNaN(d.getTime())) return String(val);
-    return d.toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  } catch {
-    return String(val);
-  }
 }
 
 function formatDateTime(val) {
@@ -184,16 +167,6 @@ function mergeLists(...lists) {
   return Array.from(map.values());
 }
 
-function asRecordList(value) {
-  if (Array.isArray(value)) return value;
-  if (!value || typeof value !== "object") return [];
-  if (Array.isArray(value.bookings)) return value.bookings;
-  if (Array.isArray(value.guests)) return value.guests;
-  if (Array.isArray(value.data)) return value.data;
-  if (Array.isArray(value.data?.bookings)) return value.data.bookings;
-  return [];
-}
-
 function roomLabelFor(record, rooms) {
   const embedded = Array.isArray(record.rooms)
     ? record.rooms.map((r) => r.room_number || r.roomNumber).filter(Boolean).join(", ")
@@ -238,6 +211,7 @@ export default function GuestListPage({
   const [serverPage, setServerPage] = useState(null);
 
   const [liveTick, setLiveTick] = useState(0);
+  const [checkoutItem, setCheckoutItem] = useState(null);
 
   // Real-Time Socket Auto-Sync — refresh this page's list only (no parent dump refetch)
   useSocket(
@@ -260,36 +234,52 @@ export default function GuestListPage({
     if (id === undefined || id === null) return;
     const key = String(id);
     const normalized = normalizeBooking(payload);
+    const status = String(normalized?.booking_status || normalized?.status || "").toUpperCase();
+    const inHouse = status === "CHECKED_IN" || status === "IN-HOUSE" || status === "IN_HOUSE";
+    const matchesFilter =
+      !payload.deleted_at &&
+      (statusFilter === "ALL" ||
+        (statusFilter === "CHECKED_IN" && inHouse) ||
+        (statusFilter !== "CHECKED_IN" && status === statusFilter));
+    // Drop terminal stays from the overlay so a later page refetch cannot resurrect them
+    const dropFromOverlay = payload.deleted_at || isTerminalBookingStatus(status) || !matchesFilter;
 
     setBookingDetails((prev) => {
       const next = { ...prev };
-      if (payload.deleted_at) delete next[key];
+      if (dropFromOverlay) delete next[key];
       else next[key] = normalized;
       return next;
     });
 
     setServerPage((prev) => {
-      const baseList = prev?.list || asRecordList(bookings);
+      const baseList = prev?.list || [];
       const exists = baseList.some((item) => String(item.id ?? item._id) === key);
       let total = Number(prev?.total);
       if (!Number.isFinite(total)) total = baseList.length;
-      if (!exists && !payload.deleted_at) total += 1;
-      else if (exists && payload.deleted_at) total = Math.max(0, total - 1);
+
+      if (!matchesFilter) {
+        if (!exists) return prev || { list: baseList, total };
+        return {
+          list: baseList.filter((item) => String(item.id ?? item._id) !== key),
+          total: Math.max(0, total - 1),
+        };
+      }
+
+      if (!exists) {
+        total += 1;
+        setPage(0);
+      }
       return {
         list: sortBookingsNewestFirst(mergeBookingEvent(baseList, normalized)),
         total,
       };
     });
-
-    setPage(0);
   });
 
   // List the bookings API records (check-in / check-out stays) as they arrive.
   const unifiedGuests = useMemo(() => {
     const records = mergeLists(
       serverPage?.list || [],
-      asRecordList(bookings),
-      asRecordList(guests),
       Object.values(bookingDetails)
     );
     const items = [];
@@ -330,12 +320,37 @@ export default function GuestListPage({
         b.roomTypeName ||
         "";
 
+      const rawGuests = Array.isArray(b.guests) ? b.guests : [];
+      const parsedGuestNames = rawGuests
+        .map((item) => {
+          if (!item) return "";
+          if (typeof item === "string") return item.trim();
+          if (typeof item === "object") return String(item.name || item.fullName || item.guest_name || "").trim();
+          return String(item).trim();
+        })
+        .filter(Boolean);
+
+      const resolvedPrimary = String(
+        b.primary_guest_name ||
+        b.guestName ||
+        b.guest?.name ||
+        b.guest?.fullName ||
+        parsedGuestNames[0] ||
+        "Guest"
+      ).trim();
+
+      const extraGuests = parsedGuestNames.filter(
+        (name) => name.toLowerCase() !== resolvedPrimary.toLowerCase()
+      );
+      const extraGuestsLabel = extraGuests.join(", ");
+
       items.push({
         id,
         _id: id,
         bookingNumber: b.booking_number || b.bookingNumber || "",
-        guestName: b.primary_guest_name || b.guestName || b.guest?.name || b.guest?.fullName || "Guest",
-        secondaryGuestName: b.secondary_guest_name || b.secondaryGuestName || b.secondary_guest || "",
+        guestName: resolvedPrimary,
+        extraGuestsLabel,
+        extraGuestsCount: extraGuests.length,
         phone: b.mobile_number || b.phone || b.mobile || b.guest?.phone || "",
         email: b.email || b.guest?.email || "",
         roomAssigned: roomLabelFor(b, rooms),
@@ -357,7 +372,7 @@ export default function GuestListPage({
     });
 
     return items;
-  }, [bookings, guests, rooms, serverPage, bookingDetails]);
+  }, [rooms, serverPage, bookingDetails]);
 
   // Server-side page/limit — matches the table pager (not load-100-then-slice)
   useEffect(() => {
@@ -369,13 +384,26 @@ export default function GuestListPage({
       });
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
       if (statusFilter !== "ALL") params.set("status", statusFilter);
+      if (paymentFilter !== "ALL") params.set("payment_status", paymentFilter);
+      if (sortBy && sortBy !== "NEWEST") params.set("sort", sortBy);
       try {
-        const res = await apiRequest(`${API_ENDPOINTS.BOOKINGS.ALL}?${params.toString()}`);
+        const res = await apiRequest(`${API_ENDPOINTS.BOOKINGS.ALL}?${params.toString()}`, {
+          forceRefresh: true,
+        });
         const pageData = readBookingPage(res);
         if (cancelled) return;
-        const liveRows = Object.values(bookingDetails);
+        // Keep live overlays that still match filters; never re-inject checked-out rows
+        const liveRows = Object.values(bookingDetails).filter((row) => {
+          const st = String(row?.booking_status || row?.status || "").toUpperCase();
+          if (isTerminalBookingStatus(st) || row?.deleted_at) return false;
+          if (statusFilter === "ALL") return true;
+          if (statusFilter === "CHECKED_IN") {
+            return st === "CHECKED_IN" || st === "IN-HOUSE" || st === "IN_HOUSE";
+          }
+          return st === statusFilter;
+        });
         const mergedList = sortBookingsNewestFirst(
-          mergeFetchedBookings(mergeLists(pageData.list, liveRows), [])
+          mergeLists(pageData.list, liveRows)
         );
         setServerPage({
           list: mergedList,
@@ -388,7 +416,7 @@ export default function GuestListPage({
     return () => {
       cancelled = true;
     };
-  }, [searchQuery, statusFilter, page, rowsPerPage, liveTick]);
+  }, [searchQuery, statusFilter, paymentFilter, sortBy, page, rowsPerPage, liveTick]);
 
   const withApiStay = (g) => {
     const d = bookingDetails[g.id] || bookingDetails[String(g.id)] || bookingDetails[String(g._id)];
@@ -432,37 +460,10 @@ export default function GuestListPage({
     return { ...g, checkIn, checkOut, baseAmount, gstAmount, totalAmount, paidAmount, dueAmount, guestName, phone, email, bookingNumber, roomAssigned, status };
   };
 
-  // Search/status come from the API; only payment + sort are applied on the current page
-  const filteredGuests = useMemo(() => {
-    return unifiedGuests
-      .filter((item) => {
-        if (paymentFilter !== "ALL" && item.paymentStatus !== paymentFilter) return false;
-        return true;
-      })
-      .sort((a, b) => {
-        if (sortBy === "NEWEST") {
-          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-        }
-        if (sortBy === "OLDEST") {
-          return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
-        }
-        if (sortBy === "NAME_ASC") {
-          return a.guestName.localeCompare(b.guestName);
-        }
-        if (sortBy === "AMOUNT_DESC") {
-          return b.totalAmount - a.totalAmount;
-        }
-        if (sortBy === "DUE_DESC") {
-          return b.dueAmount - a.dueAmount;
-        }
-        return 0;
-      });
-  }, [unifiedGuests, paymentFilter, sortBy]);
-
-  // Current API page (payment/sort still applied on this page's rows)
-  const paginatedGuests = filteredGuests;
+  // Search/status/payment/sort come from the API page — no client re-filter of the dump
+  const paginatedGuests = unifiedGuests;
   const serverTotal = Number(serverPage?.total);
-  const tableCount = Number.isFinite(serverTotal) ? serverTotal : filteredGuests.length;
+  const tableCount = Number.isFinite(serverTotal) ? serverTotal : paginatedGuests.length;
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
@@ -486,6 +487,66 @@ export default function GuestListPage({
     } finally {
       setPdfGuestId("");
     }
+  };
+
+  const handleOpenCheckout = (guest) => {
+    const booking = guest?.raw || guest;
+    if (typeof onRequestCheckout === "function") {
+      onRequestCheckout(booking);
+      return;
+    }
+    setCheckoutItem(booking);
+  };
+
+  const handleCheckOut = async (bookingOrId, settlementData = {}) => {
+    const bookingId =
+      typeof bookingOrId === "string" || typeof bookingOrId === "number"
+        ? String(bookingOrId)
+        : String(bookingOrId?._id || bookingOrId?.id);
+    if (!bookingId) throw new Error("Booking id missing");
+
+    const bookingObj =
+      typeof bookingOrId === "object" && bookingOrId !== null
+        ? bookingOrId
+        : checkoutItem;
+
+    const bTotal = Number(bookingObj?.totalAmount ?? bookingObj?.total_amount ?? 0);
+    const bPaid = Number(bookingObj?.paidAmount ?? bookingObj?.paid_amount ?? 0);
+    const bookingDue = Number(
+      bookingObj?.dueAmount ?? bookingObj?.due_amount ?? Math.max(0, bTotal - bPaid)
+    );
+
+    let amount =
+      settlementData.settlementPaymentAmount !== undefined
+        ? Number(settlementData.settlementPaymentAmount)
+        : bookingDue;
+
+    if (
+      settlementData.settlementPaymentAmount === undefined &&
+      (!amount || amount === 0) &&
+      bookingDue > 0
+    ) {
+      amount = bookingDue;
+    }
+
+    const method = settlementData.paymentMethod || "CASH";
+    const defaultNote = `Checked out and settled via ${method}${
+      settlementData.transactionId ? ` (Ref: ${settlementData.transactionId})` : ""
+    }`;
+
+    const res = await apiRequest(API_ENDPOINTS.BOOKINGS.CHECKOUT(bookingId), {
+      method: "POST",
+      body: {
+        paid_amount: Number(amount) || 0,
+        payment_method: method,
+        extra_charges_total: Number(settlementData.extraCharges) || 0,
+        discount_amount: Number(settlementData.discount) || 0,
+        late_checkout_charge: Number(settlementData.lateCheckoutFee) || 0,
+        late_checkout_hours: Number(settlementData.lateCheckoutHours) || 0,
+        notes: settlementData.notes ? String(settlementData.notes).trim() : defaultNote,
+      },
+    });
+    toast.show(res.message || "Booking checked out successfully! Room marked for cleaning.", "success");
   };
 
   return (
@@ -560,7 +621,7 @@ export default function GuestListPage({
           </TextField>
         </TableToolbar>
 
-        {filteredGuests.length === 0 ? (
+        {paginatedGuests.length === 0 ? (
           <EmptyState
             embedded
             title="No guests"
@@ -605,9 +666,9 @@ export default function GuestListPage({
                           <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.9rem", lineHeight: 1.2 }}>
                             {g.guestName}
                           </Typography>
-                          {g.secondaryGuestName && (
+                          {g.extraGuestsLabel && (
                             <Typography variant="caption" sx={{ color: themeConfig.primary, fontWeight: 700, display: "block", fontSize: "0.74rem" }}>
-                              + {g.secondaryGuestName}
+                              + {g.extraGuestsLabel}
                             </Typography>
                           )}
                           <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 600 }}>
@@ -676,26 +737,22 @@ export default function GuestListPage({
                           </span>
                         </Tooltip>
                         <FolioPdfButton booking={g} iconOnly />
-                        {typeof onRequestCheckout === "function" &&
-                          (g.status === "CHECKED_IN" || g.status === "IN-HOUSE" || g.status === "IN_HOUSE") && (
-                          <Tooltip title="Check-out guest">
+                        {(g.status === "CHECKED_IN" || g.status === "IN-HOUSE" || g.status === "IN_HOUSE") && (
+                          <Tooltip title="Check-Out">
                             <IconButton
                               size="small"
-                              aria-label="Check-out guest"
-                              onClick={() => onRequestCheckout(g.raw || g)}
+                              aria-label="Check-Out"
+                              onClick={() => handleOpenCheckout(g)}
                               sx={{
-                                color: "#DC2626",
-                                bgcolor: "rgba(220, 38, 38, 0.08)",
-                                border: "1px solid rgba(220, 38, 38, 0.28)",
-                                borderRadius: "8px",
-                                "&:hover": {
-                                  bgcolor: "#DC2626",
-                                  color: "#FFFFFF",
-                                  borderColor: "#DC2626",
-                                },
+                                width: 34,
+                                height: 34,
+                                borderRadius: "50%",
+                                bgcolor: "rgba(239, 68, 68, 0.12)",
+                                color: "#EF4444",
+                                "&:hover": { bgcolor: "rgba(239, 68, 68, 0.2)" },
                               }}
                             >
-                              <Logout fontSize="small" />
+                              <Logout sx={{ fontSize: 16 }} />
                             </IconButton>
                           </Tooltip>
                         )}
@@ -726,6 +783,25 @@ export default function GuestListPage({
         guestData={selectedGuest}
         hotelSettings={hotelSettings}
         onRefresh={onRefresh}
+      />
+
+      <CheckoutDialog
+        open={Boolean(checkoutItem)}
+        booking={checkoutItem}
+        roomNumber={
+          checkoutItem?.roomAssigned ||
+          checkoutItem?.room_number ||
+          checkoutItem?.roomNumber ||
+          ""
+        }
+        hotelSettings={hotelSettings}
+        onClose={() => setCheckoutItem(null)}
+        onCheckOut={handleCheckOut}
+        onDone={() => {
+          setCheckoutItem(null);
+          setLiveTick((t) => t + 1);
+          if (typeof onRefresh === "function") onRefresh();
+        }}
       />
     </Box>
   );

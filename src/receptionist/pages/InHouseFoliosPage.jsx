@@ -564,8 +564,24 @@ export default function InHouseFoliosPage({
               ) : (
                 filteredBookings
                   .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                  .map((b) => {
-                    const guestName = b.guestName || b.primary_guest_name || b.guest_name || b.guest?.name || b.guest?.fullName || "Walk-In Guest";
+                    const rawGuests = Array.isArray(b.guests) ? b.guests : [];
+                    const parsedGuestNames = rawGuests
+                      .map((item) => (typeof item === "object" ? item?.name : item))
+                      .filter(Boolean)
+                      .map((s) => String(s).trim());
+                    const guestName = String(
+                      b.primary_guest_name ||
+                      b.guestName ||
+                      b.guest_name ||
+                      b.guest?.name ||
+                      b.guest?.fullName ||
+                      parsedGuestNames[0] ||
+                      "Walk-In Guest"
+                    ).trim();
+                    const extraGuests = parsedGuestNames.filter(
+                      (name) => name.toLowerCase() !== guestName.toLowerCase()
+                    );
+                    const extraGuestsLabel = extraGuests.join(", ");
                     const guestPhone = b.phone || b.mobile_number || b.guest?.phone || b.guest?.mobileNumber || "";
                     const roomsList = getBookingRoomNumbers(b);
                     const roomType = b.roomType?.name || b.room_type_name || b.room?.roomType?.name || "Room Stay";
@@ -605,6 +621,11 @@ export default function InHouseFoliosPage({
                               <Typography variant="body2" sx={{ fontWeight: 800, color: themeConfig.textMain, "&:hover": { textDecoration: "underline" } }}>
                                 {guestName}
                               </Typography>
+                              {extraGuestsLabel && (
+                                <Typography variant="caption" sx={{ color: themeConfig.primary, fontWeight: 700, display: "block", fontSize: "0.72rem" }}>
+                                  + {extraGuestsLabel}
+                                </Typography>
+                              )}
                               <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, flexWrap: "wrap", mt: 0.4 }}>
                                 {guestPhone && (
                                   <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "flex", alignItems: "center", gap: 0.5, fontSize: "0.72rem" }}>
@@ -638,12 +659,12 @@ export default function InHouseFoliosPage({
 
                         {/* Room Details */}
                         <TableCell sx={{ whiteSpace: "nowrap" }}>
-                          <Box sx={{ mb: 0.3 }}>
+                            <Box sx={{ mb: 0.3 }}>
                             <RoomNumberChips rooms={roomsList} />
-                            <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", fontSize: "0.72rem", mt: 0.3 }}>
+                              <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block", fontSize: "0.72rem", mt: 0.3 }}>
                               {roomType}{roomsList.length > 1 ? ` (${roomsList.length} rooms)` : ""}
-                            </Typography>
-                          </Box>
+                              </Typography>
+                            </Box>
                         </TableCell>
 
                         {/* Stay Duration */}

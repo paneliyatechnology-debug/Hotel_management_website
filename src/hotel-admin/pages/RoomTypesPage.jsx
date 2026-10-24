@@ -47,6 +47,7 @@ import {
   Category,
   Remove,
   Close,
+  Logout,
 } from "@/shared/icons";
 
 const CATEGORY_STATUSES = [
@@ -85,6 +86,9 @@ function categoryStatusCounts(category, fallbackRooms = []) {
 }
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
+import CheckoutDialog from "@/receptionist/components/CheckoutDialog";
+import { toast } from "@/shared/utils/toast";
+import { applyRoomStatusEvent, mergeCategoryCounts } from "@/shared/utils/liveSync";
 import { useSocket } from "@/shared/context/SocketContext";
 import { TableCard, TablePager, TableToolbar } from "@/shared/components/DataTable";
 import InfiniteScrollSentinel from "@/shared/components/InfiniteScrollSentinel";
@@ -215,6 +219,8 @@ export default function RoomTypesPage({
   subscription,
   onTabChange,
   resetToken = 0,
+  roomsRefreshToken = 0,
+  hotelSettings = {},
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
 
@@ -228,6 +234,9 @@ export default function RoomTypesPage({
   // Rooms table uses the standard pager (same as the other tables)
   const [roomPage, setRoomPage] = useState(0);
   const [roomRowsPerPage, setRoomRowsPerPage] = useState(10);
+  const [checkoutTarget, setCheckoutTarget] = useState(null);
+  const [busyRoomId, setBusyRoomId] = useState("");
+  const [liveRoomTypes, setLiveRoomTypes] = useState(null);
 
   // Clicking "Rooms & Tariffs" in the sidebar always lands on the category list, not an opened category
   useEffect(() => {
@@ -291,10 +300,25 @@ export default function RoomTypesPage({
     currentList.splice(index, 1);
     updateBedsConfig(currentList);
   };
+  // Instant room row patch + category badge counts; liveTick reloads the open category page
+  useSocket(["room:status"], (payload) => {
+    setServerRooms((prev) =>
+      prev ? { ...prev, list: applyRoomStatusEvent(prev.list, payload) } : prev
+    );
+  });
+  useSocket(["room:category_counts"], (payload) => {
+    setLiveRoomTypes((prev) => mergeCategoryCounts(Array.isArray(prev) ? prev : roomTypes, payload));
+  });
   useSocket(
-    ["ROOM_UPDATED", "room:category_counts", "BOOKING_CREATED", "BOOKING_UPDATED", "GUEST_CHECKED_OUT", "PAYMENT_RECORDED"],
+    ["ROOM_UPDATED", "BOOKING_CREATED", "BOOKING_UPDATED", "GUEST_CHECKED_OUT", "PAYMENT_RECORDED"],
     () => setLiveTick((tick) => tick + 1)
   );
+
+  // Keep a live copy of categories so badge counts update without waiting for parent refetch
+  useEffect(() => {
+    setLiveRoomTypes(roomTypes);
+  }, [roomTypes]);
+  const displayRoomTypes = liveRoomTypes || roomTypes;
 
   const fieldLabelSx = { fontWeight: 600, color: themeConfig.textMuted, mb: 0.6, display: "block", fontSize: "0.78rem" };
   const RequiredMark = () => <Box component="span" sx={{ color: themeConfig.tones.danger.color }}> *</Box>;
@@ -357,7 +381,10 @@ export default function RoomTypesPage({
   const isTrial = normalizedPlan === "TRIAL" || normalizedPlan === "FREE" || String(subscription?.status || "").toUpperCase() === "TRIAL";
 
   // Summary Metrics — prefer the category API totals, then the loaded room list.
-  const summaryCounts = categoryStatusCounts(roomTypes.summary ? { room_status_counts: roomTypes.summary } : null, rooms);
+  const summaryCounts = categoryStatusCounts(
+    displayRoomTypes.summary ? { room_status_counts: displayRoomTypes.summary } : null,
+    rooms
+  );
   const totalRoomsCount = summaryCounts.total;
   // Helper to open Add Room modal with preselected Category
   const openAddCategory = () => {
@@ -377,6 +404,103 @@ export default function RoomTypesPage({
         amenities: [],
       },
     });
+  };
+
+  const getRoomBookingId = (room) =>
+    room?.current_booking_id ?? room?.currentBookingId ?? null;
+
+  const getRoomGuestName = (room) => {
+    const st = String(room?.status || "").toUpperCase();
+    if (!room || (st !== "OCCUPIED" && st !== "RESERVED" && st !== "BOOKED")) return "";
+    return (
+      room.guestName ||
+      room.guest_name ||
+      room.primary_guest_name ||
+      room.current_guest_name ||
+      room.currentGuestName ||
+      ""
+    ).trim();
+  };
+
+  const handleOpenCheckout = (room) => {
+    const bookingId = getRoomBookingId(room);
+    if (!bookingId) {
+      toast.show("No active booking found for this room", "error");
+      return;
+    }
+    setCheckoutTarget({
+      booking: {
+        id: bookingId,
+        _id: bookingId,
+        guestName: getRoomGuestName(room) || undefined,
+      },
+      room,
+    });
+  };
+
+  const handleCheckOut = async (bookingOrId, settlementData = {}) => {
+    const bookingId =
+      typeof bookingOrId === "string" || typeof bookingOrId === "number"
+        ? String(bookingOrId)
+        : String(bookingOrId?._id || bookingOrId?.id);
+    if (!bookingId) throw new Error("Booking id missing");
+
+    const bookingObj =
+      typeof bookingOrId === "object" && bookingOrId !== null
+        ? bookingOrId
+        : checkoutTarget?.booking;
+
+    const bTotal = Number(bookingObj?.totalAmount ?? bookingObj?.total_amount ?? 0);
+    const bPaid = Number(bookingObj?.paidAmount ?? bookingObj?.paid_amount ?? 0);
+    const bookingDue = Number(
+      bookingObj?.dueAmount ?? bookingObj?.due_amount ?? Math.max(0, bTotal - bPaid)
+    );
+
+    let amount =
+      settlementData.settlementPaymentAmount !== undefined
+        ? Number(settlementData.settlementPaymentAmount)
+        : bookingDue;
+
+    if (
+      settlementData.settlementPaymentAmount === undefined &&
+      (!amount || amount === 0) &&
+      bookingDue > 0
+    ) {
+      amount = bookingDue;
+    }
+
+    const method = settlementData.paymentMethod || "CASH";
+    const defaultNote = `Checked out and settled via ${method}${
+      settlementData.transactionId ? ` (Ref: ${settlementData.transactionId})` : ""
+    }`;
+
+    const res = await apiRequest(API_ENDPOINTS.BOOKINGS.CHECKOUT(bookingId), {
+      method: "POST",
+      body: {
+        paid_amount: Number(amount) || 0,
+        payment_method: method,
+        extra_charges_total: Number(settlementData.extraCharges) || 0,
+        discount_amount: Number(settlementData.discount) || 0,
+        late_checkout_charge: Number(settlementData.lateCheckoutFee) || 0,
+        late_checkout_hours: Number(settlementData.lateCheckoutHours) || 0,
+        notes: settlementData.notes ? String(settlementData.notes).trim() : defaultNote,
+      },
+    });
+    toast.show(res.message || "Booking checked out successfully! Room marked for cleaning.", "success");
+  };
+
+  const handleMarkAvailable = async (room) => {
+    if (!onUpdateRoomStatus) return;
+    const id = String(room?._id || room?.id || "");
+    try {
+      setBusyRoomId(id);
+      await onUpdateRoomStatus(room, "AVAILABLE");
+      setLiveTick((t) => t + 1);
+    } catch (err) {
+      toast.show(err?.message || "Failed to mark room available", "error");
+    } finally {
+      setBusyRoomId("");
+    }
   };
 
   const openEditRoom = async (room) => {
@@ -429,7 +553,7 @@ export default function RoomTypesPage({
 
   const handleOpenAddRoomForCategory = (category) => {
     if (!category && roomTypes.length === 0) return;
-    if (isTrial && rooms.length >= 5) {
+    if (isTrial && totalRoomsCount >= 5) {
       setTrialLimitModalOpen(true);
       return;
     }
@@ -499,7 +623,7 @@ export default function RoomTypesPage({
     }
   };
 
-  const selectedCategory = roomTypes.find((cat) => String(cat._id || cat.id) === String(selectedCategoryId)) || null;
+  const selectedCategory = displayRoomTypes.find((cat) => String(cat._id || cat.id) === String(selectedCategoryId)) || null;
   const selectedRooms = selectedCategory
     ? rooms.filter((r) => {
         const typeId = typeof r.roomType === "object" ? (r.roomType?._id || r.roomType?.id) : (r.roomType || r.room_type_id || r.roomTypeId);
@@ -532,17 +656,18 @@ export default function RoomTypesPage({
     return () => {
       cancelled = true;
     };
-  }, [selectedCategory, roomPage, roomRowsPerPage, liveTick]);
+  }, [selectedCategory, roomPage, roomRowsPerPage, liveTick, roomsRefreshToken]);
 
-  const pagedRooms = serverRooms ? serverRooms.list : selectedRooms.slice(roomPage * roomRowsPerPage, roomPage * roomRowsPerPage + roomRowsPerPage);
-  const totalCategoryRooms = serverRooms ? serverRooms.total : selectedRooms.length;
+  // Always use server page for category rooms — never slice a parent dump
+  const pagedRooms = serverRooms?.list || [];
+  const totalCategoryRooms = serverRooms?.total ?? 0;
   // Lazy loading: category cards load in batches while scrolling
   const {
     visibleItems: pagedCategories,
     visibleCount: visibleCategoryCount,
     hasMore: hasMoreCategories,
     loadMore: loadMoreCategories,
-  } = useInfiniteList(roomTypes, { pageSize: 12 });
+  } = useInfiniteList(displayRoomTypes, { pageSize: 12 });
 
   return (
     <Box sx={{ width: "100%", minWidth: 0, maxWidth: "100%", overflowX: "hidden", px: { xs: 1.5, sm: 2.5, md: 3 }, py: { xs: 2, sm: 3 }, pb: { xs: 10, sm: 4 } }}>
@@ -559,7 +684,7 @@ export default function RoomTypesPage({
         <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5, minWidth: 0 }}>
           {[
             { label: "Total rooms", value: totalRoomsCount, icon: <MeetingRoom sx={{ fontSize: 20 }} /> },
-            { label: "Categories", value: roomTypes.length, icon: <Category sx={{ fontSize: 20 }} /> },
+            { label: "Categories", value: displayRoomTypes.length, icon: <Category sx={{ fontSize: 20 }} /> },
           ].map((item) => (
             <Box
               key={item.label}
@@ -604,7 +729,7 @@ export default function RoomTypesPage({
         </Box>
 
         <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.25 }}>
-          {roomTypes.length > 0 && (
+          {displayRoomTypes.length > 0 && (
             <Button
               variant="outlined"
               startIcon={<Add />}
@@ -728,6 +853,47 @@ export default function RoomTypesPage({
                           </TableCell>
                           <TableCell align="right">
                             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.25 }}>
+                              {(statusKey === "OCCUPIED" || statusKey === "RESERVED" || statusKey === "BOOKED") && (
+                                <Tooltip title="Check-Out">
+                                  <IconButton
+                                    size="small"
+                                    aria-label="Check-Out"
+                                    onClick={() => handleOpenCheckout(room)}
+                                    sx={{
+                                      width: 32,
+                                      height: 32,
+                                      borderRadius: "8px",
+                                      bgcolor: "rgba(239, 68, 68, 0.12)",
+                                      color: "#EF4444",
+                                      "&:hover": { bgcolor: "rgba(239, 68, 68, 0.2)" },
+                                    }}
+                                  >
+                                    <Logout sx={{ fontSize: 16 }} />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                              {statusKey === "CLEANING" && typeof onUpdateRoomStatus === "function" && (
+                                <Tooltip title="Mark available">
+                                  <span>
+                                    <IconButton
+                                      size="small"
+                                      aria-label="Mark available"
+                                      disabled={busyRoomId === String(room._id || room.id)}
+                                      onClick={() => handleMarkAvailable(room)}
+                                      sx={{
+                                        width: 32,
+                                        height: 32,
+                                        borderRadius: "8px",
+                                        bgcolor: "rgba(16, 185, 129, 0.12)",
+                                        color: "#059669",
+                                        "&:hover": { bgcolor: "rgba(16, 185, 129, 0.2)" },
+                                      }}
+                                    >
+                                      <Check sx={{ fontSize: 16 }} />
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                              )}
                               <Tooltip title="Edit">
                                 <IconButton size="small" onClick={() => openEditRoom(room)} sx={actionSx}>
                                   <Edit fontSize="small" />
@@ -763,7 +929,7 @@ export default function RoomTypesPage({
             </>
           )}
         </TableCard>
-      ) : roomTypes.length === 0 ? (
+      ) : displayRoomTypes.length === 0 ? (
         <Card
           elevation={0}
           sx={{
@@ -930,12 +1096,12 @@ export default function RoomTypesPage({
               })}
         </Box>
       )}
-      {!selectedCategory && roomTypes.length > 0 && (
+      {!selectedCategory && displayRoomTypes.length > 0 && (
         <InfiniteScrollSentinel
           hasMore={hasMoreCategories}
           onLoadMore={loadMoreCategories}
           loadedCount={visibleCategoryCount}
-          endLabel={roomTypes.length > 12 ? `Showing all ${roomTypes.length} categories` : undefined}
+          endLabel={displayRoomTypes.length > 12 ? `Showing all ${displayRoomTypes.length} categories` : undefined}
         />
       )}
 
@@ -1511,6 +1677,19 @@ export default function RoomTypesPage({
           </Button>
         </AppDialogFooter>
       </Dialog>
+
+      <CheckoutDialog
+        open={Boolean(checkoutTarget)}
+        booking={checkoutTarget?.booking}
+        roomNumber={checkoutTarget?.room?.roomNumber || checkoutTarget?.room?.room_number || ""}
+        hotelSettings={hotelSettings}
+        onClose={() => setCheckoutTarget(null)}
+        onCheckOut={handleCheckOut}
+        onDone={() => {
+          setCheckoutTarget(null);
+          setLiveTick((t) => t + 1);
+        }}
+      />
     </Box>
   );
 }

@@ -1,79 +1,36 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Typography,
-  Card,
-  CardContent,
   Button,
-  TextField,
-  MenuItem,
   Chip,
   Avatar,
   Paper,
-  Divider,
-  InputAdornment,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  TablePagination,
-  Pagination,
   IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  LinearProgress,
   Tooltip,
-  ButtonGroup,
 } from "@mui/material";
 import {
-  MeetingRoom,
   TrendingUp,
   Person,
-  CheckCircle,
-  CleaningServices,
-  Build,
   CurrencyRupee,
   AccountBalanceWallet,
-  AccessTime,
-  Schedule,
-  Hotel as HotelIcon,
-  AutoAwesome,
-  Search,
   ArrowForward,
-  People,
-  Receipt,
-  ReceiptLong,
-  CalendarMonth,
-  Security,
-  Payments,
   WhatsApp,
   Print,
-  RoomService,
-  WarningAmber,
-  NotificationsActive,
-  Speed,
-  Close,
-  Send,
-  CreditCard,
-  Check,
-  Bolt,
-  Favorite,
-  FamilyRestroom,
-  Diamond,
-  Bed,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useSocket } from "@/shared/context/SocketContext";
-import { mergeBookingEvent, applyRoomStatusEvent, sortBookingsNewestFirst, normalizeBooking, preferBookingStatus } from "@/shared/utils/liveSync";
+import { sortBookingsNewestFirst, normalizeBooking, preferBookingStatus } from "@/shared/utils/liveSync";
 import StatusChip from "@/shared/components/StatusChip";
-import EmptyState from "@/shared/components/EmptyState";
 import { TableCard, TableToolbar, TablePager } from "@/shared/components/DataTable";
 import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
 import FolioPdfButton from "@/shared/components/FolioPdfButton";
@@ -82,36 +39,32 @@ import { downloadBookingBill } from "@/shared/utils/bookingPdf";
 import { toast } from "@/shared/utils/toast";
 import { createSafeGuestModalData } from "@/shared/utils/guestModalUtils";
 import RevenueDetailsPage from "./RevenueDetailsPage";
-import { formatTime12Hour, getTurnaroundWindow } from "@/shared/utils/timeUtils";
 import {
   OccupancyDonutChart,
   RevenueWaveChart,
 } from "@/hotel-admin/components/DashboardCharts";
+import { buildListQuery } from "@/shared/utils/listQuery";
+
+const DEFAULT_HOTEL_SETTINGS = Object.freeze({
+  checkInTime: "14:00",
+  checkOutTime: "12:00",
+  timezone: "Asia/Kolkata",
+});
 
 export default function HotelOverviewPage({
   user,
   dashboardData,
-  rooms = [],
-  roomTypes = [],
-  guests = [],
-  bookings = [],
-  hotelSettings = { checkInTime: "14:00", checkOutTime: "12:00", timezone: "Asia/Kolkata" },
-  selectedFloor = "ALL",
-  setSelectedFloor,
-  selectedStatus = "ALL",
-  setSelectedStatus,
+  hotelSettings = DEFAULT_HOTEL_SETTINGS,
   onRefresh,
   onTabChange,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
-  const [localRooms, setLocalRooms] = useState(rooms);
-  const [localBookings, setLocalBookings] = useState(bookings);
+  const [localBookings, setLocalBookings] = useState([]);
+  const [bookingsTotal, setBookingsTotal] = useState(0);
+  const [bookingsTick, setBookingsTick] = useState(0);
   const [showRevenueDetailsView, setShowRevenueDetailsView] = useState(false);
   const [revenueFilterMode, setRevenueFilterMode] = useState("THIS_WEEK");
 
-  const [selectedCategory, setSelectedCategory] = useState("ALL");
-  const [roomSearch, setRoomSearch] = useState("");
-  const [nowTime, setNowTime] = useState(Date.now());
   const [guestPage, setGuestPage] = useState(0);
   const [guestRowsPerPage, setGuestRowsPerPage] = useState(5);
   const [billBusyId, setBillBusyId] = useState("");
@@ -122,406 +75,83 @@ export default function HotelOverviewPage({
     guestId: null,
   });
 
-  // Sync localRooms and localBookings with incoming props
+  // Guest table: API page/limit (not load-100 then slice). Skip while revenue details is open.
   useEffect(() => {
-    setLocalRooms(rooms);
-  }, [rooms]);
-
-  useEffect(() => {
-    setLocalBookings((prev) => {
-      // Prefer parent list (already socket-merged), but keep any newer local socket rows
-      const incoming = Array.isArray(bookings) ? bookings : [];
-      if (incoming.length === 0) return prev;
-      if (!prev || prev.length === 0) return incoming;
-      const byId = new Map();
-      [...incoming, ...prev].forEach((item) => {
-        const key = String(item?.id ?? item?._id ?? "");
-        if (!key) return;
-        const existing = byId.get(key);
-        if (!existing) {
-          byId.set(key, item);
-          return;
-        }
-        const tNew = new Date(item.updated_at || item.updatedAt || item.created_at || 0).getTime();
-        const tOld = new Date(existing.updated_at || existing.updatedAt || existing.created_at || 0).getTime();
-        byId.set(key, tNew >= tOld ? { ...existing, ...item } : { ...item, ...existing });
-      });
-      return Array.from(byId.values());
-    });
-  }, [bookings]);
-
-  // Real-Time instant updates via sockets
-  useSocket(["room:status"], (payload) => {
-    setLocalRooms((prev) => applyRoomStatusEvent(prev, payload));
-  });
-
-  useSocket(["booking:updated"], (payload) => {
-    const normalized = normalizeBooking(payload);
-    setLocalBookings((prev) => sortBookingsNewestFirst(mergeBookingEvent(prev, normalized)));
-    const key = String(payload?.id ?? payload?._id ?? "");
-    if (key) {
-      setStayById((prev) => ({
-        ...prev,
-        [key]: {
-          ...(prev[key] || {}),
-          ...normalized,
-          booking_status: preferBookingStatus(prev[key]?.booking_status || prev[key]?.status, normalized.booking_status || normalized.status),
-          status: preferBookingStatus(prev[key]?.status || prev[key]?.booking_status, normalized.status || normalized.booking_status),
-        },
-      }));
-    }
-    // Keep the updated / new booking visible on page 1
-    setGuestPage(0);
-  });
-
-  // Room Matrix Pagination (8 rooms per page)
-  const [roomPage, setRoomPage] = useState(1);
-  const roomsPerPage = 8;
-
-  // View Mode: "box" (Cards) or "table" (List)
-  const [roomViewMode, setRoomViewMode] = useState("box");
-
-  const [notification, setNotification] = useState({ show: false, message: "", severity: "success" });
-
-  const resolvedCleaningRoomIds = useRef(new Set());
-
-  // Quick Room Status Handler (e.g. Mark Cleaned / AVAILABLE)
-  const handleQuickRoomStatusChange = async (room, nextStatus = "AVAILABLE") => {
-    if (!room?._id) return;
-    try {
-      // 1. Instant optimistic update in local state
-      setLocalRooms((prev) =>
-        prev.map((r) =>
-          r._id === room._id
-            ? { ...r, status: nextStatus, cleaningStartedAt: null, cleaningDurationMinutes: undefined }
-            : r
-        )
-      );
-
-      // 2. Persist to Backend API
-      await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.UPDATE_ROOM_STATUS(room._id || room.id), {
-        method: "PATCH",
-        body: { status: nextStatus },
-      });
-
-      if (onRefresh) onRefresh();
-    } catch (err) {
-      console.error("Failed to update room status:", err);
-      if (onRefresh) onRefresh();
-    }
-  };
-
-  // 1-second interval ticker for live housekeeping cleaning countdown & auto-transition
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const now = Date.now();
-      setNowTime(now);
-
-      // 🧹 Auto-transition 100% completed cleaning rooms to AVAILABLE
-      if (Array.isArray(localRooms) && localRooms.length > 0) {
-        localRooms.forEach((r) => {
-          if (r.status === "CLEANING") {
-            const startedAt = r.cleaningStartedAt
-              ? new Date(r.cleaningStartedAt).getTime()
-              : new Date(r.updatedAt || now).getTime();
-            const durationSec = (r.cleaningDurationMinutes || 15) * 60;
-            const elapsedSec = Math.floor((now - startedAt) / 1000);
-            if (elapsedSec >= durationSec && !resolvedCleaningRoomIds.current.has(r._id)) {
-              resolvedCleaningRoomIds.current.add(r._id);
-              handleQuickRoomStatusChange(r, "AVAILABLE");
-            }
-          }
+    if (showRevenueDetailsView) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const q = buildListQuery({
+          page: guestPage + 1,
+          limit: guestRowsPerPage,
+          status: "CHECKED_IN",
         });
-      }
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [localRooms]);
-
-  // Helper to calculate remaining cleaning time & status
-  const getCleaningTimerData = (room) => {
-    if (room.status !== "CLEANING") return null;
-    const startedAt = room.cleaningStartedAt
-      ? new Date(room.cleaningStartedAt).getTime()
-      : new Date(room.updatedAt || Date.now()).getTime();
-    const durationSec = (room.cleaningDurationMinutes || 15) * 60;
-    const elapsedSec = Math.floor((nowTime - startedAt) / 1000);
-    const remainingSec = Math.max(0, durationSec - elapsedSec);
-
-    const mins = Math.floor(remainingSec / 60);
-    const secs = remainingSec % 60;
-    const formatted = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-    const progressPercent = Math.min(100, Math.max(0, Math.round(((durationSec - remainingSec) / durationSec) * 100)));
-    const isComplete = remainingSec <= 0;
-
-    return {
-      isComplete,
-      remainingSec,
-      formatted,
-      progressPercent,
-    };
-  };
-
-  const enrichedRooms = useMemo(() => {
-    const bookingsList = localBookings && localBookings.length > 0 ? localBookings : bookings;
-    return localRooms.map((room) => {
-      const matchedBooking = bookingsList.find((b) => {
-        const rawStatus = String(b.booking_status || b.status || "").toUpperCase();
-        const bStatus = rawStatus === "CHECKED_IN" || rawStatus === "IN-HOUSE" || rawStatus === "IN_HOUSE" || rawStatus === "OCCUPIED";
-        if (!bStatus) return false;
-        const rNum = String(room.roomNumber || room.room_number || "");
-        const rId = String(room._id || room.id || "");
-        const bRoomId = String(b.room_id || b.roomId || b.room?._id || b.room || "");
-        const bRoomNum = String(b.room_number || b.roomNumber || b.room?.roomNumber || b.room?.room_number || "");
-        const bRoomsList = Array.isArray(b.roomNumbers || b.room_numbers) ? (b.roomNumbers || b.room_numbers).map(String) : [];
-        const bRoomIdsList = Array.isArray(b.rooms) ? b.rooms.map((r) => String(typeof r === "object" ? r.id || r._id || r.room_number : r)) : [];
-        return bRoomNum === rNum || bRoomId === rId || bRoomsList.includes(rNum) || bRoomIdsList.includes(rId) || bRoomIdsList.includes(rNum);
-      });
-
-      const guestName =
-        matchedBooking?.primary_guest_name ||
-        matchedBooking?.guest?.fullName ||
-        matchedBooking?.guest?.name ||
-        matchedBooking?.guestName ||
-        room.guestName ||
-        (room.status === "OCCUPIED" ? "Resident Guest" : null);
-
-      const guestPhone =
-        matchedBooking?.mobile_number ||
-        matchedBooking?.guest?.mobileNumber ||
-        matchedBooking?.guest?.phone ||
-        matchedBooking?.guestPhone ||
-        matchedBooking?.mobileNumber ||
-        "";
-
-      const totalBill =
-        matchedBooking?.total_amount !== undefined
-          ? Number(matchedBooking.total_amount)
-          : matchedBooking?.totalAmount !== undefined
-          ? Number(matchedBooking.totalAmount)
-          : Number(room.customPricePerNight || room.pricePerNight || 0);
-
-      const advancePaid =
-        matchedBooking?.paid_amount !== undefined
-          ? Number(matchedBooking.paid_amount)
-          : matchedBooking?.paidAmount !== undefined
-          ? Number(matchedBooking.paidAmount)
-          : matchedBooking?.advancePaymentAmount !== undefined
-          ? Number(matchedBooking.advancePaymentAmount)
-          : matchedBooking?.advancePaid !== undefined
-          ? Number(matchedBooking.advancePaid)
-          : 0;
-
-      const duesAmount =
-        matchedBooking?.due_amount !== undefined
-          ? Number(matchedBooking.due_amount)
-          : matchedBooking?.dueAmount !== undefined
-          ? Number(matchedBooking.dueAmount)
-          : Math.max(0, totalBill - advancePaid);
-
-      return {
-        ...room,
-        matchedBooking,
-        guestName,
-        guestPhone,
-        totalBill,
-        advancePaid,
-        duesAmount,
-      };
-    });
-  }, [localRooms, localBookings, bookings]);
-
-  // Dynamic Category Icon helper matching Receptionist UI
-  const getCategoryIcon = (name = "") => {
-    const n = (name || "").toLowerCase();
-    if (n.includes("coupl") || n.includes("copol") || n.includes("copul") || n.includes("honey") || n.includes("romant") || n.includes("love"))
-      return <Favorite sx={{ fontSize: 22, color: "#E11D48" }} />;
-    if (n.includes("fam") || n.includes("group") || n.includes("quad"))
-      return <FamilyRestroom sx={{ fontSize: 22, color: "#059669" }} />;
-    if (n.includes("sweet") || n.includes("suite") || n.includes("deluxe") || n.includes("super") || n.includes("luxury") || n.includes("vip") || n.includes("presid"))
-      return <Diamond sx={{ fontSize: 22, color: "#D97706" }} />;
-    return <HotelIcon sx={{ fontSize: 22, color: themeConfig.primary }} />;
-  };
-
-  const categoryBreakdown = useMemo(() => {
-    const map = {};
-    enrichedRooms.forEach((r) => {
-      const rtObj = typeof r.roomType === "object" ? r.roomType : (roomTypes.find((t) => String(t._id || t.id) === String(r.roomType || r.room_type_id || r.roomTypeId)) || null);
-      let typeName =
-        r.room_type_name ||
-        r.roomTypeName ||
-        rtObj?.name ||
-        (typeof r.roomType === "string" ? r.roomType : undefined) ||
-        (Number(r.room_type_id || r.roomTypeId || r.roomType) === 15 ? "Family Room" : undefined) ||
-        (Number(r.room_type_id || r.roomTypeId || r.roomType) === 16 ? "Premium Suite" : undefined) ||
-        "Family Room";
-
-      if (typeName.toLowerCase().includes("cuppol") || typeName.toLowerCase().includes("copol")) {
-        typeName = "Couple Room";
-      }
-
-      const basePrice = Number(r.custom_price_per_night || r.customPricePerNight || rtObj?.basePrice || rtObj?.base_price || r.pricePerNight || r.price || (typeName.includes("Sweet") || typeName.includes("Premium") ? 5200 : typeName.includes("Family") ? 4500 : 3500));
-      const bedType = r.bed_type || r.bedType || rtObj?.bedType || rtObj?.bed_type || (typeName.includes("Sweet") || typeName.includes("Premium") ? "1 King Size Bed" : "1 King Bed");
-      const bedCount = Number(r.bed_count || r.bedCount || rtObj?.bedCount || rtObj?.bed_count || 1);
-      const adults = Number(r.seating_capacity || r.seatingCapacity || rtObj?.capacity?.adults || rtObj?.max_adults || (typeName.includes("Family") ? 4 : 2));
-      const children = Number(rtObj?.capacity?.children !== undefined ? rtObj.capacity.children : rtObj?.max_children !== undefined ? rtObj.max_children : 1);
-
-      if (!map[typeName]) {
-        map[typeName] = {
-          _id: rtObj?._id || rtObj?.id || (typeName.includes("Family") ? 15 : typeName.includes("Premium") ? 16 : typeName),
-          name: typeName,
-          basePrice: basePrice,
-          bedCount: bedCount,
-          bedType: bedType,
-          capacity: { adults, children },
-          totalRooms: 0,
-          total: 0,
-          available: 0,
-          occupied: 0,
-          reserved: 0,
-          cleaning: 0,
-          maintenance: 0,
-          rooms: [],
-          availableRooms: [],
-          occupiedRooms: [],
-          reservedRooms: [],
-          cleaningRooms: [],
-          maintenanceRooms: [],
-        };
-      }
-      map[typeName].total++;
-      map[typeName].totalRooms++;
-      map[typeName].rooms.push(r);
-      if (basePrice > 0 && !map[typeName].basePrice) map[typeName].basePrice = basePrice;
-
-      if (r.status === "AVAILABLE") {
-        map[typeName].available++;
-        map[typeName].availableRooms.push(r);
-      } else if (r.status === "OCCUPIED") {
-        map[typeName].occupied++;
-        map[typeName].occupiedRooms.push(r);
-      } else if (r.status === "RESERVED") {
-        map[typeName].reserved++;
-        map[typeName].reservedRooms.push(r);
-      } else if (r.status === "CLEANING") {
-        map[typeName].cleaning++;
-        map[typeName].cleaningRooms.push(r);
-      } else if (r.status === "MAINTENANCE" || r.status === "BLOCKED") {
-        map[typeName].maintenance++;
-        map[typeName].maintenanceRooms.push(r);
-      }
-    });
-
-    const sortFn = (a, b) => {
-      const numA = parseInt(String(a.roomNumber).replace(/\D/g, ""), 10) || 0;
-      const numB = parseInt(String(b.roomNumber).replace(/\D/g, ""), 10) || 0;
-      if (numA !== numB) return numA - numB;
-      return (a.floor || 1) - (b.floor || 1);
-    };
-
-    const list = Object.values(map);
-    list.forEach((cat) => {
-      cat.rooms.sort(sortFn);
-      cat.availableRooms.sort(sortFn);
-      cat.occupiedRooms.sort(sortFn);
-      cat.cleaningRooms.sort(sortFn);
-      cat.maintenanceRooms.sort(sortFn);
-      cat.reservedRooms.sort(sortFn);
-    });
-
-    // Sort order matching user's image: Couple Room, Family Room, Sweet Room / Premium Suite
-    list.sort((a, b) => {
-      const order = { "couple room": 1, "family room": 2, "sweet room": 3, "premium suite": 3 };
-      const rankA = order[a.name.toLowerCase()] || 99;
-      const rankB = order[b.name.toLowerCase()] || 99;
-      return rankA - rankB;
-    });
-
-    return list;
-  }, [enrichedRooms]);
-
-  const filteredCategoryBreakdown = useMemo(() => {
-    return categoryBreakdown
-      .filter((cat) => {
-        if (selectedCategory !== "ALL" && cat.name !== selectedCategory) return false;
-        return true;
-      })
-      .map((cat) => {
-        const matchesRoom = (r) => {
-          if (selectedFloor !== "ALL" && r.floor !== Number(selectedFloor)) return false;
-          if (selectedStatus !== "ALL" && r.status !== selectedStatus) return false;
-          if (roomSearch.trim()) {
-            const q = roomSearch.toLowerCase();
-            const matchNum = String(r.roomNumber).toLowerCase().includes(q);
-            const matchGuest = r.guestName?.toLowerCase().includes(q);
-            return matchNum || matchGuest;
-          }
-          return true;
-        };
-
-        const filteredAvail = cat.availableRooms.filter(matchesRoom);
-        const filteredOcc = cat.occupiedRooms.filter(matchesRoom);
-        const filteredClean = cat.cleaningRooms.filter(matchesRoom);
-        const filteredMaint = cat.maintenanceRooms.filter(matchesRoom);
-        const filteredRes = cat.reservedRooms.filter(matchesRoom);
-
-        return {
-          ...cat,
-          filteredAvail,
-          filteredOcc,
-          filteredClean,
-          filteredMaint,
-          filteredRes,
-          visibleCount: filteredAvail.length + filteredOcc.length + filteredClean.length + filteredMaint.length + filteredRes.length,
-        };
-      })
-      .filter((cat) => {
-        if (roomSearch.trim() || selectedFloor !== "ALL" || selectedStatus !== "ALL") {
-          return cat.visibleCount > 0;
+        const res = await apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?${q}`);
+        const raw =
+          res?.data?.bookings ||
+          res?.bookings ||
+          (Array.isArray(res?.data) ? res.data : null) ||
+          (Array.isArray(res) ? res : []) ||
+          [];
+        const list = (Array.isArray(raw) ? raw : [])
+          .map((b) => normalizeBooking(b) || b)
+          .filter((item) => item && typeof item === "object");
+        const total = Number(res?.data?.total ?? res?.total ?? list.length) || list.length;
+        if (!cancelled) {
+          setLocalBookings(list);
+          setBookingsTotal(total);
         }
-        return true;
-      });
-  }, [categoryBreakdown, selectedCategory, selectedFloor, selectedStatus, roomSearch]);
-
-  const filteredRooms = useMemo(() => {
-    return localRooms.filter((r) => {
-      if (selectedFloor !== "ALL" && r.floor !== Number(selectedFloor)) return false;
-      if (selectedStatus !== "ALL" && r.status !== selectedStatus) return false;
-      if (selectedCategory !== "ALL") {
-        const typeName = r.roomType?.name || (typeof r.roomType === "string" ? r.roomType : "Standard Room");
-        if (typeName !== selectedCategory) return false;
+      } catch {
+        if (!cancelled) {
+          setLocalBookings([]);
+          setBookingsTotal(0);
+        }
       }
-      if (roomSearch.trim()) {
-        const q = roomSearch.toLowerCase();
-        const matchNum = r.roomNumber?.toString().toLowerCase().includes(q);
-        const matchType = r.roomType?.name?.toLowerCase().includes(q);
-        const matchGuest = r.guestName?.toLowerCase().includes(q);
-        return matchNum || matchType || matchGuest;
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [guestPage, guestRowsPerPage, bookingsTick, showRevenueDetailsView]);
+
+  // Guest table refresh only — dashboard KPIs are refreshed by parent when socket says data changed
+  useSocket(["booking:updated", "PAYMENT_RECORDED", "GUEST_CHECKED_OUT", "BOOKING_CREATED"], (payload, eventName) => {
+    if (eventName === "booking:updated" && payload) {
+      const normalized = normalizeBooking(payload);
+      const key = String(payload?.id ?? payload?._id ?? "");
+      const status = String(normalized?.booking_status || normalized?.status || "").toUpperCase();
+      const terminal =
+        status === "CHECKED_OUT" ||
+        status === "DEPARTED" ||
+        status === "CHECKOUT" ||
+        status === "CHECK_OUT" ||
+        status === "CANCELLED" ||
+        Boolean(payload.deleted_at);
+      if (key && normalized) {
+        setStayById((prev) => {
+          if (terminal) {
+            const next = { ...prev };
+            delete next[key];
+            return next;
+          }
+          return {
+            ...prev,
+            [key]: {
+              ...(prev[key] || {}),
+              ...normalized,
+              booking_status: preferBookingStatus(prev[key]?.booking_status || prev[key]?.status, normalized.booking_status || normalized.status),
+              status: preferBookingStatus(prev[key]?.status || prev[key]?.booking_status, normalized.status || normalized.booking_status),
+            },
+          };
+        });
+        if (terminal) {
+          setLocalBookings((prev) =>
+            (Array.isArray(prev) ? prev : []).filter((b) => String(b?.id ?? b?._id) !== key)
+          );
+        }
       }
-      return true;
-    });
-  }, [localRooms, selectedFloor, selectedStatus, selectedCategory, roomSearch]);
-
-  // Reset room page when filters change
-  useEffect(() => {
-    setRoomPage(1);
-  }, [roomSearch, selectedFloor, selectedStatus, selectedCategory]);
-
-  // Paginated rooms (8 per page)
-  const totalRoomPages = Math.ceil(filteredRooms.length / roomsPerPage) || 1;
-  const paginatedRooms = filteredRooms.slice((roomPage - 1) * roomsPerPage, roomPage * roomsPerPage);
-
-  const totalOccupied = localRooms.filter((r) => r.status === "OCCUPIED").length;
-  const totalAvailable = localRooms.filter((r) => r.status === "AVAILABLE").length;
-  const totalCleaning = localRooms.filter((r) => r.status === "CLEANING").length;
-  const totalMaintenance = localRooms.filter((r) => r.status === "MAINTENANCE" || r.status === "BLOCKED").length;
-  const totalReserved = localRooms.filter((r) => r.status === "RESERVED").length;
-
-  // Live occupied rooms stay tariff sum
-  const occupiedTariffSum = useMemo(() => {
-    return localRooms
-      .filter((r) => r.status === "OCCUPIED")
-      .reduce((acc, r) => acc + (Number(r.pricePerNight) || Number(r.price) || 0), 0);
-  }, [localRooms]);
+    }
+    setBookingsTick((t) => t + 1);
+  });
 
   // Real live calculated data from backend & database (100% matched with Revenue Details screen)
   const fin = dashboardData?.financials || {};
@@ -536,32 +166,17 @@ export default function HotelOverviewPage({
     0
   );
   const liveMonthRevNum = Number(fin.monthlyRevenue ?? dashboardData?.monthlyRevenue ?? 0);
-  const listedGuestTotal = Number(guests.total ?? bookings.total);
-  const liveTotalGuests = Number.isFinite(listedGuestTotal) && listedGuestTotal >= 0
-    ? listedGuestTotal
-    : (guests.length || bookings.length || 0);
-  const liveInHouseGuests = Number(ops.currentGuests ?? guests.filter((g) => {
-    const status = String(g.status || g.booking_status || "").toUpperCase();
-    return status === "IN-HOUSE" || status === "CHECKED_IN" || status === "OCCUPIED";
-  }).length) || 0;
+  const liveInHouseGuests = Number(ops.currentGuests ?? bookingsTotal) || 0;
+  const liveTotalGuests = Number(
+    dashboardData?.kpis?.total_guests ??
+      dashboardData?.kpis?.totalGuests ??
+      ops.totalGuests ??
+      liveInHouseGuests
+  ) || 0;
 
   const todayRevenue = `₹${liveTodayRevNum.toLocaleString("en-IN")}`;
   const weeklyEarnings = `₹${liveWeeklyRevNum.toLocaleString("en-IN")}`;
   const monthlyRevenue = `₹${liveMonthRevNum.toLocaleString("en-IN")}`;
-  const dayGrowthPercentage = fin.dayGrowthRate != null ? fin.dayGrowthRate : (liveTodayRevNum > 0 ? 100 : 0);
-  const cleaningPercentage = rooms.length > 0 ? Math.round((totalCleaning / rooms.length) * 100) : 0;
-  const maintenancePercentage = rooms.length > 0 ? Math.round((totalMaintenance / rooms.length) * 100) : 0;
-
-  // Average Daily Rate (ADR) & RevPAR calculation
-  const adrNum = totalOccupied > 0
-    ? Math.round(liveTodayRevNum / totalOccupied)
-    : (Number(rooms[0]?.customPricePerNight || rooms[0]?.pricePerNight || rooms[0]?.roomType?.basePrice || 0));
-  const revParNum = rooms.length > 0 ? Math.round(liveTodayRevNum / rooms.length) : 0;
-
-  const inTimeFormatted = formatTime12Hour(hotelSettings?.checkInTime || "14:00");
-  const outTimeFormatted = formatTime12Hour(hotelSettings?.checkOutTime || "12:00");
-  const timezoneStr = hotelSettings?.timezone || "Asia/Kolkata";
-  const turnaroundStr = getTurnaroundWindow(hotelSettings?.checkInTime, hotelSettings?.checkOutTime);
 
   // Helper for current date
   const todayStr = useMemo(() => {
@@ -572,35 +187,9 @@ export default function HotelOverviewPage({
     return `${y}-${m}-${day}`;
   }, []);
 
-  const parseToIsoDate = (dateVal) => {
-    if (!dateVal) return "";
-    if (typeof dateVal === "string") {
-      if (dateVal.includes("/")) {
-        const parts = dateVal.split("/");
-        if (parts.length === 3) {
-          const day = parts[0].padStart(2, "0");
-          const month = parts[1].padStart(2, "0");
-          const year = parts[2];
-          return `${year}-${month}-${day}`;
-        }
-      }
-      return dateVal.split("T")[0];
-    }
-    try {
-      const d = new Date(dateVal);
-      if (isNaN(d.getTime())) return "";
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const day = String(d.getDate()).padStart(2, "0");
-      return `${y}-${m}-${day}`;
-    } catch {
-      return "";
-    }
-  };
-
-  // Find active in-house guests for table and quick actions (newest first for live inserts)
+  // Current API page of in-house guests (already page/limit from server)
   const activeRecentGuests = useMemo(() => {
-    const list = localBookings && localBookings.length > 0 ? localBookings : (bookings && bookings.length > 0 ? bookings : guests);
+    const list = localBookings;
     if (!list || list.length === 0) return [];
 
     const rows = list.map((b) => {
@@ -717,7 +306,7 @@ export default function HotelOverviewPage({
       };
     });
     return sortBookingsNewestFirst(rows);
-  }, [localBookings, bookings, guests, stayById, todayStr]);
+  }, [localBookings, stayById, todayStr]);
 
   function formatStayLabel(record, kind) {
     if (!record || typeof record !== "object") return "—";
@@ -866,7 +455,6 @@ export default function HotelOverviewPage({
           {/* 1. Circular Occupancy Donut */}
           <Box sx={{ gridColumn: { xs: "span 12", md: "span 12", lg: "span 5", xl: "span 4" }, display: "flex", flexDirection: "column" }}>
             <OccupancyDonutChart
-              rooms={rooms}
               statuses={(dashboardData?.room_status_graph || dashboardData?.roomStatusGraph)?.statuses}
               occupancyRate={dashboardData?.operationsSummary?.occupancyRate}
             />
@@ -879,286 +467,6 @@ export default function HotelOverviewPage({
 
         </Box>
       </Box>
-
-      {/* ========================================================================= */}
-      {/* 5. 🏨 ROOM CATEGORIES & LIVE INVENTORY (hidden on overview)             */}
-      {/* ========================================================================= */}
-      {false && (
-      <Card
-        className="card-3d"
-        sx={{
-          borderRadius: "22px",
-          border: `1px solid ${themeConfig.border}`,
-          boxShadow: isDarkMode ? "none" : "0 10px 30px -5px rgba(32, 41, 35, 0.08), inset 0 1px 1px #FFFFFF",
-          bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
-          background: isDarkMode ? (themeConfig.bgCard || "#0E312C") : "linear-gradient(135deg, #FFFFFF 0%, #F9FBFC 100%)",
-          mb: 4,
-        }}
-      >
-        <CardContent sx={{ p: { xs: 2.5, sm: 3.5 } }}>
-          {/* Header (Exact Match to User Image) */}
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3, flexWrap: "wrap", gap: 2 }}>
-            <div>
-              <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain, letterSpacing: -0.5, fontSize: { xs: "1.15rem", sm: "1.45rem" }, lineHeight: 1.3, display: "flex", alignItems: "center", gap: 1 }}>
-                🏨 Room Categories &amp; Live Inventory
-              </Typography>
-              <Typography variant="body2" sx={{ color: themeConfig.textMuted, fontSize: { xs: "0.78rem", sm: "0.85rem" }, mt: 0.3 }}>
-                Live vacant/booked telemetry and room inventory status across all categories.
-              </Typography>
-            </div>
-
-            <Button
-              variant="outlined"
-              endIcon={<ArrowForward />}
-              onClick={() => onTabChange && onTabChange("rooms")}
-              sx={{
-                borderRadius: "12px",
-                fontWeight: 800,
-                fontSize: "0.82rem",
-                borderColor: themeConfig.border,
-                bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
-                color: themeConfig.textMain,
-                width: { xs: "100%", sm: "auto" },
-                whiteSpace: "nowrap",
-                textTransform: "none",
-                "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
-              }}
-            >
-              Open Rooms List ({rooms.length})
-            </Button>
-          </Box>
-
-          {/* Category Cards (Exact Match to User Image) */}
-          {categoryBreakdown.length === 0 ? (
-            <Box sx={{ py: 6 }}>
-              <EmptyState
-                title="No Room Categories Found"
-                description="No rooms or categories configured yet in the hotel inventory."
-              />
-            </Box>
-          ) : (
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: {
-                  xs: "1fr",
-                  sm: "1fr",
-                  md: "repeat(2, 1fr)",
-                  lg: "repeat(auto-fit, minmax(310px, 1fr))",
-                  xl: "repeat(3, 1fr)",
-                },
-                gap: { xs: 2, sm: 2.5 },
-              }}
-            >
-              {categoryBreakdown.map((cat) => {
-                const isSelected = selectedCategory === cat.name;
-                const hasAvailable = cat.available > 0;
-                const isAllBooked = cat.available === 0 && cat.totalRooms > 0;
-                const adultsCount = cat.capacity?.adults || 2;
-                const kidsCount = cat.capacity?.children || 1;
-
-                return (
-                  <Card
-                    key={cat._id || cat.name}
-                    className="card-3d"
-                    sx={{
-                      p: { xs: 2, sm: 2.2, md: 2.5 },
-                      borderRadius: "20px",
-                      border: isSelected
-                        ? `2px solid ${themeConfig.primary}`
-                        : `2px solid ${hasAvailable ? themeConfig.primaryGlow : themeConfig.border}`,
-                      bgcolor: themeConfig.bgCard || (themeConfig.bgCard),
-                      background: isDarkMode
-                        ? (themeConfig.bgCard || "#0E312C")
-                        : (hasAvailable
-                          ? "linear-gradient(135deg, #FFFFFF 0%, #F4F9FD 100%)"
-                          : "linear-gradient(135deg, #FFFFFF 0%, #FAFAFA 100%)"),
-                      boxShadow: isSelected
-                        ? "0 12px 28px -6px rgba(13, 148, 136, 0.25), inset 0 1px 1px #FFFFFF"
-                        : (isDarkMode ? "none" : "0 8px 24px rgba(32, 41, 35, 0.06), inset 0 1px 1px #FFFFFF"),
-                      cursor: "default",
-                      userSelect: "none",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "space-between",
-                      gap: 2,
-                    }}
-                  >
-                    <div>
-                      {/* Top Row: Avatar + Category Name on left, Price on right */}
-                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.2, mb: 1.2 }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, minWidth: 0 }}>
-                          <Avatar
-                            sx={{
-                              bgcolor: "rgba(20, 184, 166, 0.12)",
-                              width: 42,
-                              height: 42,
-                              borderRadius: "12px",
-                              flexShrink: 0,
-                            }}
-                          >
-                            {getCategoryIcon(cat.name)}
-                          </Avatar>
-                          <Typography
-                            variant="h6"
-                            noWrap
-                            title={cat.name}
-                            sx={{
-                              fontWeight: 900,
-                              color: themeConfig.textMain,
-                              lineHeight: 1.2,
-                              fontSize: { xs: "1rem", sm: "1.05rem" },
-                            }}
-                          >
-                            {cat.name}
-                          </Typography>
-                        </Box>
-
-                        <Box sx={{ textAlign: "right", flexShrink: 0, whiteSpace: "nowrap" }}>
-                          <Typography variant="h6" sx={{ fontWeight: 900, color: themeConfig.accent, lineHeight: 1, fontSize: { xs: "1.15rem", sm: "1.25rem" } }}>
-                            ₹{Number(cat.basePrice || 0).toLocaleString("en-IN")}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block", mt: 0.3, fontSize: "0.72rem" }}>
-                            / night
-                          </Typography>
-                        </Box>
-                      </Box>
-
-                      {/* Specs Row: Guests & Bed across full card width */}
-                      <Box
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          flexWrap: "wrap",
-                          gap: 0.8,
-                          mb: 1.5,
-                          px: 0.2,
-                        }}
-                      >
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            color: themeConfig.textMuted,
-                            fontWeight: 800,
-                            fontSize: "0.75rem",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 0.5,
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          👥 Max {adultsCount} Guests {kidsCount > 0 ? `(+ ${kidsCount} Kids)` : ""}
-                        </Typography>
-
-                        <Chip
-                          icon={<Bed sx={{ fontSize: 13, color: `${themeConfig.accent} !important` }} />}
-                          label={
-                            cat.bedType
-                              ? String(cat.bedType).toLowerCase().includes("bed")
-                                ? cat.bedType
-                                : `${cat.bedType} Bed`
-                              : `${cat.bedCount} Bed`
-                          }
-                          size="small"
-                          sx={{
-                            bgcolor: "rgba(20, 184, 166, 0.12)",
-                            color: themeConfig.accent,
-                            fontWeight: 800,
-                            fontSize: "0.7rem",
-                            height: 23,
-                            border: "none",
-                            flexShrink: 0,
-                            "& .MuiChip-label": { px: 0.8, whiteSpace: "nowrap" },
-                          }}
-                        />
-                      </Box>
-
-                      {/* 3 Status Units (Available, Booked, Cleaning) */}
-                      <Box
-                        sx={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                          gap: 1,
-                          mt: 2,
-                          p: 1.2,
-                          borderRadius: "14px",
-                          bgcolor: isDarkMode ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.025)",
-                          border: `1px solid ${themeConfig.border}`,
-                        }}
-                      >
-                        <Box sx={{ textAlign: "center", p: 0.8, borderRadius: "10px", bgcolor: "rgba(16, 185, 129, 0.08)" }}>
-                          <Typography variant="caption" sx={{ color: "#059669", fontWeight: 800, display: "block", fontSize: "0.65rem" }}>
-                            🟢 Available
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: 900, color: "#10B981", fontSize: "1.15rem", lineHeight: 1.2, mt: 0.2 }}>
-                            {cat.available}
-                          </Typography>
-                        </Box>
-
-                        <Box sx={{ textAlign: "center", p: 0.8, borderRadius: "10px", bgcolor: "rgba(11, 142, 224, 0.08)" }}>
-                          <Typography variant="caption" sx={{ color: "#0284C7", fontWeight: 800, display: "block", fontSize: "0.65rem" }}>
-                            🔵 Booked
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: 900, color: "#0B8EE0", fontSize: "1.15rem", lineHeight: 1.2, mt: 0.2 }}>
-                            {cat.occupied + cat.reserved}
-                          </Typography>
-                        </Box>
-
-                        <Box sx={{ textAlign: "center", p: 0.8, borderRadius: "10px", bgcolor: "rgba(217, 119, 6, 0.08)" }}>
-                          <Typography variant="caption" sx={{ color: "#D97706", fontWeight: 800, display: "block", fontSize: "0.65rem" }}>
-                            🟡 Cleaning
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: 900, color: "#D97706", fontSize: "1.15rem", lineHeight: 1.2, mt: 0.2 }}>
-                            {cat.cleaning}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </div>
-
-                    {/* Card Footer */}
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pt: 1.5, borderTop: `1px solid ${themeConfig.border}` }}>
-                      <Chip
-                        label={
-                          isAllBooked
-                            ? "🔴 100% Booked"
-                            : cat.available > 0
-                              ? `🟢 ${cat.available} Ready for Check-In`
-                              : "⚪ No Rooms"
-                        }
-                        size="small"
-                        sx={{
-                          fontWeight: 800,
-                          fontSize: "0.72rem",
-                          bgcolor: isAllBooked ? "rgba(239, 68, 68, 0.1)" : hasAvailable ? "rgba(16, 185, 129, 0.12)" : "rgba(0,0,0,0.05)",
-                          color: isAllBooked ? "#EF4444" : hasAvailable ? "#059669" : themeConfig.textMuted,
-                          borderRadius: "8px",
-                          border: "none",
-                        }}
-                      />
-
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          fontWeight: 800,
-                          color: themeConfig.accent,
-                          fontSize: "0.8rem",
-                          cursor: "default",
-                          userSelect: "none",
-                        }}
-                      >
-                        Total {cat.totalRooms} {cat.totalRooms === 1 ? "Room" : "Rooms"}
-                      </Typography>
-                    </Box>
-                  </Card>
-                );
-              })}
-            </Box>
-          )}
-
-          </CardContent>
-      </Card>
-      )}
 
       {/* 6. 👥 LIVE IN-HOUSE GUESTS & 1-CLICK WHATSAPP INVOICE DISPATCHER           */}
       {/* ========================================================================= */}
@@ -1199,9 +507,7 @@ export default function HotelOverviewPage({
                     </TableCell>
                   </TableRow>
                 ) : (
-                  activeRecentGuests
-                    .slice(guestPage * guestRowsPerPage, guestPage * guestRowsPerPage + guestRowsPerPage)
-                    .map((g) => (
+                  activeRecentGuests.map((g) => (
                       <TableRow
                         key={g._id || g.name}
                         hover
@@ -1312,10 +618,10 @@ export default function HotelOverviewPage({
               </TableBody>
             </Table>
           </TableContainer>
-        {activeRecentGuests.length > 0 && (
+        {bookingsTotal > 0 && (
           <TablePager
             rowsPerPageOptions={[5, 10, 25]}
-            count={activeRecentGuests.length}
+            count={bookingsTotal}
             rowsPerPage={guestRowsPerPage}
             page={guestPage}
             onPageChange={(e, newPage) => setGuestPage(newPage)}

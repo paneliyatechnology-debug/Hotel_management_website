@@ -53,6 +53,38 @@ import { TableCard, TableToolbar, TablePager, tableFieldSx, tableSearchSx } from
 import { downloadDailyLedgerPDF, downloadPaymentReceiptPDF } from "@/shared/utils/pdfGenerator";
 import { paymentMethodLabel, useHotelPaymentMethods } from "@/shared/hooks/useHotelPaymentMethods";
 import RoomNumberChips from "@/shared/components/RoomNumberChips";
+import { buildListQuery, readListMeta } from "@/shared/utils/listQuery";
+import { normalizeBooking } from "@/shared/utils/liveSync";
+
+function mapTxnToPaymentRow(txn) {
+  if (!txn || typeof txn !== "object") return null;
+  const created = txn.created_at || txn.createdAt || txn.payment_date || txn.paid_at;
+  const when = created ? new Date(created) : null;
+  const amount = Number(txn.amount ?? txn.collected_amount ?? txn.payment_amount ?? 0) || 0;
+  return {
+    ...txn,
+    _id: txn.id || txn._id,
+    id: txn.id || txn._id,
+    receiptNumber: txn.receipt_number || txn.receiptNumber || txn.booking_number || txn.id || "—",
+    dateStr: when && !Number.isNaN(when.getTime()) ? when.toLocaleDateString("en-IN") : "—",
+    timeStr: when && !Number.isNaN(when.getTime()) ? when.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—",
+    paymentMethod: String(txn.payment_method || txn.paymentMethod || "CASH").toUpperCase(),
+    paymentType: String(txn.payment_type || txn.paymentType || txn.source || "PAYMENT").toUpperCase(),
+    amount,
+    guest: {
+      fullName: txn.primary_guest_name || txn.guest_name || txn.guest?.fullName || txn.guest?.name || "Guest",
+      mobileNumber: txn.mobile_number || txn.guest?.mobileNumber || txn.guest?.phone || "",
+    },
+    booking: {
+      bookingNumber: txn.booking_number || txn.bookingNumber || "",
+      rooms: txn.rooms || txn.room_numbers || txn.roomNumber,
+      roomNumber: txn.room_number || txn.roomNumber,
+    },
+    roomNumber: txn.room_number || txn.roomNumber || "—",
+    transactionId: txn.transaction_id || txn.transactionId || "",
+    collectedBy: txn.received_by || txn.collected_by || txn.collectedBy || { name: "Front Desk", role: "Receptionist" },
+  };
+}
 
 export default function PaymentLedgerView({
   user,
@@ -67,6 +99,8 @@ export default function PaymentLedgerView({
 
   const [loading, setLoading] = useState(true);
   const [payments, setPayments] = useState([]);
+  const [paymentsTotal, setPaymentsTotal] = useState(0);
+  const [folioOptions, setFolioOptions] = useState([]);
   const [summary, setSummary] = useState({
     totalGrossCollected: 0,
     todayCollected: 0,
@@ -88,6 +122,7 @@ export default function PaymentLedgerView({
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
   const [selectedMethod, setSelectedMethod] = useState("ALL");
   const [selectedType, setSelectedType] = useState("ALL");
   const [timeRange, setTimeRange] = useState("all");
@@ -123,22 +158,44 @@ export default function PaymentLedgerView({
   const fetchPayments = async (isSilent = false) => {
     if (!isSilent) setLoading(true);
     try {
-      const endpoint = apiEndpoint || API_ENDPOINTS.RECEPTIONIST.PAYMENTS;
-      const params = new URLSearchParams();
-      if (selectedMethod && selectedMethod !== "ALL") params.append("paymentMethod", selectedMethod);
-      if (selectedType && selectedType !== "ALL") params.append("paymentType", selectedType);
-      if (timeRange && timeRange !== "all") params.append("timeRange", timeRange);
-      if (searchQuery.trim()) params.append("search", searchQuery.trim());
-
-      const url = `${endpoint}${params.toString() ? `?${params.toString()}` : ""}`;
+      const q = buildListQuery({
+        page: page + 1,
+        limit: rowsPerPage,
+        search: appliedSearch || undefined,
+        payment_method: selectedMethod,
+        paymentMethod: selectedMethod,
+        payment_type: selectedType,
+        paymentType: selectedType,
+        time_range: timeRange !== "all" ? timeRange : undefined,
+        timeRange: timeRange !== "all" ? timeRange : undefined,
+      });
+      // Prefer transactions API (paginated). Custom apiEndpoint still gets page/limit.
+      const url = apiEndpoint
+        ? `${apiEndpoint}${apiEndpoint.includes("?") ? "&" : "?"}${q}`
+        : API_ENDPOINTS.HOTEL_ADMIN.TRANSACTIONS(q);
       const res = await apiRequest(url);
-
-      if (res?.success) {
-        setPayments(res.data || []);
-        if (res.summary) setSummary(res.summary);
+      const payload = res?.data && !Array.isArray(res.data) ? res.data : res?.data;
+      const rawList = Array.isArray(payload?.transactions)
+        ? payload.transactions
+        : Array.isArray(payload?.payments)
+          ? payload.payments
+          : Array.isArray(payload)
+            ? payload
+            : Array.isArray(res?.data)
+              ? res.data
+              : [];
+      const rows = rawList.map(mapTxnToPaymentRow).filter(Boolean);
+      const meta = readListMeta(res);
+      const total = Number(payload?.total ?? meta.total ?? rows.length) || rows.length;
+      setPayments(rows);
+      setPaymentsTotal(total);
+      if (res?.summary || payload?.summary) {
+        setSummary((prev) => ({ ...prev, ...(res.summary || payload.summary) }));
       }
     } catch (err) {
       console.error("Failed to load payments ledger:", err);
+      setPayments([]);
+      setPaymentsTotal(0);
     } finally {
       setLoading(false);
     }
@@ -146,7 +203,45 @@ export default function PaymentLedgerView({
 
   useEffect(() => {
     fetchPayments();
-  }, [selectedMethod, selectedType, timeRange]);
+  }, [selectedMethod, selectedType, timeRange, page, rowsPerPage, appliedSearch]);
+
+  // Folio picker for collect modal — paginated CHECKED_IN bookings (not parent dump)
+  useEffect(() => {
+    if (!collectModalOpen) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const q = buildListQuery({ page: 1, limit: 50, status: "CHECKED_IN" });
+        const res = await apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?${q}`);
+        const raw =
+          res?.data?.bookings ||
+          res?.bookings ||
+          (Array.isArray(res?.data) ? res.data : []) ||
+          [];
+        const list = (Array.isArray(raw) ? raw : [])
+          .map((b) => normalizeBooking(b) || b)
+          .filter(Boolean)
+          .map((b) => ({
+            ...b,
+            _id: b.id || b._id,
+            dueAmount: Number(b.due_amount ?? b.dueAmount ?? 0) || 0,
+            totalAmount: Number(b.total_amount ?? b.totalAmount ?? 0) || 0,
+            paidAmount: Number(b.paid_amount ?? b.paidAmount ?? 0) || 0,
+            roomNumber: b.room_number || b.roomNumber || b.rooms?.[0]?.room_number,
+            guest: {
+              fullName: b.primary_guest_name || b.guest?.fullName || b.guest?.name || "Guest",
+              name: b.primary_guest_name || b.guest?.name || "Guest",
+            },
+          }));
+        if (!cancelled) setFolioOptions(list);
+      } catch {
+        if (!cancelled) setFolioOptions([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [collectModalOpen]);
 
   // Real-Time Socket Auto-Sync on new transactions
   useSocket(
@@ -158,7 +253,8 @@ export default function PaymentLedgerView({
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    fetchPayments();
+    setPage(0);
+    setAppliedSearch(searchQuery.trim());
   };
 
   const showToast = (message, severity = "success") => {
@@ -168,11 +264,10 @@ export default function PaymentLedgerView({
 
   const handleOpenCollectModal = (defaultBooking = null) => {
     setCollectError("");
-    const checkedInList = bookings.filter((b) => b.status === "CHECKED_IN" || b.status === "CONFIRMED");
-    const targetBooking = defaultBooking || checkedInList[0] || null;
+    const targetBooking = defaultBooking || folioOptions[0] || null;
 
     setCollectData({
-      bookingId: targetBooking?._id || "",
+      bookingId: targetBooking?._id || targetBooking?.id || "",
       amount: targetBooking?.dueAmount ? String(targetBooking.dueAmount) : "",
       paymentMethod: defaultPaymentMethod,
       paymentType: targetBooking?.dueAmount ? "FULL_SETTLEMENT" : "PARTIAL",
@@ -223,12 +318,10 @@ export default function PaymentLedgerView({
     }
   };
 
-  const checkedInBookings = useMemo(() => {
-    return bookings.filter((b) => b.status === "CHECKED_IN" || b.status === "CONFIRMED");
-  }, [bookings]);
+  const checkedInBookings = folioOptions;
 
   const selectedBookingDetails = useMemo(() => {
-    return checkedInBookings.find((b) => b._id === collectData.bookingId) || null;
+    return checkedInBookings.find((b) => String(b._id || b.id) === String(collectData.bookingId)) || null;
   }, [checkedInBookings, collectData.bookingId]);
 
   // Dynamic UPI URL for direct collection
@@ -737,9 +830,7 @@ export default function PaymentLedgerView({
                 </TableRow>
               </TableHead>
               <TableBody>
-                {payments
-                  .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                  .map((p) => {
+                {payments.map((p) => {
                   const methodBadge = getMethodBadge(p.paymentMethod);
                   const typeBadge = getTypeBadge(p.paymentType);
 
@@ -870,9 +961,9 @@ export default function PaymentLedgerView({
           </TableContainer>
         )}
 
-        {payments.length > 0 && (
+        {paymentsTotal > 0 && (
           <TablePager
-            count={payments.length}
+            count={paymentsTotal}
             rowsPerPage={rowsPerPage}
             page={page}
             onPageChange={(e, newPage) => setPage(newPage)}

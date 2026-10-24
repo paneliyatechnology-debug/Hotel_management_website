@@ -19,11 +19,14 @@ export function useSuperAdminDashboard(options = {}) {
   });
 }
 
-export function useSuperAdminHotels(options = {}) {
+export function useSuperAdminHotels({ page = 1, limit = 20, search, status, ...options } = {}) {
   return useQuery({
-    queryKey: ["super-admin", "hotels"],
+    queryKey: ["super-admin", "hotels", page, limit, search, status],
     queryFn: async () => {
-      const res = await apiRequest(API_ENDPOINTS.SUPER_ADMIN.HOTELS);
+      const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+      if (search) params.set("search", String(search));
+      if (status && status !== "ALL") params.set("status", String(status));
+      const res = await apiRequest(`${API_ENDPOINTS.SUPER_ADMIN.HOTELS}?${params.toString()}`);
       return res?.data || [];
     },
     staleTime: 60 * 1000,
@@ -47,11 +50,11 @@ export function useHotelAdminDashboard(options = {}) {
   });
 }
 
-export function useHotelAdminRooms(options = {}) {
+export function useHotelAdminRooms({ page = 1, limit = 20, ...options } = {}) {
   return useQuery({
-    queryKey: ["hotel-admin", "rooms"],
+    queryKey: ["hotel-admin", "rooms", page, limit],
     queryFn: async () => {
-      const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS);
+      const res = await apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOMS}?page=${page}&limit=${limit}`);
       return res?.data || res || [];
     },
     staleTime: 30 * 1000,
@@ -111,11 +114,11 @@ export function useReceptionistDashboard(options = {}) {
   });
 }
 
-export function useReceptionistRooms(options = {}) {
+export function useReceptionistRooms({ page = 1, limit = 20, ...options } = {}) {
   return useQuery({
-    queryKey: ["receptionist", "rooms"],
+    queryKey: ["receptionist", "rooms", page, limit],
     queryFn: async () => {
-      const res = await apiRequest(API_ENDPOINTS.RECEPTIONIST.ROOMS);
+      const res = await apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?page=${page}&limit=${limit}`);
       return res?.data || res || [];
     },
     staleTime: 20 * 1000, // Frequent status updates
@@ -161,11 +164,11 @@ export function useBookingRoomOptions(params = {}, options = {}) {
   });
 }
 
-export function useReceptionistBookings(options = {}) {
+export function useReceptionistBookings({ page = 1, limit = 20, ...options } = {}) {
   return useQuery({
-    queryKey: ["receptionist", "bookings"],
+    queryKey: ["receptionist", "bookings", page, limit],
     queryFn: async () => {
-      const res = await apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS);
+      const res = await apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=${page}&limit=${limit}`);
       return res?.data || res || [];
     },
     staleTime: 30 * 1000,
@@ -173,11 +176,11 @@ export function useReceptionistBookings(options = {}) {
   });
 }
 
-export function useReceptionistGuests(options = {}) {
+export function useReceptionistGuests({ page = 1, limit = 20, ...options } = {}) {
   return useQuery({
-    queryKey: ["receptionist", "guests"],
+    queryKey: ["receptionist", "guests", page, limit],
     queryFn: async () => {
-      const res = await apiRequest(API_ENDPOINTS.RECEPTIONIST.GUESTS);
+      const res = await apiRequest(`${API_ENDPOINTS.RECEPTIONIST.GUESTS}?page=${page}&limit=${limit}`);
       return res?.data || res || [];
     },
     staleTime: 45 * 1000,

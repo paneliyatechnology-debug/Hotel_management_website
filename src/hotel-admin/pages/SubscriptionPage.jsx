@@ -39,7 +39,7 @@ const flagOf = (plan, snake, camel) => Boolean(plan?.[snake] ?? plan?.[camel]);
 const isCurrentPlan = (plan) => flagOf(plan, "is_current_plan", "isCurrentPlan");
 const isTrialPlan = (plan) => String(plan?.code || "").toUpperCase() === "TRIAL" || Number(plan?.price) === 0;
 
-export default function SubscriptionPage({ user, subscription: initialSub, onRefresh }) {
+export default function SubscriptionPage({ user, subscription: initialSub }) {
   const { themeConfig, isDarkMode } = useAppTheme();
   const [plans, setPlans] = useState([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
@@ -67,16 +67,24 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
   // ⏱️ Live Ticking Countdown Hook (Updates every 1 second)
   const countdown = useLiveCountdown(sub.trialEndDate);
 
-  // Fetch real subscription plans from database
+  // Plans list only — current subscription comes from props (no /auth/me on this page)
   useEffect(() => {
     fetchPlans();
-    fetchSubscription();
   }, []);
 
+  useEffect(() => {
+    if (initialSub) setLiveSub(initialSub);
+  }, [initialSub]);
+
   useSocket(
-    ["SUBSCRIPTION_UPDATED", "HOTEL_UPDATED", "TRIAL_REQUEST_APPROVED", "TRIAL_REQUEST_REJECTED", "DASHBOARD_SYNC"],
-    () => {
-      fetchSubscription();
+    ["SUBSCRIPTION_UPDATED", "HOTEL_UPDATED", "TRIAL_REQUEST_APPROVED", "TRIAL_REQUEST_REJECTED"],
+    (payload) => {
+      const nextSub =
+        payload?.subscription ||
+        payload?.data?.subscription ||
+        payload?.hotel?.subscription ||
+        payload?.data?.hotel?.subscription;
+      if (nextSub) setLiveSub(nextSub);
       fetchPlans();
     }
   );
@@ -90,22 +98,13 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
         setPlans(list);
         setTrialUsed(Boolean(res?.data?.is_trial_used) || list.some((p) => flagOf(p, "is_trial_used", "isTrialUsed")));
       }
+      const nextSub = res?.data?.subscription || res?.data?.current_subscription || res?.data?.currentSubscription;
+      if (nextSub) setLiveSub(nextSub);
     } catch (err) {
       console.warn("Could not load real plans from API:", err);
       toast.error(err?.message || "Could not load subscription plans.");
     } finally {
       setLoadingPlans(false);
-    }
-  };
-
-  const fetchSubscription = async () => {
-    try {
-      const res = await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE);
-      const profile = res?.data || res;
-      const nextSub = profile?.subscription || profile?.hotel?.subscription;
-      if (nextSub) setLiveSub(nextSub);
-    } catch (err) {
-      console.warn("Could not load subscription:", err);
     }
   };
 
@@ -157,8 +156,9 @@ export default function SubscriptionPage({ user, subscription: initialSub, onRef
         return;
       }
       toast.success(res?.message || `${plan.name} purchased successfully.`);
-      await Promise.all([fetchPlans(), fetchSubscription()]);
-      if (typeof onRefresh === "function") onRefresh();
+      const nextSub = res?.data?.subscription || res?.data?.hotel?.subscription;
+      if (nextSub) setLiveSub(nextSub);
+      await fetchPlans();
     } catch (err) {
       toast.error(err?.message || "Plan purchase failed.");
     } finally {

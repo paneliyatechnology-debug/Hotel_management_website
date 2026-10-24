@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useSocket } from "@/shared/context/SocketContext";
 import {
   Box,
@@ -59,6 +59,7 @@ import EmptyState from "@/shared/components/EmptyState";
 import { TableCard, TableToolbar, TablePager, tableFieldSx, tableSearchSx } from "@/shared/components/DataTable";
 import StatCard from "@/shared/components/StatCard";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
+import { buildListQuery, readListMeta } from "@/shared/utils/listQuery";
 
 const SettingsView = dynamic(() => import("@/shared/components/SettingsView"), {
   loading: () => (
@@ -74,10 +75,13 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
   const [hotels, setHotels] = useState([]);
+  const [hotelsTotal, setHotelsTotal] = useState(0);
+  const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [hotelsTick, setHotelsTick] = useState(0);
 
   // Selected Hotel Details Modal
   const [selectedHotelModal, setSelectedHotelModal] = useState({
@@ -106,24 +110,53 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
     }
   };
 
+  // Debounce hotel search → backend `search` param
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(searchInput.trim());
+      setPage(0);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
   const fetchHotels = async () => {
     if (!user || user.role !== "SUPER_ADMIN") return;
     try {
-      const res = await apiRequest(API_ENDPOINTS.SUPER_ADMIN.HOTELS);
-      if (res?.success) {
-        setHotels(res.data || []);
-      }
+      const q = buildListQuery({
+        page: page + 1,
+        limit: rowsPerPage,
+        search: searchQuery || undefined,
+        status: statusFilter,
+      });
+      const res = await apiRequest(`${API_ENDPOINTS.SUPER_ADMIN.HOTELS}?${q}`);
+      const data = res?.data;
+      const list = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.hotels)
+          ? data.hotels
+          : [];
+      const meta = readListMeta(res);
+      setHotels(list);
+      setHotelsTotal(Number.isFinite(meta.total) ? meta.total : list.length);
     } catch (err) {
       console.warn("Failed to load hotels:", err.message);
+      setHotels([]);
+      setHotelsTotal(0);
     }
   };
 
   useEffect(() => {
     if (user?.role === "SUPER_ADMIN") {
       fetchDashboardMetrics();
-      fetchHotels();
     }
   }, [user]);
+
+  // Hotels table: server page/limit/search/status
+  useEffect(() => {
+    if (user?.role !== "SUPER_ADMIN") return undefined;
+    fetchHotels();
+    return undefined;
+  }, [user, page, rowsPerPage, searchQuery, statusFilter, hotelsTick]);
 
   useSocket(
     [
@@ -140,7 +173,7 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
     ],
     () => {
       fetchDashboardMetrics();
-      fetchHotels();
+      setHotelsTick((t) => t + 1);
     }
   );
 
@@ -178,7 +211,7 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
       if (res?.success) {
         setActionMsg(`Hotel status updated to ${newStatus} successfully.`);
         fetchDashboardMetrics();
-        fetchHotels();
+        setHotelsTick((t) => t + 1);
         if (selectedHotelModal.hotel?._id === hotelId) {
           handleOpenHotelDetails({ ...selectedHotelModal.hotel, status: newStatus });
         }
@@ -199,7 +232,7 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
       if (res?.success) {
         setActionMsg("Hotel approved and credentials generated successfully.");
         fetchDashboardMetrics();
-        fetchHotels();
+        setHotelsTick((t) => t + 1);
         setSelectedHotelModal((prev) => ({ ...prev, open: false }));
       }
     } catch (err) {
@@ -208,23 +241,6 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
       setActionLoading(false);
     }
   };
-
-  // Filtered hotels
-  const filteredHotels = useMemo(() => {
-    return hotels.filter((h) => {
-      if (statusFilter !== "ALL" && h.status !== statusFilter) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchName = (h.name || "").toLowerCase().includes(q);
-        const matchOwner = (h.ownerName || "").toLowerCase().includes(q);
-        const matchEmail = (h.ownerEmail || "").toLowerCase().includes(q);
-        const matchCity = (h.city || "").toLowerCase().includes(q);
-        const matchCode = (h.hotelCode || "").toLowerCase().includes(q);
-        return matchName || matchOwner || matchEmail || matchCity || matchCode;
-      }
-      return true;
-    });
-  }, [hotels, statusFilter, searchQuery]);
 
   if (activeNav === 3) {
     return (
@@ -304,7 +320,7 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
           {/* 2. Active Hotels */}
           <StatCard
             title="Active Hotels"
-            value={dashboardData?.activeHotels ?? hotels.filter((h) => h.status === "ACTIVE").length}
+            value={dashboardData?.activeHotels ?? hotelsTotal}
             icon={<CheckCircle />}
             color="#10B981"
             subtitle="Verified live properties"
@@ -399,11 +415,8 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
             <TextField
               size="small"
               placeholder="Search hotel, owner, city..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setPage(0);
-              }}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               sx={tableSearchSx(themeConfig)}
               slotProps={{
                 input: {
@@ -449,7 +462,7 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
             </TableHead>
 
             <TableBody>
-              {filteredHotels.length === 0 ? (
+              {hotels.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} sx={{ py: 6, textAlign: "center" }}>
                     <EmptyState
@@ -459,9 +472,7 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredHotels
-                  .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                  .map((hotel) => (
+                hotels.map((hotel) => (
                     <TableRow
                       key={hotel._id || hotel.id}
                       hover
@@ -562,9 +573,9 @@ export default function SuperAdminDashboard({ user, activeNav = 0, onTabChange }
           </Table>
         </TableContainer>
 
-        {filteredHotels.length > 0 && (
+        {hotelsTotal > 0 && (
           <TablePager
-            count={filteredHotels.length}
+            count={hotelsTotal}
             rowsPerPage={rowsPerPage}
             page={page}
             onPageChange={(e, newPage) => setPage(newPage)}

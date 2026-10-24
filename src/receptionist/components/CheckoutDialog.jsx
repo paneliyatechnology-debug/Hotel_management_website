@@ -128,7 +128,7 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
   const detail = state.detail;
   const guestObj = detail?.guest || {};
   const guestName =
-    guestObj.fullName || guestObj.name || detail?.guestName || detail?.primary_guest_name || "Guest";
+    detail?.primary_guest_name || guestObj.fullName || guestObj.name || detail?.guestName || "Guest";
   const guestPhone = guestObj.phoneNumber || guestObj.phone || detail?.guestPhone || detail?.mobile_number || "";
   const bookingNumber = detail?.bookingNumber || detail?.booking_number || "Active";
 

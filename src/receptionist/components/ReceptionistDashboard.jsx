@@ -22,7 +22,7 @@ import {
   TableCell,
   TableContainer,
 } from "@mui/material";
-import { Download, Print, WhatsApp, CheckCircle, FileDownload } from "@/shared/icons";
+import { Print, WhatsApp, CheckCircle } from "@/shared/icons";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { getActiveHotelId } from "@/shared/utils/cookieAuth";
 import { useAppTheme } from "@/shared/context/ThemeContext";
@@ -59,9 +59,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
   const [rooms, setRooms] = useState([]);
   const [roomTypes, setRoomTypes] = useState([]);
   const [bookings, setBookings] = useState([]);
-  const [guests, setGuests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [bookingsError, setBookingsError] = useState("");
   const [isCheckInSubmitting, setIsCheckInSubmitting] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: "", severity: "success" });
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
@@ -103,8 +101,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
   const [checkInData, setCheckInData] = useState({
     fullName: "",
     guestName: "",
-    secondaryGuestName: "",
-    secondary_guest_name: "",
+    guestNames: [""],
     mobile: "",
     email: "",
     address: "",
@@ -259,11 +256,6 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
     });
   };
 
-  const extractGuests = (res) => {
-    const raw = res?.data?.guests || res?.guests || res?.data || res || [];
-    return Array.isArray(raw) ? raw : [];
-  };
-
   // Pages own their own fetches. Parent only keeps check-in wizard helpers.
   const loadTabData = async (tabIndex) => {
     setFetchedTabs((prev) => ({ ...prev, [tabIndex]: true }));
@@ -297,7 +289,6 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
       apiRequest(`${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=12`, opts)
         .then((res) => {
           setBookings(extractBookings(res));
-          setBookingsError("");
         })
         .catch(() => {}),
     ]);
@@ -379,21 +370,18 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
       }
       const bookingRoomId = bookingRoomIds[0];
 
-      // Resolve secondary guest name from any field where it might have been entered or captured
-      const resolvedSecondaryGuest =
-        String(
-          checkInData.secondary_guest_name ||
-          checkInData.secondaryGuestName ||
-          (checkInData.guestName && checkInData.guestName.trim() !== String(checkInData.fullName || "").trim() ? checkInData.guestName : "") ||
-          (Array.isArray(checkInData.accompanyingGuests) && checkInData.accompanyingGuests.find((g) => g?.name?.trim())?.name) ||
-          ""
-        ).trim();
+      const primaryGuestName = String(checkInData.fullName || checkInData.guestName || "Walk-in Guest").trim();
+      const extraGuestNames = (Array.isArray(checkInData.guestNames) ? checkInData.guestNames : [])
+        .map((name) => String(name || "").trim())
+        .filter((name) => Boolean(name) && name.toLowerCase() !== primaryGuestName.toLowerCase());
+      // Co-guests only: do not insert primary guest name into the guests array
+      const guestsList = extraGuestNames;
 
       const payload = {
         hotel_id: effectiveHotelId ? Number(effectiveHotelId) : undefined,
         room_id: bookingRoomIds,
-        primary_guest_name: checkInData.fullName || checkInData.guestName || "Walk-in Guest",
-        secondary_guest_name: resolvedSecondaryGuest || undefined,
+        primary_guest_name: primaryGuestName,
+        guests: guestsList,
         mobile_number: checkInData.mobile || checkInData.mobileNumber || checkInData.phone || "",
         email: checkInData.email || "",
         address: String(checkInData.address || "").trim(),
@@ -486,8 +474,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
       setCheckInData({
         fullName: "",
         guestName: "",
-        secondaryGuestName: "",
-        secondary_guest_name: "",
+        guestNames: [""],
         mobile: "",
         email: "",
         address: "",
@@ -674,8 +661,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
     setCheckInData({
       fullName: "",
       guestName: "",
-      secondaryGuestName: "",
-      secondary_guest_name: "",
+      guestNames: [""],
       mobile: "",
       email: "",
       address: "",
@@ -836,7 +822,6 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
               hotelSettings={hotelSettings}
               rooms={rooms}
               roomTypes={roomTypes}
-              guests={guests}
               bookings={bookings}
               onFinalCheckIn={handleFinalCheckIn}
               isCheckInSubmitting={isCheckInSubmitting}
@@ -847,8 +832,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
                 setCheckInData({
                   fullName: "",
                   guestName: "",
-                  secondaryGuestName: "",
-                  secondary_guest_name: "",
+                  guestNames: [""],
                   mobile: "",
                   email: "",
                   address: "",
@@ -909,6 +893,19 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
         hotelSettings={hotelSettings}
         onClose={() => setDeskCheckout(null)}
         onCheckOut={handleCheckOut}
+        onDone={() => {
+          setDeskCheckout(null);
+          // GuestListPage / Rooms listen to booking:updated + room:status themselves
+          setBookings((prev) =>
+            deskCheckout
+              ? mergeBookingEvent(prev, {
+                  ...(deskCheckout.booking || deskCheckout),
+                  booking_status: "CHECKED_OUT",
+                  status: "CHECKED_OUT",
+                })
+              : prev
+          );
+        }}
       />
 
       {/* POS Charge Modal */}

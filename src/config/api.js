@@ -1102,31 +1102,59 @@ function prepareRequestBody(body, endpoint) {
       delete payload.is_checkout;
       delete payload.isCheckout;
     } else {
-      // 2. Booking creation (POST /api/v1/bookings) strictly matching Postman schema:
+      // 2. Booking creation (POST /api/v1/bookings) strictly matching schema:
       // Primary guest name
       if (!payload.primary_guest_name) {
-        payload.primary_guest_name = payload.guest_name || payload.full_name || payload.name || "Walk-in Guest";
+        payload.primary_guest_name =
+          payload.primaryGuestName ||
+          payload.guest_name ||
+          payload.guestName ||
+          payload.full_name ||
+          payload.fullName ||
+          payload.name ||
+          "Walk-in Guest";
       }
+      delete payload.primaryGuestName;
       delete payload.guest_name;
+      delete payload.guestName;
       delete payload.full_name;
+      delete payload.fullName;
 
-      // Secondary guest name
-      if (!payload.secondary_guest_name) {
-        payload.secondary_guest_name =
-          payload.secondaryGuestName ||
-          payload.secondary_guest ||
-          payload.accompanying_guest_name ||
-          "";
-      }
-      delete payload.accompanying_guest_name;
-      delete payload.secondary_guest;
+      // Purge secondary guest fields as co-guests are passed via the guests array
+      delete payload.secondary_guest_name;
       delete payload.secondaryGuestName;
-      if (typeof payload.secondary_guest_name === "string") {
-        payload.secondary_guest_name = payload.secondary_guest_name.trim();
-        if (!payload.secondary_guest_name) {
-          delete payload.secondary_guest_name;
+      delete payload.secondary_guest;
+      delete payload.accompanying_guest_name;
+
+      // Guests array: should only contain additional co-guests, exclude primary guest name
+      let cleanGuests = [];
+      const rawGuests = payload.guests !== undefined ? payload.guests : payload.guestNames;
+      if (Array.isArray(rawGuests)) {
+        cleanGuests = rawGuests
+          .map((g) => (typeof g === "string" ? g.trim() : g?.name ? String(g.name).trim() : String(g || "").trim()))
+          .filter((name) => Boolean(name) && name.toLowerCase() !== payload.primary_guest_name.toLowerCase());
+      } else if (typeof rawGuests === "string" && rawGuests.trim()) {
+        try {
+          const parsed = JSON.parse(rawGuests);
+          if (Array.isArray(parsed)) {
+            cleanGuests = parsed
+              .map((g) => (typeof g === "string" ? g.trim() : g?.name ? String(g.name).trim() : String(g || "").trim()))
+              .filter((name) => Boolean(name) && name.toLowerCase() !== payload.primary_guest_name.toLowerCase());
+          } else {
+            const trimmed = rawGuests.trim();
+            if (trimmed.toLowerCase() !== payload.primary_guest_name.toLowerCase()) {
+              cleanGuests = [trimmed];
+            }
+          }
+        } catch {
+          const trimmed = rawGuests.trim();
+          if (trimmed.toLowerCase() !== payload.primary_guest_name.toLowerCase()) {
+            cleanGuests = [trimmed];
+          }
         }
       }
+      payload.guests = cleanGuests;
+      delete payload.guestNames;
 
       // Mobile number
       if (!payload.mobile_number) {
@@ -1461,7 +1489,7 @@ function prepareRequestBody(body, endpoint) {
         "hotel_id",
         "room_id",
         "primary_guest_name",
-        "secondary_guest_name",
+        "guests",
         "mobile_number",
         "email",
         "address",
@@ -1487,8 +1515,8 @@ function prepareRequestBody(body, endpoint) {
       for (const key of allowedBookingKeys) {
         const val = payload[key];
         if (val !== undefined && val !== null && val !== "") {
-          if (key === "room_id") {
-            formData.append("room_id", Array.isArray(val) ? JSON.stringify(val) : String(val));
+          if (key === "room_id" || key === "guests") {
+            formData.append(key, Array.isArray(val) ? JSON.stringify(val) : String(val));
           } else if (key === "email") {
             if (typeof val === "string" && val.includes("@") && val.trim().length > 3) {
               formData.append("email", val.trim());
@@ -1604,8 +1632,17 @@ function normalizeApiResponse(res) {
       arr.totalPages = d.total_pages || d.totalPages;
       res.data = arr;
     }
-    // If guests list
-    else if (Array.isArray(d.guests)) {
+    // If guests directory list (not a single booking entity that has a guests property)
+    else if (
+      Array.isArray(d.guests) &&
+      !d.booking_number &&
+      !d.bookingNumber &&
+      !d.primary_guest_name &&
+      !d.check_in_date &&
+      !d.checkInDate &&
+      !d.room_id &&
+      !d.roomId
+    ) {
       const arr = d.guests.map(deepDualCase);
       arr.forEach((g) => {
         if (!g.checkInDate && g.check_in_date) g.checkInDate = g.check_in_date;

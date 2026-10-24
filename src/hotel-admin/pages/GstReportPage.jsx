@@ -28,6 +28,7 @@ import { useAppTheme } from "@/shared/context/ThemeContext";
 import { TableCard, TablePager } from "@/shared/components/DataTable";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { toast } from "@/shared/utils/toast";
+import { useSocket } from "@/shared/context/SocketContext";
 
 const PRESETS = [
   { value: "THIS_MONTH", label: "This month" },
@@ -118,6 +119,12 @@ export default function GstReportPage({ hotelSettings }) {
   const [result, setResult] = useState({ key: "", report: null, error: "" });
   const [exportAnchor, setExportAnchor] = useState(null);
   const [exporting, setExporting] = useState("");
+  const [liveTick, setLiveTick] = useState(0);
+
+  useSocket(
+    ["PAYMENT_RECORDED", "GUEST_CHECKED_OUT", "BOOKING_CREATED", "BOOKING_UPDATED", "DASHBOARD_SYNC"],
+    () => setLiveTick((tick) => tick + 1)
+  );
 
   const rangeError = validateRange(startDate, endDate);
 
@@ -137,7 +144,7 @@ export default function GstReportPage({ hotelSettings }) {
   useEffect(() => {
     if (!requestKey) return undefined;
     let cancelled = false;
-    apiRequest(API_ENDPOINTS.GST_REPORT.LIST(requestKey))
+    apiRequest(API_ENDPOINTS.GST_REPORT.LIST(requestKey), { forceRefresh: liveTick > 0 })
       .then((res) => {
         if (!cancelled) setResult({ key: requestKey, report: res?.data || res, error: "" });
       })
@@ -147,7 +154,7 @@ export default function GstReportPage({ hotelSettings }) {
     return () => {
       cancelled = true;
     };
-  }, [requestKey]);
+  }, [requestKey, liveTick]);
 
   const loading = Boolean(requestKey) && result.key !== requestKey;
   const report = result.report;

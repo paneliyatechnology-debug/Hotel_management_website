@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect, useRef, Fragment } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -26,26 +26,17 @@ import {
   TableRow,
   Paper,
   Checkbox,
-  Collapse,
-  FormControl,
-  InputLabel,
-  Select,
-  Divider,
 } from "@mui/material";
 import {
-  CleaningServices,
-  CheckCircle,
   Close,
   MeetingRoom,
   KingBed,
   Apartment,
   Hotel,
   Bed,
-  HowToReg,
   ArrowBack,
   ArrowForward,
   Search,
-  Visibility,
   Favorite,
   FamilyRestroom,
   Diamond,
@@ -53,24 +44,10 @@ import {
   SingleBed,
   Work,
   Bolt,
-  Build,
-  Edit,
   KeyboardArrowDown,
   KeyboardArrowRight,
-  ExpandMore,
-  ExpandLess,
-  Receipt,
-  Logout,
   CurrencyRupee,
-  Schedule,
-  Warning,
-  ContentCopy,
-  CreditCard,
-  AccountBalance,
-  QrCode2,
   Check,
-  Phone,
-  InfoOutlined,
   Person,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
@@ -79,7 +56,7 @@ import InfiniteScrollSentinel from "@/shared/components/InfiniteScrollSentinel";
 import CheckoutDialog from "@/receptionist/components/CheckoutDialog";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useSocket } from "@/shared/context/SocketContext";
-import { applyRoomStatusEvent } from "@/shared/utils/liveSync";
+import { applyRoomStatusEvent, mergeCategoryCounts } from "@/shared/utils/liveSync";
 import {
   buildListQuery,
   extractRoomsFromResponse,
@@ -161,9 +138,9 @@ export default function AvailableRoomsPage({
       return "";
     }
     return (
+      room.primary_guest_name ||
       room.guestName ||
       room.guest_name ||
-      room.primary_guest_name ||
       room.current_guest_name ||
       room.currentGuestName ||
       ""
@@ -273,12 +250,7 @@ export default function AvailableRoomsPage({
     if (append) setRoomsLoadingMore(true);
     else setRoomsLoading(true);
     try {
-      const statusParam =
-        selectedStatus === "ALL"
-          ? undefined
-          : selectedStatus === "OCCUPIED"
-            ? undefined
-            : selectedStatus;
+      const statusParam = selectedStatus === "ALL" ? undefined : selectedStatus;
       const q = buildListQuery({
         page: pageNum,
         limit: ROOMS_PAGE_SIZE,
@@ -340,9 +312,17 @@ export default function AvailableRoomsPage({
     fetchRoomsPage(roomsPage + 1, { append: true });
   };
 
-  // Live patch room cards only — never refetch room-types while inside a category
+  // Live patch room cards; category badge counts stay current on the grid view
   useSocket(["room:status"], (payload) => {
     setRooms((prev) => applyRoomStatusEvent(prev, payload));
+  });
+  useSocket(["room:category_counts"], (payload) => {
+    setRoomTypes((prev) => mergeCategoryCounts(prev, payload));
+  });
+  useSocket(["GUEST_CHECKED_OUT", "BOOKING_CREATED", "BOOKING_UPDATED"], () => {
+    if (!selectedCategory) {
+      fetchRoomTypesPage(1, { append: false });
+    }
   });
 
   // Multi-Room Selection State for Quick Bulk Booking & Check-In
@@ -605,53 +585,6 @@ export default function AvailableRoomsPage({
   const visibleRoomCount = visibleRooms.length;
   const hasMoreRooms = roomsHasMore;
   const loadMoreRooms = loadMoreRoomsFromApi;
-
-  // Expanded Category IDs state for Table View (Category Grouped Accordion)
-  const [expandedCategoryIds, setExpandedCategoryIds] = useState([]);
-
-  // Auto-expand all categories by default so user sees everything organized
-  useEffect(() => {
-    if (categoryStats.length > 0 && expandedCategoryIds.length === 0) {
-      setExpandedCategoryIds(categoryStats.map((c) => c._id));
-    }
-  }, [categoryStats]);
-
-  const toggleCategoryExpand = (catId, e) => {
-    if (e && typeof e.stopPropagation === "function") e.stopPropagation();
-    setExpandedCategoryIds((prev) =>
-      prev.includes(catId) ? prev.filter((id) => id !== catId) : [...prev, catId]
-    );
-  };
-
-  const handleExpandAll = () => {
-    setExpandedCategoryIds(categoryStats.map((c) => c._id));
-  };
-
-  const handleCollapseAll = () => {
-    setExpandedCategoryIds([]);
-  };
-
-  // Filtered categories for Single Master Table View
-  const filteredCategoriesForTable = useMemo(() => {
-    return categoryStats.filter((cat) => {
-      if (selectedCategoryFilter !== "ALL" && cat._id !== selectedCategoryFilter) {
-        return false;
-      }
-      if (selectedStatus !== "ALL") {
-        if (selectedStatus === "AVAILABLE" && cat.available === 0) return false;
-        if (selectedStatus === "OCCUPIED" && cat.occupied === 0 && cat.reserved === 0) return false;
-        if (selectedStatus === "CLEANING" && cat.cleaning === 0) return false;
-        if (selectedStatus === "MAINTENANCE" && cat.maintenance === 0) return false;
-      }
-      if (roomSearch.trim()) {
-        const q = roomSearch.toLowerCase();
-        const matchCat = (cat.name || "").toLowerCase().includes(q);
-        const matchBed = (cat.bedType || "").toLowerCase().includes(q);
-        return matchCat || matchBed;
-      }
-      return true;
-    });
-  }, [categoryStats, selectedCategoryFilter, selectedStatus, roomSearch]);
 
   // Open check-out using current_booking_id from the rooms API (not bookings list)
   const handleOpenStatusDialog = (room) => {
@@ -1287,6 +1220,7 @@ export default function AvailableRoomsPage({
         onCheckOut={onCheckOut}
         onDone={async () => {
           if (selectedCategory) await fetchRoomsPage(1, { append: false });
+          else await fetchRoomTypesPage(1, { append: false });
         }}
       />
 

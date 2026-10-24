@@ -9,69 +9,8 @@ import { getActiveHotelId } from "@/shared/utils/cookieAuth";
 import dynamic from "next/dynamic";
 import { CircularProgress } from "@mui/material";
 import { useSocket } from "@/shared/context/SocketContext";
-import { applyRoomStatusEvent, mergeBookingEvent, mergeFetchedBookings, normalizeBooking, preferBookingStatus, sortBookingsNewestFirst } from "@/shared/utils/liveSync";
-
-const BOOKINGS_QUERY = `${API_ENDPOINTS.RECEPTIONIST.BOOKINGS}?page=1&limit=100`;
-
-async function fetchBookingsFresh() {
-  return apiRequest(BOOKINGS_QUERY, { forceRefresh: true, skipDeduplication: true, skipCache: true });
-}
-
-function applyFetchedBookings(setBookings, res) {
-  const fetched = sortBookingsNewestFirst(extractRecords(res));
-  setBookings((prev) => {
-    const merged = mergeFetchedBookings(fetched, prev);
-    if (Number.isFinite(Number(fetched.total))) merged.total = Number(fetched.total);
-    else if (Number.isFinite(Number(prev?.total))) merged.total = Number(prev.total);
-    return merged;
-  });
-}
-
-function extractRecords(res) {
-  const payload = res?.data !== undefined ? res.data : res;
-  let list = [];
-  if (Array.isArray(payload)) list = payload;
-  else if (Array.isArray(payload?.bookings)) list = payload.bookings;
-  else if (Array.isArray(payload?.guests)) list = payload.guests;
-  else if (Array.isArray(payload?.data)) list = payload.data;
-  else if (Array.isArray(payload?.data?.bookings)) list = payload.data.bookings;
-  const rawTotal = payload?.total ?? payload?.pagination?.total ?? payload?.pagination?.totalRecords ?? payload?.pagination?.total_records;
-  const records = list.filter((item) => item && typeof item === "object").map((b) => {
-    const id = b.id || b._id;
-    const totalAmount = Number(b.totalAmount ?? b.total_amount ?? b.total ?? b.grandTotal ?? 0);
-    const paidAmount = Number(b.paidAmount ?? b.paid_amount ?? b.advancePaymentAmount ?? b.advance_paid ?? b.advance_payment_amount ?? 0);
-    const dueAmount = Number(b.dueAmount ?? b.due_amount ?? b.due ?? Math.max(0, totalAmount - paidAmount));
-    return {
-      ...b,
-      id,
-      _id: id,
-      totalAmount,
-      total_amount: totalAmount,
-      paidAmount,
-      paid_amount: paidAmount,
-      dueAmount,
-      due_amount: dueAmount,
-      baseAmount: Number(b.baseAmount ?? b.base_amount ?? 0),
-      base_amount: Number(b.baseAmount ?? b.base_amount ?? 0),
-      gstAmount: Number(b.gstAmount ?? b.gst_amount ?? 0),
-      gst_amount: Number(b.gstAmount ?? b.gst_amount ?? 0),
-      status: String(b.booking_status || b.status || "").toUpperCase(),
-      booking_status: String(b.booking_status || b.status || "").toUpperCase(),
-      guestName: b.primary_guest_name || b.guest_name || b.guestName || b.guest?.name || b.guest?.fullName || b.name || "",
-      primary_guest_name: b.primary_guest_name || b.guest_name || b.guestName || b.name || "",
-    };
-  });
-  if (Number.isFinite(Number(rawTotal))) records.total = Number(rawTotal);
-  return records;
-}
-
-function asRoomList(res) {
-  const payload = res?.data !== undefined ? res.data : res;
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.rooms)) return payload.rooms;
-  if (Array.isArray(payload?.data)) return payload.data;
-  return [];
-}
+import { mergeCategoryCounts } from "@/shared/utils/liveSync";
+import { amountFromPaymentCollections } from "@/shared/hooks/useHotelPaymentMethods";
 
 function readLabel(value) {
   if (value == null) return "";
@@ -81,44 +20,6 @@ function readLabel(value) {
 }
 
 const STAFF_ROLES = ["RECEPTIONIST", "MANAGER", "HOUSEKEEPING", "ACCOUNTANT"];
-
-function normalizeStaffList(res) {
-  const payload = res?.data !== undefined ? res.data : res;
-  const list = Array.isArray(payload)
-    ? payload
-    : Array.isArray(payload?.users)
-      ? payload.users
-      : Array.isArray(payload?.records)
-        ? payload.records
-        : Array.isArray(payload?.data)
-          ? payload.data
-          : [];
-
-  return list
-    .filter((member) => {
-      const role = String(member?.role || "").toUpperCase();
-      return STAFF_ROLES.some((name) => role.includes(name));
-    })
-    .map((member) => {
-      const inactive =
-        member?.is_active === false ||
-        member?.isActive === false ||
-        member?.is_disabled === true ||
-        member?.isDisabled === true ||
-        String(member?.status || member?.account_status || "ACTIVE").toUpperCase() === "INACTIVE";
-      return {
-        ...member,
-        _id: member?._id || member?.id,
-        id: member?.id || member?._id,
-        name: member?.name || member?.full_name || member?.fullName || "",
-        email: member?.email || "",
-        phone: String(member?.phone || member?.mobile || member?.mobile_number || member?.phone_number || ""),
-        role: String(member?.role || "RECEPTIONIST").toUpperCase(),
-        shift: member?.shift || "",
-        status: inactive ? "INACTIVE" : "ACTIVE",
-      };
-    });
-}
 
 function normalizeRoomTypes(res) {
   const raw = res?.data ?? res;
@@ -147,25 +48,6 @@ function normalizeRoomTypes(res) {
   return mapped;
 }
 
-function mergeCategoryCounts(current, payload) {
-  const incoming = payload?.room_categories || payload?.roomCategories || [];
-  const byId = new Map(incoming.map((cat) => [String(cat?.id || cat?._id), cat]));
-  const next = (Array.isArray(current) ? current : []).map((cat) => {
-    const update = byId.get(String(cat?.id || cat?._id));
-    if (!update) return cat;
-    const counts = update.room_status_counts || update.roomStatusCounts;
-    return counts ? { ...cat, room_status_counts: counts, roomStatusCounts: counts } : cat;
-  });
-  incoming.forEach((cat) => {
-    const id = String(cat?.id || cat?._id || "");
-    if (!id || next.some((item) => String(item?.id || item?._id) === id)) return;
-    next.push({ ...cat, _id: cat?._id || cat?.id, id: cat?.id || cat?._id, name: cat?.name || "" });
-  });
-  next.summary = payload?.room_status_summary || payload?.roomStatusSummary || current?.summary || null;
-  next.total = current?.total ?? next.length;
-  return next;
-}
-
 const ComponentSpinner = () => (
   <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 8 }}>
     <CircularProgress size={36} />
@@ -187,7 +69,12 @@ function adaptHotelDashboard(data) {
   const kpis = data.kpis || {};
   const pulse = data.today_pulse || data.todayPulse || {};
   const weekly = data.weekly_revenue_graph || data.weeklyRevenueGraph || [];
-  const methods = data.revenue_by_payment_method || data.revenueByPaymentMethod || {};
+  const methods =
+    data.collection_by_payment_method ||
+    data.collectionByPaymentMethod ||
+    data.revenue_by_payment_method ||
+    data.revenueByPaymentMethod ||
+    [];
   const quota = data.subscription_quota || data.subscriptionQuota || {};
   const weekTotal = Array.isArray(weekly) ? weekly.reduce((sum, day) => sum + Number(day.revenue || 0), 0) : 0;
   const todayRevenue = Number(kpis.today_revenue ?? kpis.todayRevenue ?? 0);
@@ -204,8 +91,8 @@ function adaptHotelDashboard(data) {
     },
     weeklyRevenue: {
       totalThisWeek: weekTotal,
-      totalCash: Number(methods.CASH ?? methods.cash ?? 0),
-      totalUpi: Number(methods.UPI ?? methods.upi ?? 0),
+      totalCash: amountFromPaymentCollections(methods, "CASH"),
+      totalUpi: amountFromPaymentCollections(methods, "UPI"),
       breakdown: (Array.isArray(weekly) ? weekly : []).map((day) => ({
         date: day.date,
         day: day.day,
@@ -243,32 +130,27 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
     user?.hotel?.settings || { checkInTime: "14:00", checkOutTime: "12:00", timezone: "Asia/Kolkata" }
   );
   const [dashboardData, setDashboardData] = useState(null);
-  const [rooms, setRooms] = useState([]);
   const [roomTypes, setRoomTypes] = useState([]);
-  const [guests, setGuests] = useState([]);
-  const [staffList, setStaffList] = useState([]);
-  const [bookings, setBookings] = useState([]);
+  const [roomsRefreshToken, setRoomsRefreshToken] = useState(0);
+  const [staffRefreshToken, setStaffRefreshToken] = useState(0);
   const [loading, setLoading] = useState(true);
   const [fetchedTabs, setFetchedTabs] = useState({});
   const dashboardFromApi = useRef(false);
+  // Re-fetch /dashboard only when KPIs changed (socket), not on every Overview visit
+  const dashboardStale = useRef(true);
 
   const loadDashboard = () =>
     apiRequest(API_ENDPOINTS.HOTEL_ADMIN.DASHBOARD)
       .then((res) => {
         if (res?.data) {
           dashboardFromApi.current = true;
+          dashboardStale.current = false;
           setDashboardData(adaptHotelDashboard(res.data));
         }
       })
       .catch(() => {
         dashboardFromApi.current = false;
       });
-
-  // Filters & Searches
-  const [staffSearch, setStaffSearch] = useState("");
-  const [staffRoleFilter, setStaffRoleFilter] = useState("ALL");
-  const [selectedFloor, setSelectedFloor] = useState("ALL");
-  const [selectedStatus, setSelectedStatus] = useState("ALL");
 
   // Modals & Drawers
   const [staffModal, setStaffModal] = useState({ open: false, mode: "ADD", data: getInitialStaffForm() });
@@ -320,84 +202,46 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
     };
   }
 
-  // On-Demand Tab-Specific Data Loading
+  // Page-scoped loading — never dump every list into overview.
+  // Overview keeps cached KPIs unless a live event marked dashboardStale.
   const loadTabData = async (tabIndex, forceRefresh = false) => {
-    if (!forceRefresh && fetchedTabs[tabIndex]) return;
-    if (!dashboardData && !rooms.length && !forceRefresh) {
-      setLoading(true);
+    if (!forceRefresh && fetchedTabs[tabIndex]) {
+      // Returning to Overview: only hit /dashboard when data actually changed
+      if (tabIndex !== 0 || !dashboardStale.current) return;
     }
+    if (tabIndex === 0 && !dashboardData) setLoading(true);
+    else if (tabIndex !== 0 && tabIndex !== 1 && tabIndex !== 2 && tabIndex !== 4 && tabIndex !== 5) setLoading(true);
     try {
       const endpointsToFetch = [];
 
-      if (forceRefresh) {
+      if (tabIndex === 0) {
+        // Guest table is owned by HotelOverviewPage; KPIs only when missing/stale
+        if (forceRefresh || !dashboardData || dashboardStale.current) {
+          endpointsToFetch.push(loadDashboard());
+        }
+      } else if (tabIndex === 1) {
+        // GuestListPage owns bookings pagination
+      } else if (tabIndex === 2) {
+        // StaffTeamPage owns users list pagination + search
+      } else if (tabIndex === 3) {
+        // Categories list uses room-types (+ status counts). Rooms load inside RoomTypesPage when a category opens.
         endpointsToFetch.push(
-          loadDashboard(),
-          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS, { forceRefresh: true, skipDeduplication: true }).then((res) => setRooms(asRoomList(res))),
-          fetchBookingsFresh().then((res) => applyFetchedBookings(setBookings, res)),
-          apiRequest(`${API_ENDPOINTS.RECEPTIONIST.GUESTS}?page=1&limit=100`, { forceRefresh: true, skipDeduplication: true }).then((res) => setGuests(extractRecords(res))),
-          apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=10`, { forceRefresh: true, skipDeduplication: true }).then((res) => setRoomTypes(normalizeRoomTypes(res))),
-          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE, { forceRefresh: true, skipDeduplication: true }).then((res) => res?.data?.settings && setHotelSettings(res.data.settings)),
-          reloadStaffList()
+          apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=12`).then((res) =>
+            setRoomTypes(normalizeRoomTypes(res))
+          )
         );
-      } else {
-        // Route 0: OVERVIEW / DASHBOARD
-        if (tabIndex === 0) {
-          endpointsToFetch.push(
-            loadDashboard(),
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
-            apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=10`).then((res) => setRoomTypes(normalizeRoomTypes(res))),
-            fetchBookingsFresh().then((res) => applyFetchedBookings(setBookings, res)),
-            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.GUESTS}?page=1&limit=100`).then((res) => setGuests(extractRecords(res))),
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
-          );
-        }
-        // Route 1: GUEST DIRECTORY & PROFILES
-        else if (tabIndex === 1) {
-          endpointsToFetch.push(
-            fetchBookingsFresh().then((res) => applyFetchedBookings(setBookings, res)),
-            apiRequest(`${API_ENDPOINTS.RECEPTIONIST.GUESTS}?page=1&limit=100`).then((res) => setGuests(extractRecords(res))),
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
-          );
-        }
-        // Route 2: STAFF TEAM
-        else if (tabIndex === 2) {
-          endpointsToFetch.push(reloadStaffList());
-        }
-        // Route 3: ROOMS & CATEGORIES
-        else if (tabIndex === 3) {
-          endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS).then((res) => setRooms(asRoomList(res))),
-            apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=10`).then((res) => setRoomTypes(normalizeRoomTypes(res)))
-          );
-        }
-        // Route 5: SUBSCRIPTION
-        else if (tabIndex === 5) {
-          endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.SUBSCRIPTION_PLANS.PUBLIC),
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => {
-              const profile = res?.data || res;
-              const nextSub = profile?.subscription || profile?.hotel?.subscription;
-              if (nextSub) {
-                setDashboardData((prev) => ({ ...(prev || {}), subscription: nextSub }));
-              }
-            })
-          );
-        }
-        // Route 6: SETTINGS
-        else if (tabIndex === 6) {
-          endpointsToFetch.push(
-            apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then((res) => res?.data?.settings && setHotelSettings(res.data.settings))
-          );
-        }
+      } else if (tabIndex === 5) {
+        // SubscriptionPage owns subscription-plans fetch; current plan comes from user/dashboard props
+      } else if (tabIndex === 6) {
+        endpointsToFetch.push(
+          apiRequest(API_ENDPOINTS.HOTEL_ADMIN.PROFILE).then(
+            (res) => res?.data?.settings && setHotelSettings(res.data.settings)
+          )
+        );
       }
 
       await Promise.allSettled(endpointsToFetch);
-      if (forceRefresh) {
-        setFetchedTabs({ 0: true, 1: true, 2: true, 3: true, 4: true, 5: true, 6: true });
-      } else {
-        setFetchedTabs((prev) => ({ ...prev, [tabIndex]: true }));
-      }
+      setFetchedTabs((prev) => ({ ...prev, [tabIndex]: true }));
     } catch (err) {
       console.error("Tab data fetch error:", err);
     } finally {
@@ -409,153 +253,34 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
     loadTabData(activeNav);
   }, [activeNav]);
 
-  // Fallback KPIs from bookings/rooms only when /api/v1/dashboard did not return data
-  useEffect(() => {
-    if (dashboardFromApi.current) return;
-    const localKey = (value) => {
-      if (!value) return "";
-      if (typeof value === "string" && value.includes("/")) {
-        const parts = value.split("/");
-        if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
-      }
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) return String(value).split("T")[0];
-      const month = String(date.getMonth() + 1).padStart(2, "0");
-      const day = String(date.getDate()).padStart(2, "0");
-      return `${date.getFullYear()}-${month}-${day}`;
-    };
-    const amountOf = (record) => {
-      const paid = Number(record.paidAmount ?? record.paid_amount ?? record.advancePaymentAmount ?? record.advance_payment_amount ?? 0);
-      const total = Number(record.totalAmount ?? record.total_amount ?? record.grandTotal ?? record.grand_total ?? 0);
-      const base = Number(record.baseAmount ?? record.base_amount ?? 0);
-      const rate = Number(record.pricePerNight ?? record.price_per_night ?? record.customPricePerNight ?? 0);
-      const nights = Number(record.nights ?? record.numberOfNights ?? record.number_of_nights ?? 0);
-      return paid || total || base || (rate > 0 ? rate * (nights || 1) : 0);
-    };
-    const startOf = (record) => localKey(record.check_in_date || record.checkInDate || record.actual_check_in || record.actualCheckIn || record.created_at || record.createdAt);
-    const endOf = (record) => localKey(record.check_out_date || record.checkOutDate || record.actual_check_out || record.actualCheckOut) || startOf(record);
-    const methodOf = (record) => String(record.payment_method || record.paymentMethod || "").toUpperCase();
-    const seen = new Map();
-    [...bookings, ...guests].forEach((record) => {
-      if (!record || typeof record !== "object") return;
-      const id = String(record.id || record._id || `${startOf(record)}-${record.guestName || record.name || amountOf(record)}`);
-      if (!seen.has(id)) seen.set(id, record);
-    });
-    const records = [...seen.values()];
-    const today = new Date();
-    const todayKey = localKey(today);
-    const days = Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(today);
-      date.setDate(today.getDate() - (6 - index));
-      return {
-        date: localKey(date),
-        day: date.toLocaleDateString("en-US", { weekday: "short" }),
-        revenue: 0,
-        cash: 0,
-        upi: 0,
-      };
-    });
-    const addToDay = (key, amount, method) => {
-      const row = days.find((day) => day.date === key);
-      if (!row || !amount) return;
-      row.revenue += amount;
-      if (method.includes("UPI") || method.includes("ONLINE") || method.includes("CARD")) row.upi += amount;
-      else row.cash += amount;
-    };
-    let monthRevenue = 0;
-    const monthKey = todayKey.slice(0, 7);
-    records.forEach((record) => {
-      const amount = amountOf(record);
-      const start = startOf(record);
-      let end = endOf(record);
-      const status = String(record.status || record.booking_status || "").toUpperCase();
-      if ((!end || end === start) && (status === "CHECKED_IN" || status === "IN_HOUSE" || status === "IN-HOUSE" || status === "OCCUPIED")) {
-        end = todayKey;
-      }
-      const coversToday = start && start <= todayKey && (end || start) >= todayKey;
-      const bucket = days.some((day) => day.date === start) ? start : coversToday ? todayKey : "";
-      addToDay(bucket, amount, methodOf(record));
-      if ((start && start.startsWith(monthKey)) || coversToday) monthRevenue += amount;
-    });
-    const todayRow = days[days.length - 1];
-    const occupied = rooms.filter((room) => {
-      const status = String(room.status || room.room_status || "").toUpperCase();
-      return status === "OCCUPIED" || status === "CHECKED_IN";
-    }).length;
-    setDashboardData((prev) => adaptHotelDashboard({
-      ...(prev || {}),
-      kpis: {
-        today_revenue: todayRow.revenue,
-        month_revenue: monthRevenue,
-        total_outstanding_due: records.reduce((sum, record) => sum + Number(record.dueAmount || record.due_amount || 0), 0),
-        occupancy_rate_percentage: rooms.length ? Math.round((occupied / rooms.length) * 100) : 0,
-        total_physical_rooms: rooms.length,
-        active_staff_count: staffList.length,
-      },
-      today_pulse: {
-        current_in_house_guests: records.filter((record) => {
-          const status = String(record.status || record.booking_status || "").toUpperCase();
-          return status === "CHECKED_IN" || status === "IN_HOUSE" || status === "IN-HOUSE" || status === "OCCUPIED";
-        }).length,
-      },
-      weekly_revenue_graph: days,
-      revenue_by_payment_method: {
-        CASH: days.reduce((sum, day) => sum + day.cash, 0),
-        UPI: days.reduce((sum, day) => sum + day.upi, 0),
-      },
-      subscription: prev?.subscription,
-    }));
-  }, [bookings, guests, rooms, staffList]);
-
   const fetchAllData = async () => {
+    // Only refresh the active tab’s needed APIs — never every list at once
+    setFetchedTabs((prev) => ({ ...prev, [activeNav]: false }));
     await loadTabData(activeNav, true);
   };
 
   const reloadRoomsList = async () => {
-    const [roomsRes, typesRes] = await Promise.all([
-      apiRequest(API_ENDPOINTS.HOTEL_ADMIN.ROOMS, { forceRefresh: true, skipDeduplication: true }),
-      apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=100`, { forceRefresh: true, skipDeduplication: true }),
-    ]);
-    setRooms(asRoomList(roomsRes));
+    if (activeNav !== 3) return;
+    const typesRes = await apiRequest(`${API_ENDPOINTS.HOTEL_ADMIN.ROOM_TYPES}?page=1&limit=12`);
     setRoomTypes(normalizeRoomTypes(typesRes));
+    setRoomsRefreshToken((n) => n + 1);
   };
 
   const reloadStaffList = async () => {
-    const res = await apiRequest(`${API_ENDPOINTS.USERS.ALL}?page=1&limit=100`, { forceRefresh: true, skipDeduplication: true });
-    setStaffList(normalizeStaffList(res));
+    setStaffRefreshToken((n) => n + 1);
   };
 
-  // Real-Time Socket Auto-Sync across all operational mutations & subscription changes
+  // Staff list live refresh is owned by StaffTeamPage
+
   useSocket(
-    [
-      "BOOKING_CREATED",
-      "GUEST_CHECKED_OUT",
-      "HANDOVER_SETTLED",
-      "STAFF_CREATED",
-      "STAFF_UPDATED",
-      "STAFF_DELETED",
-      "STAFF_STATUS_UPDATED",
-      "USER_UPDATED",
-      "HOTEL_STATUS_UPDATED",
-      "SUBSCRIPTION_UPDATED",
-      "HOTEL_UPDATED",
-      "TRIAL_REQUEST_APPROVED",
-      "TRIAL_REQUEST_REJECTED",
-    ],
+    ["SUBSCRIPTION_UPDATED", "HOTEL_UPDATED", "TRIAL_REQUEST_APPROVED", "TRIAL_REQUEST_REJECTED", "HOTEL_STATUS_UPDATED"],
     () => {
-      fetchAllData();
-      reloadRoomsList();
-      reloadStaffList();
+      dashboardStale.current = true;
+      if (activeNav === 0) loadDashboard();
     }
   );
 
-  // Backend live events (room:status / booking:updated and their legacy aliases):
-  // one debounced reload of the open tab, rooms and categories as a safety net
-  useSocket(["ROOM_UPDATED", "BOOKING_UPDATED", "PAYMENT_RECORDED", "GUEST_UPDATED"], () => {
-    fetchAllData();
-    reloadRoomsList();
-  });
-
+  // Keep category badge counts fresh even when Rooms tab is not open
   useSocket(["room:category_counts"], (payload) => {
     const activeHotelId = getActiveHotelId();
     const eventHotelId = payload?.hotel_id || payload?.hotelId;
@@ -563,34 +288,27 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
     setRoomTypes((current) => mergeCategoryCounts(current, payload));
   });
 
-  // Apply the payload instantly, before the reload above finishes
-  useSocket(["room:status", "booking:updated", "dashboard:updated"], (payload, eventName) => {
-    if (eventName === "room:status") {
-      setRooms((prev) => applyRoomStatusEvent(prev, payload));
-    } else if (eventName === "booking:updated") {
-      setBookings((prev) => {
-        const normalized = normalizeBooking(payload);
-        const merged = mergeBookingEvent(prev, normalized).map((row) => {
-          if (String(row?.id ?? row?._id) !== String(normalized?.id ?? normalized?._id)) return row;
-          const status = preferBookingStatus(row.booking_status || row.status, normalized.booking_status || normalized.status);
-          return { ...row, ...normalized, booking_status: status, status };
+  // KPI changes: patch from socket payload when present, otherwise mark stale / refetch
+  useSocket(
+    ["dashboard:updated", "PAYMENT_RECORDED", "GUEST_CHECKED_OUT", "BOOKING_CREATED", "DASHBOARD_SYNC"],
+    (payload, eventName) => {
+      if (eventName === "dashboard:updated" && payload?.data && typeof payload.data === "object") {
+        dashboardFromApi.current = true;
+        dashboardStale.current = false;
+        setDashboardData((prev) => {
+          const next = adaptHotelDashboard(payload.data);
+          return prev?.subscription && !payload.data.subscription ? { ...next, subscription: prev.subscription } : next;
         });
-        const sorted = sortBookingsNewestFirst(merged);
-        if (Number.isFinite(Number(prev?.total)) && !(payload?.deleted_at)) {
-          const existed = (prev || []).some((item) => String(item?.id ?? item?._id) === String(payload?.id ?? payload?._id));
-          sorted.total = existed ? Number(prev.total) : Number(prev.total) + 1;
-        } else if (Number.isFinite(Number(prev?.total)) && payload?.deleted_at) {
-          sorted.total = Math.max(0, Number(prev.total) - 1);
-        }
-        return sorted;
-      });
-    } else if (eventName === "dashboard:updated" && payload?.data && typeof payload.data === "object") {
-      dashboardFromApi.current = true;
-      setDashboardData((prev) => {
-        const next = adaptHotelDashboard(payload.data);
-        return prev?.subscription && !payload.data.subscription ? { ...next, subscription: prev.subscription } : next;
-      });
+        return;
+      }
+      dashboardStale.current = true;
+      if (activeNav === 0) loadDashboard();
     }
+  );
+
+  // Parent rooms dump is unused; Rooms page owns its list. Still bump refresh so open category reloads.
+  useSocket(["room:status", "GUEST_CHECKED_OUT"], () => {
+    setRoomsRefreshToken((n) => n + 1);
   });
 
   const showToast = (message, severity = "success") => {
@@ -722,7 +440,14 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
     if (roomModal.mode !== "EDIT") {
       const planUpper = (dashboardData?.subscription?.plan || user?.hotel?.subscription?.plan || "TRIAL").toString().toUpperCase();
       const isTrial = planUpper === "TRIAL" || planUpper === "FREE" || dashboardData?.subscription?.status === "TRIAL" || user?.hotel?.subscription?.status === "TRIAL";
-      if (isTrial && rooms.length >= 5) {
+      const configuredRooms = Number(
+        dashboardData?.operationsSummary?.totalRooms ??
+          dashboardData?.subscription?.roomsConfigured ??
+          roomTypes?.summary?.total_room_count ??
+          roomTypes?.summary?.totalRoomCount ??
+          0
+      );
+      if (isTrial && configuredRooms >= 5) {
         showToast("Trial Plan allows a maximum of 5 rooms. Upgrade to Premium Plan for unlimited rooms.", "warning");
         return;
       }
@@ -949,15 +674,19 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
   };
 
   const handleDeleteRoomType = (roomType) => {
-    const linkedRooms = rooms.filter((r) => {
-      const typeId = typeof r.roomType === "object" ? r.roomType?._id : r.roomType;
-      return typeId === roomType._id;
-    });
-    const occupiedRooms = linkedRooms.filter((r) => r.status === "OCCUPIED" || r.status === "RESERVED");
+    const counts = roomType?.room_status_counts || roomType?.roomStatusCounts || {};
+    const linkedCount = Number(
+      counts.total_room_count ?? counts.totalRoomCount ?? roomType?.total_rooms ?? roomType?.totalRooms ?? 0
+    ) || 0;
+    const occupiedCount =
+      Number(counts.occupied_count ?? counts.occupiedCount ?? 0) +
+      Number(counts.reserved_count ?? counts.reservedCount ?? 0);
 
-    const confirmMsg = occupiedRooms.length > 0
-      ? `${roomType.name} and its ${linkedRooms.length} room(s) will be deleted. ${occupiedRooms.length} occupied room(s) will be checked out first. Guest records will be kept.`
-      : `${roomType.name} and its ${linkedRooms.length} room(s) will be permanently deleted.`;
+    const confirmMsg = occupiedCount > 0
+      ? `${roomType.name} and its ${linkedCount} room(s) will be deleted. ${occupiedCount} occupied room(s) will be checked out first. Guest records will be kept.`
+      : linkedCount > 0
+        ? `${roomType.name} and its ${linkedCount} room(s) will be permanently deleted.`
+        : `${roomType.name} will be permanently deleted.`;
 
     setConfirmDelete({
       open: true,
@@ -1002,16 +731,8 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
         <HotelOverviewPage
           user={user}
           dashboardData={dashboardData}
-          rooms={rooms}
-          roomTypes={roomTypes}
-          guests={guests}
-          bookings={bookings}
           hotelSettings={hotelSettings}
-          selectedFloor={selectedFloor}
-          setSelectedFloor={setSelectedFloor}
-          selectedStatus={selectedStatus}
-          setSelectedStatus={setSelectedStatus}
-          onRefresh={fetchAllData}
+          onRefresh={() => loadDashboard()}
           onTabChange={onTabChange}
         />
       )}
@@ -1019,23 +740,15 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
       {/* ROUTE 1: GUEST DIRECTORY & PROFILES */}
       {activeNav === 1 && (
         <GuestListPage
-          guests={guests}
-          bookings={bookings}
-          rooms={rooms}
           hotelSettings={hotelSettings}
-          onRefresh={fetchAllData}
-          defaultRowsPerPage={5}
+          defaultRowsPerPage={10}
         />
       )}
 
       {/* ROUTE 2: STAFF TEAM */}
       {activeNav === 2 && (
         <StaffTeamPage
-          staffList={staffList}
-          staffSearch={staffSearch}
-          setStaffSearch={setStaffSearch}
-          staffRoleFilter={staffRoleFilter}
-          setStaffRoleFilter={setStaffRoleFilter}
+          staffRefreshToken={staffRefreshToken}
           staffModal={staffModal}
           setStaffModal={setStaffModal}
           viewStaffModal={viewStaffModal}
@@ -1051,7 +764,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
       {activeNav === 3 && (
         <RoomTypesPage
           resetToken={navClick?.tab === 3 ? navClick.id : 0}
-          rooms={rooms}
+          roomsRefreshToken={roomsRefreshToken}
           roomTypes={roomTypes}
           roomModal={roomModal}
           setRoomModal={setRoomModal}
@@ -1065,6 +778,7 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
           getInitialRoomForm={getInitialRoomForm}
           subscription={dashboardData?.subscription || user?.hotel?.subscription}
           onTabChange={onTabChange}
+          hotelSettings={hotelSettings}
         />
       )}
 
@@ -1076,7 +790,6 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
         <SubscriptionPage
           user={user}
           subscription={dashboardData?.subscription || user?.hotel?.subscription}
-          onRefresh={fetchAllData}
         />
       )}
 

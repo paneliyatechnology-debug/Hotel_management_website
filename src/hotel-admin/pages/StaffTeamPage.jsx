@@ -38,6 +38,9 @@ import {
   Email,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
+import { API_ENDPOINTS, apiRequest } from "@/config/api";
+import { useSocket } from "@/shared/context/SocketContext";
+import { buildListQuery, readListMeta } from "@/shared/utils/listQuery";
 import { AppDialogHeader, AppDialogFooter, dialogPaperSx, dialogCancelButtonSx, dialogPrimaryButtonSx } from "@/shared/components/AppDialog";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
@@ -49,6 +52,8 @@ export const HOTEL_STAFF_ROLES = [
   { value: "HOUSEKEEPING", label: "Housekeeping Staff / Lead (HOUSEKEEPING)", shortLabel: "Housekeeping", color: "#D97706", bg: "rgba(217, 119, 6, 0.12)", border: "rgba(217, 119, 6, 0.3)" },
   { value: "ACCOUNTANT", label: "Hotel Accountant / Cashier (ACCOUNTANT)", shortLabel: "Accountant", color: "#059669", bg: "rgba(5, 150, 105, 0.12)", border: "rgba(5, 150, 105, 0.3)" },
 ];
+
+const STAFF_ROLE_VALUES = HOTEL_STAFF_ROLES.map((r) => r.value);
 
 export function getRoleMeta(roleName) {
   const normalized = (roleName || "").toString().trim().toUpperCase();
@@ -64,12 +69,48 @@ export function getRoleMeta(roleName) {
   };
 }
 
+function normalizeStaffPage(res) {
+  const payload = res?.data !== undefined ? res.data : res;
+  const list = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.users)
+      ? payload.users
+      : Array.isArray(payload?.records)
+        ? payload.records
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : [];
+
+  const rows = list
+    .filter((member) => {
+      const role = String(member?.role || "").toUpperCase();
+      return STAFF_ROLE_VALUES.some((name) => role.includes(name));
+    })
+    .map((member) => {
+      const inactive =
+        member?.is_active === false ||
+        member?.isActive === false ||
+        member?.is_disabled === true ||
+        member?.isDisabled === true ||
+        String(member?.status || member?.account_status || "ACTIVE").toUpperCase() === "INACTIVE";
+      return {
+        ...member,
+        _id: member?._id || member?.id,
+        id: member?.id || member?._id,
+        name: member?.name || member?.full_name || member?.fullName || "",
+        email: member?.email || "",
+        phone: String(member?.phone || member?.mobile || member?.mobile_number || member?.phone_number || ""),
+        role: String(member?.role || "RECEPTIONIST").toUpperCase(),
+        shift: member?.shift || "",
+        status: inactive ? "INACTIVE" : "ACTIVE",
+      };
+    });
+
+  const meta = readListMeta(res);
+  return { rows, total: Number.isFinite(meta.total) ? meta.total : rows.length };
+}
+
 export default function StaffTeamPage({
-  staffList = [],
-  staffSearch = "",
-  setStaffSearch,
-  staffRoleFilter = "ALL",
-  setStaffRoleFilter,
   staffModal,
   setStaffModal,
   viewStaffModal,
@@ -78,34 +119,62 @@ export default function StaffTeamPage({
   onDeleteStaff,
   onToggleStaffStatus,
   getInitialStaffForm,
+  staffRefreshToken = 0,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
-  const totalReceptionists = staffList.filter((s) => (s.role || "").toUpperCase().includes("RECEPTIONIST")).length;
-  const totalManagers = staffList.filter((s) => (s.role || "").toUpperCase().includes("MANAGER")).length;
-  const totalHousekeeping = staffList.filter((s) => (s.role || "").toUpperCase().includes("HOUSEKEEPING")).length;
-  const totalAccountants = staffList.filter((s) => (s.role || "").toUpperCase().includes("ACCOUNTANT")).length;
 
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("ALL");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [staffRows, setStaffRows] = useState([]);
+  const [staffTotal, setStaffTotal] = useState(0);
+  const [liveTick, setLiveTick] = useState(0);
+
+  // Debounce search → backend `search` param (not client-side filter)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(searchInput.trim());
+      setPage(0);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  useSocket(
+    ["STAFF_CREATED", "STAFF_UPDATED", "STAFF_DELETED", "STAFF_STATUS_UPDATED", "USER_UPDATED"],
+    () => setLiveTick((tick) => tick + 1)
+  );
 
   useEffect(() => {
-    setPage(0);
-  }, [staffSearch, staffRoleFilter]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const q = buildListQuery({
+          page: page + 1,
+          limit: rowsPerPage,
+          search: searchQuery || undefined,
+          role: roleFilter,
+        });
+        const res = await apiRequest(`${API_ENDPOINTS.USERS.ALL}?${q}`);
+        if (cancelled) return;
+        const { rows, total } = normalizeStaffPage(res);
+        setStaffRows(rows);
+        setStaffTotal(total);
+      } catch {
+        if (!cancelled) {
+          setStaffRows([]);
+          setStaffTotal(0);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, rowsPerPage, searchQuery, roleFilter, liveTick, staffRefreshToken]);
 
-  const filteredStaff = staffList.filter((s) => {
-    const q = (staffSearch || "").toLowerCase();
-    const matchSearch =
-      (s.name || "").toLowerCase().includes(q) ||
-      (s.phone || "").includes(q) ||
-      (s.email || "").toLowerCase().includes(q) ||
-      (s.role || "").toLowerCase().includes(q);
-
-    if (staffRoleFilter === "ALL") return matchSearch;
-    return matchSearch && (s.role || "").toUpperCase().includes(staffRoleFilter.toUpperCase());
-  });
-
-  const paginatedStaff = filteredStaff.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  const staffCount = filteredStaff.length;
+  const paginatedStaff = staffRows;
+  const staffCount = staffTotal;
   const emailValue = String(staffModal?.data?.email || "").trim();
   const emailInvalid = Boolean(emailValue) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue);
   const fieldSx = {
@@ -146,8 +215,8 @@ export default function StaffTeamPage({
           <TextField
             size="small"
             placeholder="Search by name, role, email, or phone"
-            value={staffSearch}
-            onChange={(e) => setStaffSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             sx={tableSearchSx(themeConfig)}
             slotProps={{
               input: {
@@ -163,15 +232,19 @@ export default function StaffTeamPage({
           <TextField
             select
             size="small"
-            value={staffRoleFilter || "ALL"}
-            onChange={(e) => setStaffRoleFilter(e.target.value)}
+            value={roleFilter}
+            onChange={(e) => {
+              setRoleFilter(e.target.value);
+              setPage(0);
+            }}
             sx={tableFieldSx(themeConfig, 210)}
           >
-            <MenuItem value="ALL">All roles ({staffList.length})</MenuItem>
-            <MenuItem value="RECEPTIONIST">Receptionist ({totalReceptionists})</MenuItem>
-            <MenuItem value="MANAGER">Manager ({totalManagers})</MenuItem>
-            <MenuItem value="HOUSEKEEPING">Housekeeping ({totalHousekeeping})</MenuItem>
-            <MenuItem value="ACCOUNTANT">Accountant ({totalAccountants})</MenuItem>
+            <MenuItem value="ALL">All roles ({staffTotal})</MenuItem>
+            {HOTEL_STAFF_ROLES.map((role) => (
+              <MenuItem key={role.value} value={role.value}>
+                {role.shortLabel}
+              </MenuItem>
+            ))}
           </TextField>
         </TableToolbar>
         <TableContainer sx={{ overflowX: "auto" }}>
@@ -195,7 +268,11 @@ export default function StaffTeamPage({
                   <EmptyState
                     embedded
                     title="No staff members"
-                    description={staffList.length === 0 ? "Add a staff member to start building your team." : "No staff members match this search."}
+                    description={
+                      searchQuery || roleFilter !== "ALL"
+                        ? "No staff members match this search."
+                        : "Add a staff member to start building your team."
+                    }
                   />
                 </TableCell>
               </TableRow>

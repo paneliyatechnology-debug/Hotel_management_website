@@ -249,7 +249,7 @@ export default function GuestDetailPage({
     .filter(Boolean);
 
   const primaryGuestFromList = normalizedGuests.find((p) => p.display_order === 1)?.name;
-  const guestName =
+  const primaryGuestName =
     String(
       b.primary_guest_name ||
       primaryGuestFromList ||
@@ -260,11 +260,23 @@ export default function GuestDetailPage({
       "Guest"
     ).trim();
 
-  // Co-guests: exclude primary guest (display_order: 1 or matching name)
-  const coGuestsList = normalizedGuests
-    .filter((p) => p.display_order !== 1 && p.name.toLowerCase() !== guestName.toLowerCase())
-    .map((p) => p.name);
+  const guestName = primaryGuestName;
+
+  // Complete list of all guest names from guests array + primary_guest_name
+  const allGuestNames = (() => {
+    const list = normalizedGuests.map((p) => p.name);
+    if (!list.some((n) => n.toLowerCase() === primaryGuestName.toLowerCase()) && primaryGuestName && primaryGuestName !== "Guest") {
+      return [primaryGuestName, ...list];
+    }
+    return list.length > 0 ? list : [primaryGuestName];
+  })();
+
+  // Co-guests: exclude primary guest
+  const coGuestsList = allGuestNames.filter(
+    (name) => name.toLowerCase() !== primaryGuestName.toLowerCase()
+  );
   const coGuestsLabel = coGuestsList.join(", ");
+  const allGuestsLabel = allGuestNames.join(", ");
 
   const guestPhone =
     g.phone ||
@@ -599,27 +611,55 @@ export default function GuestDetailPage({
                 {guestName ? guestName.charAt(0).toUpperCase() : "G"}
               </Avatar>
 
-              <Box>
+              <Box sx={{ minWidth: 0, flex: 1 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", mb: 0.5 }}>
                   <Typography variant="h5" sx={{ fontWeight: 900, color: themeConfig.textMain }}>
-                    {guestName}
+                    {primaryGuestName}
                   </Typography>
                   <StatusChip status={normalizedStatus} />
-                  {coGuestsList.length > 0 && (
-                    <Chip
-                      icon={<Group sx={{ fontSize: "14px !important", color: `${themeConfig.primary} !important` }} />}
-                      label={`+${coGuestsList.length} guest${coGuestsList.length > 1 ? "s" : ""}`}
-                      size="small"
+                </Box>
+
+                {/* All Guest Names Array Display List in Top Header */}
+                {allGuestNames.length > 1 && (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap", mt: 0.5, mb: 0.25 }}>
+                    <Typography
+                      variant="caption"
                       sx={{
                         fontWeight: 700,
+                        color: themeConfig.textMuted,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 0.5,
                         fontSize: "0.75rem",
-                        bgcolor: isDarkMode ? "rgba(16, 185, 129, 0.16)" : "#ECFDF5",
-                        color: themeConfig.primary,
-                        border: `1px solid ${isDarkMode ? "rgba(16, 185, 129, 0.3)" : "#A7F3D0"}`,
                       }}
-                    />
-                  )}
-                </Box>
+                    >
+                      <Group sx={{ fontSize: 15, color: themeConfig.primary }} /> All Guests ({allGuestNames.length}):
+                    </Typography>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.6, flexWrap: "wrap" }}>
+                      {allGuestNames.map((name, i) => {
+                        const isPrimary = name.toLowerCase() === primaryGuestName.toLowerCase();
+                        return (
+                          <Chip
+                            key={`header-guest-${i}`}
+                            icon={<Person sx={{ fontSize: "13px !important", color: isPrimary ? `${themeConfig.primary} !important` : "inherit !important" }} />}
+                            label={isPrimary ? `${name} (Lead)` : name}
+                            size="small"
+                            sx={{
+                              height: 24,
+                              fontWeight: isPrimary ? 800 : 600,
+                              fontSize: "0.76rem",
+                              bgcolor: isPrimary
+                                ? (isDarkMode ? "rgba(16, 185, 129, 0.18)" : "#ECFDF5")
+                                : (isDarkMode ? "rgba(255, 255, 255, 0.05)" : "#F1F5F9"),
+                              color: isPrimary ? themeConfig.primary : themeConfig.textMain,
+                              border: `1px solid ${isPrimary ? (isDarkMode ? "rgba(16, 185, 129, 0.35)" : "#A7F3D0") : themeConfig.border}`,
+                            }}
+                          />
+                        );
+                      })}
+                    </Box>
+                  </Box>
+                )}
 
                 <Box sx={{ display: "flex", alignItems: "center", gap: 2.5, flexWrap: "wrap", mt: 1 }}>
                   {guestPhone && (

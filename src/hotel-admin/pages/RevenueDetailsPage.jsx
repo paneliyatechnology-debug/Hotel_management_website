@@ -38,6 +38,7 @@ import {
   TrendingUp,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
+import { useSocket } from "@/shared/context/SocketContext";
 import {
   paymentMethodLabel,
   useHotelPaymentMethods,

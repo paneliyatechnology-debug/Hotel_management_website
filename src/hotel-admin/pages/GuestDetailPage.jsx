@@ -448,23 +448,44 @@ export default function GuestDetailPage({
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
-          <Button
-            variant="outlined"
-            size={embedded ? "small" : "medium"}
-            onClick={onBack}
-            startIcon={<ArrowBack />}
-            sx={{
-              borderRadius: "10px",
-              textTransform: "none",
-              fontWeight: 700,
-              color: themeConfig.textMain,
-              borderColor: themeConfig.border,
-              flexShrink: 0,
-              "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
-            }}
-          >
-            {embedded ? "Close" : "Back to Guest List"}
-          </Button>
+          {embedded ? (
+            <Tooltip title="Close">
+              <IconButton
+                size="small"
+                onClick={onBack}
+                aria-label="Close"
+                sx={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: "10px",
+                  border: `1px solid ${themeConfig.border}`,
+                  color: themeConfig.textMain,
+                  flexShrink: 0,
+                  "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
+                }}
+              >
+                <ArrowBack fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          ) : (
+            <Button
+              variant="outlined"
+              size="medium"
+              onClick={onBack}
+              startIcon={<ArrowBack />}
+              sx={{
+                borderRadius: "10px",
+                textTransform: "none",
+                fontWeight: 700,
+                color: themeConfig.textMain,
+                borderColor: themeConfig.border,
+                flexShrink: 0,
+                "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
+              }}
+            >
+              Back to Guest List
+            </Button>
+          )}
           {!embedded && (
             <>
               <Divider orientation="vertical" flexItem sx={{ display: { xs: "none", sm: "block" } }} />
@@ -878,18 +899,6 @@ export default function GuestDetailPage({
                     <Typography variant="body2" sx={{ fontWeight: 700, color: themeConfig.textMain }}>
                       {formatDate(b.created_at || b.createdAt || checkInDate)}
                     </Typography>
-                  </Box>
-                  <Divider />
-
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                      Payment Method
-                    </Typography>
-                    <Chip
-                      size="small"
-                      label={b.payment_method || b.paymentMethod || "CASH"}
-                      sx={{ fontWeight: 800, textTransform: "uppercase" }}
-                    />
                   </Box>
                   <Divider />
 

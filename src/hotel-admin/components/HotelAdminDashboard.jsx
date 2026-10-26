@@ -596,9 +596,16 @@ export default function HotelAdminDashboard({ user, activeNav = 0, navClick = nu
         body: { status: newStatus },
       });
       await reloadRoomsList();
-      showToast(`Room ${room.roomNumber} is now ${newStatus}.`);
+      const num = room.roomNumber || room.room_number || "";
+      const label =
+        newStatus === "AVAILABLE" ? "Available" :
+        newStatus === "CLEANING" ? "Cleaning" :
+        newStatus === "MAINTENANCE" ? "Maintenance" :
+        newStatus === "BLOCKED" ? "Blocked" : newStatus;
+      showToast(`Room ${num} is now ${label}.`);
     } catch (err) {
       showToast(err.message || "Failed to update room status", "error");
+      throw err;
     }
   };
 

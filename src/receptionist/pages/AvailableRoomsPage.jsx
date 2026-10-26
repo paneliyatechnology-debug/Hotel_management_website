@@ -1325,26 +1325,6 @@ export default function AvailableRoomsPage({
                           >
                             {statusMeta.label}
                           </Box>
-                          {isAvail && (
-                            <IconButton
-                              size="small"
-                              aria-label="Room options"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenRoomMenu(e, room);
-                              }}
-                              sx={{
-                                p: 0.5,
-                                color: themeConfig.textMuted,
-                                "&:hover": {
-                                  color: themeConfig.textMain,
-                                  bgcolor: isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)",
-                                },
-                              }}
-                            >
-                              <MoreVert sx={{ fontSize: 18 }} />
-                            </IconButton>
-                          )}
                         </Box>
                       </Box>
 

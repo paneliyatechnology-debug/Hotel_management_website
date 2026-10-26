@@ -649,11 +649,6 @@ export default function GuestListPage({
                           <Typography sx={{ fontWeight: 800, color: themeConfig.textMain, fontSize: "0.9rem", lineHeight: 1.2 }}>
                             {g.guestName}
                           </Typography>
-                          {g.extraGuestsLabel && (
-                            <Typography variant="caption" sx={{ color: themeConfig.primary, fontWeight: 700, display: "block", fontSize: "0.74rem" }}>
-                              + {g.extraGuestsLabel}
-                            </Typography>
-                          )}
                           <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 600 }}>
                             {g.phone || g.bookingNumber || "—"}
                           </Typography>

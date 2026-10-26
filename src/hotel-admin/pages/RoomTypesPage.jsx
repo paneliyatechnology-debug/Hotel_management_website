@@ -22,8 +22,10 @@ import {
   TableHead,
   TableRow,
   CircularProgress,
+  Menu,
 } from "@mui/material";
 import { AppDialogHeader, AppDialogFooter, dialogPaperSx, dialogCancelButtonSx, dialogPrimaryButtonSx } from "@/shared/components/AppDialog";
+import ConfirmDialog from "@/shared/components/ConfirmDialog";
 import {
   Add,
   ArrowBack,
@@ -49,6 +51,10 @@ import {
   Remove,
   Close,
   Logout,
+  MoreVert,
+  CleaningServices,
+  Build,
+  Block,
 } from "@/shared/icons";
 
 const CATEGORY_STATUSES = [
@@ -309,6 +315,15 @@ export default function RoomTypesPage({
   const [checkoutTarget, setCheckoutTarget] = useState(null);
   const [busyRoomId, setBusyRoomId] = useState("");
   const [liveRoomTypes, setLiveRoomTypes] = useState(null);
+  const [roomMenuAnchor, setRoomMenuAnchor] = useState(null);
+  const [roomMenuTarget, setRoomMenuTarget] = useState(null);
+  const [confirmStatusModal, setConfirmStatusModal] = useState({
+    open: false,
+    room: null,
+    targetStatus: "",
+    targetLabel: "",
+    loading: false,
+  });
 
   // Clicking "Rooms & Tariffs" in the sidebar always lands on the category list, not an opened category
   useEffect(() => {
@@ -560,15 +575,100 @@ export default function RoomTypesPage({
     toast.show(res.message || "Booking checked out successfully! Room marked for cleaning.", "success");
   };
 
+  const handleOpenRoomMenu = (event, room) => {
+    event.stopPropagation();
+    setRoomMenuAnchor(event.currentTarget);
+    setRoomMenuTarget(room);
+  };
+
+  const handleCloseRoomMenu = () => {
+    setRoomMenuAnchor(null);
+    setRoomMenuTarget(null);
+  };
+
+  const handleSelectStatusAction = (targetStatus, targetLabel) => {
+    const room = roomMenuTarget;
+    handleCloseRoomMenu();
+    if (!room) return;
+    setConfirmStatusModal({
+      open: true,
+      room,
+      targetStatus,
+      targetLabel,
+      loading: false,
+    });
+  };
+
+  const handleConfirmStatusChange = async () => {
+    const { room, targetStatus, targetLabel } = confirmStatusModal;
+    if (!room || !targetStatus) return;
+    const roomId = room._id || room.id;
+    const roomNumber = room.roomNumber || room.room_number || "";
+
+    setConfirmStatusModal((prev) => ({ ...prev, loading: true }));
+    try {
+      if (typeof onUpdateRoomStatus === "function") {
+        await onUpdateRoomStatus(room, targetStatus);
+      } else {
+        await apiRequest(API_ENDPOINTS.HOTEL_ADMIN.UPDATE_ROOM_STATUS(roomId), {
+          method: "PATCH",
+          body: { status: targetStatus },
+        });
+        toast.show(`Room ${roomNumber} marked as ${targetLabel}!`, "success");
+      }
+
+      setServerRooms((prev) => {
+        if (!prev || !prev.list) return prev;
+        return {
+          ...prev,
+          list: prev.list.map((r) =>
+            String(r._id || r.id) === String(roomId)
+              ? {
+                  ...r,
+                  status: targetStatus,
+                  is_available: targetStatus === "AVAILABLE",
+                  isAvailable: targetStatus === "AVAILABLE",
+                }
+              : r
+          ),
+        };
+      });
+
+      setConfirmStatusModal({
+        open: false,
+        room: null,
+        targetStatus: "",
+        targetLabel: "",
+        loading: false,
+      });
+      setLiveTick((t) => t + 1);
+    } catch (err) {
+      toast.show(err?.message || `Failed to update Room ${roomNumber} status`, "error");
+      setConfirmStatusModal((prev) => ({ ...prev, loading: false }));
+    }
+  };
+
   const handleMarkAvailable = async (room) => {
     if (!onUpdateRoomStatus) return;
     const id = String(room?._id || room?.id || "");
+    const roomNumber = room?.roomNumber || room?.room_number || "";
     try {
       setBusyRoomId(id);
       await onUpdateRoomStatus(room, "AVAILABLE");
+      setServerRooms((prev) => {
+        if (!prev || !prev.list) return prev;
+        return {
+          ...prev,
+          list: prev.list.map((r) =>
+            String(r._id || r.id) === id
+              ? { ...r, status: "AVAILABLE", is_available: true, isAvailable: true }
+              : r
+          ),
+        };
+      });
       setLiveTick((t) => t + 1);
     } catch (err) {
-      toast.show(err?.message || "Failed to mark room available", "error");
+      toast.show(err?.message || `Failed to mark Room ${roomNumber} available`, "error");
     } finally {
       setBusyRoomId("");
     }
@@ -1050,6 +1150,20 @@ export default function RoomTypesPage({
                           </TableCell>
                           <TableCell align="right">
                             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.25 }}>
+                              <Tooltip title="Edit">
+                                <IconButton size="small" onClick={() => openEditRoom(room)} sx={actionSx}>
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Remove">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => onDeleteRoom && onDeleteRoom(room)}
+                                  sx={{ ...actionSx, "&:hover": { bgcolor: themeConfig.dangerBg, color: themeConfig.danger } }}
+                                >
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
                               {(statusKey === "OCCUPIED" || statusKey === "RESERVED" || statusKey === "BOOKED") && (
                                 <Tooltip title="Check-Out">
                                   <IconButton
@@ -1069,7 +1183,7 @@ export default function RoomTypesPage({
                                   </IconButton>
                                 </Tooltip>
                               )}
-                              {statusKey === "CLEANING" && typeof onUpdateRoomStatus === "function" && (
+                              {(statusKey === "CLEANING" || statusKey === "MAINTENANCE" || statusKey === "BLOCKED") && typeof onUpdateRoomStatus === "function" && (
                                 <Tooltip title="Mark available">
                                   <span>
                                     <IconButton
@@ -1091,20 +1205,18 @@ export default function RoomTypesPage({
                                   </span>
                                 </Tooltip>
                               )}
-                              <Tooltip title="Edit">
-                                <IconButton size="small" onClick={() => openEditRoom(room)} sx={actionSx}>
-                                  <Edit fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Remove">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => onDeleteRoom && onDeleteRoom(room)}
-                                  sx={{ ...actionSx, "&:hover": { bgcolor: themeConfig.dangerBg, color: themeConfig.danger } }}
-                                >
-                                  <Delete fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
+                              {statusKey === "AVAILABLE" && (
+                                <Tooltip title="Change status">
+                                  <IconButton
+                                    size="small"
+                                    aria-label="Change status"
+                                    onClick={(e) => handleOpenRoomMenu(e, room)}
+                                    sx={actionSx}
+                                  >
+                                    <MoreVert fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
                             </Box>
                           </TableCell>
                         </TableRow>
@@ -1885,6 +1997,93 @@ export default function RoomTypesPage({
         onDone={() => {
           setCheckoutTarget(null);
           setLiveTick((t) => t + 1);
+        }}
+      />
+
+      {/* 3-Dot Status Menu for Available Rooms */}
+      <Menu
+        anchorEl={roomMenuAnchor}
+        open={Boolean(roomMenuAnchor)}
+        onClose={handleCloseRoomMenu}
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: "14px",
+              minWidth: 200,
+              py: 0.5,
+              bgcolor: isDarkMode ? themeConfig.bgCard : "#FFFFFF",
+              border: `1px solid ${themeConfig.border}`,
+              boxShadow: isDarkMode
+                ? "0 10px 30px rgba(0,0,0,0.5)"
+                : "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+            },
+          },
+        }}
+        transformOrigin={{ horizontal: "right", vertical: "top" }}
+        anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+      >
+        <MenuItem
+          onClick={() => handleSelectStatusAction("CLEANING", "Cleaning")}
+          sx={{
+            gap: 1.5,
+            py: 1,
+            px: 2,
+            fontSize: "0.85rem",
+            fontWeight: 600,
+            color: themeConfig.textMain,
+            "&:hover": { bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)" },
+          }}
+        >
+          <CleaningServices sx={{ fontSize: 18, color: themeConfig.textMuted }} />
+          Mark as Cleaning
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleSelectStatusAction("MAINTENANCE", "Maintenance")}
+          sx={{
+            gap: 1.5,
+            py: 1,
+            px: 2,
+            fontSize: "0.85rem",
+            fontWeight: 600,
+            color: themeConfig.textMain,
+            "&:hover": { bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)" },
+          }}
+        >
+          <Build sx={{ fontSize: 18, color: themeConfig.textMuted }} />
+          Mark as Maintenance
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleSelectStatusAction("BLOCKED", "Blocked")}
+          sx={{
+            gap: 1.5,
+            py: 1,
+            px: 2,
+            fontSize: "0.85rem",
+            fontWeight: 600,
+            color: themeConfig.textMain,
+            "&:hover": { bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)" },
+          }}
+        >
+          <Block sx={{ fontSize: 18, color: themeConfig.textMuted }} />
+          Mark as Blocked
+        </MenuItem>
+      </Menu>
+
+      {/* Confirmation Dialog for Room Status Changes */}
+      <ConfirmDialog
+        open={confirmStatusModal.open}
+        section="Room Status Update"
+        title={`Mark Room ${confirmStatusModal.room?.roomNumber || confirmStatusModal.room?.room_number || ""} as ${confirmStatusModal.targetLabel}?`}
+        message={`Are you sure you want to change Room ${confirmStatusModal.room?.roomNumber || confirmStatusModal.room?.room_number || ""} status to "${confirmStatusModal.targetLabel}"?`}
+        confirmLabel={`Mark as ${confirmStatusModal.targetLabel}`}
+        cancelLabel="Cancel"
+        isDanger={confirmStatusModal.targetStatus === "BLOCKED" || confirmStatusModal.targetStatus === "MAINTENANCE"}
+        loading={confirmStatusModal.loading}
+        onConfirm={handleConfirmStatusChange}
+        onClose={() => {
+          if (!confirmStatusModal.loading) {
+            setConfirmStatusModal({ open: false, room: null, targetStatus: "", targetLabel: "", loading: false });
+          }
         }}
       />
     </Box>

@@ -1308,7 +1308,7 @@ export default function AvailableRoomsPage({
                             </Box>
                           </Box>
                         </Box>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexShrink: 0 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
                           <Box
                             sx={{
                               flexShrink: 0,
@@ -1325,6 +1325,28 @@ export default function AvailableRoomsPage({
                           >
                             {statusMeta.label}
                           </Box>
+                          {isAvail && (
+                            <Tooltip title="Change status">
+                              <IconButton
+                                size="small"
+                                aria-label="Change status"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenRoomMenu(e, room);
+                                }}
+                                sx={{
+                                  p: 0.5,
+                                  color: themeConfig.textMuted,
+                                  "&:hover": {
+                                    color: themeConfig.textMain,
+                                    bgcolor: isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)",
+                                  },
+                                }}
+                              >
+                                <MoreVert sx={{ fontSize: 18 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
                         </Box>
                       </Box>
 

@@ -202,8 +202,6 @@ export default function GuestListPage({
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
-  const [paymentFilter, setPaymentFilter] = useState("ALL");
-  const [sortBy, setSortBy] = useState("NEWEST");
 
   // Pagination
   const [page, setPage] = useState(0);
@@ -366,9 +364,7 @@ export default function GuestListPage({
         limit: String(rowsPerPage),
       });
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
-      if (statusFilter !== "ALL") params.set("status", statusFilter);
-      if (paymentFilter !== "ALL") params.set("payment_status", paymentFilter);
-      if (sortBy && sortBy !== "NEWEST") params.set("sort", sortBy);
+      if (statusFilter !== "ALL") params.set("booking_status", statusFilter);
       try {
         const res = await apiRequest(`${API_ENDPOINTS.BOOKINGS.ALL}?${params.toString()}`, {
           forceRefresh: true,
@@ -399,7 +395,7 @@ export default function GuestListPage({
     return () => {
       cancelled = true;
     };
-  }, [searchQuery, statusFilter, paymentFilter, sortBy, page, rowsPerPage, liveTick]);
+  }, [searchQuery, statusFilter, page, rowsPerPage, liveTick]);
 
   const withApiStay = (g) => {
     const d = bookingDetails[g.id] || bookingDetails[String(g.id)] || bookingDetails[String(g._id)];
@@ -568,39 +564,6 @@ export default function GuestListPage({
             <MenuItem value="ALL">All statuses</MenuItem>
             <MenuItem value="CHECKED_IN">Checked in</MenuItem>
             <MenuItem value="CHECKED_OUT">Checked out</MenuItem>
-            <MenuItem value="CONFIRMED">Upcoming</MenuItem>
-            <MenuItem value="CANCELLED">Cancelled</MenuItem>
-          </TextField>
-          <TextField
-            select
-            size="small"
-            value={paymentFilter}
-            onChange={(e) => {
-              setPaymentFilter(e.target.value);
-              setPage(0);
-            }}
-            sx={tableFieldSx(themeConfig, 170)}
-          >
-            <MenuItem value="ALL">All payments</MenuItem>
-            <MenuItem value="PAID">Paid</MenuItem>
-            <MenuItem value="PARTIAL">Partial</MenuItem>
-            <MenuItem value="UNPAID">Unpaid</MenuItem>
-          </TextField>
-          <TextField
-            select
-            size="small"
-            value={sortBy}
-            onChange={(e) => {
-              setSortBy(e.target.value);
-              setPage(0);
-            }}
-            sx={tableFieldSx(themeConfig, 170)}
-          >
-            <MenuItem value="NEWEST">Newest stay</MenuItem>
-            <MenuItem value="OLDEST">Oldest stay</MenuItem>
-            <MenuItem value="NAME_ASC">Name (A-Z)</MenuItem>
-            <MenuItem value="AMOUNT_DESC">Highest tariff</MenuItem>
-            <MenuItem value="DUE_DESC">Highest due</MenuItem>
           </TextField>
         </TableToolbar>
 

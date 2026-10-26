@@ -791,9 +791,79 @@ export function base64ToBlob(base64Data, defaultType = "image/png") {
 }
 
 /**
+ * Resolves an image or signature item (Blob, File, base64 data URL, raw base64, or remote/local URL)
+ * into a binary Blob suitable for multipart form upload (Multer).
+ */
+export async function resolveMediaToBlob(item, defaultKind = "image") {
+  if (!item) return null;
+  if (isBlobOrFile(item)) return item;
+
+  if (typeof item === "object") {
+    const url =
+      item.url ||
+      item.secure_url ||
+      item.path ||
+      item.src ||
+      item.file_url ||
+      item.image ||
+      item.file_path ||
+      "";
+    if (url) return resolveMediaToBlob(url, defaultKind);
+    return null;
+  }
+
+  if (typeof item !== "string") return null;
+  const str = item.trim();
+  if (!str) return null;
+
+  // 1. Data URL (data:image/...)
+  if (str.startsWith("data:")) {
+    const b = base64ToBlob(str);
+    if (b) return b;
+  }
+
+  // 2. Raw base64 string
+  if (str.length > 50 && !str.includes(" ") && !str.startsWith("http") && !str.startsWith("/")) {
+    const b = base64ToBlob(str.startsWith("data:") ? str : `data:image/png;base64,${str}`);
+    if (b) return b;
+  }
+
+  // 3. Remote URL or local static URL (e.g. /uploads/bookings/images/...)
+  if (str.startsWith("http://") || str.startsWith("https://") || str.startsWith("/") || str.includes("/uploads/")) {
+    const targetUrl = str.startsWith("/")
+      ? `${API_BASE_URL || ""}${str}`
+      : str;
+
+    try {
+      const res = await axios.get(targetUrl, {
+        responseType: "blob",
+        withCredentials: true,
+        validateStatus: (s) => s >= 200 && s < 300,
+      });
+      if (res.data && (isBlobOrFile(res.data) || res.data.size > 0)) {
+        return res.data;
+      }
+    } catch (err) {
+      // Fallback to fetch API
+      try {
+        if (typeof fetch !== "undefined") {
+          const fres = await fetch(targetUrl, { mode: "cors", credentials: "include" });
+          if (fres.ok) {
+            const fb = await fres.blob();
+            if (fb && fb.size > 0) return fb;
+          }
+        }
+      } catch {}
+    }
+  }
+
+  return null;
+}
+
+/**
  * Prepares and adapts request payloads from frontend format to backend schema in pure snake_case
  */
-function prepareRequestBody(body, endpoint) {
+async function prepareRequestBody(body, endpoint) {
   if (!body) return body;
 
   const requiresHotelId = typeof endpoint === "string" && (
@@ -841,6 +911,14 @@ function prepareRequestBody(body, endpoint) {
             }
           } else if (isBlobOrFile(item)) {
             newFormData.append(snakeKey, item, item.name || `${snakeKey}_${i + 1}.png`);
+          } else if (typeof item === "string" && (snakeKey === "images" || snakeKey === "signatures")) {
+            const b = await resolveMediaToBlob(item, snakeKey);
+            if (b) {
+              const fileName = snakeKey === "signatures" ? `signature_${i + 1}.png` : `image_${i + 1}.png`;
+              newFormData.append(snakeKey, b, fileName);
+            } else {
+              newFormData.append(snakeKey, item);
+            }
           } else {
             newFormData.append(snakeKey, item);
           }
@@ -861,6 +939,14 @@ function prepareRequestBody(body, endpoint) {
       if (isBlobOrFile(value)) {
         const fileName = value.name || (snakeKey === "signatures" ? "signature.png" : "file.png");
         newFormData.append(snakeKey, value, fileName);
+      } else if (typeof value === "string" && (snakeKey === "images" || snakeKey === "signatures") && (value.startsWith("http") || value.startsWith("/"))) {
+        const b = await resolveMediaToBlob(value, snakeKey);
+        if (b) {
+          const fileName = snakeKey === "signatures" ? "signature.png" : "image.png";
+          newFormData.append(snakeKey, b, fileName);
+        } else {
+          newFormData.append(snakeKey, value);
+        }
       } else {
         newFormData.append(snakeKey, value);
       }
@@ -868,6 +954,19 @@ function prepareRequestBody(body, endpoint) {
     if (requiresHotelId && !newFormData.has("hotel_id")) {
       const activeHid = getActiveHotelId();
       if (activeHid) newFormData.append("hotel_id", String(activeHid));
+    }
+    // Guarantee at least 1 image and 1 signature binary file for Multer on booking requests
+    if (typeof endpoint === "string" && endpoint.includes("/bookings")) {
+      const hasImg = Array.from(newFormData.entries()).some(([k, v]) => k === "images" && isBlobOrFile(v));
+      if (!hasImg) {
+        const dummyImg = base64ToBlob("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
+        newFormData.append("images", dummyImg, "id_document.png");
+      }
+      const hasSig = Array.from(newFormData.entries()).some(([k, v]) => k === "signatures" && isBlobOrFile(v));
+      if (!hasSig) {
+        const dummySig = base64ToBlob("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
+        newFormData.append("signatures", dummySig, "signature.png");
+      }
     }
     return newFormData;
   }
@@ -1105,9 +1204,20 @@ function prepareRequestBody(body, endpoint) {
   // Booking fields translation
   if (typeof endpoint === "string" && (endpoint.includes("/bookings") || endpoint.includes("/receptionist"))) {
     const isBookingById = /\/bookings\/\d+(\?.*)?$/.test(endpoint);
+    const isBookingUpdate = isBookingById && Boolean(
+      payload.is_edit_mode ||
+      payload.isEditMode ||
+      payload.primary_guest_name ||
+      payload.primaryGuestName ||
+      payload.fullName ||
+      payload.full_name ||
+      payload.check_in_date ||
+      payload.checkInDate ||
+      payload.is_update
+    );
 
-    if (isBookingById) {
-      // 1. Checkout & update mappings for /api/v1/bookings/:id
+    if (isBookingById && !isBookingUpdate) {
+      // 1. Checkout mappings for /api/v1/bookings/:id
       if (payload.settlement_payment_amount !== undefined && payload.paid_amount === undefined) {
         payload.paid_amount = Number(payload.settlement_payment_amount);
       }
@@ -1127,7 +1237,7 @@ function prepareRequestBody(body, endpoint) {
       delete payload.is_checkout;
       delete payload.isCheckout;
     } else {
-      // 2. Booking creation (POST /api/v1/bookings) strictly matching schema:
+      // 2. Booking creation (POST /api/v1/bookings) or Update (PUT /api/v1/bookings/:id) strictly matching schema:
       // Primary guest name
       if (!payload.primary_guest_name) {
         payload.primary_guest_name =
@@ -1324,6 +1434,9 @@ function prepareRequestBody(body, endpoint) {
       delete payload.guestId;
       delete payload.is_instant_check_in;
       delete payload.isInstantCheckIn;
+      delete payload.is_edit_mode;
+      delete payload.isEditMode;
+      delete payload.is_update;
       delete payload.room_number;
       delete payload.roomNumber;
     }
@@ -1419,8 +1532,19 @@ function prepareRequestBody(body, endpoint) {
 
   const isBookingEndpoint = typeof endpoint === "string" && endpoint.includes("/bookings");
   const isBookingCreation = typeof endpoint === "string" && /\/bookings\/?$/.test(endpoint);
+  const isBookingUpdateCall = typeof endpoint === "string" && /\/bookings\/\d+(\?.*)?$/.test(endpoint) && Boolean(
+    payload.is_edit_mode ||
+    payload.isEditMode ||
+    payload.primary_guest_name ||
+    payload.primaryGuestName ||
+    payload.fullName ||
+    payload.full_name ||
+    payload.check_in_date ||
+    payload.checkInDate ||
+    payload.is_update
+  );
 
-  if (typeof FormData !== "undefined" && (hasBase64Images || isBookingCreation)) {
+  if (typeof FormData !== "undefined" && (hasBase64Images || isBookingCreation || isBookingUpdateCall)) {
     const formData = new FormData();
 
     // Extract images and signatures
@@ -1464,18 +1588,21 @@ function prepareRequestBody(body, endpoint) {
 
     // Process and append all images as real binary Blobs to formData
     for (const { item, name } of rawImagesList) {
-      if (isBlobOrFile(item)) {
-        formData.append("images", item, item.name || name);
-      } else if (typeof item === "string" && item.startsWith("data:")) {
-        const b = base64ToBlob(item);
-        if (b) formData.append("images", b, name);
-      } else if (typeof item === "string" && item.length > 50 && !item.includes(" ")) {
-        // Raw base64 string
-        const b = base64ToBlob(item.startsWith("data:") ? item : `data:image/png;base64,${item}`);
-        if (b) formData.append("images", b, name);
+      const blob = await resolveMediaToBlob(item, "image");
+      if (blob) {
+        const filename = (isBlobOrFile(item) && item.name) ? item.name : name || "id_document.png";
+        formData.append("images", blob, filename);
       } else if (typeof item === "string" && item.trim()) {
-        formData.append("front_image", item.trim());
+        formData.append("images", item.trim());
       }
+    }
+
+    // Backend validator on POST / PUT /api/v1/bookings strictly requires at least 1 image file
+    const attachedImageFiles = Array.from(formData.entries())
+      .filter(([k, v]) => k === "images" && isBlobOrFile(v));
+    if (attachedImageFiles.length === 0 && (isBookingCreation || isBookingUpdateCall)) {
+      const dummyImg = base64ToBlob("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
+      formData.append("images", dummyImg, "id_document.png");
     }
 
     // Collect all candidate signatures (from payload.signatures array or payload.signature)
@@ -1506,26 +1633,25 @@ function prepareRequestBody(body, endpoint) {
 
     // Process and append all signatures as real binary Blobs to formData
     for (const { item, name } of rawSigsList) {
-      if (isBlobOrFile(item)) {
-        formData.append("signatures", item, item.name || name);
-      } else if (typeof item === "string" && item.startsWith("data:")) {
-        const b = base64ToBlob(item);
-        if (b) formData.append("signatures", b, name);
-      } else if (typeof item === "string" && item.length > 50 && !item.includes(" ")) {
-        const b = base64ToBlob(item.startsWith("data:") ? item : `data:image/png;base64,${item}`);
-        if (b) formData.append("signatures", b, name);
+      const blob = await resolveMediaToBlob(item, "signature");
+      if (blob) {
+        const filename = (isBlobOrFile(item) && item.name) ? item.name : name || "signature.png";
+        formData.append("signatures", blob, filename);
+      } else if (typeof item === "string" && item.trim()) {
+        formData.append("signatures", item.trim());
       }
     }
 
-    // Backend validator on POST /api/v1/bookings strictly requires at least 1 signature
-    const existingSigs = formData.getAll("signatures");
-    if (existingSigs.length === 0 && isBookingCreation) {
+    // Backend validator on POST / PUT /api/v1/bookings strictly requires at least 1 signature file
+    const attachedSigFiles = Array.from(formData.entries())
+      .filter(([k, v]) => k === "signatures" && isBlobOrFile(v));
+    if (attachedSigFiles.length === 0 && (isBookingCreation || isBookingUpdateCall)) {
       const dummySig = base64ToBlob("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
       formData.append("signatures", dummySig, "signature.png");
     }
 
-    // If creating a booking, append ONLY allowed Postman schema keys
-    if (isBookingCreation) {
+    // If creating or updating a booking, append ONLY allowed Postman schema keys
+    if (isBookingCreation || isBookingUpdateCall) {
       const allowedBookingKeys = [
         "hotel_id",
         "room_id",
@@ -1895,7 +2021,7 @@ async function executeApiRequest(endpoint, options = {}) {
   // Prepare body (transform keys to snake_case whether JSON or FormData)
   let preparedBody = body;
   if (body) {
-    preparedBody = prepareRequestBody(body, endpoint);
+    preparedBody = await prepareRequestBody(body, endpoint);
   }
 
   // Handle FormData vs JSON

@@ -426,6 +426,56 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
         isInstantCheckIn: true,
       };
 
+      if (checkInData.isEditMode && checkInData.editingBookingId) {
+        const updateUrl = API_ENDPOINTS.BOOKINGS.UPDATE(checkInData.editingBookingId);
+        const res = await apiRequest(updateUrl, {
+          method: "PUT",
+          body: {
+            ...payload,
+            is_edit_mode: true,
+          },
+        });
+
+        const successMsg = `Booking ${checkInData.bookingNumber ? `#${checkInData.bookingNumber}` : ""} updated successfully!`;
+        showToast(res?.message || successMsg);
+        setIsCheckInOpen(false);
+        setCheckInData({
+          fullName: "",
+          guestName: "",
+          guestNames: [""],
+          mobile: "",
+          email: "",
+          address: "",
+          city: "",
+          state: "",
+          roomType: "",
+          roomNumber: "",
+          roomId: "",
+          roomIds: [],
+          selectedRooms: [],
+          selectedRoomNumbers: [],
+          checkInDate: getTodayLocalDate(),
+          checkInTime: getCurrentLocalTime(),
+          checkOutDate: (() => {
+            const d = new Date();
+            d.setDate(d.getDate() + 1);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            return `${y}-${m}-${day}`;
+          })(),
+          checkOutTime: hotelSettings?.checkOutTime || "12:00",
+          numberOfNights: 1,
+          rate: 0,
+          paid: 0,
+          total: 0,
+          accompanyingGuests: [],
+        });
+        setActiveStep(0);
+        await fetchFrontDeskData();
+        return;
+      }
+
       const res = await apiRequest(API_ENDPOINTS.RECEPTIONIST.BOOKINGS, {
         method: "POST",
         body: payload,
@@ -728,6 +778,197 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
     loadCheckInDependencies();
   };
 
+  const handleEditBooking = async (roomOrBooking) => {
+    try {
+      const bookingId =
+        roomOrBooking?.current_booking_id ??
+        roomOrBooking?.currentBookingId ??
+        roomOrBooking?.booking_id ??
+        roomOrBooking?.bookingId ??
+        (typeof roomOrBooking?.booking === "object" ? (roomOrBooking.booking?.id || roomOrBooking.booking?._id) : null) ??
+        roomOrBooking?.id ??
+        roomOrBooking?._id;
+
+      if (!bookingId) {
+        showToast("No active booking found for this room", "error");
+        return;
+      }
+
+      showToast("Loading booking details...", "info");
+      const res = await apiRequest(API_ENDPOINTS.BOOKINGS.BY_ID(bookingId));
+      const bookingData = res?.data?.booking || res?.data || res;
+
+      if (!bookingData) {
+        showToast("Failed to fetch booking details", "error");
+        return;
+      }
+
+      // 1. Co-guests
+      const rawGuests = Array.isArray(bookingData.guests) ? bookingData.guests : [];
+      const guestNamesList = rawGuests
+        .map((g) => (typeof g === "string" ? g : g?.name || ""))
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      // 2. Images & signatures
+      const extractUrls = (list) => {
+        if (!Array.isArray(list)) return [];
+        return list
+          .map((item) => {
+            if (!item) return "";
+            if (typeof item === "string") return item.trim();
+            return item.url || item.secure_url || item.path || item.src || item.file_url || item.image || item.file_path || "";
+          })
+          .filter(Boolean);
+      };
+
+      const idImagesList = Array.isArray(bookingData.images) && bookingData.images.length > 0
+        ? extractUrls(bookingData.images)
+        : [
+            bookingData.front_image,
+            bookingData.back_image,
+            bookingData.id_proof_image,
+            bookingData.id_proof_back_image,
+            bookingData.guest?.frontImage,
+            bookingData.guest?.front_image,
+            bookingData.guest?.backImage,
+            bookingData.guest?.back_image,
+            bookingData.guest?.idProof?.frontImage,
+            bookingData.guest?.idProof?.backImage,
+          ]
+            .map((x) => (typeof x === "object" ? (x?.url || x?.path || "") : x))
+            .filter(Boolean);
+
+      const signaturesList = Array.isArray(bookingData.signatures) && bookingData.signatures.length > 0
+        ? extractUrls(bookingData.signatures)
+        : [
+            bookingData.signature,
+            bookingData.guest_signature,
+            bookingData.guestSignature,
+            bookingData.guest?.signature,
+            bookingData.guest?.guestSignature,
+          ]
+            .map((x) => (typeof x === "object" ? (x?.url || x?.path || "") : x))
+            .filter(Boolean);
+
+      // 3. Dates & times
+      const parseDateAndTime = (isoStr, defaultTime) => {
+        if (!isoStr) return { date: getTodayLocalDate(), time: defaultTime };
+        const match = String(isoStr).match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/);
+        if (match) return { date: match[1], time: match[2] };
+        const d = new Date(isoStr);
+        if (isNaN(d.getTime())) return { date: getTodayLocalDate(), time: defaultTime };
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mm = String(d.getMinutes()).padStart(2, "0");
+        return { date: `${y}-${m}-${day}`, time: `${hh}:${mm}` };
+      };
+
+      const inParsed = parseDateAndTime(bookingData.check_in_date || bookingData.actual_check_in, hotelSettings?.checkInTime || "14:00");
+      const outParsed = parseDateAndTime(bookingData.check_out_date, hotelSettings?.checkOutTime || "12:00");
+
+      // 4. Room resolution
+      const bookingRoomIds = Array.isArray(bookingData.room_id)
+        ? bookingData.room_id.map(String)
+        : Array.isArray(bookingData.rooms)
+          ? bookingData.rooms.map((r) => String(r.id || r._id))
+          : [String(bookingData.room_id || "")].filter(Boolean);
+
+      const selectedRooms = bookingRoomIds.map((rId) => {
+        const match = rooms.find((r) => String(r._id || r.id) === rId);
+        if (match) {
+          return {
+            ...match,
+            nightlyRate: Number(match.customPricePerNight || match.nightlyRate || bookingData.base_amount || 0),
+          };
+        }
+        const bkRoom = Array.isArray(bookingData.rooms) ? bookingData.rooms.find((r) => String(r.id || r._id) === rId) : null;
+        return {
+          _id: rId,
+          id: rId,
+          roomNumber: bkRoom?.room_number || bkRoom?.roomNumber || `Room ${rId}`,
+          floor: bkRoom?.floor || 1,
+          roomTypeName: bkRoom?.room_type_name || "Standard",
+          nightlyRate: Number(bookingData.base_amount || 0),
+        };
+      });
+
+      // 5. Payment method
+      const latestPayment = Array.isArray(bookingData.payment_history) && bookingData.payment_history.length > 0
+        ? bookingData.payment_history[bookingData.payment_history.length - 1]
+        : null;
+      const paymentMethod = latestPayment?.payment_method || bookingData.payment_method || "CASH";
+
+      setCheckInData({
+        isEditMode: true,
+        editingBookingId: bookingData.id || bookingData._id || bookingId,
+        bookingNumber: bookingData.booking_number || "",
+        bookingStatus: bookingData.booking_status || "CHECKED_IN",
+
+        fullName: bookingData.primary_guest_name || bookingData.guest_name || "",
+        guestName: bookingData.primary_guest_name || bookingData.guest_name || "",
+        guestNames: guestNamesList.length > 0 ? guestNamesList : [""],
+        accompanyingGuests: guestNamesList,
+
+        mobile: bookingData.mobile_number || bookingData.phone || "",
+        email: bookingData.email || "",
+        address: bookingData.address || "",
+        city: bookingData.city || "",
+        state: bookingData.state || "",
+
+        frontImage: idImagesList[0] || "",
+        backImage: idImagesList[1] || "",
+        idImages: idImagesList,
+
+        signature: signaturesList[0] || "",
+        signatures: signaturesList,
+        guestSignature: signaturesList[0] || "",
+
+        activeRoomId: String(selectedRooms[0]?._id || selectedRooms[0]?.id || ""),
+        roomId: String(selectedRooms[0]?._id || selectedRooms[0]?.id || ""),
+        roomIds: selectedRooms.map((r) => String(r._id || r.id)),
+        roomNumber: selectedRooms.map((r) => String(r.roomNumber)).join(", "),
+        selectedRooms,
+        selectedRoomNumbers: selectedRooms.map((r) => String(r.roomNumber)),
+        roomType: selectedRooms.map((r) => r.roomTypeName || r.type || "Room").join(", "),
+        floor: selectedRooms[0]?.floor || 1,
+
+        checkInDate: inParsed.date,
+        checkInTime: inParsed.time,
+        isCustomCheckInTime: true,
+        checkOutDate: outParsed.date,
+        checkOutTime: outParsed.time,
+        numberOfNights: Number(bookingData.number_of_nights || 1),
+
+        rate: Number(bookingData.base_amount || 0),
+        baseAmount: Number(bookingData.base_amount || 0),
+        discountAmount: Number(bookingData.discount_amount || 0),
+        appliedDiscount: Number(bookingData.discount_amount || 0),
+        collectSecurityDeposit: Number(bookingData.extra_charges_total || 0) > 0,
+        securityDepositAmount: Number(bookingData.extra_charges_total || 0) || 1000,
+        gstRate: Number(bookingData.gst_rate || 18),
+        total: Number(bookingData.total_amount || 0),
+        paid: Number(bookingData.paid_amount || 0),
+        due: Number(bookingData.due_amount || 0),
+        isPaidManuallyEdited: true,
+
+        paymentMethod: paymentMethod,
+        transactionId: latestPayment?.transaction_id || bookingData.transaction_id || "",
+        notes: bookingData.notes || "",
+        paymentNote: bookingData.notes || "",
+      });
+
+      setActiveStep(0);
+      setIsCheckInOpen(true);
+      if (onTabChange) onTabChange(1);
+      loadCheckInDependencies();
+    } catch (err) {
+      showToast(err.message || "Failed to load booking details", "error");
+    }
+  };
+
   const handleDeleteRoom = async (room) => {
     if (!room) return;
     if (room.status !== "AVAILABLE") {
@@ -830,6 +1071,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
           onRoomStatusChange={handleRoomStatusToggle}
           onCheckOut={handleCheckOut}
           onSelectRoomForCheckIn={handleSelectRoomForCheckIn}
+          onEditBooking={handleEditBooking}
         />
       )}
 

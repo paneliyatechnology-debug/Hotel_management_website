@@ -211,15 +211,25 @@ export default function CheckInWizardPage({
     }
 
     return rooms.filter((r) => {
-      // Exclude occupied, maintenance, blocked, inactive, or unavailable rooms
+      const isCurrentEditingRoom = Boolean(
+        checkInData.isEditMode && (
+          String(r._id || r.id) === String(checkInData.roomId) ||
+          (Array.isArray(checkInData.roomIds) && checkInData.roomIds.some((id) => String(id) === String(r._id || r.id)))
+        )
+      );
+
+      // Exclude occupied, maintenance, blocked, inactive, or unavailable rooms (unless assigned to current booking)
       if (
-        r.status === "OCCUPIED" ||
-        r.status === "MAINTENANCE" ||
-        r.status === "BLOCKED" ||
-        r.status === "OUT_OF_ORDER" ||
-        r.isActive === false ||
-        r.isAvailable === false ||
-        r.isAvailableForDates === false
+        !isCurrentEditingRoom &&
+        (
+          r.status === "OCCUPIED" ||
+          r.status === "MAINTENANCE" ||
+          r.status === "BLOCKED" ||
+          r.status === "OUT_OF_ORDER" ||
+          r.isActive === false ||
+          r.isAvailable === false ||
+          r.isAvailableForDates === false
+        )
       ) {
         return false;
       }
@@ -231,6 +241,11 @@ export default function CheckInWizardPage({
       const hasOverlap = (bookings || []).some((b) => {
         const isActive = !["CANCELLED", "CHECKED_OUT", "NO_SHOW", "VOID", "REFUNDED"].includes(b.status);
         if (!isActive) return false;
+
+        // Ignore the booking currently being edited
+        if (checkInData.isEditMode && checkInData.editingBookingId && String(b.id || b._id) === String(checkInData.editingBookingId)) {
+          return false;
+        }
 
         const bRoomId = String(b.room?._id || b.room || "");
         const bRtId = String(b.roomType?._id || b.roomType || "");
@@ -249,7 +264,7 @@ export default function CheckInWizardPage({
 
       return !hasOverlap;
     });
-  }, [rooms, bookings, checkInData.checkInDate, checkInData.checkOutDate]);
+  }, [rooms, bookings, checkInData.checkInDate, checkInData.checkOutDate, checkInData.isEditMode, checkInData.editingBookingId, checkInData.roomId, checkInData.roomIds]);
 
   // Continuous Live Clock for check-in time
   const [liveTime, setLiveTime] = useState(getCurrentLocalTime());
@@ -644,6 +659,10 @@ export default function CheckInWizardPage({
     return (bookings || []).filter((b) => {
       const isActive = b.status !== "CANCELLED" && b.status !== "CHECKED_OUT" && b.status !== "NO_SHOW" && b.status !== "VOID" && b.status !== "REFUNDED";
       if (!isActive) return false;
+      // Ignore the booking currently being edited
+      if (checkInData.isEditMode && checkInData.editingBookingId && String(b.id || b._id) === String(checkInData.editingBookingId)) {
+        return false;
+      }
       const bRoomId = String(b.room?._id || b.room || "");
       const bRtId = String(b.roomType?._id || b.roomType || "");
       const rRtId = String(room.roomType?._id || room.roomType || "");
@@ -1602,7 +1621,7 @@ export default function CheckInWizardPage({
                 minWidth: 0,
               }}
             >
-              Express check-in
+              {checkInData.isEditMode ? `Edit booking ${checkInData.bookingNumber ? `· ${checkInData.bookingNumber}` : ""}` : "Express check-in"}
             </Typography>
             {isVipGuest && (
               <Chip
@@ -2750,7 +2769,7 @@ export default function CheckInWizardPage({
                 "&:hover": { bgcolor: themeConfig.primaryDark, boxShadow: "none" },
               }}
             >
-              {isCheckInSubmitting ? "Creating booking..." : "Confirm check-in"}
+              {isCheckInSubmitting ? (checkInData.isEditMode ? "Updating booking..." : "Creating booking...") : (checkInData.isEditMode ? "Update booking" : "Confirm check-in")}
             </Button>
           )}
         </Box>

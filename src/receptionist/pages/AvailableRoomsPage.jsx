@@ -51,6 +51,7 @@ import {
   Check,
   Person,
   MoreVert,
+  Edit,
   CleaningServices,
   Build,
   Block,
@@ -118,6 +119,7 @@ export default function AvailableRoomsPage({
   onRoomStatusChange,
   onCheckOut,
   onSelectRoomForCheckIn,
+  onEditBooking,
   initialSelectedCategory = null,
   onClearInitialCategory,
   onNavigateTab,
@@ -1400,6 +1402,28 @@ export default function AvailableRoomsPage({
                           >
                             {statusMeta.label}
                           </Box>
+                          {isOcc && onEditBooking && (
+                            <Tooltip title="Edit booking">
+                              <IconButton
+                                size="small"
+                                aria-label="Edit booking"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onEditBooking(room);
+                                }}
+                                sx={{
+                                  p: 0.5,
+                                  color: themeConfig.textMuted,
+                                  "&:hover": {
+                                    color: themeConfig.primary,
+                                    bgcolor: isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)",
+                                  },
+                                }}
+                              >
+                                <Edit sx={{ fontSize: 17 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
                           {isAvail && (
                             <Tooltip title="Change status">
                               <IconButton

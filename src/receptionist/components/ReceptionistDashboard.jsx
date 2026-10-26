@@ -396,9 +396,9 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
         extra_charges_total: Number(secDepAmt) || 0,
         gst_rate: Number.isFinite(Number(checkInData.gstRate)) ? Number(checkInData.gstRate) : 18,
         paid_amount: Number(checkInData.paid) || 0,
-        payment_method: checkInData.paymentMethod || "CASH",
-        transaction_id: checkInData.transactionId || "",
-        notes: checkInData.paymentNote || `${checkInData.paymentMethod || "CASH"} advance at check-in`,
+        payment_method: Number(checkInData.paid) > 0 ? (checkInData.paymentMethod || "").trim() : "",
+        transaction_id: Number(checkInData.paid) > 0 ? (checkInData.transactionId || "").trim() : "",
+        notes: (checkInData.paymentNote || checkInData.notes || checkInData.specialRequests || "").trim(),
         // Document & Signature photos (converted to binary Blobs and sent via FormData)
         front_image: checkInData.frontImage || (checkInData.idImages && checkInData.idImages[0]) || checkInData.idProofImage || "",
         back_image: checkInData.backImage || (checkInData.idImages && checkInData.idImages[1]) || checkInData.idProofBackImage || "",

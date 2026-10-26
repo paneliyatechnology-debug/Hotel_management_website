@@ -825,26 +825,40 @@ export default function GuestDetailPage({
                     </Typography>
                   </Grid>
 
-                  <Grid size={{ xs: 12 }}>
-                    <Divider sx={{ my: 1 }} />
-                    <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
-                      Special Requests / Notes
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        fontWeight: 500,
-                        color: themeConfig.textMain,
-                        mt: 0.5,
-                        p: 1.5,
-                        borderRadius: "10px",
-                        bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#F8FAFC",
-                        border: `1px solid ${themeConfig.border}`,
-                      }}
-                    >
-                      {b.notes || b.special_requests || g.notes || "No special requests recorded for this stay."}
-                    </Typography>
-                  </Grid>
+                  {(() => {
+                    const rawNotes = String(b.notes || b.special_requests || g.notes || "").trim();
+                    const hasNotes = Boolean(
+                      rawNotes &&
+                      rawNotes !== "No special requests recorded for this stay." &&
+                      rawNotes.toLowerCase() !== "null" &&
+                      rawNotes.toLowerCase() !== "undefined" &&
+                      rawNotes.toLowerCase() !== "none" &&
+                      rawNotes !== "-"
+                    );
+                    if (!hasNotes) return null;
+                    return (
+                      <Grid size={{ xs: 12 }}>
+                        <Divider sx={{ my: 1 }} />
+                        <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700 }}>
+                          Special Requests / Notes
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            fontWeight: 500,
+                            color: themeConfig.textMain,
+                            mt: 0.5,
+                            p: 1.5,
+                            borderRadius: "10px",
+                            bgcolor: isDarkMode ? "rgba(255,255,255,0.02)" : "#F8FAFC",
+                            border: `1px solid ${themeConfig.border}`,
+                          }}
+                        >
+                          {rawNotes}
+                        </Typography>
+                      </Grid>
+                    );
+                  })()}
                 </Grid>
               </CardContent>
             </Card>

@@ -1,17 +1,17 @@
-/**
- * 🛡️ guestModalUtils.js
- * Utility helper for preparing safe guest & booking payload data for GuestDetailsModal
- */
+import { resolveBookingGuestNames } from "./guestUtils";
+
+export { resolveBookingGuestNames };
 
 export function createSafeGuestModalData(data) {
   if (!data) return null;
   try {
     const raw = typeof data === "object" ? data : {};
+    const { primaryGuestName } = resolveBookingGuestNames(raw);
     return {
       _id: raw._id || raw.id || raw.bookingId || "",
       id: raw.id || raw._id || raw.bookingId || "",
-      name: raw.name || raw.fullName || raw.guestName || raw.primary_guest_name || raw.guest?.name || raw.guest?.fullName || "Guest",
-      fullName: raw.fullName || raw.name || raw.guestName || raw.primary_guest_name || raw.guest?.name || raw.guest?.fullName || "Guest",
+      name: primaryGuestName,
+      fullName: primaryGuestName,
       phone: raw.phone || raw.mobile || raw.mobileNumber || raw.mobile_number || raw.guest?.phone || raw.guest?.mobileNumber || "",
       mobileNumber: raw.mobileNumber || raw.mobile_number || raw.mobile || raw.phone || raw.guest?.phone || raw.guest?.mobileNumber || "",
       email: raw.email || raw.guest?.email || "",

@@ -250,8 +250,8 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
         gst_amount: gstAmount,
         status: String(b.booking_status || b.status || "").toUpperCase(),
         booking_status: String(b.booking_status || b.status || "").toUpperCase(),
-        guestName: b.primary_guest_name || b.guest_name || b.guestName || (b.guest?.name || b.guest?.fullName || ""),
-        primary_guest_name: b.primary_guest_name || b.guest_name || b.guestName || "",
+        guestName: b.primary_guest_name || (Array.isArray(b.guests) && (b.guests[0]?.name || b.guests[0])) || b.guest_name || b.guestName || (b.guest?.name || b.guest?.fullName || ""),
+        primary_guest_name: b.primary_guest_name || (Array.isArray(b.guests) && (b.guests[0]?.name || b.guests[0])) || b.guest_name || b.guestName || "",
       };
     });
   };

@@ -42,6 +42,7 @@ import FolioPdfButton from "@/shared/components/FolioPdfButton";
 import RoomNumberChips from "@/shared/components/RoomNumberChips";
 import { TableCard, TableToolbar, TablePager, tableFieldSx, tableSearchSx } from "@/shared/components/DataTable";
 import CheckoutDialog from "@/receptionist/components/CheckoutDialog";
+import { resolveBookingGuestNames } from "@/shared/utils/guestUtils";
 
 function formatCurrency(val) {
   const n = Number(val);
@@ -320,29 +321,11 @@ export default function GuestListPage({
         b.roomTypeName ||
         "";
 
-      const rawGuests = Array.isArray(b.guests) ? b.guests : [];
-      const parsedGuestNames = rawGuests
-        .map((item) => {
-          if (!item) return "";
-          if (typeof item === "string") return item.trim();
-          if (typeof item === "object") return String(item.name || item.fullName || item.guest_name || "").trim();
-          return String(item).trim();
-        })
-        .filter(Boolean);
-
-      const resolvedPrimary = String(
-        b.primary_guest_name ||
-        b.guestName ||
-        b.guest?.name ||
-        b.guest?.fullName ||
-        parsedGuestNames[0] ||
-        "Guest"
-      ).trim();
-
-      const extraGuests = parsedGuestNames.filter(
-        (name) => name.toLowerCase() !== resolvedPrimary.toLowerCase()
-      );
-      const extraGuestsLabel = extraGuests.join(", ");
+      const {
+        primaryGuestName: resolvedPrimary,
+        additionalGuestsLabel: extraGuestsLabel,
+        additionalGuestsCount: extraGuestsCount,
+      } = resolveBookingGuestNames(b);
 
       items.push({
         id,
@@ -350,7 +333,7 @@ export default function GuestListPage({
         bookingNumber: b.booking_number || b.bookingNumber || "",
         guestName: resolvedPrimary,
         extraGuestsLabel,
-        extraGuestsCount: extraGuests.length,
+        extraGuestsCount,
         phone: b.mobile_number || b.phone || b.mobile || b.guest?.phone || "",
         email: b.email || b.guest?.email || "",
         roomAssigned: roomLabelFor(b, rooms),
@@ -440,7 +423,7 @@ export default function GuestListPage({
     const dueAmount = dueFromApi !== undefined && dueFromApi !== null && dueFromApi !== ""
       ? num(dueFromApi)
       : Math.max(0, totalAmount - paidAmount);
-    const guestName = firstValue(sources, ["primary_guest_name", "guest_name", "guestName", "full_name", "fullName", "name"]) || g.guestName;
+    const guestName = resolveBookingGuestNames(d || g.raw || g).primaryGuestName || firstValue(sources, ["primary_guest_name", "guest_name", "guestName", "full_name", "fullName", "name"]) || g.guestName;
     const phone = firstValue(sources, ["mobile_number", "phone", "mobile"]) || g.phone;
     const email = firstValue(sources, ["email"]) || g.email;
     const bookingNumber = firstValue(sources, ["booking_number", "bookingNumber"]) || g.bookingNumber;

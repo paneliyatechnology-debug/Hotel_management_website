@@ -60,6 +60,7 @@ import FolioPdfButton from "@/shared/components/FolioPdfButton";
 import RoomNumberChips from "@/shared/components/RoomNumberChips";
 import StatusChip from "@/shared/components/StatusChip";
 import EmptyState from "@/shared/components/EmptyState";
+import { resolveBookingGuestNames } from "@/shared/utils/guestUtils";
 
 function parseMaybeList(value) {
   if (!value) return [];
@@ -226,57 +227,13 @@ export default function GuestDetailPage({
   const b = bookingDetail || guest || {};
   const g = b.guest || b.guestData || b;
 
-  // Normalized Fields - robust parser for guests whether [{ id, name, display_order }] or [string]
-  const rawGuests = Array.isArray(b.guests) ? b.guests : Array.isArray(g.guests) ? g.guests : [];
-  const normalizedGuests = rawGuests
-    .map((item, idx) => {
-      if (!item) return null;
-      if (typeof item === "string") {
-        const name = item.trim();
-        return name ? { id: null, name, display_order: idx + 1 } : null;
-      }
-      if (typeof item === "object") {
-        const name = String(item.name || item.fullName || item.guest_name || item.guestName || "").trim();
-        if (!name) return null;
-        return {
-          id: item.id || item._id || null,
-          name,
-          display_order: item.display_order ?? item.displayOrder ?? (idx + 1),
-        };
-      }
-      return null;
-    })
-    .filter(Boolean);
-
-  const primaryGuestFromList = normalizedGuests.find((p) => p.display_order === 1)?.name;
-  const primaryGuestName =
-    String(
-      b.primary_guest_name ||
-      primaryGuestFromList ||
-      g.name ||
-      g.fullName ||
-      b.guestName ||
-      b.customer_name ||
-      "Guest"
-    ).trim();
-
+  // Resolve primary guest name & additional guests cleanly from guests array
+  const guestInfo = useMemo(() => resolveBookingGuestNames(b), [b]);
+  const primaryGuestName = guestInfo.primaryGuestName;
   const guestName = primaryGuestName;
-
-  // Complete list of all guest names from guests array + primary_guest_name
-  const allGuestNames = (() => {
-    const list = normalizedGuests.map((p) => p.name);
-    if (!list.some((n) => n.toLowerCase() === primaryGuestName.toLowerCase()) && primaryGuestName && primaryGuestName !== "Guest") {
-      return [primaryGuestName, ...list];
-    }
-    return list.length > 0 ? list : [primaryGuestName];
-  })();
-
-  // Co-guests: exclude primary guest
-  const coGuestsList = allGuestNames.filter(
-    (name) => name.toLowerCase() !== primaryGuestName.toLowerCase()
-  );
-  const coGuestsLabel = coGuestsList.join(", ");
-  const allGuestsLabel = allGuestNames.join(", ");
+  const coGuestsList = guestInfo.additionalGuests;
+  const coGuestsLabel = guestInfo.additionalGuestsLabel;
+  const allGuestNames = guestInfo.allGuestNames;
 
   const guestPhone =
     g.phone ||
@@ -618,48 +575,6 @@ export default function GuestDetailPage({
                   </Typography>
                   <StatusChip status={normalizedStatus} />
                 </Box>
-
-                {/* All Guest Names Array Display List in Top Header */}
-                {allGuestNames.length > 1 && (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap", mt: 0.5, mb: 0.25 }}>
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        fontWeight: 700,
-                        color: themeConfig.textMuted,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 0.5,
-                        fontSize: "0.75rem",
-                      }}
-                    >
-                      <Group sx={{ fontSize: 15, color: themeConfig.primary }} /> All Guests ({allGuestNames.length}):
-                    </Typography>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.6, flexWrap: "wrap" }}>
-                      {allGuestNames.map((name, i) => {
-                        const isPrimary = name.toLowerCase() === primaryGuestName.toLowerCase();
-                        return (
-                          <Chip
-                            key={`header-guest-${i}`}
-                            icon={<Person sx={{ fontSize: "13px !important", color: isPrimary ? `${themeConfig.primary} !important` : "inherit !important" }} />}
-                            label={isPrimary ? `${name} (Lead)` : name}
-                            size="small"
-                            sx={{
-                              height: 24,
-                              fontWeight: isPrimary ? 800 : 600,
-                              fontSize: "0.76rem",
-                              bgcolor: isPrimary
-                                ? (isDarkMode ? "rgba(16, 185, 129, 0.18)" : "#ECFDF5")
-                                : (isDarkMode ? "rgba(255, 255, 255, 0.05)" : "#F1F5F9"),
-                              color: isPrimary ? themeConfig.primary : themeConfig.textMain,
-                              border: `1px solid ${isPrimary ? (isDarkMode ? "rgba(16, 185, 129, 0.35)" : "#A7F3D0") : themeConfig.border}`,
-                            }}
-                          />
-                        );
-                      })}
-                    </Box>
-                  </Box>
-                )}
 
                 <Box sx={{ display: "flex", alignItems: "center", gap: 2.5, flexWrap: "wrap", mt: 1 }}>
                   {guestPhone && (

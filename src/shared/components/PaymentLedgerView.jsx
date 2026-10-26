@@ -55,6 +55,7 @@ import { paymentMethodLabel, useHotelPaymentMethods } from "@/shared/hooks/useHo
 import RoomNumberChips from "@/shared/components/RoomNumberChips";
 import { buildListQuery, readListMeta } from "@/shared/utils/listQuery";
 import { normalizeBooking } from "@/shared/utils/liveSync";
+import { resolveBookingGuestNames } from "@/shared/utils/guestUtils";
 
 function mapTxnToPaymentRow(txn) {
   if (!txn || typeof txn !== "object") return null;
@@ -72,7 +73,7 @@ function mapTxnToPaymentRow(txn) {
     paymentType: String(txn.payment_type || txn.paymentType || txn.source || "PAYMENT").toUpperCase(),
     amount,
     guest: {
-      fullName: txn.primary_guest_name || txn.guest_name || txn.guest?.fullName || txn.guest?.name || "Guest",
+      fullName: resolveBookingGuestNames(txn).primaryGuestName || txn.guest_name || txn.guest?.fullName || txn.guest?.name || "Guest",
       mobileNumber: txn.mobile_number || txn.guest?.mobileNumber || txn.guest?.phone || "",
     },
     booking: {
@@ -229,8 +230,8 @@ export default function PaymentLedgerView({
             paidAmount: Number(b.paid_amount ?? b.paidAmount ?? 0) || 0,
             roomNumber: b.room_number || b.roomNumber || b.rooms?.[0]?.room_number,
             guest: {
-              fullName: b.primary_guest_name || b.guest?.fullName || b.guest?.name || "Guest",
-              name: b.primary_guest_name || b.guest?.name || "Guest",
+              fullName: resolveBookingGuestNames(b).primaryGuestName || "Guest",
+              name: resolveBookingGuestNames(b).primaryGuestName || "Guest",
             },
           }));
         if (!cancelled) setFolioOptions(list);

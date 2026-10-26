@@ -139,6 +139,7 @@ export default function AvailableRoomsPage({
     }
     return (
       room.primary_guest_name ||
+      (Array.isArray(room.guests) && (room.guests[0]?.name || room.guests[0])) ||
       room.guestName ||
       room.guest_name ||
       room.current_guest_name ||

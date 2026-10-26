@@ -25,6 +25,7 @@ import {
   ArrowForward,
   WhatsApp,
   Print,
+  Logout,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
@@ -33,11 +34,13 @@ import { sortBookingsNewestFirst, normalizeBooking, preferBookingStatus } from "
 import StatusChip from "@/shared/components/StatusChip";
 import { TableCard, TableToolbar, TablePager } from "@/shared/components/DataTable";
 import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
+import CheckoutDialog from "@/receptionist/components/CheckoutDialog";
 import FolioPdfButton from "@/shared/components/FolioPdfButton";
 import RoomNumberChips from "@/shared/components/RoomNumberChips";
 import { downloadBookingBill } from "@/shared/utils/bookingPdf";
 import { toast } from "@/shared/utils/toast";
 import { createSafeGuestModalData } from "@/shared/utils/guestModalUtils";
+import { resolveBookingGuestNames } from "@/shared/utils/guestUtils";
 import RevenueDetailsPage from "./RevenueDetailsPage";
 import {
   OccupancyDonutChart,
@@ -57,6 +60,7 @@ export default function HotelOverviewPage({
   hotelSettings = DEFAULT_HOTEL_SETTINGS,
   onRefresh,
   onTabChange,
+  onRequestCheckout,
 }) {
   const { themeConfig, isDarkMode } = useAppTheme();
   const [localBookings, setLocalBookings] = useState([]);
@@ -69,6 +73,7 @@ export default function HotelOverviewPage({
   const [guestRowsPerPage, setGuestRowsPerPage] = useState(5);
   const [billBusyId, setBillBusyId] = useState("");
   const [stayById, setStayById] = useState({});
+  const [checkoutTarget, setCheckoutTarget] = useState(null);
   const [selectedGuestModal, setSelectedGuestModal] = useState({
     open: false,
     guest: null,
@@ -267,7 +272,7 @@ export default function HotelOverviewPage({
           : rawStatus;
 
       const guestName =
-        staySource.primary_guest_name ||
+        resolveBookingGuestNames(staySource).primaryGuestName ||
         staySource.guestName ||
         staySource.guest_name ||
         g?.fullName ||
@@ -369,6 +374,69 @@ export default function HotelOverviewPage({
       `Wish you a pleasant stay!`
     );
     window.open(`https://wa.me/${targetPhone}?text=${msgText}`, "_blank");
+  };
+
+  const handleOpenCheckout = (guest) => {
+    const booking = guest?.booking || guest?.raw || guest;
+    if (typeof onRequestCheckout === "function") {
+      onRequestCheckout(booking);
+      return;
+    }
+    setCheckoutTarget(booking);
+  };
+
+  const handleCheckOut = async (bookingOrId, settlementData = {}) => {
+    const bookingId =
+      typeof bookingOrId === "string" || typeof bookingOrId === "number"
+        ? String(bookingOrId)
+        : String(bookingOrId?._id || bookingOrId?.id);
+    if (!bookingId) throw new Error("Booking id missing");
+
+    const bookingObj =
+      typeof bookingOrId === "object" && bookingOrId !== null
+        ? bookingOrId
+        : checkoutTarget;
+
+    const bTotal = Number(bookingObj?.totalAmount ?? bookingObj?.total_amount ?? 0);
+    const bPaid = Number(bookingObj?.paidAmount ?? bookingObj?.paid_amount ?? 0);
+    const bookingDue = Number(
+      bookingObj?.dueAmount ?? bookingObj?.due_amount ?? Math.max(0, bTotal - bPaid)
+    );
+
+    let amount =
+      settlementData.settlementPaymentAmount !== undefined
+        ? Number(settlementData.settlementPaymentAmount)
+        : bookingDue;
+
+    if (
+      settlementData.settlementPaymentAmount === undefined &&
+      (!amount || amount === 0) &&
+      bookingDue > 0
+    ) {
+      amount = bookingDue;
+    }
+
+    const method = settlementData.paymentMethod || "CASH";
+    const defaultNote = `Checked out and settled via ${method}${
+      settlementData.transactionId ? ` (Ref: ${settlementData.transactionId})` : ""
+    }`;
+
+    const res = await apiRequest(API_ENDPOINTS.BOOKINGS.CHECKOUT(bookingId), {
+      method: "POST",
+      body: {
+        paid_amount: Number(amount) || 0,
+        payment_method: method,
+        extra_charges_total: Number(settlementData.extraCharges) || 0,
+        discount_amount: Number(settlementData.discount) || 0,
+        late_checkout_charge: Number(settlementData.lateCheckoutFee) || 0,
+        late_checkout_hours: Number(settlementData.lateCheckoutHours) || 0,
+        notes: settlementData.notes ? String(settlementData.notes).trim() : defaultNote,
+      },
+    });
+    toast.show(res?.message || "Booking checked out successfully! Room marked for cleaning.", "success");
+    if (typeof onRefresh === "function") {
+      onRefresh();
+    }
   };
 
   // Show Full Dedicated Revenue Details Page when requested
@@ -496,7 +564,7 @@ export default function HotelOverviewPage({
                   <TableCell align="right">Paid Amount</TableCell>
                   <TableCell align="right">Due Amount</TableCell>
                   <TableCell>Status</TableCell>
-                  <TableCell align="right">Actions</TableCell>
+                  <TableCell align="center">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -598,18 +666,43 @@ export default function HotelOverviewPage({
                             </Tooltip>
                             <FolioPdfButton booking={g} iconOnly />
                             <Tooltip title="Send Folio & Invoice on WhatsApp">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleSendWhatsAppInvoice(g)}
-                              sx={{
-                                bgcolor: "rgba(37, 211, 102, 0.15)",
-                                color: "#25D366",
-                                "&:hover": { bgcolor: "#25D366", color: "#FFFFFF" },
-                              }}
-                            >
-                              <WhatsApp fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleSendWhatsAppInvoice(g)}
+                                sx={{
+                                  width: 34,
+                                  height: 34,
+                                  borderRadius: "50%",
+                                  bgcolor: "rgba(37, 211, 102, 0.15)",
+                                  color: "#25D366",
+                                  "&:hover": { bgcolor: "#25D366", color: "#FFFFFF" },
+                                }}
+                              >
+                                <WhatsApp sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Tooltip>
+                            {(g.status === "CHECKED_IN" || g.status === "IN-HOUSE" || g.status === "IN_HOUSE") && (
+                              <Tooltip title="Check-Out">
+                                <IconButton
+                                  size="small"
+                                  aria-label="Check-Out"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenCheckout(g);
+                                  }}
+                                  sx={{
+                                    width: 34,
+                                    height: 34,
+                                    borderRadius: "50%",
+                                    bgcolor: "rgba(239, 68, 68, 0.12)",
+                                    color: "#EF4444",
+                                    "&:hover": { bgcolor: "rgba(239, 68, 68, 0.2)" },
+                                  }}
+                                >
+                                  <Logout sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </Tooltip>
+                            )}
                           </Box>
                         </TableCell>
                       </TableRow>
@@ -639,6 +732,27 @@ export default function HotelOverviewPage({
         guestId={selectedGuestModal.guestId}
         guestData={selectedGuestModal.guest}
         hotelSettings={hotelSettings}
+      />
+
+      <CheckoutDialog
+        open={Boolean(checkoutTarget)}
+        booking={checkoutTarget}
+        roomNumber={
+          checkoutTarget?.roomAssigned ||
+          checkoutTarget?.room_number ||
+          checkoutTarget?.roomNumber ||
+          ""
+        }
+        hotelSettings={hotelSettings}
+        onClose={() => setCheckoutTarget(null)}
+        onCheckOut={handleCheckOut}
+        onDone={() => {
+          setCheckoutTarget(null);
+          setBookingsTick((t) => t + 1);
+          if (typeof onRefresh === "function") {
+            onRefresh();
+          }
+        }}
       />
 
     </Box>

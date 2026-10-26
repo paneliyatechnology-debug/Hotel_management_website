@@ -44,12 +44,12 @@ import {
   buildPaymentCollectionSourceRows,
 } from "@/shared/hooks/useHotelPaymentMethods";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
-import { useSocket } from "@/shared/context/SocketContext";
 import { folioMoney } from "@/shared/utils/folioMoney";
 import EmptyState from "@/shared/components/EmptyState";
 import PeriodRangeFilter from "@/shared/components/PeriodRangeFilter";
 import { TableCard, TableToolbar, TablePager, tableFieldSx, tableSearchSx } from "@/shared/components/DataTable";
 import { buildListQuery } from "@/shared/utils/listQuery";
+import { resolveBookingGuestNames } from "@/shared/utils/guestUtils";
 
 function txnAmount(record) {
   if (!record || typeof record !== "object") return 0;
@@ -195,7 +195,7 @@ export default function RevenueDetailsPage({ onBackToDashboard, initialFilter = 
                 })
               : "",
             transactionId: txn.id,
-            guestName: txn.primary_guest_name || "Guest",
+            guestName: resolveBookingGuestNames(txn).primaryGuestName || "Guest",
             bookingNumber: txn.booking_number || txn.booking_id || "—",
             roomNumber: "—",
             description: txn.source || "Payment",

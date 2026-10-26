@@ -22,6 +22,7 @@ import { loadBookingDetail } from "@/shared/utils/folioMoney";
 import { computeCheckoutBill } from "@/shared/utils/billingUtils";
 import FolioPdfButton from "@/shared/components/FolioPdfButton";
 import { paymentMethodLabel, useHotelPaymentMethods } from "@/shared/hooks/useHotelPaymentMethods";
+import { resolveBookingGuestNames } from "@/shared/utils/guestUtils";
 
 const sanitizeAmount = (value) => {
   const cleaned = String(value || "").replace(/[^\d.]/g, "");
@@ -128,7 +129,7 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
   const detail = state.detail;
   const guestObj = detail?.guest || {};
   const guestName =
-    detail?.primary_guest_name || guestObj.fullName || guestObj.name || detail?.guestName || "Guest";
+    resolveBookingGuestNames(detail).primaryGuestName || guestObj.fullName || guestObj.name || detail?.guestName || "Guest";
   const guestPhone = guestObj.phoneNumber || guestObj.phone || detail?.guestPhone || detail?.mobile_number || "";
   const bookingNumber = detail?.bookingNumber || detail?.booking_number || "Active";
 

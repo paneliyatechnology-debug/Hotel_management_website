@@ -58,6 +58,7 @@ import EmptyState from "@/shared/components/EmptyState";
 import { TableCard, TableToolbar, TablePager, tableFieldSx, tableSearchSx } from "@/shared/components/DataTable";
 
 import { folioMoney } from "@/shared/utils/folioMoney";
+import { resolveBookingGuestNames } from "@/shared/utils/guestUtils";
 
 function bookingsToCollections(list) {
   const rows = (Array.isArray(list) ? list : [])
@@ -70,7 +71,7 @@ function bookingsToCollections(list) {
         receiptNumber: b.booking_number || b.bookingNumber || b.id,
         timeStr: when ? new Date(when).toLocaleString("en-IN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" }) : "",
         roomNumber: b.room_number || b.roomNumber || (Array.isArray(b.rooms) ? b.rooms.map((r) => r.room_number || r.roomNumber).filter(Boolean).join(", ") : "") || "—",
-        guestName: b.primary_guest_name || b.guestName || b.guest?.name || "Guest",
+        guestName: resolveBookingGuestNames(b).primaryGuestName || "Guest",
         guestPhone: b.mobile_number || b.phone || "—",
         bookingNumber: b.booking_number || b.bookingNumber || b.id,
         paymentMethod: method,

@@ -423,6 +423,11 @@ export function deepDualCase(obj) {
   if (result._id !== undefined && result.id === undefined) result.id = result._id;
 
   // Domain-specific aliases so UI components expecting camelCase get values
+  if (!result.primary_guest_name && Array.isArray(result.guests) && result.guests.length > 0) {
+    const firstG = result.guests.find((p) => Number(p?.display_order ?? p?.displayOrder) === 1) || result.guests[0];
+    const firstGName = typeof firstG === "string" ? firstG.trim() : (firstG?.name || firstG?.fullName || "");
+    if (firstGName) result.primary_guest_name = firstGName;
+  }
   if (result.primary_guest_name && !result.fullName) result.fullName = result.primary_guest_name;
   if (result.primary_guest_name && !result.guestName) result.guestName = result.primary_guest_name;
   if (result.mobile_number && !result.phone) result.phone = result.mobile_number;

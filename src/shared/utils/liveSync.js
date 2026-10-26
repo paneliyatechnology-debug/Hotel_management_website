@@ -4,6 +4,8 @@
  * follows to pick up anything the payload does not carry.
  */
 
+import { resolveBookingGuestNames } from "./guestUtils";
+
 const sameId = (a, b) => a !== undefined && a !== null && b !== undefined && b !== null && String(a) === String(b);
 
 /** Apply a `room:status` payload to a rooms list. Unknown rooms are left to the follow-up reload. */
@@ -42,13 +44,15 @@ export function applyRoomStatusEvent(rooms, payload) {
     payload.guest_name !== undefined ||
     payload.guestName !== undefined ||
     payload.primary_guest_name !== undefined ||
-    payload.current_guest_name !== undefined
+    payload.current_guest_name !== undefined ||
+    Array.isArray(payload.guests)
   ) {
     const guestName =
+      payload.primary_guest_name ??
       payload.guest_name ??
       payload.guestName ??
-      payload.primary_guest_name ??
       payload.current_guest_name ??
+      (Array.isArray(payload.guests) && (payload.guests[0]?.name || payload.guests[0])) ??
       "";
     next.guestName = guestName || undefined;
     next.guest_name = guestName || undefined;
@@ -178,15 +182,8 @@ export function normalizeBooking(booking) {
             : "UNPAID";
 
   // Guest details
-  const guestName =
-    booking.primary_guest_name ||
-    booking.guestName ||
-    booking.guest_name ||
-    booking.fullName ||
-    booking.name ||
-    booking.guest?.name ||
-    booking.guest?.fullName ||
-    "Resident Guest";
+  const { primaryGuestName, additionalGuests } = resolveBookingGuestNames(booking);
+  const guestName = primaryGuestName || "Resident Guest";
 
   const guestPhone =
     booking.mobile_number ||

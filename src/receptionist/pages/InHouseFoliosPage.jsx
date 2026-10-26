@@ -71,6 +71,7 @@ import { createSafeGuestModalData } from "@/shared/utils/guestModalUtils";
 import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
 import FolioPdfButton from "@/shared/components/FolioPdfButton";
 import RoomNumberChips from "@/shared/components/RoomNumberChips";
+import { resolveBookingGuestNames } from "@/shared/utils/guestUtils";
 
 export default function InHouseFoliosPage({
   bookings = [],
@@ -336,7 +337,7 @@ export default function InHouseFoliosPage({
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const matchFolio = (b.bookingNumber || b.booking_number || "").toLowerCase().includes(q);
-      const guestName = (b.guestName || b.primary_guest_name || b.guest_name || b.guest?.name || b.guest?.fullName || "").toLowerCase();
+      const guestName = resolveBookingGuestNames(b).primaryGuestName.toLowerCase();
       const matchGuest = guestName.includes(q);
       const guestPhone = (b.phone || b.mobile_number || b.guest?.phone || b.guest?.mobileNumber || "").toLowerCase();
       const matchPhone = guestPhone.includes(q);
@@ -564,24 +565,11 @@ export default function InHouseFoliosPage({
               ) : (
                 filteredBookings
                   .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                    const rawGuests = Array.isArray(b.guests) ? b.guests : [];
-                    const parsedGuestNames = rawGuests
-                      .map((item) => (typeof item === "object" ? item?.name : item))
-                      .filter(Boolean)
-                      .map((s) => String(s).trim());
-                    const guestName = String(
-                      b.primary_guest_name ||
-                      b.guestName ||
-                      b.guest_name ||
-                      b.guest?.name ||
-                      b.guest?.fullName ||
-                      parsedGuestNames[0] ||
-                      "Walk-In Guest"
-                    ).trim();
-                    const extraGuests = parsedGuestNames.filter(
-                      (name) => name.toLowerCase() !== guestName.toLowerCase()
-                    );
-                    const extraGuestsLabel = extraGuests.join(", ");
+                  .map((b) => {
+                    const {
+                      primaryGuestName: guestName,
+                      additionalGuestsLabel: extraGuestsLabel,
+                    } = resolveBookingGuestNames(b);
                     const guestPhone = b.phone || b.mobile_number || b.guest?.phone || b.guest?.mobileNumber || "";
                     const roomsList = getBookingRoomNumbers(b);
                     const roomType = b.roomType?.name || b.room_type_name || b.room?.roomType?.name || "Room Stay";

@@ -70,6 +70,7 @@ import GuestDetailsModal from "@/shared/components/GuestDetailsModal";
 import FolioPdfButton from "@/shared/components/FolioPdfButton";
 import RoomNumberChips from "@/shared/components/RoomNumberChips";
 import { downloadBookingBill } from "@/shared/utils/bookingPdf";
+import { resolveBookingGuestNames } from "@/shared/utils/guestUtils";
 import {
   buildListQuery,
   extractRoomTypesFromResponse,
@@ -592,7 +593,7 @@ export default function ReceptionistOverviewPage({
           booking_number: bNumber,
           bookingNumber: bNumber,
           ...cleanB,
-          name: b.primary_guest_name || gObj.fullName || gObj.name || b.guestName || "Guest",
+          name: resolveBookingGuestNames(cleanB).primaryGuestName || "Guest",
           phone: gPhone || "N/A",
           email: gObj.email || b.guestEmail || "",
           status: b.status === "CHECKED_IN" ? "IN-HOUSE" : b.status,
@@ -603,14 +604,7 @@ export default function ReceptionistOverviewPage({
           verificationStatus: gObj.verificationStatus || "VERIFIED",
           checkInDate: checkInDateStr,
           checkOutDate: checkOutDateStr,
-          accompanyingGuests: (() => {
-            if (Array.isArray(b.guests) && b.guests.length > 0) {
-              return b.guests
-                .map((item) => (typeof item === "object" ? item?.name : item))
-                .filter((n) => Boolean(n) && String(n).trim().toLowerCase() !== String(b.primary_guest_name || gObj.fullName || "").trim().toLowerCase());
-            }
-            return b.accompanyingGuests || gObj.accompanyingGuests || [];
-          })(),
+          accompanyingGuests: resolveBookingGuestNames(cleanB).additionalGuests,
           totalAmount: bTotal > 0 ? bTotal : (bPaid + bDue),
           paidAmount: bPaid,
           dueAmount: bDue,
@@ -783,7 +777,7 @@ export default function ReceptionistOverviewPage({
         activeBooking: b,
         guest: g,
         guestId: g?.id || g?._id || b.guest?.id || b.guest?._id || (typeof b.guest === "string" ? b.guest : realBId),
-        name: b.primary_guest_name || g?.fullName || g?.name || b.guestName || "Resident Guest",
+        name: resolveBookingGuestNames(b).primaryGuestName || "Resident Guest",
         email: g?.email || b.email || "guest@hotel.com",
         phone: g?.mobileNumber || g?.phone || b.mobileNumber || b.mobile_number || b.phone || b.guestPhone || "N/A",
         roomAssigned: roomsList.length > 1 ? roomsList.join(", ") : roomsList[0],

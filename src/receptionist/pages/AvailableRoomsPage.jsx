@@ -17,6 +17,7 @@ import {
   Tooltip,
   TextField,
   MenuItem,
+  Menu,
   InputAdornment,
   Table,
   TableBody,
@@ -49,11 +50,17 @@ import {
   CurrencyRupee,
   Check,
   Person,
+  MoreVert,
+  CleaningServices,
+  Build,
+  Block,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import EmptyState from "@/shared/components/EmptyState";
 import InfiniteScrollSentinel from "@/shared/components/InfiniteScrollSentinel";
 import CheckoutDialog from "@/receptionist/components/CheckoutDialog";
+import ConfirmDialog from "@/shared/components/ConfirmDialog";
+import { toast } from "@/shared/utils/toast";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
 import { useSocket } from "@/shared/context/SocketContext";
 import { applyRoomStatusEvent, mergeCategoryCounts } from "@/shared/utils/liveSync";
@@ -130,6 +137,17 @@ export default function AvailableRoomsPage({
   const [roomsLoading, setRoomsLoading] = useState(false);
   const [roomsLoadingMore, setRoomsLoadingMore] = useState(false);
   const [roomsError, setRoomsError] = useState("");
+
+  // 3-dots Room Status Menu & Confirmation Dialog states
+  const [roomMenuAnchor, setRoomMenuAnchor] = useState(null);
+  const [roomMenuTarget, setRoomMenuTarget] = useState(null);
+  const [confirmStatusModal, setConfirmStatusModal] = useState({
+    open: false,
+    room: null,
+    targetStatus: "",
+    targetLabel: "",
+    loading: false,
+  });
 
   // Guest name comes from the room payload (rooms API / room:status) — no bookings list lookup
   const getRoomGuestName = (room) => {
@@ -608,20 +626,103 @@ export default function AvailableRoomsPage({
   const [busyRoomId, setBusyRoomId] = useState("");
   const [actionError, setActionError] = useState("");
 
+  const handleOpenRoomMenu = (event, room) => {
+    setRoomMenuAnchor(event.currentTarget);
+    setRoomMenuTarget(room);
+  };
+
+  const handleCloseRoomMenu = () => {
+    setRoomMenuAnchor(null);
+    setRoomMenuTarget(null);
+  };
+
+  const handleSelectStatusAction = (targetStatus, targetLabel) => {
+    const room = roomMenuTarget;
+    handleCloseRoomMenu();
+    if (!room) return;
+    setConfirmStatusModal({
+      open: true,
+      room,
+      targetStatus,
+      targetLabel,
+      loading: false,
+    });
+  };
+
+  const handleConfirmStatusChange = async () => {
+    const { room, targetStatus, targetLabel } = confirmStatusModal;
+    if (!room || !targetStatus) return;
+    const roomId = room._id || room.id;
+
+    setConfirmStatusModal((prev) => ({ ...prev, loading: true }));
+    try {
+      if (typeof onRoomStatusChange === "function") {
+        await onRoomStatusChange(room, targetStatus);
+      } else {
+        await apiRequest(API_ENDPOINTS.RECEPTIONIST.UPDATE_ROOM_STATUS(roomId), {
+          method: "PATCH",
+          body: { status: targetStatus },
+        });
+      }
+
+      setRooms((prev) =>
+        prev.map((r) =>
+          String(r._id || r.id) === String(roomId)
+            ? {
+                ...r,
+                status: targetStatus,
+                is_available: targetStatus === "AVAILABLE",
+                isAvailable: targetStatus === "AVAILABLE",
+              }
+            : r
+        )
+      );
+
+      toast.show(`Room ${room.roomNumber} marked as ${targetLabel}!`, "success");
+      setConfirmStatusModal({
+        open: false,
+        room: null,
+        targetStatus: "",
+        targetLabel: "",
+        loading: false,
+      });
+
+      if (selectedCategory) {
+        await fetchRoomsPage(1, { append: false });
+      }
+      await fetchRoomTypesPage(1, { append: false });
+    } catch (err) {
+      toast.show(err?.message || `Failed to update Room ${room.roomNumber} status`, "error");
+      setConfirmStatusModal((prev) => ({ ...prev, loading: false }));
+    }
+  };
+
   const handleMarkAvailable = async (room) => {
-    if (!onRoomStatusChange) return;
     const id = String(room?._id || room?.id || "");
     try {
       setActionError("");
       setBusyRoomId(id);
-      await onRoomStatusChange(room, "AVAILABLE");
+      if (typeof onRoomStatusChange === "function") {
+        await onRoomStatusChange(room, "AVAILABLE");
+      } else {
+        await apiRequest(API_ENDPOINTS.RECEPTIONIST.UPDATE_ROOM_STATUS(id), {
+          method: "PATCH",
+          body: { status: "AVAILABLE" },
+        });
+      }
       setRooms((prev) =>
         prev.map((r) =>
-          String(r._id || r.id) === id ? { ...r, status: "AVAILABLE", current_booking_id: null, currentBookingId: null } : r
+          String(r._id || r.id) === id ? { ...r, status: "AVAILABLE", is_available: true, isAvailable: true, current_booking_id: null, currentBookingId: null } : r
         )
       );
+      toast.show(`Room ${room.roomNumber} marked as Available!`, "success");
+      if (selectedCategory) {
+        await fetchRoomsPage(1, { append: false });
+      }
+      await fetchRoomTypesPage(1, { append: false });
     } catch (err) {
       setActionError(err?.message || "Failed to mark room available");
+      toast.show(err?.message || "Failed to mark room available", "error");
     } finally {
       setBusyRoomId("");
     }
@@ -1025,20 +1126,25 @@ export default function AvailableRoomsPage({
                 }}
               >
                 {visibleRooms.map((room) => {
-                  const isAvail = room.status === "AVAILABLE";
-                  const isOcc = room.status === "OCCUPIED" || room.status === "RESERVED";
-                  const isCln = room.status === "CLEANING";
-                  const isSelected = selectedRoomIds.includes(room._id);
+                  const rawStatus = String(room.status || "AVAILABLE").trim().toUpperCase();
+                  const isAvail = rawStatus === "AVAILABLE" || room.is_available === true || room.isAvailable === true;
+                  const isOcc = rawStatus === "OCCUPIED" || rawStatus === "RESERVED" || rawStatus === "BOOKED";
+                  const isCln = rawStatus === "CLEANING";
+                  const isBlocked = rawStatus === "BLOCKED";
+                  const isMaint = rawStatus === "MAINTENANCE";
+                  const isSelected = selectedRoomIds.includes(room._id || room.id);
                   const tariff = room.customPricePerNight || activeCategory?.basePrice || room.basePrice || 0;
                   const bookedGuestName = getRoomGuestName(room);
 
                   const statusMeta = isAvail
                     ? { label: "Available", ...themeConfig.tones.success }
                     : isOcc
-                      ? { label: room.status === "RESERVED" ? "Reserved" : "Booked", ...themeConfig.tones.warning }
+                      ? { label: rawStatus === "RESERVED" ? "Reserved" : "Booked", ...themeConfig.tones.warning }
                       : isCln
                         ? { label: "Cleaning", ...themeConfig.tones.danger }
-                        : { label: room.status === "BLOCKED" ? "Blocked" : "Maintenance", ...themeConfig.tones.neutral };
+                        : isBlocked
+                          ? { label: "Blocked", ...themeConfig.tones.neutral }
+                          : { label: "Maintenance", ...themeConfig.tones.neutral };
 
                   const actionButtonSx = {
                     minHeight: 38,
@@ -1078,44 +1184,73 @@ export default function AvailableRoomsPage({
                     >
                       <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1, minWidth: 0 }}>
                         <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.75, minWidth: 0 }}>
-                            {isAvail && (
-                              <Checkbox
-                                size="small"
-                                checked={isSelected}
-                                onChange={(e) => handleToggleRoomSelection(room._id, e)}
-                                onClick={(e) => e.stopPropagation()}
-                              sx={{ p: 0, mt: 0.25, color: themeConfig.border, "&.Mui-checked": { color: themeConfig.primary } }}
-                            />
-                          )}
+                          <Checkbox
+                            size="small"
+                            checked={isSelected}
+                            disabled={!isAvail}
+                            onChange={(e) => {
+                              if (isAvail) handleToggleRoomSelection(room._id, e);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            sx={{
+                              p: 0,
+                              mt: 0.25,
+                              color: themeConfig.border,
+                              "&.Mui-checked": { color: themeConfig.primary },
+                              "&.Mui-disabled": { color: isDarkMode ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)" },
+                            }}
+                          />
                           <Box sx={{ minWidth: 0 }}>
                             <Typography noWrap sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "1.05rem", lineHeight: 1.3 }}>
-                                Room {room.roomNumber}
-                              </Typography>
+                              Room {room.roomNumber}
+                            </Typography>
                             <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mt: 0.5 }}>
                               <Apartment sx={{ fontSize: 14, flexShrink: 0, color: themeConfig.textMuted }} />
                               <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.72rem", fontWeight: 600 }}>
                                 Floor {room.floor || 1}
                               </Typography>
-                          </Box>
-                          </Box>
-                        </Box>
-                        <Box
-                                sx={{
-                            flexShrink: 0,
-                            px: 1,
-                            py: 0.25,
-                            borderRadius: 999,
-                                  fontSize: "0.65rem",
-                            fontWeight: 700,
-                            lineHeight: 1.5,
-                            color: statusMeta.color,
-                            bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : statusMeta.bg,
-                            border: `1px solid ${statusMeta.border}`,
-                          }}
-                        >
-                          {statusMeta.label}
+                            </Box>
                           </Box>
                         </Box>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexShrink: 0 }}>
+                          <Box
+                            sx={{
+                              flexShrink: 0,
+                              px: 1,
+                              py: 0.25,
+                              borderRadius: 999,
+                              fontSize: "0.65rem",
+                              fontWeight: 700,
+                              lineHeight: 1.5,
+                              color: statusMeta.color,
+                              bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : statusMeta.bg,
+                              border: `1px solid ${statusMeta.border}`,
+                            }}
+                          >
+                            {statusMeta.label}
+                          </Box>
+                          {isAvail && (
+                            <IconButton
+                              size="small"
+                              aria-label="Room options"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenRoomMenu(e, room);
+                              }}
+                              sx={{
+                                p: 0.5,
+                                color: themeConfig.textMuted,
+                                "&:hover": {
+                                  color: themeConfig.textMain,
+                                  bgcolor: isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)",
+                                },
+                              }}
+                            >
+                              <MoreVert sx={{ fontSize: 18 }} />
+                            </IconButton>
+                          )}
+                        </Box>
+                      </Box>
 
                       <Box sx={{ minHeight: 44 }}>
                         <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
@@ -1134,7 +1269,7 @@ export default function AvailableRoomsPage({
                         ) : null}
                       </Box>
 
-                      {(isAvail && onSelectRoomForCheckIn) || isOcc || isCln ? (
+                      {(isAvail && onSelectRoomForCheckIn) || isOcc || isCln || isBlocked || isMaint ? (
                         <Box>
                         {isAvail && onSelectRoomForCheckIn && (
                           <Button
@@ -1173,7 +1308,7 @@ export default function AvailableRoomsPage({
                               Check-out
                           </Button>
                         )}
-                        {isCln && (
+                        {(isCln || isBlocked || isMaint) && (
                           <Button
                             fullWidth
                               variant="outlined"
@@ -1222,6 +1357,95 @@ export default function AvailableRoomsPage({
         onDone={async () => {
           if (selectedCategory) await fetchRoomsPage(1, { append: false });
           else await fetchRoomTypesPage(1, { append: false });
+        }}
+      />
+
+      {/* 3-Dots Dropdown Menu for Available Rooms */}
+      <Menu
+        anchorEl={roomMenuAnchor}
+        open={Boolean(roomMenuAnchor)}
+        onClose={handleCloseRoomMenu}
+        onClick={(e) => e.stopPropagation()}
+        slotProps={{
+          paper: {
+            elevation: 4,
+            sx: {
+              borderRadius: "14px",
+              minWidth: 200,
+              py: 0.5,
+              bgcolor: isDarkMode ? themeConfig.bgCard : "#FFFFFF",
+              border: `1px solid ${themeConfig.border}`,
+              boxShadow: isDarkMode
+                ? "0 10px 30px rgba(0,0,0,0.5)"
+                : "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+            },
+          },
+        }}
+        transformOrigin={{ horizontal: "right", vertical: "top" }}
+        anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+      >
+        <MenuItem
+          onClick={() => handleSelectStatusAction("CLEANING", "Cleaning")}
+          sx={{
+            gap: 1.5,
+            py: 1,
+            px: 2,
+            fontSize: "0.85rem",
+            fontWeight: 600,
+            color: themeConfig.textMain,
+            "&:hover": { bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)" },
+          }}
+        >
+          <CleaningServices sx={{ fontSize: 18, color: themeConfig.textMuted }} />
+          Mark as Cleaning
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleSelectStatusAction("MAINTENANCE", "Maintenance")}
+          sx={{
+            gap: 1.5,
+            py: 1,
+            px: 2,
+            fontSize: "0.85rem",
+            fontWeight: 600,
+            color: themeConfig.textMain,
+            "&:hover": { bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)" },
+          }}
+        >
+          <Build sx={{ fontSize: 18, color: themeConfig.textMuted }} />
+          Mark as Maintenance
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleSelectStatusAction("BLOCKED", "Blocked")}
+          sx={{
+            gap: 1.5,
+            py: 1,
+            px: 2,
+            fontSize: "0.85rem",
+            fontWeight: 600,
+            color: themeConfig.textMain,
+            "&:hover": { bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)" },
+          }}
+        >
+          <Block sx={{ fontSize: 18, color: themeConfig.textMuted }} />
+          Mark as Blocked
+        </MenuItem>
+      </Menu>
+
+      {/* Confirmation Dialog for Room Status Changes */}
+      <ConfirmDialog
+        open={confirmStatusModal.open}
+        section="Room Status Update"
+        title={`Mark Room ${confirmStatusModal.room?.roomNumber} as ${confirmStatusModal.targetLabel}?`}
+        message={`Are you sure you want to change Room ${confirmStatusModal.room?.roomNumber} status to "${confirmStatusModal.targetLabel}"?`}
+        confirmLabel={`Mark as ${confirmStatusModal.targetLabel}`}
+        cancelLabel="Cancel"
+        isDanger={confirmStatusModal.targetStatus === "BLOCKED" || confirmStatusModal.targetStatus === "MAINTENANCE"}
+        loading={confirmStatusModal.loading}
+        onConfirm={handleConfirmStatusChange}
+        onClose={() => {
+          if (!confirmStatusModal.loading) {
+            setConfirmStatusModal({ open: false, room: null, targetStatus: "", targetLabel: "", loading: false });
+          }
         }}
       />
 

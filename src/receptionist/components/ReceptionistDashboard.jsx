@@ -553,9 +553,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
       });
 
       setRooms(rooms.map((r) => ((r._id === room._id || r.id === room.id) ? { ...r, status: nextStatus } : r)));
-      showToast(`Room ${room.roomNumber} status updated to ${nextStatus}`);
     } catch (err) {
-      showToast(err.message || "Failed to update room status", "error");
       throw err;
     }
   };

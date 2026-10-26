@@ -828,6 +828,26 @@ function prepareRequestBody(body, endpoint) {
         }
       }
 
+      // If value is an array of files or base64 strings
+      if (Array.isArray(value)) {
+        for (let i = 0; i < value.length; i++) {
+          const item = value[i];
+          if (!item) continue;
+          if (typeof item === "string" && item.startsWith("data:")) {
+            const b = base64ToBlob(item);
+            if (b) {
+              const fileName = snakeKey === "signatures" ? `signature_${i + 1}.png` : `image_${i + 1}.png`;
+              newFormData.append(snakeKey, b, fileName);
+            }
+          } else if (isBlobOrFile(item)) {
+            newFormData.append(snakeKey, item, item.name || `${snakeKey}_${i + 1}.png`);
+          } else {
+            newFormData.append(snakeKey, item);
+          }
+        }
+        continue;
+      }
+
       // If value is a base64 string, convert to Blob
       if (typeof value === "string" && value.startsWith("data:")) {
         const b = base64ToBlob(value);
@@ -1458,14 +1478,30 @@ function prepareRequestBody(body, endpoint) {
       }
     }
 
-    // Collect all candidate signatures
+    // Collect all candidate signatures (from payload.signatures array or payload.signature)
+    const listedSignatures = Array.isArray(payload.signatures)
+      ? payload.signatures.filter(Boolean)
+      : Array.isArray(payload.signature)
+        ? payload.signature.filter(Boolean)
+        : [];
+    delete payload.signatures;
+
     const rawSigsList = [];
-    if (sigImg) rawSigsList.push({ item: sigImg, name: "signature.png" });
-    if (Array.isArray(payload.signatures)) {
-      payload.signatures.forEach((sig, i) => {
-        if (sig) rawSigsList.push({ item: sig, name: `signature_${i + 1}.png` });
-      });
-      delete payload.signatures;
+    const seenSigs = new Set();
+    const pushSignature = (item, name) => {
+      if (!item) return;
+      const key = typeof item === "string"
+        ? item
+        : `${item.name || ""}:${item.size || ""}:${item.lastModified || ""}`;
+      if (seenSigs.has(key)) return;
+      seenSigs.add(key);
+      rawSigsList.push({ item, name });
+    };
+
+    if (listedSignatures.length > 0) {
+      listedSignatures.forEach((sig, i) => pushSignature(sig, `signature_${i + 1}.png`));
+    } else if (sigImg) {
+      pushSignature(sigImg, "signature.png");
     }
 
     // Process and append all signatures as real binary Blobs to formData

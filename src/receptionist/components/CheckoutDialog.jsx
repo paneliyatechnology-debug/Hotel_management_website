@@ -16,7 +16,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { Check, Close, ContentCopy, Logout, MeetingRoom } from "@/shared/icons";
+import { Check, Close, Logout, MeetingRoom } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { loadBookingDetail } from "@/shared/utils/folioMoney";
 import { computeCheckoutBill } from "@/shared/utils/billingUtils";
@@ -64,7 +64,6 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [copiedUpi, setCopiedUpi] = useState(false);
 
   useEffect(() => {
     if (!open || !booking) return undefined;
@@ -156,18 +155,7 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
     });
   }, [detail, bill.due]);
 
-  const hotelUpi = hotelSettings?.upiId || "jatinkakadiya234-1@okicici";
-  const upiPayee = encodeURIComponent(hotelSettings?.hotelName || "Hotel");
-  const upiNote = encodeURIComponent(`Room ${roomNumber || ""} Checkout Settlement`);
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
-    `upi://pay?pa=${hotelUpi}&pn=${upiPayee}&am=${collectNow}&cu=INR&tn=${upiNote}`
-  )}`;
 
-  const handleCopyUpi = () => {
-    navigator.clipboard.writeText(hotelUpi);
-    setCopiedUpi(true);
-    setTimeout(() => setCopiedUpi(false), 2000);
-  };
 
   const handleConfirm = async () => {
     if (!detail || !onCheckOut) return;
@@ -431,42 +419,6 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
                   onChange={(e) => update({ notes: e.target.value })}
                 />
               </Box>
-
-              {state.paymentMethod === "UPI" && collectNow > 0 && (
-                <Box
-                  sx={{
-                    mt: 2,
-                    p: 1.5,
-                    borderRadius: "12px",
-                    border: `1px solid ${themeConfig.border}`,
-                    bgcolor: themeConfig.bgSubtle,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 2,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <Box
-                    component="img"
-                    src={qrCodeUrl}
-                    alt="UPI payment QR code"
-                    sx={{ width: 96, height: 96, borderRadius: "8px", border: `1px solid ${themeConfig.border}`, bgcolor: "#FFFFFF", p: 0.5 }}
-                  />
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "0.85rem" }}>
-                      Scan to pay {inr(collectNow)}
-                    </Typography>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                      <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.78rem" }}>UPI ID: {hotelUpi}</Typography>
-                      <Tooltip title={copiedUpi ? "Copied" : "Copy UPI ID"}>
-                        <IconButton size="small" onClick={handleCopyUpi} sx={{ p: 0.4, color: themeConfig.primary }}>
-                          {copiedUpi ? <Check sx={{ fontSize: 14 }} /> : <ContentCopy sx={{ fontSize: 14 }} />}
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  </Box>
-                </Box>
-              )}
             </Box>
 
             <Box>

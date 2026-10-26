@@ -11,48 +11,91 @@ const sameId = (a, b) => a !== undefined && a !== null && b !== undefined && b !
 /** Apply a `room:status` payload to a rooms list. Unknown rooms are left to the follow-up reload. */
 export function applyRoomStatusEvent(rooms, payload) {
   const list = Array.isArray(rooms) ? rooms : [];
-  const id = payload?.id ?? payload?._id;
+  const roomData = payload?.room && typeof payload.room === "object" ? payload.room : payload;
+  const id = roomData?.id ?? roomData?._id ?? payload?.id ?? payload?._id;
   if (id === undefined || id === null) return list;
 
   const index = list.findIndex((room) => sameId(room?.id ?? room?._id, id));
   if (index < 0) return list;
 
   // Deleted room
-  if (payload.deleted_at) return list.filter((_, i) => i !== index);
+  if (roomData?.deleted_at || payload?.deleted_at) return list.filter((_, i) => i !== index);
 
   const current = list[index];
   const next = { ...current };
-  if (payload.status) next.status = String(payload.status).toUpperCase();
-  if (payload.is_active !== undefined) {
-    next.is_active = payload.is_active;
-    next.isActive = payload.is_active;
+  const rawStatus = roomData?.status ?? payload?.status;
+  if (rawStatus) {
+    const s = String(rawStatus).toUpperCase();
+    next.status = s;
+    const isAvail = s === "AVAILABLE";
+    next.is_available = isAvail;
+    next.isAvailable = isAvail;
+    if (isAvail) {
+      next.current_booking_id = null;
+      next.currentBookingId = null;
+      next.guestName = undefined;
+      next.guest_name = undefined;
+      next.primary_guest_name = undefined;
+    }
   }
-  if (payload.floor !== undefined && payload.floor !== null) next.floor = payload.floor;
-  if (payload.room_number !== undefined && payload.room_number !== null) {
-    next.room_number = String(payload.room_number);
-    next.roomNumber = String(payload.room_number);
+  if (roomData?.is_available !== undefined || payload?.is_available !== undefined) {
+    const isAvail = (roomData?.is_available ?? payload?.is_available) === true;
+    next.is_available = isAvail;
+    next.isAvailable = isAvail;
   }
-  if (payload.updated_at) next.updated_at = payload.updated_at;
+  if (roomData?.is_active !== undefined || payload?.is_active !== undefined) {
+    const act = roomData?.is_active ?? payload?.is_active;
+    next.is_active = act;
+    next.isActive = act;
+  }
+  if ((roomData?.floor !== undefined && roomData?.floor !== null) || (payload?.floor !== undefined && payload?.floor !== null)) {
+    next.floor = roomData?.floor ?? payload?.floor;
+  }
+  const rNum = roomData?.room_number ?? roomData?.roomNumber ?? payload?.room_number ?? payload?.roomNumber;
+  if (rNum !== undefined && rNum !== null) {
+    next.room_number = String(rNum);
+    next.roomNumber = String(rNum);
+  }
+  if (roomData?.updated_at || payload?.updated_at) next.updated_at = roomData?.updated_at || payload?.updated_at;
 
   // Live booking link for checkout from the Rooms grid (no bookings list needed)
-  if (payload.current_booking_id !== undefined || payload.currentBookingId !== undefined) {
-    const bookingId = payload.current_booking_id ?? payload.currentBookingId;
+  if (
+    roomData?.current_booking_id !== undefined ||
+    roomData?.currentBookingId !== undefined ||
+    payload?.current_booking_id !== undefined ||
+    payload?.currentBookingId !== undefined
+  ) {
+    const bookingId =
+      roomData?.current_booking_id ??
+      roomData?.currentBookingId ??
+      payload?.current_booking_id ??
+      payload?.currentBookingId;
     next.current_booking_id = bookingId;
     next.currentBookingId = bookingId;
   }
   if (
-    payload.guest_name !== undefined ||
-    payload.guestName !== undefined ||
-    payload.primary_guest_name !== undefined ||
-    payload.current_guest_name !== undefined ||
-    Array.isArray(payload.guests)
+    roomData?.guest_name !== undefined ||
+    roomData?.guestName !== undefined ||
+    roomData?.primary_guest_name !== undefined ||
+    roomData?.current_guest_name !== undefined ||
+    Array.isArray(roomData?.guests) ||
+    payload?.guest_name !== undefined ||
+    payload?.guestName !== undefined ||
+    payload?.primary_guest_name !== undefined ||
+    payload?.current_guest_name !== undefined ||
+    Array.isArray(payload?.guests)
   ) {
     const guestName =
-      payload.primary_guest_name ??
-      payload.guest_name ??
-      payload.guestName ??
-      payload.current_guest_name ??
-      (Array.isArray(payload.guests) && (payload.guests[0]?.name || payload.guests[0])) ??
+      roomData?.primary_guest_name ??
+      payload?.primary_guest_name ??
+      roomData?.guest_name ??
+      payload?.guest_name ??
+      roomData?.guestName ??
+      payload?.guestName ??
+      roomData?.current_guest_name ??
+      payload?.current_guest_name ??
+      (Array.isArray(roomData?.guests) && (roomData.guests[0]?.name || roomData.guests[0])) ??
+      (Array.isArray(payload?.guests) && (payload.guests[0]?.name || payload.guests[0])) ??
       "";
     next.guestName = guestName || undefined;
     next.guest_name = guestName || undefined;

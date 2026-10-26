@@ -329,8 +329,13 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
     if (isCheckInSubmitting) return;
     setIsCheckInSubmitting(true);
     try {
-      // Validation: Primary Guest digital signature is strictly mandatory
-      if (!checkInData.signature || (typeof checkInData.signature === "string" && !checkInData.signature.trim())) {
+      // Validation: Guest digital signature is strictly mandatory
+      const hasSignature = Boolean(
+        (Array.isArray(checkInData.signatures) && checkInData.signatures.length > 0) ||
+        (typeof checkInData.signature === "string" && checkInData.signature.trim()) ||
+        checkInData.signature
+      );
+      if (!hasSignature) {
         showToast("⚠️ Guest Digital Signature is required before completing check-in.", "error");
         setIsCheckInOpen(true);
         setActiveStep(0);
@@ -377,6 +382,10 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
       // Co-guests only: do not insert primary guest name into the guests array
       const guestsList = extraGuestNames;
 
+      const allSignatures = Array.isArray(checkInData.signatures) && checkInData.signatures.length > 0
+        ? checkInData.signatures
+        : (checkInData.signature || checkInData.guestSignature ? [checkInData.signature || checkInData.guestSignature] : []);
+
       const payload = {
         hotel_id: effectiveHotelId ? Number(effectiveHotelId) : undefined,
         room_id: bookingRoomIds,
@@ -403,7 +412,8 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
         front_image: checkInData.frontImage || (checkInData.idImages && checkInData.idImages[0]) || checkInData.idProofImage || "",
         back_image: checkInData.backImage || (checkInData.idImages && checkInData.idImages[1]) || checkInData.idProofBackImage || "",
         images: checkInData.idImages || (checkInData.frontImage ? [checkInData.frontImage, ...(checkInData.backImage ? [checkInData.backImage] : [])] : []),
-        signature: checkInData.signature || checkInData.guestSignature || "",
+        signatures: allSignatures,
+        signature: allSignatures[0] || checkInData.signature || checkInData.guestSignature || "",
         // Dual-access properties for local UI rendering.
         // Do not send roomId / roomIds here: snake_case turns roomId into room_id and
         // would overwrite the room_id array with only the first room.
@@ -552,7 +562,18 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
         body: { status: nextStatus },
       });
 
-      setRooms(rooms.map((r) => ((r._id === room._id || r.id === room.id) ? { ...r, status: nextStatus } : r)));
+      setRooms((prev) =>
+        prev.map((r) =>
+          r._id === room._id || r.id === room.id
+            ? {
+                ...r,
+                status: nextStatus,
+                is_available: nextStatus === "AVAILABLE",
+                isAvailable: nextStatus === "AVAILABLE",
+              }
+            : r
+        )
+      );
     } catch (err) {
       throw err;
     }
@@ -668,6 +689,7 @@ export default function ReceptionistDashboard({ user, activeNav = 0, navClick = 
       frontImage: "",
       backImage: "",
       signature: "",
+      signatures: [],
       guestSignature: "",
       accompanyingGuests: [],
       activeRoomId: String(firstRoom._id || firstRoom.id),

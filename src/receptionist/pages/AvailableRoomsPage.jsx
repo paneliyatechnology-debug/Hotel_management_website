@@ -414,11 +414,15 @@ export default function AvailableRoomsPage({
   };
 
   // Live patch room cards; category badge counts stay current on the grid view
-  useSocket(["room:status"], (payload) => {
-    setRooms((prev) => applyRoomStatusEvent(prev, payload));
+  useSocket(["room:status", "ROOM_UPDATED"], (payload) => {
+    if (payload) {
+      setRooms((prev) => applyRoomStatusEvent(prev, payload));
+    }
   });
   useSocket(["room:category_counts"], (payload) => {
-    setRoomTypes((prev) => mergeCategoryCounts(prev, payload));
+    if (payload) {
+      setRoomTypes((prev) => mergeCategoryCounts(prev, payload));
+    }
   });
   useSocket(["GUEST_CHECKED_OUT", "BOOKING_CREATED", "BOOKING_UPDATED"], () => {
     if (!selectedCategory) {
@@ -770,10 +774,61 @@ export default function AvailableRoomsPage({
     });
   };
 
+  // Optimistically update category counts locally so header pills and category cards stay in sync without refetching
+  const updateCategoryCountsLocally = (room, oldStatus, newStatus) => {
+    if (!room || !oldStatus || !newStatus) return;
+    const normOld = String(oldStatus).trim().toUpperCase();
+    const normNew = String(newStatus).trim().toUpperCase();
+    if (normOld === normNew) return;
+
+    const roomCatId = String(
+      room.room_type_id ||
+      room.roomTypeId ||
+      (typeof room.roomType === "object" ? room.roomType?._id || room.roomType?.id : room.roomType) ||
+      (typeof room.room_type === "object" ? room.room_type?._id || room.room_type?.id : room.room_type) ||
+      selectedCategory ||
+      ""
+    );
+    if (!roomCatId) return;
+
+    const countKeyMap = {
+      AVAILABLE: "available_count",
+      OCCUPIED: "occupied_count",
+      BOOKED: "occupied_count",
+      RESERVED: "reserved_count",
+      CLEANING: "cleaning_count",
+      MAINTENANCE: "maintenance_count",
+      BLOCKED: "blocked_count",
+    };
+
+    const oldKey = countKeyMap[normOld];
+    const newKey = countKeyMap[normNew];
+
+    setRoomTypes((prev) =>
+      (Array.isArray(prev) ? prev : []).map((cat) => {
+        const catId = String(cat?._id || cat?.id || "");
+        if (catId !== roomCatId) return cat;
+        const counts = { ...(cat.room_status_counts || cat.roomStatusCounts || {}) };
+        if (oldKey && Number(counts[oldKey]) > 0) {
+          counts[oldKey] = Math.max(0, Number(counts[oldKey]) - 1);
+        }
+        if (newKey) {
+          counts[newKey] = (Number(counts[newKey]) || 0) + 1;
+        }
+        return {
+          ...cat,
+          room_status_counts: counts,
+          roomStatusCounts: counts,
+        };
+      })
+    );
+  };
+
   const handleConfirmStatusChange = async () => {
     const { room, targetStatus, targetLabel } = confirmStatusModal;
     if (!room || !targetStatus) return;
     const roomId = room._id || room.id;
+    const oldStatus = String(room.status || "AVAILABLE").toUpperCase();
 
     setConfirmStatusModal((prev) => ({ ...prev, loading: true }));
     try {
@@ -786,18 +841,30 @@ export default function AvailableRoomsPage({
         });
       }
 
+      const isAvail = targetStatus === "AVAILABLE";
       setRooms((prev) =>
         prev.map((r) =>
           String(r._id || r.id) === String(roomId)
             ? {
                 ...r,
                 status: targetStatus,
-                is_available: targetStatus === "AVAILABLE",
-                isAvailable: targetStatus === "AVAILABLE",
+                is_available: isAvail,
+                isAvailable: isAvail,
+                ...(isAvail
+                  ? {
+                      current_booking_id: null,
+                      currentBookingId: null,
+                      guestName: undefined,
+                      guest_name: undefined,
+                      primary_guest_name: undefined,
+                    }
+                  : {}),
               }
             : r
         )
       );
+
+      updateCategoryCountsLocally(room, oldStatus, targetStatus);
 
       toast.show(`Room ${room.roomNumber} marked as ${targetLabel}!`, "success");
       setConfirmStatusModal({
@@ -807,11 +874,8 @@ export default function AvailableRoomsPage({
         targetLabel: "",
         loading: false,
       });
-
-      if (selectedCategory) {
-        await fetchRoomsPage(1, { append: false });
-      }
-      await fetchRoomTypesPage(1, { append: false });
+      // In-place optimistic update preserves the loaded infinite-scroll rooms and current scroll position.
+      // Sockets keep everything in sync in real time without jarring full-page refetches.
     } catch (err) {
       toast.show(err?.message || `Failed to update Room ${room.roomNumber} status`, "error");
       setConfirmStatusModal((prev) => ({ ...prev, loading: false }));
@@ -820,6 +884,7 @@ export default function AvailableRoomsPage({
 
   const handleMarkAvailable = async (room) => {
     const id = String(room?._id || room?.id || "");
+    const oldStatus = String(room?.status || "CLEANING").toUpperCase();
     try {
       setActionError("");
       setBusyRoomId(id);
@@ -833,14 +898,24 @@ export default function AvailableRoomsPage({
       }
       setRooms((prev) =>
         prev.map((r) =>
-          String(r._id || r.id) === id ? { ...r, status: "AVAILABLE", is_available: true, isAvailable: true, current_booking_id: null, currentBookingId: null } : r
+          String(r._id || r.id) === id
+            ? {
+                ...r,
+                status: "AVAILABLE",
+                is_available: true,
+                isAvailable: true,
+                current_booking_id: null,
+                currentBookingId: null,
+                guestName: undefined,
+                guest_name: undefined,
+                primary_guest_name: undefined,
+              }
+            : r
         )
       );
+      updateCategoryCountsLocally(room, oldStatus, "AVAILABLE");
       toast.show(`Room ${room.roomNumber} marked as Available!`, "success");
-      if (selectedCategory) {
-        await fetchRoomsPage(1, { append: false });
-      }
-      await fetchRoomTypesPage(1, { append: false });
+      // In-place optimistic update preserves the loaded infinite-scroll rooms and current scroll position.
     } catch (err) {
       setActionError(err?.message || "Failed to mark room available");
       toast.show(err?.message || "Failed to mark room available", "error");
@@ -1223,11 +1298,11 @@ export default function AvailableRoomsPage({
               >
                 {visibleRooms.map((room) => {
                   const rawStatus = String(room.status || "AVAILABLE").trim().toUpperCase();
-                  const isAvail = rawStatus === "AVAILABLE" || room.is_available === true || room.isAvailable === true;
                   const isOcc = rawStatus === "OCCUPIED" || rawStatus === "RESERVED" || rawStatus === "BOOKED";
                   const isCln = rawStatus === "CLEANING";
                   const isBlocked = rawStatus === "BLOCKED";
                   const isMaint = rawStatus === "MAINTENANCE";
+                  const isAvail = !isOcc && !isCln && !isBlocked && !isMaint && (rawStatus === "AVAILABLE" || room.is_available === true || room.isAvailable === true);
                   const isSelected = selectedRoomIds.includes(room._id || room.id);
                   const tariff = room.customPricePerNight || activeCategory?.basePrice || room.basePrice || 0;
                   const bookedGuestName = getRoomGuestName(room);
@@ -1453,8 +1528,30 @@ export default function AvailableRoomsPage({
         onClose={() => setCheckoutTarget(null)}
         onCheckOut={onCheckOut}
         onDone={async () => {
-          if (selectedCategory) await fetchRoomsPage(1, { append: false });
-          else await fetchRoomTypesPage(1, { append: false });
+          const targetRoomId = checkoutTarget?.room?._id || checkoutTarget?.room?.id;
+          if (targetRoomId) {
+            setRooms((prev) =>
+              prev.map((r) =>
+                String(r._id || r.id) === String(targetRoomId)
+                  ? {
+                      ...r,
+                      status: "CLEANING",
+                      is_available: false,
+                      isAvailable: false,
+                      current_booking_id: null,
+                      currentBookingId: null,
+                      guestName: undefined,
+                      guest_name: undefined,
+                      primary_guest_name: undefined,
+                    }
+                  : r
+              )
+            );
+            updateCategoryCountsLocally(checkoutTarget?.room, "OCCUPIED", "CLEANING");
+          }
+          if (!selectedCategory) {
+            await fetchRoomTypesPage(1, { append: false });
+          }
         }}
       />
 

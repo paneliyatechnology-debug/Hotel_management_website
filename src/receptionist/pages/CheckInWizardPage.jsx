@@ -1416,7 +1416,8 @@ export default function CheckInWizardPage({
     if (!data.frontImage && mainGuestDocs.length === 0) errors.frontImage = "Upload at least one ID document";
 
     const sig = data.signature;
-    if (!sig || (typeof sig === "string" && !sig.trim())) errors.signature = "Guest signature is required";
+    const sigs = Array.isArray(data.signatures) ? data.signatures : [];
+    if ((!sig || (typeof sig === "string" && !sig.trim())) && sigs.length === 0) errors.signature = "Guest signature is required";
     return errors;
   };
 
@@ -1534,8 +1535,11 @@ export default function CheckInWizardPage({
 
   const handleTriggerFinalCheckIn = () => {
     if (isCheckInSubmitting) return;
-    const isSignatureMissing = !checkInData.signature || (typeof checkInData.signature === "string" && !checkInData.signature.trim());
-    if (isSignatureMissing) {
+    const hasSig = Boolean(
+      (Array.isArray(checkInData.signatures) && checkInData.signatures.length > 0) ||
+      (typeof checkInData.signature === "string" && checkInData.signature.trim())
+    );
+    if (!hasSig) {
       setFieldErrors((prev) => ({ ...prev, signature: true }));
       showErrorAlert("⚠️ Signature Required: Primary Guest digital signature is mandatory before finalizing check-in.");
       setActiveStep(0);
@@ -2181,18 +2185,30 @@ export default function CheckInWizardPage({
                 error={Boolean(fieldErrors.signature)}
                 helperText={typeof fieldErrors.signature === "string" ? fieldErrors.signature : ""}
                 signerName={checkInData.fullName || "Primary guest"}
+                signatures={checkInData.signatures || (checkInData.signature ? [checkInData.signature] : [])}
                 value={checkInData.signature}
                 signature={checkInData.signature}
-                onChange={(sig) => {
-                  setCheckInData((prev) => ({ ...prev, signature: sig }));
-                  if (sig) clearFieldError("signature");
+                onPreview={(src) => setPreviewImageSrc(src)}
+                onChange={(sig, allSigs) => {
+                  const sigs = Array.isArray(allSigs) ? allSigs : (sig ? [sig] : []);
+                  setCheckInData((prev) => ({
+                    ...prev,
+                    signature: sig || sigs[0] || "",
+                    signatures: sigs,
+                  }));
+                  if (sig || sigs.length > 0) clearFieldError("signature");
                 }}
-                onSave={(sig) => {
-                  setCheckInData((prev) => ({ ...prev, signature: sig }));
-                  if (sig) clearFieldError("signature");
+                onSave={(sig, allSigs) => {
+                  const sigs = Array.isArray(allSigs) ? allSigs : (sig ? [sig] : []);
+                  setCheckInData((prev) => ({
+                    ...prev,
+                    signature: sig || sigs[0] || "",
+                    signatures: sigs,
+                  }));
+                  if (sig || sigs.length > 0) clearFieldError("signature");
                 }}
                 onClear={() => {
-                  setCheckInData((prev) => ({ ...prev, signature: "" }));
+                  setCheckInData((prev) => ({ ...prev, signature: "", signatures: [] }));
                 }}
               />
             </Box>
@@ -2519,21 +2535,31 @@ export default function CheckInWizardPage({
                       <Typography noWrap sx={{ color: themeConfig.textMuted, fontSize: "0.8rem" }}>{checkInData.email}</Typography>
                     ) : null}
                     <Box sx={{ mt: 1, display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
-                      {checkInData.signature ? (
+                      {((Array.isArray(checkInData.signatures) && checkInData.signatures.length > 0) || checkInData.signature) ? (
                         <>
                           <Chip
                             icon={<CheckCircle sx={{ fontSize: "14px !important", color: "#047857 !important" }} />}
-                            label="Signed"
+                            label={
+                              Array.isArray(checkInData.signatures) && checkInData.signatures.length > 1
+                                ? `Signed (${checkInData.signatures.length} signatures)`
+                                : "Signed"
+                            }
                             size="small"
                             sx={{ bgcolor: isDarkMode ? "rgba(16, 185, 129, 0.16)" : "#ECFDF5", color: isDarkMode ? "#6EE7B7" : themeConfig.tones.success.color, fontWeight: 700, fontSize: "0.72rem", border: `1px solid ${themeConfig.tones.success.border}` }}
                           />
-                          <Chip
-                            label="View signature"
-                            size="small"
-                            clickable
-                            onClick={() => setPreviewImageSrc(checkInData.signature)}
-                            sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F8FAFC", color: themeConfig.textMain, fontWeight: 600, fontSize: "0.72rem", border: `1px solid ${themeConfig.border}` }}
-                          />
+                          {(Array.isArray(checkInData.signatures) && checkInData.signatures.length > 0
+                            ? checkInData.signatures
+                            : [checkInData.signature]
+                          ).map((sSrc, sIdx) => (
+                            <Chip
+                              key={sIdx}
+                              label={sIdx === 0 ? "View primary signature" : `View signature ${sIdx + 1}`}
+                              size="small"
+                              clickable
+                              onClick={() => setPreviewImageSrc(sSrc)}
+                              sx={{ bgcolor: isDarkMode ? "rgba(255,255,255,0.06)" : "#F8FAFC", color: themeConfig.textMain, fontWeight: 600, fontSize: "0.72rem", border: `1px solid ${themeConfig.border}` }}
+                            />
+                          ))}
                         </>
                       ) : (
                         <Chip

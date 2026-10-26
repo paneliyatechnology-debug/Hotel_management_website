@@ -64,10 +64,17 @@ const CATEGORY_STATUSES = [
 ];
 
 function countFromRooms(roomList) {
-  const available = roomList.filter((room) => (room.status || "AVAILABLE") === "AVAILABLE").length;
-  const booked = roomList.filter((room) => room.status === "OCCUPIED" || room.status === "RESERVED").length;
-  const cleaning = roomList.filter((room) => room.status === "CLEANING" || room.status === "MAINTENANCE" || room.status === "BLOCKED").length;
-  return { available, booked, cleaning, total: roomList.length, fromApi: false };
+  const available = roomList.filter((room) => String(room.status || "AVAILABLE").toUpperCase() === "AVAILABLE").length;
+  const booked = roomList.filter((room) => {
+    const st = String(room.status || "").toUpperCase();
+    return st === "OCCUPIED" || st === "RESERVED" || st === "BOOKED";
+  }).length;
+  const cleaning = roomList.filter((room) => String(room.status || "").toUpperCase() === "CLEANING").length;
+  const maintenance = roomList.filter((room) => {
+    const st = String(room.status || "").toUpperCase();
+    return st === "MAINTENANCE" || st === "BLOCKED";
+  }).length;
+  return { available, booked, cleaning, maintenance, total: roomList.length, fromApi: false };
 }
 
 function readCount(source, snakeKey, camelKey) {
@@ -87,9 +94,10 @@ function categoryStatusCounts(category, fallbackRooms = []) {
   if (!hasCounts) return countFromRooms(fallbackRooms);
   const available = readCount(counts, "available_count", "availableCount");
   const booked = readCount(counts, "reserved_count", "reservedCount") + readCount(counts, "occupied_count", "occupiedCount");
-  const cleaning = readCount(counts, "cleaning_count", "cleaningCount") + readCount(counts, "maintenance_count", "maintenanceCount") + readCount(counts, "blocked_count", "blockedCount");
+  const cleaning = readCount(counts, "cleaning_count", "cleaningCount");
+  const maintenance = readCount(counts, "maintenance_count", "maintenanceCount") + readCount(counts, "blocked_count", "blockedCount");
   const statedTotal = readCount(counts, "total_room_count", "totalRoomCount");
-  return { available, booked, cleaning, total: statedTotal || available + booked + cleaning, fromApi: true };
+  return { available, booked, cleaning, maintenance, total: statedTotal || available + booked + cleaning + maintenance, fromApi: true };
 }
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
@@ -864,6 +872,8 @@ export default function RoomTypesPage({
             return st === "OCCUPIED" || st === "RESERVED" || st === "BOOKED";
           }).length,
           cleaning_count: serverRooms.list.filter((r) => String(r.status || "").toUpperCase() === "CLEANING").length,
+          maintenance_count: serverRooms.list.filter((r) => String(r.status || "").toUpperCase() === "MAINTENANCE").length,
+          blocked_count: serverRooms.list.filter((r) => String(r.status || "").toUpperCase() === "BLOCKED").length,
         },
       };
     }
@@ -1373,7 +1383,7 @@ export default function RoomTypesPage({
                     >
                       {CATEGORY_STATUSES.map((item) =>
                         statusCounts[item.key] > 0 && totalRooms > 0 ? (
-                          <Box key={item.key} sx={{ width: `${(statusCounts[item.key] / (available + booked + cleaning || 1)) * 100}%`, bgcolor: themeConfig.tones[item.tone].color, opacity: 0.85 }} />
+                          <Box key={item.key} sx={{ width: `${(statusCounts[item.key] / (totalRooms || 1)) * 100}%`, bgcolor: themeConfig.tones[item.tone].color, opacity: 0.85 }} />
                         ) : null
                       )}
                     </Box>

@@ -137,6 +137,16 @@ export default function AvailableRoomsPage({
   const [roomsLoading, setRoomsLoading] = useState(false);
   const [roomsLoadingMore, setRoomsLoadingMore] = useState(false);
   const [roomsError, setRoomsError] = useState("");
+  const [apiFloors, setApiFloors] = useState(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = sessionStorage.getItem("hotel.floors");
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
 
   // 3-dots Room Status Menu & Confirmation Dialog states
   const [roomMenuAnchor, setRoomMenuAnchor] = useState(null);
@@ -172,6 +182,10 @@ export default function AvailableRoomsPage({
   // Box View Navigation: null = Categories Overview, string (categoryId) = Category Drilldown
   const [selectedCategory, setSelectedCategory] = useState(() => {
     if (typeof window === "undefined") return null;
+    const urlParam =
+      new URLSearchParams(window.location.search).get("category") ||
+      new URLSearchParams(window.location.search).get("type");
+    if (urlParam && urlParam !== "none") return urlParam;
     const stored = sessionStorage.getItem("receptionist.rooms.category");
     return stored && stored !== "none" ? stored : null;
   });
@@ -179,27 +193,80 @@ export default function AvailableRoomsPage({
   // Track if user navigated here from another route (e.g. Dashboard)
   const [cameFromExternalRoute, setCameFromExternalRoute] = useState(false);
 
+  // Category navigation helpers (syncs state, sessionStorage, and URL search param)
+  const handleSelectCategory = (catId) => {
+    const idStr = String(catId);
+    setSelectedCategory(idStr);
+    setSelectedFloor("ALL");
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("receptionist.rooms.category", idStr);
+      const url = new URL(window.location.href);
+      url.searchParams.set("category", idStr);
+      window.history.pushState({ category: idStr }, "", url.toString());
+    }
+  };
+
+  const handleClearCategory = () => {
+    setSelectedCategory(null);
+    setSelectedFloor("ALL");
+    setSelectedStatus("ALL");
+    setRoomSearch("");
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("receptionist.rooms.category", "none");
+      const url = new URL(window.location.href);
+      url.searchParams.delete("category");
+      url.searchParams.delete("type");
+      window.history.pushState({}, "", url.toString());
+    }
+    if (cameFromExternalRoute && onNavigateTab) {
+      setCameFromExternalRoute(false);
+      onNavigateTab(0);
+    }
+  };
+
+  // Browser Back/Forward navigation support (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window === "undefined") return;
+      const urlParam =
+        new URLSearchParams(window.location.search).get("category") ||
+        new URLSearchParams(window.location.search).get("type");
+      if (urlParam && urlParam !== "none") {
+        setSelectedCategory(urlParam);
+      } else {
+        setSelectedCategory(null);
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
   // Auto-select category when navigated from Dashboard
   useEffect(() => {
     if (initialSelectedCategory) {
-      setSelectedCategory(initialSelectedCategory);
+      handleSelectCategory(initialSelectedCategory);
       setCameFromExternalRoute(true);
       if (onClearInitialCategory) onClearInitialCategory();
     }
   }, [initialSelectedCategory]);
 
+  // Keep URL search param and sessionStorage in sync with selectedCategory
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (selectedCategory) sessionStorage.setItem("receptionist.rooms.category", String(selectedCategory));
+    if (selectedCategory) {
+      sessionStorage.setItem("receptionist.rooms.category", String(selectedCategory));
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("category") !== String(selectedCategory)) {
+        url.searchParams.set("category", String(selectedCategory));
+        window.history.replaceState({ category: selectedCategory }, "", url.toString());
+      }
+    }
   }, [selectedCategory]);
 
-  // Clicking "Rooms" in the sidebar always lands on the category list, never on a previously opened category.
-  // ("none" also stops the single-category auto-select below from re-opening it.)
+  // Clicking "Rooms" in the sidebar always lands on the category list
   useEffect(() => {
     if (!resetToken) return;
-    if (typeof window !== "undefined") sessionStorage.setItem("receptionist.rooms.category", "none");
-    setSelectedCategory(null);
-    setCameFromExternalRoute(false);
+    handleClearCategory();
   }, [resetToken]);
 
   // Filters for Table View & Category Drilldown
@@ -278,13 +345,29 @@ export default function AvailableRoomsPage({
         status: statusParam,
         search: debouncedRoomSearch || undefined,
       });
-      const res = await apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?${q}`);
-      const { rooms: pageRooms, page, totalPages } = extractRoomsFromResponse(res);
+      const res = await apiRequest(`${API_ENDPOINTS.RECEPTIONIST.ROOMS}?${q}`, { forceRefresh: true });
+      const { rooms: pageRooms, page, totalPages, floors: responseFloors } = extractRoomsFromResponse(res);
       setRooms((prev) => (append ? mergeById(prev, pageRooms) : pageRooms));
       setRoomsPage(page || pageNum);
       const fullPage = pageRooms.length >= ROOMS_PAGE_SIZE;
       setRoomsHasMore(fullPage && (page || pageNum) < (totalPages || 1));
       setRoomsError("");
+
+      const floorsFromApi =
+        (Array.isArray(responseFloors) && responseFloors.length > 0 && responseFloors) ||
+        (Array.isArray(res?.data?.floors) && res.data.floors) ||
+        (Array.isArray(res?.floors) && res.floors) ||
+        (Array.isArray(res?.data?.data?.floors) && res.data.data.floors);
+
+      if (Array.isArray(floorsFromApi) && floorsFromApi.length > 0) {
+        const cleaned = floorsFromApi.map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+        setApiFloors((prev) => Array.from(new Set([...prev, ...cleaned])).sort((a, b) => a - b));
+        try {
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem("hotel.floors", JSON.stringify(cleaned));
+          }
+        } catch {}
+      }
     } catch (err) {
       if (!append) setRooms([]);
       setRoomsError(err?.message || "Could not load rooms");
@@ -298,7 +381,6 @@ export default function AvailableRoomsPage({
 
   // Category list: room-types with the same page size as the card grid (once per key)
   useEffect(() => {
-    if (selectedCategory) return;
     const key = `types:1:${resetToken}:${debouncedCategorySearch}`;
     const now = Date.now();
     // Block Strict Mode double-mount; allow a real revisit after a short gap
@@ -307,7 +389,7 @@ export default function AvailableRoomsPage({
     lastRoomTypesFetchAt = now;
     fetchRoomTypesPage(1, { append: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategory, resetToken, debouncedCategorySearch]);
+  }, [resetToken, debouncedCategorySearch]);
 
   // Room cards: only after a category is opened
   useEffect(() => {
@@ -506,26 +588,65 @@ export default function AvailableRoomsPage({
   const activeCategory = useMemo(() => {
     if (!selectedCategory) return null;
     const sel = String(selectedCategory).trim().toLowerCase();
-    return (
-      categoryStats.find(
-        (c) =>
-          String(c._id || c.id || "").trim().toLowerCase() === sel ||
-          (c.name && c.name.trim().toLowerCase() === sel)
-      ) || null
+    const found = categoryStats.find(
+      (c) =>
+        String(c._id || c.id || "").trim().toLowerCase() === sel ||
+        (c.name && c.name.trim().toLowerCase() === sel)
     );
-  }, [selectedCategory, categoryStats]);
+    if (found) return found;
 
-  // Auto-reset invalid selectedCategory so user is never stuck in an empty state
-  useEffect(() => {
-    if (selectedCategory && categoryStats.length > 0 && !activeCategory) {
-      setSelectedCategory(null);
+    // Graceful fallback from rooms payload while category list is loading
+    if (rooms.length > 0) {
+      const sample = rooms[0];
+      const rtObj = typeof sample.roomType === "object" ? sample.roomType : null;
+      const catName = rtObj?.name || sample.type || sample.room_type_name || "Category";
+      const basePrice = sample.customPricePerNight || rtObj?.basePrice || sample.basePrice || 0;
+      return {
+        _id: selectedCategory,
+        id: selectedCategory,
+        name: catName,
+        totalRooms: rooms.length,
+        basePrice,
+        available: rooms.filter((r) => String(r.status || "").toUpperCase() === "AVAILABLE").length,
+        occupied: rooms.filter((r) => {
+          const st = String(r.status || "").toUpperCase();
+          return st === "OCCUPIED" || st === "RESERVED" || st === "BOOKED";
+        }).length,
+        cleaning: rooms.filter((r) => String(r.status || "").toUpperCase() === "CLEANING").length,
+      };
     }
-  }, [selectedCategory, activeCategory, categoryStats]);
+    return null;
+  }, [selectedCategory, categoryStats, rooms]);
 
-  // Floors for filters (only meaningful after a category is opened)
+  // Auto-reset invalid selectedCategory ONLY after room types finish loading and no rooms exist
+  useEffect(() => {
+    if (
+      selectedCategory &&
+      !typesLoading &&
+      categoryStats.length > 0 &&
+      !activeCategory &&
+      !roomsLoading &&
+      rooms.length === 0
+    ) {
+      handleClearCategory();
+    }
+  }, [selectedCategory, activeCategory, categoryStats, typesLoading, roomsLoading, rooms.length]);
+
+  // Floors for filters (from API floors list, with fallback to rooms list)
   const distinctFloors = useMemo(() => {
-    return Array.from(new Set(rooms.map((r) => r.floor || 1))).sort((a, b) => a - b);
-  }, [rooms]);
+    const set = new Set();
+    if (Array.isArray(apiFloors)) {
+      apiFloors.forEach((fl) => {
+        const n = Number(fl);
+        if (Number.isFinite(n)) set.add(n);
+      });
+    }
+    rooms.forEach((r) => {
+      const fl = Number(r.floor !== undefined && r.floor !== null ? r.floor : 1);
+      if (Number.isFinite(fl)) set.add(fl);
+    });
+    return Array.from(set).sort((a, b) => a - b);
+  }, [apiFloors, rooms]);
 
   // Filtered rooms for Table View
   const filteredAllRooms = useMemo(() => {
@@ -545,7 +666,7 @@ export default function AvailableRoomsPage({
           return false;
         }
       }
-      if (selectedFloor !== "ALL" && String(r.floor || 1) !== String(selectedFloor)) {
+      if (selectedFloor !== "ALL" && String(r.floor !== undefined && r.floor !== null ? r.floor : 1) !== String(selectedFloor)) {
         return false;
       }
       if (selectedStatus !== "ALL") {
@@ -577,7 +698,7 @@ export default function AvailableRoomsPage({
   const filteredCategoryRooms = useMemo(() => {
     if (!activeCategory) return [];
     return rooms.filter((r) => {
-      if (selectedFloor !== "ALL" && String(r.floor || 1) !== String(selectedFloor)) {
+      if (selectedFloor !== "ALL" && String(r.floor !== undefined && r.floor !== null ? r.floor : 1) !== String(selectedFloor)) {
         return false;
       }
       if (selectedStatus !== "ALL") {
@@ -756,50 +877,28 @@ export default function AvailableRoomsPage({
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
             <Tooltip title="All categories">
               <IconButton
-              onClick={() => {
-                  if (typeof window !== "undefined") sessionStorage.setItem("receptionist.rooms.category", "none");
-                if (cameFromExternalRoute && onNavigateTab) {
-                  setCameFromExternalRoute(false);
-                  setSelectedCategory(null);
-                  onNavigateTab(0);
-                } else {
-                  setSelectedCategory(null);
-                }
-              }}
-              sx={{
+                onClick={handleClearCategory}
+                sx={{
                   width: 36,
                   height: 36,
-                borderRadius: "10px",
+                  borderRadius: "10px",
                   border: `1px solid ${themeConfig.border}`,
-                bgcolor: themeConfig.bgCard || "#FFFFFF",
+                  bgcolor: themeConfig.bgCard || "#FFFFFF",
                   color: themeConfig.textMain,
-                "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
-              }}
-            >
+                  "&:hover": { bgcolor: themeConfig.champagne, borderColor: themeConfig.primary },
+                }}
+              >
                 <ArrowBack sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
 
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-              <Avatar
-                sx={{
-                  bgcolor: themeConfig.champagne,
-                  color: themeConfig.accent,
-                  width: 38,
-                  height: 38,
-                  borderRadius: "10px",
-                }}
-              >
-                {getCategoryIcon(activeCategory?.name || "")}
-              </Avatar>
-              <div>
-                <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "1.05rem", lineHeight: 1.3 }}>
-                  {activeCategory?.name || "Category"}
-                </Typography>
-                <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.78rem" }}>
-                  {activeCategory?.totalRooms || 0} {(activeCategory?.totalRooms || 0) === 1 ? "room" : "rooms"}
-                </Typography>
-              </div>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontWeight: 700, color: themeConfig.textMain, fontSize: "1.05rem", lineHeight: 1.3 }}>
+                {activeCategory?.name || "Category"}
+              </Typography>
+              <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.78rem" }}>
+                {activeCategory?.totalRooms || 0} {(activeCategory?.totalRooms || 0) === 1 ? "room" : "rooms"}
+              </Typography>
             </Box>
           </Box>
         ) : (
@@ -854,12 +953,16 @@ export default function AvailableRoomsPage({
       {/* ========================================================================= */}
       {/* INVENTORY VIEWS: CATEGORIES OVERVIEW vs CATEGORY ROOMS DRILLDOWN         */}
       {/* ========================================================================= */}
-      {selectedCategory === null || !activeCategory ? (
+      {selectedCategory === null ? (
         <>
           {/* 1. BOX VIEW (Grid of Category Cards) */}
           {(
             /* Category Overview Cards */
-            categoryStats.length === 0 ? (
+            typesLoading && roomTypes.length === 0 ? (
+              <Box sx={{ py: 8, display: "flex", justifyContent: "center", alignItems: "center" }}>
+                <Typography sx={{ color: themeConfig.textMuted, fontWeight: 600 }}>Loading categories…</Typography>
+              </Box>
+            ) : categoryStats.length === 0 ? (
               <Box sx={{ py: 8 }}>
                 <EmptyState
                   title="No Room Categories Found"
@@ -904,9 +1007,9 @@ export default function AvailableRoomsPage({
 
                   return (
                     <Card
-                      key={cat._id}
+                      key={cat._id || cat.id}
                       onClick={() => {
-                        setSelectedCategory(cat._id);
+                        handleSelectCategory(cat._id || cat.id);
                       }}
                       sx={{
                         p: 2.25,
@@ -1085,36 +1188,29 @@ export default function AvailableRoomsPage({
             </Box>
 
           {/* Room cards */}
-          {(
-            filteredCategoryRooms.length === 0 ? (
-              <Box sx={{ py: 6 }}>
-                <EmptyState
-                  title="No Rooms Found"
-                  description="No rooms match the current search or filter criteria in this category."
-                  action={
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<ArrowBack />}
-                      onClick={() => {
-                        if (typeof window !== "undefined") sessionStorage.setItem("receptionist.rooms.category", "none");
-                        setSelectedFloor("ALL");
-                        setSelectedStatus("ALL");
-                        setRoomSearch("");
-                        setSelectedCategory(null);
-                        if (cameFromExternalRoute && onNavigateTab) {
-                          setCameFromExternalRoute(false);
-                          onNavigateTab(0);
-                        }
-                      }}
-                      sx={{ mt: 2, borderRadius: "10px", fontWeight: 700 }}
-                    >
-                      View All Categories
-                    </Button>
-                  }
-                />
-              </Box>
-            ) : (
+          {roomsLoading && rooms.length === 0 ? (
+            <Box sx={{ py: 8, display: "flex", justifyContent: "center", alignItems: "center" }}>
+              <Typography sx={{ color: themeConfig.textMuted, fontWeight: 600 }}>Loading rooms…</Typography>
+            </Box>
+          ) : filteredCategoryRooms.length === 0 ? (
+            <Box sx={{ py: 6 }}>
+              <EmptyState
+                title="No Rooms Found"
+                description="No rooms match the current search or filter criteria in this category."
+                action={
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<ArrowBack />}
+                    onClick={handleClearCategory}
+                    sx={{ mt: 2, borderRadius: "10px", fontWeight: 700 }}
+                  >
+                    View All Categories
+                  </Button>
+                }
+              />
+            </Box>
+          ) : (
               <Box
                 sx={{
                   display: "grid",
@@ -1334,7 +1430,7 @@ export default function AvailableRoomsPage({
                 })}
               </Box>
             )
-          )}
+          }
           {filteredCategoryRooms.length > 0 && (
             <InfiniteScrollSentinel
               hasMore={hasMoreRooms}

@@ -79,10 +79,20 @@ export function normalizeRoomRecord(r) {
 }
 
 export function extractRoomsFromResponse(res) {
-  const raw = res?.data?.rooms || res?.rooms || res?.data || res || [];
+  const raw =
+    res?.data?.rooms ||
+    res?.rooms ||
+    (Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []);
   const list = Array.isArray(raw) ? raw : [];
   const rooms = list.map(normalizeRoomRecord).filter(Boolean);
-  return { rooms, ...readListMeta(res) };
+  const rawFloors = res?.data?.floors || res?.floors;
+  const floors = Array.isArray(rawFloors)
+    ? rawFloors
+        .map(Number)
+        .filter((n) => Number.isFinite(n))
+        .sort((a, b) => a - b)
+    : [];
+  return { rooms, floors, ...readListMeta(res) };
 }
 
 export function extractRoomTypesFromResponse(res) {

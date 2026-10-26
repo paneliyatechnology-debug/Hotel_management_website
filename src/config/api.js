@@ -1594,10 +1594,12 @@ function normalizeApiResponse(res) {
     ) {
       const arr = d.rooms.map(deepDualCase);
       arr.rooms = arr;
+      arr.floors = Array.isArray(d.floors) ? d.floors : [];
       arr.total = d.total;
       arr.page = d.page;
       arr.limit = d.limit;
       arr.totalPages = d.total_pages || d.totalPages;
+      if (d.floors) res.floors = d.floors;
       res.data = arr;
     }
     // If bookings list

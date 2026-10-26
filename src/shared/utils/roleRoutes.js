@@ -48,6 +48,8 @@ export const ROLE_PAGE_ALIASES = {
     reports: "gst-report",
     plans: "subscriptions",
     pricing: "subscriptions",
+    "room-types": "rooms",
+    "room-categories": "rooms",
   },
   RECEPTIONIST: {
     overview: "dashboard",
@@ -57,6 +59,8 @@ export const ROLE_PAGE_ALIASES = {
     checkin: "rooms",
     "check-in": "rooms",
     booking: "rooms",
+    "room-types": "rooms",
+    "room-categories": "rooms",
     guest: "guests",
     directory: "guests",
     settings: "more",

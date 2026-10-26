@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -21,6 +21,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  CircularProgress,
 } from "@mui/material";
 import { AppDialogHeader, AppDialogFooter, dialogPaperSx, dialogCancelButtonSx, dialogPrimaryButtonSx } from "@/shared/components/AppDialog";
 import {
@@ -230,7 +231,78 @@ export default function RoomTypesPage({
   const [trialLimitModalOpen, setTrialLimitModalOpen] = useState(false);
   const [roomErrors, setRoomErrors] = useState({});
   const [typeErrors, setTypeErrors] = useState({});
-  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
+  // Category drill-down state: null = Categories Overview, string (categoryId) = Category Rooms Table
+  const [selectedCategoryId, setSelectedCategoryId] = useState(() => {
+    if (typeof window === "undefined") return null;
+    const urlParam =
+      new URLSearchParams(window.location.search).get("category") ||
+      new URLSearchParams(window.location.search).get("type");
+    if (urlParam && urlParam !== "none") return urlParam;
+    const stored = sessionStorage.getItem("admin.rooms.category");
+    return stored && stored !== "none" ? stored : null;
+  });
+
+  // Direct category object (for when page is refreshed and category is not yet in displayRoomTypes)
+  const [directCategory, setDirectCategory] = useState(null);
+
+  // Category navigation helpers (syncs state, sessionStorage, and URL search param)
+  const handleSelectCategory = (catId) => {
+    const idStr = String(catId);
+    setSelectedCategoryId(idStr);
+    setRoomPage(0);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("admin.rooms.category", idStr);
+      const url = new URL(window.location.href);
+      url.searchParams.set("category", idStr);
+      window.history.pushState({ category: idStr }, "", url.toString());
+    }
+  };
+
+  const handleClearCategory = () => {
+    setSelectedCategoryId(null);
+    setDirectCategory(null);
+    setRoomPage(0);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("admin.rooms.category", "none");
+      const url = new URL(window.location.href);
+      url.searchParams.delete("category");
+      url.searchParams.delete("type");
+      window.history.pushState({}, "", url.toString());
+    }
+  };
+
+  // Browser Back/Forward navigation support (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window === "undefined") return;
+      const urlParam =
+        new URLSearchParams(window.location.search).get("category") ||
+        new URLSearchParams(window.location.search).get("type");
+      if (urlParam && urlParam !== "none") {
+        setSelectedCategoryId(urlParam);
+      } else {
+        setSelectedCategoryId(null);
+        setDirectCategory(null);
+      }
+      setRoomPage(0);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  // Keep URL search param and sessionStorage in sync with selectedCategoryId
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (selectedCategoryId) {
+      sessionStorage.setItem("admin.rooms.category", String(selectedCategoryId));
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("category") !== String(selectedCategoryId)) {
+        url.searchParams.set("category", String(selectedCategoryId));
+        window.history.replaceState({ category: selectedCategoryId }, "", url.toString());
+      }
+    }
+  }, [selectedCategoryId]);
+
   // Rooms table uses the standard pager (same as the other tables)
   const [roomPage, setRoomPage] = useState(0);
   const [roomRowsPerPage, setRoomRowsPerPage] = useState(10);
@@ -241,8 +313,7 @@ export default function RoomTypesPage({
   // Clicking "Rooms & Tariffs" in the sidebar always lands on the category list, not an opened category
   useEffect(() => {
     if (!resetToken) return;
-    setSelectedCategoryId(null);
-    setRoomPage(0);
+    handleClearCategory();
   }, [resetToken]);
   const [serverRooms, setServerRooms] = useState(null);
   const [liveTick, setLiveTick] = useState(0);
@@ -558,7 +629,7 @@ export default function RoomTypesPage({
       return;
     }
 
-    const catId = category?._id || category?.id || "";
+    const catId = category?._id || category?.id || selectedCategory?._id || selectedCategory?.id || "";
     setSelectedBedType("");
     setBedQuantity(1);
 
@@ -623,40 +694,162 @@ export default function RoomTypesPage({
     }
   };
 
-  const selectedCategory = displayRoomTypes.find((cat) => String(cat._id || cat.id) === String(selectedCategoryId)) || null;
-  const selectedRooms = selectedCategory
-    ? rooms.filter((r) => {
-        const typeId = typeof r.roomType === "object" ? (r.roomType?._id || r.roomType?.id) : (r.roomType || r.room_type_id || r.roomTypeId);
-        return String(typeId) === String(selectedCategory._id || selectedCategory.id) || (selectedCategory.name && (r.room_type_name || r.roomTypeName) === selectedCategory.name);
-      })
-    : [];
-  const selectedCategoryCounts = categoryStatusCounts(selectedCategory, selectedRooms);
+  // Directly load category details by id if page was refreshed or directly navigated
   useEffect(() => {
-    if (!selectedCategory) {
-      setServerRooms(null);
+    if (!selectedCategoryId) {
+      setDirectCategory(null);
+      return;
+    }
+    const sel = String(selectedCategoryId).trim().toLowerCase();
+    const found = displayRoomTypes.find(
+      (cat) =>
+        String(cat._id || cat.id || "").trim().toLowerCase() === sel ||
+        (cat.name && cat.name.trim().toLowerCase() === sel)
+    );
+    if (found) {
+      setDirectCategory(found);
       return;
     }
     let cancelled = false;
     (async () => {
-      const params = new URLSearchParams({
-        page: String(roomPage + 1),
-        limit: String(roomRowsPerPage),
-        room_type_id: String(selectedCategory._id || selectedCategory.id),
-      });
       try {
-        const res = await apiRequest(`${API_ENDPOINTS.ROOMS.ALL}?${params.toString()}`, { forceRefresh: true });
-        const list = Array.isArray(res?.data) ? res.data : [];
-        const rawTotal = res?.data?.total ?? res?.data?.pagination?.total ?? res?.data?.pagination?.totalRecords;
-        if (!cancelled && Number.isFinite(Number(rawTotal))) setServerRooms({ list, total: Number(rawTotal) });
-        else if (!cancelled) setServerRooms(null);
+        const res = await apiRequest(
+          (typeof API_ENDPOINTS.ROOM_TYPES?.BY_ID === "function" && API_ENDPOINTS.ROOM_TYPES.BY_ID(selectedCategoryId)) ||
+            `${API_ENDPOINTS.ROOM_TYPES.ALL}/${selectedCategoryId}`
+        );
+        const cat = res?.data?.roomType || res?.data?.room_type || res?.data?.data || res?.data;
+        if (!cancelled && cat && typeof cat === "object") {
+          setDirectCategory(cat);
+        }
       } catch {
-        if (!cancelled) setServerRooms(null);
+        // Fallback handled gracefully
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [selectedCategory, roomPage, roomRowsPerPage, liveTick, roomsRefreshToken]);
+  }, [selectedCategoryId, displayRoomTypes]);
+
+  const selectedCategory = useMemo(() => {
+    if (!selectedCategoryId) return null;
+    const sel = String(selectedCategoryId).trim().toLowerCase();
+    const found =
+      displayRoomTypes.find(
+        (cat) =>
+          String(cat._id || cat.id || "").trim().toLowerCase() === sel ||
+          (cat.name && cat.name.trim().toLowerCase() === sel)
+      ) ||
+      (directCategory &&
+        (String(directCategory._id || directCategory.id || "").trim().toLowerCase() === sel ||
+          (directCategory.name && directCategory.name.trim().toLowerCase() === sel))
+        ? directCategory
+        : null);
+
+    if (found) return found;
+
+    // Graceful fallback from serverRooms while categories list is loading on refresh
+    if (serverRooms?.list && serverRooms.list.length > 0) {
+      const sample = serverRooms.list[0];
+      const rtObj = typeof sample.roomType === "object" ? sample.roomType : null;
+      return {
+        _id: selectedCategoryId,
+        id: selectedCategoryId,
+        name: rtObj?.name || sample.type || sample.room_type_name || "Category",
+        basePrice: Number(sample.customPricePerNight || rtObj?.basePrice || sample.basePrice || 0),
+        room_status_counts: {
+          total_room_count: serverRooms.total || serverRooms.list.length,
+          available_count: serverRooms.list.filter((r) => String(r.status || "").toUpperCase() === "AVAILABLE").length,
+          occupied_count: serverRooms.list.filter((r) => {
+            const st = String(r.status || "").toUpperCase();
+            return st === "OCCUPIED" || st === "RESERVED" || st === "BOOKED";
+          }).length,
+          cleaning_count: serverRooms.list.filter((r) => String(r.status || "").toUpperCase() === "CLEANING").length,
+        },
+      };
+    }
+
+    // Temporary placeholder object while initial data fetches so view does not flash back to grid
+    return {
+      _id: selectedCategoryId,
+      id: selectedCategoryId,
+      name: "Loading...",
+      basePrice: 0,
+    };
+  }, [selectedCategoryId, displayRoomTypes, directCategory, serverRooms]);
+
+  // Auto-reset invalid selectedCategoryId ONLY after roomTypes finishes loading and no rooms exist
+  useEffect(() => {
+    if (
+      selectedCategoryId &&
+      displayRoomTypes.length > 0 &&
+      serverRooms !== null &&
+      (!serverRooms?.list || serverRooms.list.length === 0)
+    ) {
+      const sel = String(selectedCategoryId).trim().toLowerCase();
+      const existsInTypes = displayRoomTypes.some(
+        (cat) =>
+          String(cat._id || cat.id || "").trim().toLowerCase() === sel ||
+          (cat.name && cat.name.trim().toLowerCase() === sel)
+      );
+      if (!existsInTypes && !directCategory) {
+        handleClearCategory();
+      }
+    }
+  }, [selectedCategoryId, displayRoomTypes, serverRooms, directCategory]);
+
+  const selectedRooms = selectedCategory
+    ? (serverRooms?.list || rooms).filter((r) => {
+        const typeId = typeof r.roomType === "object" ? (r.roomType?._id || r.roomType?.id) : (r.roomType || r.room_type_id || r.roomTypeId);
+        return String(typeId) === String(selectedCategory._id || selectedCategory.id) || (selectedCategory.name && (r.room_type_name || r.roomTypeName) === selectedCategory.name);
+      })
+    : [];
+  const selectedCategoryCounts = categoryStatusCounts(selectedCategory, selectedRooms);
+
+  const [serverRoomsLoading, setServerRoomsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!selectedCategoryId) {
+      setServerRooms(null);
+      setServerRoomsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setServerRoomsLoading(true);
+    (async () => {
+      const catId = String(selectedCategory?._id || selectedCategory?.id || selectedCategoryId || "");
+      const params = new URLSearchParams({
+        page: String(roomPage + 1),
+        limit: String(roomRowsPerPage),
+        room_type_id: catId,
+      });
+      try {
+        const res = await apiRequest(`${API_ENDPOINTS.ROOMS.ALL}?${params.toString()}`, { forceRefresh: true });
+        const list = Array.isArray(res?.data)
+          ? res.data
+          : Array.isArray(res?.data?.rooms)
+          ? res.data.rooms
+          : Array.isArray(res?.rooms)
+          ? res.rooms
+          : [];
+        const rawTotal =
+          res?.data?.total ??
+          res?.data?.pagination?.total ??
+          res?.data?.pagination?.totalRecords ??
+          res?.total;
+        if (!cancelled) {
+          if (Number.isFinite(Number(rawTotal))) setServerRooms({ list, total: Number(rawTotal) });
+          else setServerRooms({ list, total: list.length });
+        }
+      } catch {
+        if (!cancelled) setServerRooms(null);
+      } finally {
+        if (!cancelled) setServerRoomsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCategoryId, selectedCategory?._id, selectedCategory?.id, roomPage, roomRowsPerPage, liveTick, roomsRefreshToken]);
 
   // Always use server page for category rooms — never slice a parent dump
   const pagedRooms = serverRooms?.list || [];
@@ -733,7 +926,7 @@ export default function RoomTypesPage({
             <Button
               variant="outlined"
               startIcon={<Add />}
-              onClick={() => handleOpenAddRoomForCategory(null)}
+              onClick={() => handleOpenAddRoomForCategory(selectedCategory)}
               sx={{
                 height: 40,
                 borderRadius: "10px",
@@ -776,7 +969,7 @@ export default function RoomTypesPage({
               <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
                 <Tooltip title="All categories" arrow>
                   <IconButton
-                    onClick={() => { setSelectedCategoryId(null); setRoomPage(0); }}
+                    onClick={handleClearCategory}
                     aria-label="All categories"
                     sx={{ color: themeConfig.textMain, borderRadius: "10px", border: `1px solid ${themeConfig.border}` }}
                   >
@@ -788,13 +981,17 @@ export default function RoomTypesPage({
                     {selectedCategory.name}
                   </Typography>
                   <Typography sx={{ color: themeConfig.textMuted, fontSize: "0.78rem" }}>
-                    {selectedCategoryCounts.total} {selectedCategoryCounts.total === 1 ? "room" : "rooms"}
+                    {serverRooms?.total ?? selectedCategoryCounts.total} {(serverRooms?.total ?? selectedCategoryCounts.total) === 1 ? "room" : "rooms"}
                   </Typography>
                 </Box>
               </Box>
             }
           />
-          {(serverRooms ? serverRooms.total : selectedRooms.length) === 0 ? (
+          {serverRoomsLoading && !serverRooms ? (
+            <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 8 }}>
+              <CircularProgress size={32} sx={{ color: themeConfig.primary }} />
+            </Box>
+          ) : (serverRooms ? serverRooms.total : selectedRooms.length) === 0 ? (
             <EmptyState embedded title="No rooms in this category" description={`${selectedCategory.name} does not have any rooms yet.`} />
           ) : (
             <>
@@ -980,7 +1177,7 @@ export default function RoomTypesPage({
                 return (
                   <Card
                     key={cat._id || cat.id || cat.name}
-                    onClick={() => { setSelectedCategoryId(cat._id || cat.id); setRoomPage(0); }}
+                    onClick={() => handleSelectCategory(cat._id || cat.id)}
                     sx={{
                       p: 2.25,
                       borderRadius: "16px",

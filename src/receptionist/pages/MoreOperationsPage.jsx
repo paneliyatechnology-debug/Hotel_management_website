@@ -14,7 +14,6 @@ import {
   Phone,
   Business,
   Badge,
-  Schedule,
   CheckCircle,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
@@ -29,8 +28,6 @@ export default function MoreOperationsPage({ user, hotelSettings, onLogout }) {
   const userRole = user?.role || "RECEPTIONIST";
   const hotelName = user?.hotel?.name || "Premium Hotel Property";
   const hotelAddress = user?.hotel?.address || "Front Desk Operations";
-  const checkInTime = hotelSettings?.checkInTime || user?.hotel?.settings?.checkInTime || "14:00";
-  const checkOutTime = hotelSettings?.checkOutTime || user?.hotel?.settings?.checkOutTime || "12:00";
 
   const roleLabel = String(userRole).replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
@@ -266,6 +263,7 @@ export default function MoreOperationsPage({ user, hotelSettings, onLogout }) {
               borderRadius: "14px",
               bgcolor: isDarkMode ? "rgba(255, 255, 255, 0.03)" : "#F8FAFC",
               border: `1px solid ${themeConfig.border}`,
+              gridColumn: { sm: "span 2" },
             }}
           >
             <Typography
@@ -288,35 +286,6 @@ export default function MoreOperationsPage({ user, hotelSettings, onLogout }) {
             <Typography variant="caption" sx={{ color: themeConfig.textMuted, display: "block" }}>
               {hotelAddress}
             </Typography>
-          </Box>
-
-          {/* Operating Hours */}
-          <Box
-            sx={{
-              p: 2,
-              borderRadius: "14px",
-              bgcolor: isDarkMode ? "rgba(255, 255, 255, 0.03)" : "#F8FAFC",
-              border: `1px solid ${themeConfig.border}`,
-            }}
-          >
-            <Typography
-              variant="caption"
-              sx={{
-                fontWeight: 700,
-                color: themeConfig.textMuted,
-                display: "flex",
-                alignItems: "center",
-                gap: 0.8,
-                mb: 0.5,
-              }}
-            >
-              <Schedule sx={{ fontSize: 15, color: themeConfig.primary }} />
-              Check-In / Out Policy
-            </Typography>
-            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 0.6 }}>
-              <Chip label={`Check-in ${checkInTime}`} size="small" sx={{ fontWeight: 800, bgcolor: "rgba(16,185,129,0.12)", color: "#059669" }} />
-              <Chip label={`Check-out ${checkOutTime}`} size="small" sx={{ fontWeight: 800, bgcolor: "rgba(11,142,224,0.12)", color: "#0284C7" }} />
-            </Box>
           </Box>
         </Box>
       </Card>

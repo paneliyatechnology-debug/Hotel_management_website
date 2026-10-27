@@ -78,15 +78,16 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
         const posTotal = (detail.posCharges || []).reduce((s, c) => s + (c.amount || 0), 0);
         // Keep charges already saved on the booking (e.g. deposit); otherwise start from POS charges
         const extraCharges = Number(detail.extra_charges_total ?? detail.extraChargesTotal) || posTotal;
-        const discount = Number(detail.discount_amount ?? detail.discountAmount) || 0;
+        const initialDiscount = Number(detail.discount_amount ?? detail.discountAmount) || 0;
         // Late check-out charges are entered by the receptionist (no automatic counting)
-        const due = computeCheckoutBill(detail, extraCharges, 0, discount).due;
+        const billInitial = computeCheckoutBill(detail, extraCharges, 0, initialDiscount);
+        const safeDiscount = Math.min(initialDiscount, billInitial.maxDiscount);
         setState({
           ...EMPTY,
           detail,
           extraCharges,
-          discount,
-          amount: due,
+          discount: safeDiscount,
+          amount: billInitial.due,
           paymentMethod: defaultPaymentMethod,
         });
       } catch (err) {
@@ -117,11 +118,8 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
   const updateCharges = (patch) =>
     setState((prev) => {
       const next = { ...prev, ...patch };
-      const preview = computeCheckoutBill(next.detail, next.extraCharges, next.lateFee, next.discount);
-      const maxDiscount = preview.base;
-      const discountNum = Math.min(Math.max(0, Number(next.discount) || 0), maxDiscount);
-      next.discount = discountNum;
-      next.amount = computeCheckoutBill(next.detail, next.extraCharges, next.lateFee, discountNum).due;
+      const rawDiscount = next.discount === "" ? 0 : Number(next.discount) || 0;
+      next.amount = computeCheckoutBill(next.detail, next.extraCharges, next.lateFee, rawDiscount).due;
       return next;
     });
 
@@ -135,10 +133,15 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
   const bill = computeCheckoutBill(detail, state.extraCharges, state.lateFee, state.discount);
   // Always collect exactly the balance due — no more, no less (sent to API, not shown in UI)
   const collectNow = bill.due;
-  const discountError =
-    Number(state.discount) > bill.base + 0.001
-      ? `Discount cannot exceed room charges (${inr(bill.base)})`
-      : "";
+  const enteredDiscount = state.discount === "" ? 0 : Number(state.discount) || 0;
+  let discountError = "";
+  if (enteredDiscount > bill.base + 0.001) {
+    discountError = `Discount cannot exceed room charges (${inr(bill.base)})`;
+  } else if (bill.paid > 0 && bill.maxDiscount <= 0.001 && enteredDiscount > 0.001) {
+    discountError = `No discount allowed (Booking is already fully covered by advance paid of ${inr(bill.paid)})`;
+  } else if (bill.paid > 0 && enteredDiscount > bill.maxDiscount + 0.001) {
+    discountError = `Discount cannot exceed ${inr(bill.maxDiscount)} (Total bill cannot be less than advance paid of ${inr(bill.paid)})`;
+  }
   const remainingAfter = 0;
   const lateHoursValue = Number(state.lateHours) || 0;
   const lateHoursError =
@@ -159,9 +162,15 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
 
   const handleConfirm = async () => {
     if (!detail || !onCheckOut) return;
-    const dueNow = computeCheckoutBill(detail, state.extraCharges, state.lateFee, state.discount).due;
-    if ((Number(state.discount) || 0) > bill.base + 0.001) {
-      setError(`Discount cannot exceed room charges (${inr(bill.base)})`);
+    const currentBill = computeCheckoutBill(detail, state.extraCharges, state.lateFee, state.discount);
+    if (discountError) {
+      setError(discountError);
+      return;
+    }
+    if (currentBill.isOverpaid || currentBill.billTotal < currentBill.paid - 0.009) {
+      setError(
+        `Discount cannot exceed ${inr(currentBill.maxDiscount)} (Total bill of ${inr(currentBill.billTotal)} cannot be less than advance paid of ${inr(currentBill.paid)})`
+      );
       return;
     }
     if (lateHoursValue > 24) {
@@ -174,9 +183,9 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
       await onCheckOut(detail, {
         paymentMethod: state.paymentMethod,
         extraCharges: Number(state.extraCharges) || 0,
-        discount: Math.min(Number(state.discount) || 0, bill.base),
+        discount: Math.min(Number(state.discount) || 0, currentBill.maxDiscount),
         notes: state.notes || "",
-        settlementPaymentAmount: dueNow,
+        settlementPaymentAmount: currentBill.due,
         lateCheckoutFee: Number(state.lateFee) || 0,
         lateCheckoutType: Number(state.lateFee) > 0 ? "manual" : "none",
         lateCheckoutHours: lateHoursValue,
@@ -322,10 +331,10 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
               </Box>
             </Box>
 
-            {/* Additional charges — 2×2 so all four fields stay aligned */}
+            {/* Additional charges */}
             <Box>
               {sectionTitle("Additional charges")}
-              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <TextField
                   fullWidth
                   size="small"
@@ -336,47 +345,57 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
                   onChange={(e) => updateCharges({ extraCharges: sanitizeAmount(e.target.value) })}
                   slotProps={{ htmlInput: { inputMode: "decimal" } }}
                 />
+
+                {/* Temporarily hidden: Discount field
                 <TextField
                   fullWidth
                   size="small"
                   autoComplete="off"
                   label="Discount (₹)"
                   placeholder="0"
-                  value={Number(state.discount) ? state.discount : ""}
+                  value={Number(state.discount) ? state.discount : (state.discount === "0" ? "0" : "")}
                   error={Boolean(discountError)}
-                  helperText={discountError || `Max ${inr(bill.base)}`}
+                  helperText={
+                    discountError ||
+                    (bill.maxDiscount <= 0
+                      ? `Max ₹0 (Already fully paid with ${inr(bill.paid)})`
+                      : `Max ${inr(bill.maxDiscount)}`)
+                  }
                   onChange={(e) => {
                     const raw = sanitizeAmount(e.target.value);
-                    const capped = Math.min(Number(raw) || 0, bill.base);
-                    updateCharges({ discount: raw === "" ? "" : capped });
+                    updateCharges({ discount: raw });
                   }}
                   slotProps={{ htmlInput: { inputMode: "decimal" } }}
                 />
-                <TextField
-                  fullWidth
-                  size="small"
-                  autoComplete="off"
-                  label="Late check-out hours"
-                  placeholder="0"
-                  value={Number(state.lateHours) ? state.lateHours : ""}
-                  error={Boolean(lateHoursError)}
-                  helperText={lateHoursError || "Maximum 24 hours"}
-                  onChange={(e) => {
-                    const hours = sanitizeAmount(e.target.value).split(".")[0];
-                    update({ lateHours: hours });
-                  }}
-                  slotProps={{ htmlInput: { inputMode: "numeric", max: 24 } }}
-                />
-                <TextField
-                  fullWidth
-                  size="small"
-                  autoComplete="off"
-                  label="Late check-out charge (₹)"
-                  placeholder="0"
-                  value={Number(state.lateFee) ? state.lateFee : ""}
-                  onChange={(e) => updateCharges({ lateFee: sanitizeAmount(e.target.value) })}
-                  slotProps={{ htmlInput: { inputMode: "decimal" } }}
-                />
+                */}
+
+                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    autoComplete="off"
+                    label="Late check-out hours"
+                    placeholder="0"
+                    value={Number(state.lateHours) ? state.lateHours : ""}
+                    error={Boolean(lateHoursError)}
+                    helperText={lateHoursError || "Maximum 24 hours"}
+                    onChange={(e) => {
+                      const hours = sanitizeAmount(e.target.value).split(".")[0];
+                      update({ lateHours: hours });
+                    }}
+                    slotProps={{ htmlInput: { inputMode: "numeric", max: 24 } }}
+                  />
+                  <TextField
+                    fullWidth
+                    size="small"
+                    autoComplete="off"
+                    label="Late check-out charge (₹)"
+                    placeholder="0"
+                    value={Number(state.lateFee) ? state.lateFee : ""}
+                    onChange={(e) => updateCharges({ lateFee: sanitizeAmount(e.target.value) })}
+                    slotProps={{ htmlInput: { inputMode: "decimal" } }}
+                  />
+                </Box>
               </Box>
             </Box>
 
@@ -426,7 +445,7 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
               <Box sx={{ p: 2, borderRadius: "12px", border: `1px solid ${themeConfig.border}`, bgcolor: themeConfig.bgCard || "#FFFFFF" }}>
                 {billRow("Room charges", inr(bill.base), { hint: "Before tax" })}
                 {billRow("Discount", bill.discount > 0 ? `-${inr(bill.discount)}` : inr(0), {
-                  color: bill.discount > 0 ? themeConfig.tones.success.color : undefined,
+                  color: bill.discount > 0 ? (discountError ? themeConfig.tones.danger.color : themeConfig.tones.success.color) : undefined,
                 })}
                 {billRow("Extra charges", bill.extra > 0 ? `+${inr(bill.extra)}` : inr(0))}
                 {billRow("Late check-out charges", bill.late > 0 ? `+${inr(bill.late)}` : inr(0), {
@@ -437,33 +456,65 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
                 {billRow(`SGST (${bill.gstRate / 2}%)`, `+${inr(bill.sgst)}`)}
                 {billRow("Total bill", inr(bill.billTotal), { strong: true, hint: "Taxable amount + GST" })}
                 {billRow("Advance paid", `-${inr(bill.paid)}`, { color: themeConfig.tones.success.color })}
-                {billRow("Balance due", inr(bill.due), {
-                  strong: true,
-                  hint: `${inr(bill.billTotal)} - ${inr(bill.paid)}`,
-                  color: bill.due > 0 ? themeConfig.tones.danger.color : themeConfig.tones.success.color,
-                })}
+                {bill.isOverpaid ? (
+                  billRow("Balance due", inr(0), {
+                    strong: true,
+                    hint: `${inr(bill.billTotal)} - ${inr(bill.paid)} (Overpaid by ${inr(bill.overpaidAmount)})`,
+                    color: themeConfig.tones.danger.color,
+                  })
+                ) : (
+                  billRow("Balance due", inr(bill.due), {
+                    strong: true,
+                    hint: `${inr(bill.billTotal)} - ${inr(bill.paid)}`,
+                    color: bill.due > 0 ? themeConfig.tones.danger.color : themeConfig.tones.success.color,
+                  })
+                )}
                 {collectNow > 0 && billRow("Collecting now", `-${inr(collectNow)}`, { color: themeConfig.tones.success.color })}
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    mt: 1,
-                    px: 1.5,
-                    py: 1,
-                    borderRadius: "10px",
-                    bgcolor: remainingAfter > 0 ? themeConfig.tones.danger.bg : themeConfig.tones.success.bg,
-                  }}
-                >
-                  <Typography sx={{ fontWeight: 700, fontSize: "0.88rem", color: remainingAfter > 0 ? themeConfig.tones.danger.color : themeConfig.tones.success.color }}>
-                    {remainingAfter > 0 ? "Remaining after check-out" : "Fully settled"}
-                  </Typography>
-                  <Typography sx={{ fontWeight: 700, fontSize: "1rem", color: remainingAfter > 0 ? themeConfig.tones.danger.color : themeConfig.tones.success.color }}>
-                    {inr(remainingAfter)}
-                  </Typography>
-                </Box>
-                <Typography sx={{ mt: 1.5, color: themeConfig.textMuted, fontSize: "0.76rem", lineHeight: 1.6 }}>
-                  {`${inr(bill.base)} - ${inr(bill.discount)} discount + ${inr(bill.extra)} extra + ${inr(bill.late)} late = ${inr(bill.taxable)}; + ${bill.gstRate}% GST ${inr(bill.gstAmount)} = ${inr(bill.billTotal)}; - ${inr(bill.paid)} advance = ${inr(bill.due)} due`}
+                {bill.isOverpaid ? (
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      mt: 1,
+                      px: 1.5,
+                      py: 1,
+                      borderRadius: "10px",
+                      bgcolor: themeConfig.tones.danger.bg,
+                    }}
+                  >
+                    <Typography sx={{ fontWeight: 700, fontSize: "0.85rem", color: themeConfig.tones.danger.color }}>
+                      Discount exceeds allowable limit (Bill less than advance)
+                    </Typography>
+                    <Typography sx={{ fontWeight: 700, fontSize: "0.95rem", color: themeConfig.tones.danger.color }}>
+                      -{inr(bill.overpaidAmount)}
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      mt: 1,
+                      px: 1.5,
+                      py: 1,
+                      borderRadius: "10px",
+                      bgcolor: remainingAfter > 0 ? themeConfig.tones.danger.bg : themeConfig.tones.success.bg,
+                    }}
+                  >
+                    <Typography sx={{ fontWeight: 700, fontSize: "0.88rem", color: remainingAfter > 0 ? themeConfig.tones.danger.color : themeConfig.tones.success.color }}>
+                      {remainingAfter > 0 ? "Remaining after check-out" : "Fully settled"}
+                    </Typography>
+                    <Typography sx={{ fontWeight: 700, fontSize: "1rem", color: remainingAfter > 0 ? themeConfig.tones.danger.color : themeConfig.tones.success.color }}>
+                      {inr(remainingAfter)}
+                    </Typography>
+                  </Box>
+                )}
+                <Typography sx={{ mt: 1.5, color: bill.isOverpaid ? themeConfig.tones.danger.color : themeConfig.textMuted, fontSize: "0.76rem", lineHeight: 1.6 }}>
+                  {bill.isOverpaid
+                    ? `${inr(bill.base)} - ${inr(bill.discount)} discount + ${inr(bill.extra)} extra + ${inr(bill.late)} late = ${inr(bill.taxable)}; + ${bill.gstRate}% GST ${inr(bill.gstAmount)} = ${inr(bill.billTotal)}; - ${inr(bill.paid)} advance = -${inr(bill.overpaidAmount)} (Advance exceeds total bill by ${inr(bill.overpaidAmount)})`
+                    : `${inr(bill.base)} - ${inr(bill.discount)} discount + ${inr(bill.extra)} extra + ${inr(bill.late)} late = ${inr(bill.taxable)}; + ${bill.gstRate}% GST ${inr(bill.gstAmount)} = ${inr(bill.billTotal)}; - ${inr(bill.paid)} advance = ${inr(bill.due)} due`}
                 </Typography>
               </Box>
             </Box>
@@ -482,7 +533,7 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
         <FolioPdfButton booking={state.detail || booking} label="Generate Folio" />
         <Button
           variant="contained"
-          disabled={submitting || loading || !detail || Boolean(discountError) || Boolean(lateHoursError)}
+          disabled={submitting || loading || !detail || Boolean(discountError) || Boolean(lateHoursError) || bill.isOverpaid}
           onClick={handleConfirm}
           startIcon={<Logout sx={{ fontSize: 16 }} />}
           sx={{
@@ -497,7 +548,13 @@ export default function CheckoutDialog({ open, onClose, booking, roomNumber, hot
             "&:hover": { bgcolor: themeConfig.primaryDark, boxShadow: "none" },
           }}
         >
-          {submitting ? "Processing..." : collectNow > 0 ? `Collect ${inr(collectNow)} & check out` : "Complete check-out"}
+          {submitting
+            ? "Processing..."
+            : bill.isOverpaid
+              ? "Reduce discount to proceed"
+              : collectNow > 0
+                ? `Collect ${inr(collectNow)} & check out`
+                : "Complete check-out"}
         </Button>
       </DialogActions>
     </Dialog>

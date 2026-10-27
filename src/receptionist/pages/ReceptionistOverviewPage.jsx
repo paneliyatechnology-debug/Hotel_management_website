@@ -1063,22 +1063,8 @@ export default function ReceptionistOverviewPage({
       {/* ========================================================================= */}
       {/* SECTION 4: RECENT FRONT DESK CHECK-INS & IN-HOUSE FOLIOS                  */}
       {/* ========================================================================= */}
-      <TableCard>
-        <TableToolbar>
-          <TextField
-            select
-            size="small"
-            value={recentFilter}
-            onChange={(e) => { setRecentFilter(e.target.value); setGuestPage(0); }}
-            sx={tableFieldSx(themeConfig, 220)}
-          >
-            <MenuItem value="ALL">All{recentFilter === "ALL" ? ` (${countAll})` : ""}</MenuItem>
-            <MenuItem value="CHECK_IN">Check-in{recentFilter === "CHECK_IN" ? ` (${countAll})` : ""}</MenuItem>
-            <MenuItem value="CHECK_OUT">Check-out{recentFilter === "CHECK_OUT" ? ` (${countAll})` : ""}</MenuItem>
-          </TextField>
-        </TableToolbar>
-
-          <TableContainer sx={{ overflowX: "auto" }}>
+      <TableCard sx={{ "& .MuiTableContainer-root": { mt: "calc(-1 * var(--table-card-pad))" } }}>
+        <TableContainer sx={{ overflowX: "auto" }}>
             <Table size="medium" sx={{ minWidth: 980 }}>
               <TableHead>
                 <TableRow>

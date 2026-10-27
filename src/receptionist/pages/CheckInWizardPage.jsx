@@ -1463,8 +1463,14 @@ export default function CheckInWizardPage({
   // Combined nightly × nights only — do NOT multiply by room count again
   const grossRoomCharge = baseTariffTotal;
   const rateError = combinedNightlyRate > 0 ? "" : "Enter a rate greater than 0";
-  const discountError = Number(checkInData.discountAmount) > grossRoomCharge ? "Discount cannot exceed the room charges" : "";
+  const discountVal = Number(checkInData.discountAmount) || 0;
   const advancePaid = Number(checkInData.paid) || 0;
+  let discountError = "";
+  if (discountVal > grossRoomCharge) {
+    discountError = "Discount cannot exceed the room charges";
+  } else if (advancePaid > 0 && discountVal > 0 && calculatedGrandTotal < advancePaid - 0.009) {
+    discountError = `Discount cannot exceed allowable amount (Total bill cannot be less than advance paid of ₹${advancePaid.toLocaleString("en-IN")})`;
+  }
   const balanceDue = Math.max(0, calculatedGrandTotal - advancePaid);
   const paidError = advancePaid > calculatedGrandTotal ? "Advance cannot exceed the total amount" : "";
   const selectedPaymentMethod = checkInData.paymentMethod || defaultPaymentMethod;

@@ -35,7 +35,7 @@ import {
   CreditCard,
   Close,
   ArrowBack,
-  TrendingUp,
+  AccountBalanceWallet,
 } from "@/shared/icons";
 import { useAppTheme } from "@/shared/context/ThemeContext";
 import { useSocket } from "@/shared/context/SocketContext";
@@ -266,7 +266,9 @@ export default function RevenueDetailsPage({ onBackToDashboard, initialFilter = 
   const totalTxnCount = summary
     ? Number(summary.total_booking_count ?? summary.totalBookingCount ?? txnState.total ?? 0)
     : txnState.total;
-  const avgTicket = totalTxnCount > 0 ? Math.round(totalRev / totalTxnCount) : 0;
+  const totalOutstanding = summary
+    ? Number(summary.total_outstanding_amount ?? summary.totalOutstandingAmount ?? 0)
+    : Number(dashboardData?.financials?.outstandingDue ?? kpis.total_outstanding_due ?? kpis.totalOutstandingDue ?? 0);
   const shareBase = sourcesTotal > 0 ? sourcesTotal : totalRev;
   const sharePercent = (amount) => {
     if (!(shareBase > 0)) return 0;
@@ -422,28 +424,28 @@ export default function RevenueDetailsPage({ onBackToDashboard, initialFilter = 
             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <Box>
                 <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  Avg ticket
+                  Outstanding Amount
                 </Typography>
-                <Typography variant="h3" sx={{ fontWeight: 900, color: themeConfig.primary, mt: 0.5, letterSpacing: "-1px", fontSize: { xs: "1.5rem", sm: "2.2rem" } }}>
-                  ₹{avgTicket.toLocaleString()}
+                <Typography variant="h3" sx={{ fontWeight: 900, color: totalOutstanding > 0 ? (themeConfig.danger || "#EF4444") : themeConfig.primary, mt: 0.5, letterSpacing: "-1px", fontSize: { xs: "1.5rem", sm: "2.2rem" } }}>
+                  ₹{totalOutstanding.toLocaleString("en-IN")}
                 </Typography>
               </Box>
               <Box
                 sx={{
                   p: 1.2,
                   borderRadius: "14px",
-                  bgcolor: themeConfig.champagne,
-                  color: themeConfig.primary,
+                  bgcolor: totalOutstanding > 0 ? (themeConfig.dangerBg || "rgba(180, 35, 24, 0.10)") : themeConfig.champagne,
+                  color: totalOutstanding > 0 ? (themeConfig.danger || "#EF4444") : themeConfig.primary,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <TrendingUp sx={{ fontSize: 26 }} />
+                <AccountBalanceWallet sx={{ fontSize: 26 }} />
               </Box>
             </Box>
             <Typography variant="caption" sx={{ color: themeConfig.textMuted, fontWeight: 700, display: "block", mt: 1 }}>
-              Per booking
+              Pending balance
             </Typography>
           </Paper>
         </Grid>

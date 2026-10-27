@@ -53,7 +53,7 @@ import {
   WhatsApp,
   CurrencyRupee,
   Receipt,
-  TrendingUp,
+  AccountBalanceWallet,
   Search,
   Logout,
   Print,
@@ -809,7 +809,7 @@ export default function ReceptionistOverviewPage({
   const money = (value) => `₹${Number(value || 0).toLocaleString("en-IN")}`;
   const todayCollected = Number(daySummary?.total_collected_amount ?? daySummary?.totalCollectedAmount ?? 0);
   const todayBookings = Number(daySummary?.total_booking_count ?? daySummary?.totalBookingCount ?? 0);
-  const avgTicket = todayBookings > 0 ? Math.round(todayCollected / todayBookings) : 0;
+  const todayOutstanding = Number(daySummary?.total_outstanding_amount ?? daySummary?.totalOutstandingAmount ?? 0);
   const SOURCE_COLORS = [themeConfig.primary, "#8B5CF6", "#F59E0B", "#10B981", "#EF4444", "#06B6D4"];
   const sourceBoxes = buildPaymentCollectionSourceRows(summaryMethods, hotelPaymentMethods).map(
     (row, index) => ({
@@ -840,7 +840,7 @@ export default function ReceptionistOverviewPage({
         {[
           { label: "Revenue", value: money(todayCollected), color: "#10B981", note: "Collected", icon: <CurrencyRupee sx={{ fontSize: 22 }} /> },
           { label: "Transactions", value: String(todayBookings), color: themeConfig.textMain, note: "In range", icon: <Receipt sx={{ fontSize: 22 }} /> },
-          { label: "Avg ticket", value: money(avgTicket), color: themeConfig.primary, note: "Per booking", icon: <TrendingUp sx={{ fontSize: 22 }} /> },
+          { label: "Outstanding Amount", value: money(todayOutstanding), color: todayOutstanding > 0 ? (themeConfig.danger || "#EF4444") : themeConfig.primary, note: "Pending balance", icon: <AccountBalanceWallet sx={{ fontSize: 22 }} /> },
         ].map((card) => (
           <Paper key={card.label} elevation={0} sx={{ p: 2, borderRadius: "16px", border: `1px solid ${themeConfig.border}`, bgcolor: themeConfig.bgCard || "#FFFFFF", minWidth: 0 }}>
             <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>

@@ -275,6 +275,9 @@ function HotelWebAppContent() {
               role: "HOTEL_ADMIN",
               hotel: { is_active: false, status: "DISABLED", statusReason: message },
             });
+          } else if (err?.status === 401 || err?.status === 403 || /unauthorized|invalid token|jwt/i.test(message)) {
+            console.warn("Session invalid on /auth/me check. Logging out...");
+            handleLogout();
           }
         });
     }
@@ -338,8 +341,8 @@ function HotelWebAppContent() {
   // ── Route guard ─────────────────────────────────────────────
   // 1. Signed out  -> /login (remembering where the user was heading)
   // 2. Unsupported role -> sign out
-  // 3. Signed in   -> keep the URL on the role's own base path + a real page
-  //    (/app, /rooms, /admin on a receptionist session, bare /admin ... are rewritten in place)
+  // 3. Role-based unauthorized access protection
+  // 4. Signed in   -> keep the URL on the role's own base path + a real page
   useEffect(() => {
     if (!user) {
       const next = pathname && pathname !== "/" ? `?redirect=${encodeURIComponent(pathname)}` : "";
@@ -350,6 +353,17 @@ function HotelWebAppContent() {
       handleLogout();
       return;
     }
+
+    // Role-based route guard
+    if (user.role === "RECEPTIONIST" && (pathname.startsWith("/admin") || pathname.startsWith("/super-admin"))) {
+      router.replace("/receptionist/dashboard");
+      return;
+    }
+    if (user.role === "HOTEL_ADMIN" && pathname.startsWith("/super-admin")) {
+      router.replace("/admin/overview");
+      return;
+    }
+
     const canonical = getCanonicalPath(currentEffectiveRole, pathname);
     if (typeof window !== "undefined" && window.location.pathname !== canonical) {
       window.history.replaceState(null, "", canonical);

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import {
@@ -18,9 +19,10 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { API_ENDPOINTS, apiRequest } from "@/config/api";
-import { setAuthCookies } from "@/shared/utils/cookieAuth";
+import { clearAuthCookies } from "@/shared/utils/cookieAuth";
 
 export default function RegisterHotelPage() {
+  const router = useRouter();
   const [activeStep, setActiveStep] = useState(1);
   const [formData, setFormData] = useState({
     hotelName: "",
@@ -50,7 +52,24 @@ export default function RegisterHotelPage() {
 
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [countdown, setCountdown] = useState(5);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!submitted) return;
+    const interval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          const emailQuery = formData.email ? `&email=${encodeURIComponent(formData.email)}` : "";
+          router.push(`/login?registered=true${emailQuery}`);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [submitted, formData.email, router]);
   const steps = [
     {
       id: 1,
@@ -205,21 +224,19 @@ export default function RegisterHotelPage() {
         payload.panNumber = panTrimmed;
       }
 
-      const res = await apiRequest(API_ENDPOINTS.HOTELS.REGISTER, {
+      await apiRequest(API_ENDPOINTS.HOTELS.REGISTER, {
         method: "POST",
         body: payload,
       });
 
-      if (res?.data?.auth?.accessToken) {
-        localStorage.setItem("token", res.data.auth.accessToken);
-        if (res.data.admin) {
-          localStorage.setItem("user", JSON.stringify(res.data.admin));
-        }
-        setAuthCookies({
-          accessToken: res.data.auth.accessToken,
-          user: res.data.admin,
-        });
-      }
+      // Clear any active authentication sessions so the new hotel admin
+      // MUST log in via the login portal with their credentials
+      try {
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("user");
+        clearAuthCookies();
+      } catch {}
 
       setSubmitted(true);
     } catch (err) {
@@ -422,13 +439,16 @@ export default function RegisterHotelPage() {
                       </p>
                     </div>
 
-                    <div className="pt-2">
+                    <div className="pt-2 flex flex-col items-center gap-3">
                       <Link
-                        href="/login"
+                        href={`/login?registered=true${formData.email ? `&email=${encodeURIComponent(formData.email)}` : ""}`}
                         className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full bg-[#00C2A8] hover:bg-[#00A892] text-white font-extrabold text-xs shadow-md shadow-[#00C2A8]/30 transition-all hover:scale-[1.02]"
                       >
-                        Go to Login Portal →
+                        Go to Login Portal Now →
                       </Link>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        Redirecting automatically in {countdown} second{countdown !== 1 ? "s" : ""}...
+                      </p>
                     </div>
                   </div>
                 ) : (

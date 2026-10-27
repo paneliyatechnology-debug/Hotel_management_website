@@ -38,9 +38,9 @@ function withoutSpaces(value) {
     .replace(/\s+/g, "");
 }
 
-export default function UnifiedLogin({ onLoginSuccess }) {
+export default function UnifiedLogin({ onLoginSuccess, initialEmail = "", registrationSuccess = false }) {
   const { themeConfig, isDarkMode } = useAppTheme();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialEmail || "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -138,7 +138,22 @@ export default function UnifiedLogin({ onLoginSuccess }) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [changeLoading, setChangeLoading] = useState(false);
   const [changeError, setChangeError] = useState("");
-  const [loginSuccessMsg, setLoginSuccessMsg] = useState("");
+  const [loginSuccessMsg, setLoginSuccessMsg] = useState(
+    registrationSuccess
+      ? "Hotel registered successfully! Please log in with your admin credentials to access your dashboard."
+      : ""
+  );
+
+  useEffect(() => {
+    if (initialEmail) {
+      setEmail(initialEmail);
+    }
+    if (registrationSuccess) {
+      setLoginSuccessMsg(
+        "Hotel registered successfully! Please log in with your admin credentials to access your dashboard."
+      );
+    }
+  }, [initialEmail, registrationSuccess]);
 
   const handleLogin = async (e) => {
     if (e) e.preventDefault();

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AppThemeProvider } from "@/shared/context/ThemeContext";
 import { SocketProvider } from "@/shared/context/SocketContext";
 import UnifiedLogin from "@/auth/components/UnifiedLogin";
-import { getCookie } from "@/shared/utils/cookieAuth";
+import { clearAuthCookies, getCookie } from "@/shared/utils/cookieAuth";
 import { getHomePath, isKnownRole, sanitizeRedirectPath } from "@/shared/utils/roleRoutes";
 
 // Where to send a signed-in user: the page they were heading to (?redirect=...) or their role's home
@@ -31,9 +31,14 @@ function readStoredSession() {
 
 function HotelLoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isRegistered = searchParams.get("registered") === "true";
+  const initialEmail = searchParams.get("email") || "";
 
   return (
     <UnifiedLogin
+      initialEmail={initialEmail}
+      registrationSuccess={isRegistered}
       onLoginSuccess={(user) => {
         if (typeof window !== "undefined") {
           localStorage.setItem("user", JSON.stringify(user));
@@ -49,6 +54,20 @@ export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // If arriving immediately after hotel registration, ensure fresh login state
+    const params = new URLSearchParams(window.location.search);
+    const isRegistered = params.get("registered") === "true";
+    if (isRegistered) {
+      try {
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("user");
+        clearAuthCookies();
+      } catch {}
+      setMounted(true);
+      return;
+    }
+
     // Already signed in -> skip the login form and go straight to the dashboard
     const session = readStoredSession();
     if (session) {
@@ -63,7 +82,9 @@ export default function LoginPage() {
   return (
     <AppThemeProvider>
       <SocketProvider>
-        <HotelLoginContent />
+        <Suspense fallback={null}>
+          <HotelLoginContent />
+        </Suspense>
       </SocketProvider>
     </AppThemeProvider>
   );
